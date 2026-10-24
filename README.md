@@ -232,13 +232,13 @@ Configure planning and execution models, then select `easymint-auto` under the p
 ```bash
 git clone https://github.com/tianemon/EasyMint.git
 cd EasyMint
-npm install
+node scripts/install-deps.cjs
 npm run dev          # Vite dev server + Electron
 npm run build        # Production build
 npm run lint         # ESLint + TypeScript checks
 ```
 
-Requires a Node.js environment.
+Requires a Node.js environment. The installer configures Electron downloads through `ELECTRON_MIRROR`, preserving an existing value. For lockfile installation, use `node scripts/install-deps.cjs ci`.
 
 ---
 

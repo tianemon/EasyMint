@@ -1,0 +1,92 @@
+/* Interaction polish only. Palette, typography, control geometry and message surfaces stay owned by index.css. */
+.sb-tabs { position: relative; isolation: isolate; }
+.selection-indicator {
+  position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none;
+  border-radius: var(--radius-lg); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs);
+}
+.selection-indicator[data-positioned="true"] {
+  transition: transform 180ms cubic-bezier(.2,.7,.2,1), width 180ms cubic-bezier(.2,.7,.2,1);
+}
+.sb-tabs .sb-tab { position: relative; z-index: 1; }
+.sb-tabs .sb-tab.active { background: transparent; box-shadow: none; }
+
+:root :is(.sb-menu-btn,.sb-dropdown-item,.sb-tab,.sb-item,.inp-icon-btn,.inp-sel,.permission-mode-trigger,.btn-accent,.btn-raised) {
+  transition-property: background-color, color, box-shadow, transform;
+  transition-duration: 120ms, 120ms, 120ms, 90ms;
+  transition-timing-function: var(--ease-smooth);
+}
+:root :is(.sb-menu-btn,.sb-dropdown-item,.sb-tab,.sb-item,.inp-icon-btn,.inp-sel,.permission-mode-trigger,.btn-accent,.btn-raised):active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(1px);
+}
+.chat-fold { transition-timing-function: cubic-bezier(.2,.7,.2,1); }
+.sb-dropdown.open,.permission-mode-menu,.em-menu-enter,[data-context-menu] {
+  animation: em-menu-enter 140ms cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes em-menu-enter {
+  from { opacity: 0; translate: 0 4px; }
+  to { opacity: 1; translate: 0 0; }
+}
+.msg-avatar-spacer { width: 40px; height: 40px; flex-shrink: 0; }
+.msg-avatar-spacer.is-agent { width: 34px; height: 34px; }
+/* Reserve the existing heading line, so finishing a stream never shifts the text beneath it. */
+.msg-from-continuation { visibility: hidden; }
+.msg-output-meta { line-height: 1.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .selection-indicator[data-positioned="true"],.chat-fold,
+  :root :is(.sb-menu-btn,.sb-dropdown-item,.sb-tab,.sb-item,.inp-icon-btn,.inp-sel,.permission-mode-trigger,.btn-accent,.btn-raised) {
+    transition: none !important;
+  }
+  .sb-dropdown.open,.permission-mode-menu,.em-menu-enter,[data-context-menu],.msg-in,
+  .mint-live .mint-avatar ellipse { animation: none !important; }
+  ::view-transition-new(root) { animation: none !important; }
+}
+
+.execution-process-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(75% - 56px - var(--s8) - var(--s4));
+  margin: 0 0 12px calc(var(--s8) + 56px);
+  padding: 4px 0 9px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 88%, #000);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.execution-process-toggle:hover { color: var(--color-text-primary); }
+.execution-process-toggle svg { transition: transform 180ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .execution-process-toggle, .execution-process-toggle svg { transition: none; }
+}
+
+/* Match the composer edge even when the message scroller reserves a scrollbar gutter. */
+.msg-in.msg-in-user { padding-right: max(0px, calc(var(--s8) - var(--chat-scrollbar-width, 0px))); }
+
+/* Keep matching horizontal insets for the message area and composer. */
+.chat-message-content { padding-inline: calc(var(--chat-content-inset) - var(--s8)); }
+.execution-process-running { cursor: default; }
+.execution-process-running:hover { color: var(--color-text-muted); }
+[data-theme="dark"] .execution-process-toggle { border-bottom-color: #2c2c2c; }
+
+/* Stats share the action row's visibility and stay outside the message surface. */
+.bubble-actions-with-meta {
+  width: 100%;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 12px;
+}
+.bubble-actions-with-meta .msg-output-meta {
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+  justify-content: flex-end;
+  text-align: right;
+}
+.msg-in.msg-with-output-meta {
+  padding-bottom: max(0px, calc(var(--message-footer-height, 24px) - 28px));
+}

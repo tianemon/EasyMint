@@ -1,3 +1,4 @@
+import { responsePhase, type ResponsePhase } from "@shared/response-phase";
 import { compactionSummaryBody } from "@shared/prompts";
 import { toolPresentation } from "@shared/tool-presentation";
 import { uiText, appMessage } from "../lib/i18n";
@@ -30,6 +31,8 @@ export interface ChatMessage {
    * 两者都没有时留空:入口置灰并说明原因,不做猜测性撤回。
    */
   entryId?: string;
+  stopReason?: string;
+  turnOutcome?: "completed" | "cancelled" | "failed";
   durationMs?: number;
   provider?: string;
   model?: string;
@@ -67,12 +70,12 @@ export interface ChatMessage {
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */
-export function piBlocksToEntries(blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>): StreamEntry[] {
+export function piBlocksToEntries(blocks: Array<{ type: string; text?: string; phase?: ResponsePhase; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>): StreamEntry[] {
   const ts = Date.now();
   const result: StreamEntry[] = [];
   for (const b of blocks) {
     if (b.type === "text" && b.text) {
-      result.push({ kind: "text", text: b.text, timestamp: ts });
+      result.push({ kind: "text", text: b.text, phase: b.phase, timestamp: ts });
     } else if (b.type === "thinking" && (b.thinking || b.text)) {
       result.push({ kind: "thinking", text: (b.thinking || b.text)!, timestamp: ts });
     } else if (b.type === "tool_use") {
@@ -88,7 +91,7 @@ export function piBlocksToEntries(blocks: Array<{ type: string; text?: string; n
 export function mergeConsecutiveText(entries: StreamEntry[]): StreamEntry[] {
   const result: StreamEntry[] = [];
   for (const e of entries) {
-    if (e.kind === "text" && result.length > 0 && result[result.length - 1]!.kind === "text") {
+    if (e.kind === "text" && result.length > 0 && result[result.length - 1]!.kind === "text" && (result[result.length - 1] as TextEntry).phase === e.phase) {
       const last = result[result.length - 1] as TextEntry;
       last.text = (last.text || "") + (e.text || "");
     } else {
@@ -99,7 +102,7 @@ export function mergeConsecutiveText(entries: StreamEntry[]): StreamEntry[] {
 }
 
 /** PiChatEvent → StreamEntry[] */
-export function piEventToEntries(ev: { type: string; blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown> }> }): StreamEntry[] {
+export function piEventToEntries(ev: { type: string; blocks?: Array<{ type: string; text?: string; phase?: ResponsePhase; name?: string; id?: string; input?: Record<string, unknown> }> }): StreamEntry[] {
   if (ev.type === "message" && Array.isArray(ev.blocks)) {
     return piBlocksToEntries(ev.blocks);
   }
@@ -151,9 +154,9 @@ function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: 
 }
 
 /** 历史会话消息（conv.messages）→ ChatMessage[] */
-function responseMetadata(value: unknown): { durationMs?: number; provider?: string; model?: string } {
-  const m = value as { durationMs?: number; provider?: string; model?: string };
-  return { durationMs: m.durationMs, provider: m.provider, model: m.model };
+function responseMetadata(value: unknown): { durationMs?: number; provider?: string; model?: string; stopReason?: string } {
+  const m = value as { durationMs?: number; provider?: string; model?: string; stopReason?: string };
+  return { durationMs: m.durationMs, provider: m.provider, model: m.model, stopReason: m.stopReason };
 }
 
 export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; message: unknown; out_of_context?: boolean; image_stripped?: boolean }>): ChatMessage[] {
@@ -192,9 +195,9 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
       if (Array.isArray(content)) {
         const entries: StreamEntry[] = [];
         for (const block of content) {
-          const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
+          const b = block as { type?: string; text?: string; textSignature?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
           if (b.type === "text" && b.text) {
-            entries.push({ kind: "text", text: b.text, timestamp: ts });
+            entries.push({ kind: "text", text: b.text, phase: responsePhase(b.textSignature), timestamp: ts });
           } else if (b.type === "thinking" && b.thinking) {
             entries.push({ kind: "thinking", text: b.thinking, timestamp: ts });
           } else if (b.type === "tool_use") {
@@ -204,7 +207,12 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
             entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", name: (b as { name?: string }).name, content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
           }
         }
-        if (entries.length === 0) continue;
+        if (entries.length === 0) {
+          const stopReason = (m.message as { stopReason?: string }).stopReason;
+          const previous = mapped.at(-1);
+          if (previous?.role === "ai" && stopReason && stopReason !== "stop") previous.stopReason = stopReason;
+          continue;
+        }
         // 每条 assistant 消息独立成气泡——对齐 SDK 落盘粒度(相邻消息不合并,与实时渲染一致)
         const id = ++nextId;
         // 磁盘消息携带 Pi 归一化 usage（input 未缓存输入/cacheRead 缓存读）——历史会话也显示 token 行（显示层持久化）

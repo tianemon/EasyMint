@@ -1,0 +1,22 @@
+{
+  "rdev": {
+    "repository": "https://github.com/rdev/liquid-glass-react",
+    "commit": "ac48eab18d1f7f444ae30002d240cae29c863a21",
+    "license": "MIT",
+    "files": {
+      "index.tsx": "aaea920c8de2af15d4df322f99124d65b57a9088b2479c056bce428f3ddeadba",
+      "shader-utils.ts": "c3c3296ec2f680196a38f05cccf19050097ba93bc2b4dc4cbad1a31197d2425f",
+      "utils.ts": "73a3fb2a6578b8e8bcbf7eb79e8dbeb6a15a36d8ba5525a2d665002d0b5cd917",
+      "LICENSE": "3beea6e227a2549d48b616818e01ce303482cb0d598182add5d629b339bdb7cc"
+    }
+  },
+  "optics": {
+    "repository": "https://github.com/sohumsuthar/liquid-glass",
+    "commit": "fb0e2dd45c1c76f2385dabffbb448c1099cd19cc",
+    "license": "MIT",
+    "files": {
+      "glass-optics.mjs": "e964f2720e40bb60d376e405456c53187d11d3333627b45c1b9e16fc942e45de",
+      "LICENSE": "8504dc9ac135443026d6334811ed4c9f4f2c48b83cfbd5cb925d1ccb8055df5c"
+    }
+  }
+}

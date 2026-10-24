@@ -1,3 +1,4 @@
+import { isMobileTarget } from "@shared/project-targets";
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState, useRef, useEffect } from "react";
 import {
@@ -5,23 +6,30 @@ import {
   type ProjectFormData, type FeatureItem, type BudgetChoice, type SceneChoice,
 } from "./ProjectFormTypes";
 import type { AIIntegration } from "../../../../shared/prompts";
+import { deploymentChoices } from "./creation-rules";
 import { StylePicker } from "./StylePicker";
 
 export type { ProjectFormData };
 
-function StepDots({ total, current, steps }: { total: number; current: number; steps?: { title: string }[] }): JSX.Element {
-  return (
-    <div className="creation-progress" role="progressbar" aria-label={uiText("creation.progress")} aria-valuemin={1} aria-valuemax={total} aria-valuenow={current + 1}>
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className={`creation-progress-step ${i === current ? "is-current" : ""} ${i < current ? "is-complete" : ""}`}><span className="creation-progress-line" /><span className="creation-progress-label"><i>{i < current ? "✓" : i + 1}</i>{steps?.[i]?.title}</span></div>
-      ))}
-    </div>
-  );
+function StepNavigation({ current, steps, onSelect, disabled, canAdvance }: {
+  current: number; steps: { number: number; title: string; desc: string }[];
+  onSelect: (index: number) => void; disabled: boolean; canAdvance: boolean;
+}): JSX.Element {
+  return <nav className="creation-wizard-nav" aria-label={uiText("creation.progress")}>
+    <span className="creation-wizard-selection" aria-hidden="true" style={{ transform: `translateY(calc(${current} * (var(--creation-step-size) + 8px)))` }} />
+    {steps.map((step, index) => <button type="button" key={step.number}
+      className={`creation-wizard-nav-step${index < current ? " is-complete" : ""}`}
+      aria-current={index === current ? "step" : undefined}
+      disabled={disabled || (index > current && !canAdvance)} onClick={() => onSelect(index)}>
+      <span className="creation-wizard-number" aria-hidden="true">{index < current ? "✓" : index + 1}</span>
+      <span><strong>{step.title}</strong></span>
+    </button>)}
+  </nav>;
 }
 
 // ---- Custom Select (matches white+green theme) ----
 
-function Select({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: readonly { value: string; label: string; desc: string }[]; placeholder?: string }): JSX.Element {
+function Select({ value, onChange, options, placeholder, descriptions = true }: { value: string; onChange: (v: string) => void; options: readonly { value: string; label: string; desc: string }[]; placeholder?: string; descriptions?: boolean }): JSX.Element {
   useUiLocale();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
@@ -69,7 +77,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
         onClick={() => setOpen(!open)}
       >
         <span className={selected ? "text-text-primary" : "text-text-secondary"}>
-          {selected ? `${selected.label} — ${selected.desc}` : (placeholder || uiText("ui.StepComponents.choose"))}
+          {selected ? descriptions ? `${selected.label} — ${selected.desc}` : selected.label : (placeholder || uiText("ui.StepComponents.choose"))}
         </span>
         <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className={`w-3 h-3 shrink-0 transition-transform text-text-secondary ${open ? "rotate-180" : ""}`}>
           <path d="M3 5l3 3 3-3"/>
@@ -84,7 +92,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
               onClick={() => { onChange(o.value); setOpen(false); }}
             >
               <span>{o.label}</span>
-              <span className="text-text-secondary ml-1.5 text-xs">{o.desc}</span>
+              {descriptions && <span className="text-text-secondary ml-1.5 text-xs">{o.desc}</span>}
             </button>
           ))}
         </div>
@@ -97,17 +105,18 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
 
 function Step1Form({ data, onChange, previewDirName, dirConflict, translating }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean; translating?: boolean }): JSX.Element {
   useUiLocale();
-  const updateTarget = (i: number, value: string) => {
-    const next = [...data.targets];
-    next[i] = value;
-    onChange({ targets: next });
-  };
-  const addTarget = () => {
-    onChange({ targets: [...data.targets, "web"] });
-  };
-  const removeTarget = (i: number) => {
-    if (data.targets.length <= 1) return;
-    onChange({ targets: data.targets.filter((_, idx) => idx !== i) });
+  const directoryPath = previewDirName
+    ? `${data.dir.replace(/[\\/]+$/, "")}${data.dir.includes("\\") ? "\\" : "/"}${previewDirName}`
+    : data.dir;
+  const targetGroups = [
+    { label: uiText("creation.platform.webTools"), values: ["web", "wechat-miniprogram", "cli"] },
+    { label: uiText("creation.platform.desktop"), values: ["windows-desktop", "macos-desktop", "linux-desktop"] },
+    { label: uiText("creation.platform.mobile"), values: ["ios-mobile", "android-mobile", "harmony-mobile"] },
+  ];
+  const toggleTarget = (value: string) => {
+    const selected = data.targets.includes(value);
+    if (selected && data.targets.length === 1) return;
+    onChange({ targets: selected ? data.targets.filter(target => target !== value) : [...data.targets, value] });
   };
 
   return (
@@ -120,50 +129,36 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
         <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectDirectory")}<span className="text-danger">*</span></label>
         <button
           className="em-select-trigger em-hover-control w-full px-3 py-2 rounded-[var(--radius-lg)] bg-surface text-left text-sm transition-all"
+          aria-label={uiText("ui.StepComponents.projectDirectory")}
+          aria-describedby="project-location-value"
+          aria-busy={translating || undefined}
+          title={directoryPath}
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >
-          <span className="text-text-secondary">{data.dir || uiText("ui.StepComponents.chooseADirectory")}</span>
+          <span id="project-location-value" className="text-text-secondary break-all">{directoryPath || uiText("ui.StepComponents.chooseADirectory")}</span>
         </button>
-        {/* 实时路径预览——教会用户「我的文件在哪」；目录冲突在此行红字预警（创建必被拒） */}
-        {previewDirName && (
-          dirConflict ? (
-            <p className="mt-1 text-[length:var(--text-3xs)] text-danger">
-              {uiText("ui.StepComponents.thisDirectoryExistsAndIsNonemptyOr")}</p>
-          ) : (
-            <p className="mt-1 text-[length:var(--text-3xs)] text-text-muted">
-              {uiText("ui.StepComponents.willBeCreatedAt")}<span className="font-mono text-text-secondary">{data.dir}/{previewDirName}</span>
-              {translating && <span className="ml-1.5 text-text-muted">{uiText("ui.StepComponents.translatingDirectoryName")}</span>}
-            </p>
-          )
-        )}
+        {dirConflict && <p role="alert" className="mt-1 text-xs text-danger">{uiText("ui.StepComponents.thisDirectoryExistsAndIsNonemptyOr")}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectDescription")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalDescribeYourIdeaInOneSentence")}</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectDescription")}</label>
         <textarea className="em-input px-3 py-2 min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder={uiText("ui.StepComponents.eGAPersonalAppForTracking")} />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.howWillYouUseThisProject")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.mintCanHelpDecide")}</span></label>
-        <Select value={data.scene} onChange={(v) => onChange({ scene: v as SceneChoice })} options={SCENE_OPTIONS} placeholder={uiText("ui.ProjectFormTypes.notSureLetAiDecide")} />
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.howWillYouUseThisProject")}</label>
+        <Select value={data.scene} onChange={(v) => onChange({ scene: v as SceneChoice })} options={SCENE_OPTIONS} descriptions={false} placeholder={uiText("ui.ProjectFormTypes.notSureLetAiDecide")} />
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-text-primary">{uiText("ui.StepComponents.projectType")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.platformsAndDeliveryFormatsSelectMultiple")}</span></label>
-          <button className="px-2 py-0.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent text-xs hover:bg-accent-bg transition-colors" onClick={addTarget}>{uiText("ui.StepComponents.add")}</button>
-        </div>
-        <div className="space-y-2">
-          {data.targets.map((t, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="flex-1">
-                <Select value={t} onChange={(v) => updateTarget(i, v)} options={TARGET_OPTIONS} />
-              </div>
-              {data.targets.length > 1 && (
-                <button className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors shrink-0" onClick={() => removeTarget(i)}>✕</button>
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="creation-target-field">
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectType")}</label>
+        {targetGroups.map(group => <div key={group.label} className="creation-target-group" role="group" aria-label={group.label}>
+          <span className="creation-target-group-label">{group.label}</span>
+          <div className="creation-target-options">{group.values.map(value => {
+            const option = TARGET_OPTIONS.find(item => item.value === value)!;
+            return <button type="button" key={value} aria-pressed={data.targets.includes(value)} title={option.desc}
+              onClick={() => toggleTarget(value)}>{option.label}</button>;
+          })}</div>
+        </div>)}
       </div>
     </div>
   );
@@ -198,7 +193,7 @@ function Step2Form({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-text-primary">{uiText("ui.ProjectFormTypes.features")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optional")}</span></label>
+        <label className="block text-sm font-medium text-text-primary">{uiText("ui.ProjectFormTypes.features")}</label>
         <div className="flex gap-2">
           <button className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? uiText("ui.StepComponents.mintIsThinking") : uiText("ui.StepComponents.mintSuggests")}
@@ -228,8 +223,8 @@ function Step2Form({
 
 // ---- Step 3: UI 风格 ----
 
-function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  return <StylePicker brandId={data.uiBrand} onBrandChange={uiBrand => onChange({uiBrand, uiPalette:"default"})} layout={data.uiLayout} onLayoutChange={uiLayout => onChange({uiLayout})} targets={data.targets} projectName={data.name} projectDescription={data.description} appearance={{ palette: data.uiPalette, effect: data.uiEffect }} onAppearanceChange={(value) => onChange({ uiPalette: value.palette, uiEffect: value.effect, ...(value.palette!==data.uiPalette?{uiBrand:""}:{}) })} value={data.uiStyle} onChange={(uiStyle) => onChange({ uiStyle })} defaultDevice={!data.targets.includes("web") && data.targets.some((target) => target === "ios-mobile" || target === "android-mobile" || target === "wechat-miniprogram") ? "mobile" : "web"} />;
+function Step3Form({ data, onChange, active = true }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; active?: boolean }): JSX.Element {
+  return <StylePicker active={active} layout={data.uiLayout} targets={data.targets} projectName={data.name} projectDescription={data.description} appearance={{ palette: "default", effect: data.uiEffect }} onAppearanceChange={(value) => onChange({ uiPalette: "default", uiEffect: value.effect, uiBrand: "" })} value={data.uiStyle} onChange={(uiStyle) => onChange({ uiStyle, ...(uiStyle === "liquid-glass" && data.uiStyle !== uiStyle ? { uiEffect: "subtle" } : {}) })} defaultDevice={!data.targets.includes("web") && data.targets.some((target) => isMobileTarget(target) || target === "wechat-miniprogram") ? "mobile" : "web"} />;
 }
 
 // ---- Step 4: 交付方式 ----
@@ -241,13 +236,14 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 
       {/* 完成度 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.whatShouldTheFirstVersionInclude")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalAiCanHelpDecide")}</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.whatShouldTheFirstVersionInclude")}</label>
         <div className="flex gap-2">
           {COMPLETENESS_OPTIONS.map((opt) => {
             const active = data.completeness === opt.value;
             return (
               <button
                 key={opt.value}
+                aria-pressed={active}
                 className={`flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active
                   ? "bg-[var(--preset-active)] text-text-primary"
                   : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
@@ -263,7 +259,7 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 
       {/* AI 集成 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.aiIntegration")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optional")}</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.aiIntegration")}</label>
         <p className="text-[length:var(--text-11)] text-text-secondary mb-2">{uiText("ui.StepComponents.aiAssistanceAndAgentsRequireAnLlm")}</p>
         <div className="flex gap-2">
           {[
@@ -273,7 +269,7 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           ].map((opt) => {
             const active = data.aiIntegration === opt.value;
             return (
-              <button key={opt.value} className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
+              <button key={opt.value} aria-pressed={active} className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
                 <div className="text-sm font-medium">{opt.label}</div>
                 <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{opt.desc}</div>
               </button>
@@ -282,42 +278,34 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         </div>
       </div>
 
-      {/* 部署方式 */}
+      {/* Deployment options keep the original row layout and follow the selected platform. */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.deployment")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalAiCanHelpDecide")}</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.deployment")}</label>
         <div className="flex gap-2">
-          <button
-            className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "本地" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
-            onClick={() => onChange({ deployPlatform: "本地" })}
-          >
-            <div className="text-sm font-medium">{uiText("ui.StepComponents.local")}</div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.StepComponents.runLocallyWithoutCloudServices")}</div>
-          </button>
-          <button
-            className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "云端" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
-            onClick={() => onChange({ deployPlatform: "云端" })}
-          >
-            <div className="text-sm font-medium">{uiText("ui.StepComponents.cloud")}</div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.StepComponents.accessibleOnlineServerCostsApply")}</div>
-          </button>
-          <button
-            className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "混合" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
-            onClick={() => onChange({ deployPlatform: "混合" })}
-          >
-            <div className="text-sm font-medium">{uiText("ui.StepComponents.hybrid")}</div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.StepComponents.localUiWithCloudSync")}</div>
-          </button>
+          {deploymentChoices(data.targets).map(value => {
+            const keys = { auto: "auto", "client-only": "clientOnly", "cloud-dev": "cloudDev", 本地: "local", 云端: "cloud", 混合: "hybrid" };
+            const key = keys[value];
+            const mini = data.targets.includes("wechat-miniprogram");
+            const hint = mini && key === "clientOnly" ? "creation.deploy.clientOnlyMiniHint" : mini && key === "cloud" ? "creation.deploy.customBackendHint" : `creation.deploy.${key}Hint`;
+            return <button key={value} aria-pressed={data.deployPlatform === value}
+              className={`flex-1 min-w-0 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === value ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
+              onClick={() => onChange({ deployPlatform: value })}>
+              <div className="text-sm font-medium">{uiText(`creation.deploy.${key}`)}</div>
+              <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText(hint)}</div>
+            </button>;
+          })}
         </div>
+        {data.deployPlatform === "client-only" && data.aiIntegration !== "none" && <p role="status" className="mt-2 text-xs text-accent">{uiText("creation.aiWithoutBackendHint")}</p>}
       </div>
 
       {/* 预算 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.developmentAndOperationsBudget")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalAiCanHelpDecide")}</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.developmentAndOperationsBudget")}</label>
         <div className="flex gap-2">
           {BUDGET_OPTIONS.map((opt) => {
             const active = data.techBudget === opt.value;
             return (
-              <button key={opt.value} className={`flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
+              <button key={opt.value} aria-pressed={active} className={`flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
                 <div className="text-sm font-medium">{opt.label}</div>
                 <div className="text-xs text-text-muted mt-0.5">{opt.desc}</div>
               </button>
@@ -329,4 +317,4 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
   );
 }
 
-export { StepDots, Step1Form, Step2Form, Step3Form, Step4Form };
+export { StepNavigation, Step1Form, Step2Form, Step3Form, Step4Form };

@@ -15,6 +15,7 @@ import { ProjectCreationGuide, useProjectCreationGuide } from "./new-project/Pro
 import { useThemeStore } from "../stores/theme-store";
 import { useEnvStore, subscribeEnvReport } from "../stores/env-store";
 import { readVersion, markRead } from "../lib/update-notice";
+import { SelectionIndicator } from "./ui/SelectionIndicator";
 
 export type SidebarTab = "sessions" | "files";
 type DrawerTab = "tasks" | "issues" | "runs";
@@ -222,8 +223,9 @@ export function Sidebar({
 
       {/* Tabs: 会话 | 文件 */}
       <div className="sb-tabs">
-        <button className={`sb-tab ${activeTab === "sessions" ? "active" : ""}`} onClick={() => switchTab("sessions")}>{t("nav.sessions")}</button>
-        <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} onClick={() => switchTab("files")}>{t("nav.files")}</button>
+        <SelectionIndicator value={activeTab} />
+        <button className={`sb-tab ${activeTab === "sessions" ? "active" : ""}`} aria-pressed={activeTab === "sessions"} onClick={() => switchTab("sessions")}>{t("nav.sessions")}</button>
+        <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} aria-pressed={activeTab === "files"} onClick={() => switchTab("files")}>{t("nav.files")}</button>
       </div>
 
       {/* Content */}

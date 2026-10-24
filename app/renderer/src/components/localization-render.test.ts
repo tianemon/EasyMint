@@ -55,7 +55,7 @@ describe("English interface coverage", () => {
     expect(delivery).toContain("Local");
     expect(delivery).toContain("Cloud");
     expect(delivery).toContain("Development and operations budget");
-    expect(data.deployPlatform).toBe("本地");
+    expect(data.deployPlatform).toBe("auto");
     expect(data.techBudget).toBe("少量");
     expect(onChange).not.toHaveBeenCalled();
   });

@@ -1,6 +1,8 @@
+import { renderShowcase } from "./showcase";
+import { showcaseRuntimeSource } from "./showcase-runtime";
 import { additionalArtwork } from "./additional-artwork";
 import { visualVariables, type VisualSpec, type VisualLayout } from "./spec";
-export const VISUAL_STYLE_FILES = ["style-preview.css","component-gallery.css","layouts.css","additional-styles.css"] as const;
+export const VISUAL_STYLE_FILES = ["style-preview.css","component-gallery.css","layouts.css","additional-styles.css","showcase.css","scene-showcase.css","glass-showcase.css","liquid-showcase.css"] as const;
 export interface VisualAssets {
     css: string;
     runtime: string;
@@ -25,13 +27,19 @@ const table = () => `<section class="sample-card"><h2>Projects</h2><table class=
 function form(): string { return `<form class="visual-form sample-card"><label class="sample-field">Name<input class="sample-input" name="name" value="Studio" required></label><label class="sample-field">Email<input class="sample-input" name="email" type="email" placeholder="you@example.com" required></label><label class="sample-field">Notes<textarea class="sample-input" name="notes" rows="4"></textarea></label><label>Category ${select('form-category')}</label><label class="gallery-choice"><input type="checkbox" checked>Receive updates</label><div class="visual-actions"><button class="sample-button sample-primary" type="submit">Save</button>${button('Cancel', false)}</div></form>`; }
 function gallery(): string { return `<div class="visual-catalog"><section class="sample-card"><h2>Buttons</h2><div class="visual-actions">${button('Primary')}${button('Secondary', false)}<button class="sample-button sample-secondary" disabled>Disabled</button></div></section><section class="sample-card"><h2>Inputs</h2><label class="sample-field"><span>Name</span><input class="sample-input" placeholder="Your name"></label><label class="sample-field"><span>Message</span><textarea class="sample-input" rows="3"></textarea></label></section><section class="sample-card"><h2>Selection</h2><label class="gallery-choice"><input type="radio" name="choice" checked>Design</label><label class="gallery-choice"><input type="radio" name="choice">Code</label><label class="gallery-choice"><input type="checkbox" checked>Selected</label><label class="gallery-choice"><input type="checkbox">Optional</label><label class="gallery-range-label"><span>Progress<output>68%</output></span><div class="gallery-range"><div><i style="width:68%"></i></div><input type="range" aria-label="Progress" min="0" max="100" value="68"></div></label></section><section class="sample-card"><h2>Menu & layers</h2>${select('gallery-category')}<button class="sample-button sample-secondary" data-open-dialog>Open dialog</button></section></div>${table()}`; }
 export function renderVisualDocument(spec: VisualSpec, assets: VisualAssets, options: {
-    layout?: VisualLayout | 'gallery';
+    layout?: VisualLayout | 'gallery' | 'showcase' | 'motion';
     title?: string;
     description?: string;
     device?: 'web' | 'mobile';
     locale?: string;
 } = {}): string {
     const layout = options.layout ?? spec.selection.layout, title = '__EM_VISUAL_TITLE__', description = '__EM_VISUAL_DESCRIPTION__';
+    if (layout === 'showcase' || layout === 'motion') {
+        const localized = { ...spec, selection: { ...spec.selection, locale: options.locale === 'en' ? 'en' as const : options.locale ? 'zh-CN' as const : spec.selection.locale } };
+        const page = renderShowcase(localized, layout === 'motion').replace(/class="sc-page[^"]*"/, match => `${match} data-device="${options.device ?? 'web'}"`);
+        const runtime = assets.runtime.includes('/* EasyMint scene runtime */') ? assets.runtime : `${assets.runtime}\n${showcaseRuntimeSource()}`;
+        return `<!DOCTYPE html><html lang="${localized.selection.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(options.title || 'Design showcase')}</title><style data-easymint-theme>${deriveThemeCss(spec)}</style><style data-easymint-components>${assets.css.replace(/<\/style/gi, '<\\/style')}</style></head><body><div class="visual-project visual-showcase-project" data-easymint-root data-layout="${spec.selection.layout}" data-style="${spec.selection.styleId}" data-effect="${spec.selection.effect}"><main class="sample-main">${page}</main></div><script data-easymint-runtime>${runtime.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
+    }
     const top = `<header class="visual-top"><strong>${title}</strong><div class="visual-actions">${button('Overview', false)}${button('Create project', true)}</div></header>`;
     const body = layout === 'gallery' ? gallery() : layout === 'landing' ? `<div class="visual-split"><section><span class="visual-eyebrow">DESIGNED FOR EVERYDAY</span><h1>${title}</h1><p>${description}</p><div class="visual-actions">${button('Get started')}${button('Explore', false)}</div></section>${artwork(spec)}</div>${cards()}<section class="sample-card"><h2>Room for what matters.</h2><p>${description}</p>${button('Start creating')}</section>` : layout === 'form' ? `<h1>${title}</h1><p>${description}</p>${form()}` : layout === 'detail' ? `<div class="visual-split">${artwork(spec)}<section class="sample-card"><span class="visual-eyebrow">PROJECT / 01</span><h1>${title}</h1><p>${description}</p><div class="visual-progress"><i></i></div><div class="visual-actions" style="margin-top:24px">${button('Continue')}${button('Details', false)}</div></section></div>${cards()}` : `<div class="visual-split"><section><span class="visual-eyebrow">YOUR WORKSPACE</span><h1>${title}</h1><p>${description}</p>${select('dashboard-category')}</section>${artwork(spec)}</div>${cards()}${table()}`;
     const sidebar = layout === 'dashboard' ? `<aside class="visual-sidebar"><strong>${title}</strong>${['Overview', 'Projects', 'Assets', 'Settings'].map((n, i) => `<button class="visual-nav" ${i ? '' : 'aria-current="page"'}>${n}</button>`).join('')}</aside>` : '';

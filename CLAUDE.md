@@ -18,6 +18,20 @@
 | 看懂构建流程 | `package.json` scripts + `scripts/build.sh` |
 | 设计方案 / 配置路径 / 需求方法论 / 规则集 | `docs/design/`（按需阅读；新方案定稿落盘于此） |
 
+### 读其它 AI 工具的会话（跨工具协作）
+
+读 codex / claude / codebuddy / workbuddy 的会话时，**一律走 aab MCP（`mcp__aab__*`）**；
+**不要自己解析 `rollout-*.jsonl` 或 session sqlite**——单个线程可达 50MB+，必撑爆上下文。
+
+| 用户说法 | 调用 |
+|---|---|
+| 「查看 codex 会话」「codex 那边做到哪了」 | `session_latest(agent="codex", level=1)` |
+| 「接着 codex 最新会话继续做」「继续上一个会话」 | 同上；不够再升 level 2/3/4，已知轮次用 `turns="last:5"` |
+| 不确定是哪一次 | `session_list` 先列（可 `scope="global"`） |
+| 只差一个细节 | `session_grep("关键词")`，别整篇导出 |
+
+用户点名了工具就传 `agent`，别留 `auto`。工具是 deferred 的，需要先检索工具库再调用。
+
 ### 规则位置（换平台/换 AI 必读）
 
 **本项目规则全部自包含在本文件，不依赖任何平台私有存储**——行为准则（§一）、编码规范（§二）、排查与修复（§2.3）、协作约定（§三）均在本文正文；`docs/` 目录是本地私有仓库（不进 GitHub），只承载上下文细节。

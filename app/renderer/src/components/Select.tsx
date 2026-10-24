@@ -146,7 +146,7 @@ export function Select({ id, "aria-describedby": describedBy, value, onChange, o
               : event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : -1;
             if (next >= 0) { event.preventDefault(); buttons[next]?.focus(); }
           }}
-          className={`fixed z-dropdown w-max py-0 overflow-hidden rounded-[var(--radius-lg)] bg-surface-elevated shadow-xl ${borderless ? "" : "border border-border"}`}
+          className={`em-menu-enter fixed z-dropdown w-max py-0 overflow-hidden rounded-[var(--radius-lg)] bg-surface-elevated shadow-xl ${borderless ? "" : "border border-border"}`}
           style={{ left: pos.left, top: pos.top, minWidth: pos.minWidth, maxHeight: MAX_PANEL_H, transform: align === "center" ? "translateX(-50%)" : undefined }}
         >
           <div className="overflow-y-auto" style={{ maxHeight: MAX_PANEL_H }}>

@@ -35,12 +35,13 @@ describe("host run status ownership", () => {
   it("registers system-triggered runs and publishes completion only after prompt settlement", async () => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
-    const { service, chat, listeners } = setup(async emit => {
+    const { service, chat, session, listeners } = setup(async emit => {
       emit({ type: "turn_start" } as AgentSessionEvent);
       emit({ type: "agent_settled", aborted: false });
       await gate;
     });
     service.injectSystemMessage("session", "summary", "delegation", { triggerTurn: true });
+    expect(session.sendCustomMessage).toHaveBeenCalledWith(expect.objectContaining({ details: expect.objectContaining({ startsExecution: true }) }), { triggerTurn: true });
     expect(service.getBusyState("session").busy).toBe(true);
     expect(stream().map(event => event.type)).toEqual(["turn_start"]);
     expect(sent.events.some(event => event.channel === "agent:exit")).toBe(false);
@@ -48,6 +49,12 @@ describe("host run status ownership", () => {
     expect(stream().at(-1)).toMatchObject({ type: "turn_end", outcome: "completed" });
     expect(service.getBusyState("session").busy).toBe(false);
     expect(listeners.size).toBe(0);
+  });
+  it("marks ordinary notifications as part of the current execution", async () => {
+    const { service, session } = setup(async () => {});
+    service.injectSystemMessage("session", "progress", "delegation");
+    expect(session.sendCustomMessage).toHaveBeenCalledWith(expect.objectContaining({ details: expect.objectContaining({ startsExecution: false }) }), undefined);
+    await Promise.resolve();
   });
   it.each([false, true])("reports failed/cancelled startup accurately (abort=$0)", async aborted => {
     vi.spyOn(console, "error").mockImplementation(() => {});

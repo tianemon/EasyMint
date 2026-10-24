@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentSessionEvent } from "./pi-sdk";
-import { bridgeSessionEvents } from "./event-bridge";
+import { bridgeSessionEvents, createMessageEntryTracker } from "./event-bridge";
 
 describe("Pi settled and response metadata", () => {
   it("does not end on a retried low-level run and distinguishes final cancellation", () => {
@@ -36,3 +36,50 @@ describe("Pi settled and response metadata", () => {
     expect(onEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "tool_done", durationMs: 0 }));
   });
 });
+
+describe("message entry tracking", () => {
+  it("ignores already-persisted custom messages and non-bubble roles", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const emit = vi.fn();
+      const tracker = trackerFor([{ type: "custom_message", id: "custom", customType: "system_message", content: "setup", display: true }], emit);
+      for (const role of ["custom", "toolResult", "system", "compactionSummary"]) {
+        tracker.observe({ type: "message_end", message: { role, content: "setup" } } as AgentSessionEvent);
+      }
+      await Promise.resolve();
+      tracker.observe({ type: "agent_end", willRetry: false, messages: [] } as AgentSessionEvent);
+      expect(warn).not.toHaveBeenCalled();
+      expect(emit).not.toHaveBeenCalled();
+    } finally { warn.mockRestore(); }
+  });
+
+  it("backfills user and assistant identities after persistence, even with matching timestamps", async () => {
+    const emit = vi.fn(), entries: unknown[] = [];
+    const user = { role: "user", content: "hello", timestamp: 1 };
+    const assistant = { role: "assistant", content: [], timestamp: 1 };
+    const tracker = trackerFor(entries, emit);
+    tracker.observe({ type: "message_end", message: user } as AgentSessionEvent);
+    entries.push({ type: "message", id: "user-id", message: user });
+    await Promise.resolve();
+    tracker.observe({ type: "message_end", message: assistant } as AgentSessionEvent);
+    entries.push({ type: "message", id: "assistant-id", message: assistant });
+    await Promise.resolve();
+    tracker.flush();
+    expect(emit.mock.calls.map(([event]) => [event.entryId, event.entryRole])).toEqual([["user-id", "user"], ["assistant-id", "assistant"]]);
+  });
+
+  it("keeps the warning for a genuinely missing user message", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const tracker = trackerFor([], vi.fn());
+      tracker.observe({ type: "message_end", message: { role: "user", content: "missing", timestamp: 1 } } as AgentSessionEvent);
+      tracker.observe({ type: "agent_end", willRetry: false, messages: [] } as AgentSessionEvent);
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain("1 条消息");
+    } finally { warn.mockRestore(); }
+  });
+});
+
+function trackerFor(entries: unknown[], emit: (event: import("./event-bridge").PiChatEvent) => void) {
+  return createMessageEntryTracker({ getSession: () => ({ sessionManager: { getEntries: () => entries } as unknown as import("./pi-sdk").SessionManager }), emit });
+}

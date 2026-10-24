@@ -1,3 +1,4 @@
+import { isMobileTarget } from "./project-targets";
 /**
  * EasyMint 所有提示词 — 集中管理，单一来源
  *
@@ -341,7 +342,7 @@ Output shown to the user follows the user's language (see <language>).
 // ── 维度定义 ──────────────────────────────────────────
 
 type ProductType = "web" | "desktop" | "mobile" | "cli" | "backend" | "library" | "miniprogram";
-export type DeployMode = "local" | "cloud" | "hybrid";
+export type DeployMode = "local" | "cloud" | "hybrid" | "auto" | "client-only" | "cloud-dev" | "client-hybrid";
 export type AIIntegration = "none" | "assistant" | "agent" | "multi-agent";
 type StorageType = "sqlite" | "postgres" | "vector" | "none";
 
@@ -418,7 +419,7 @@ const BASE_PROFILES: Record<ProductType, ProjectProfile> = {
   },
   miniprogram: {
     id: "miniprogram", label: "微信小程序",
-    initSteps: `项目为微信小程序。\n- docs/技术架构.md 关注页面栈、组件通信、云开发配置\n- 注意分包加载限制（主包 ≤ 2MB，总包 ≤ 20MB）\n- 每个页面需在 app.json 中注册`,
+    initSteps: `项目为微信小程序。\n- docs/技术架构.md 关注页面栈、组件通信，并根据实际需要说明后端配置\n- 注意分包加载限制（主包 ≤ 2MB，总包 ≤ 20MB）\n- 每个页面需在 app.json 中注册`,
     platformSpec: `## 微信小程序开发规范\n- 页面生命周期：onLoad → onShow → onReady → onHide → onUnload\n- 组件通信：父传子 properties，子传父 triggerEvent，跨组件用 globalData 或 eventBus\n- WXML 模板语法：wx:if 条件渲染、wx:for 列表渲染、{{}} 数据绑定\n- 样式：rpx 响应式单位（1rpx = 屏幕宽度/750），推荐 flex 布局\n- API 调用：wx.request 发网络请求，wx.setStorage/getStorage 本地存储\n- 用户授权：wx.getUserProfile / wx.authorize，首次调用需弹窗\n- 审核规范：不得包含隐藏功能、诱导分享、强制登录后才能浏览核心功能`,
     evaluatorHint: `小程序项目：用微信开发者工具打开编译检查，代码审查对照需求文档逐项验证，检查 app.json 注册和分包配置`,
     suggestedStack: ["微信开发者工具", "JavaScript/TypeScript"],
@@ -435,6 +436,18 @@ interface ProfileOverride {
 }
 
 const DEPLOY_OVERRIDES: Record<DeployMode, ProfileOverride> = {
+  "client-hybrid": {
+    initSteps: `项目客户端使用各平台支持的本地存储，按需连接在线服务或同步数据。服务端架构根据功能选择，不强制客户端使用 SQLite。`,
+  },
+  auto: {
+    initSteps: `- 部署与存储尚未确定。根据全部客户端形式、功能、场景和预算推荐方案，说明理由；不要把默认值当成用户要求，不预设数据库或强制登录。`,
+  },
+  "client-only": {
+    initSteps: `- 用户选择无需后端。客户端按各自平台运行与发布，使用平台支持的本地存储，不添加服务端、云数据库或必须联网的功能。若功能要求与此冲突，先向用户澄清。`,
+  },
+  "cloud-dev": {
+    initSteps: `- 使用微信云开发承载服务端能力，存储按云开发能力选择，不预设 SQLite 或 PostgreSQL。区分小程序客户端发布和云端服务部署；其他客户端如需共享服务，先确认接入方案。`,
+  },
   local: {
     initSteps: `项目为本地运行，无需云端部署。\n- 数据存储使用 SQLite 等本地方案\n- docs/技术架构.md 中无需云端部署、CI/CD 章节`,
   },
@@ -442,7 +455,7 @@ const DEPLOY_OVERRIDES: Record<DeployMode, ProfileOverride> = {
     initSteps: `项目需云端部署。\n- docs/技术架构.md 需包含部署方案、环境变量管理、CI/CD 配置\n- 数据库使用云数据库（PostgreSQL 等）\n- 需配置环境变量（API keys、数据库连接串等）`,
   },
   hybrid: {
-    initSteps: `项目为混合模式——本地运行 UI，云端同步数据和 AI 能力。\n- 本地部分：SQLite + 本地文件\n- 云端部分：API 服务 + 数据库 + 认证`,
+    initSteps: `项目为混合模式——本机运行，按需连接云端服务和同步数据。\n- 本地部分：SQLite + 本地文件\n- 云端部分：API 服务 + 数据库 + 认证`,
   },
 };
 
@@ -492,15 +505,39 @@ function mergeProfile(base: ProjectProfile, ...overrides: ProfileOverride[]): Pr
   return merged;
 }
 
+function aiProfileOverride(dims: ProjectDimensions): ProfileOverride {
+  if (!dims.productUsesAI) return {};
+  if (dims.deploy === "client-only") return {
+    initSteps: `- 用户同时选择 AI 功能（${dims.ai}）和无需后端。先确认平台是否支持设备端实现；如需要在线模型服务，先与用户澄清，不擅自添加后端或把 API 密钥嵌入客户端。`,
+  };
+  return AI_OVERRIDES[dims.ai];
+}
+
 export function composeProfile(dims: ProjectDimensions): ProjectProfile {
   const base = BASE_PROFILES[dims.product];
   if (!base) return BASE_PROFILES["web"];
   return mergeProfile(
     base,
     DEPLOY_OVERRIDES[dims.deploy],
-    dims.productUsesAI ? AI_OVERRIDES[dims.ai] : {},
+    aiProfileOverride(dims),
     STORAGE_OVERRIDES[dims.storage],
   );
+}
+
+/** Keep every selected client contract; deployment overrides apply once to the shared project. */
+export function composeProfilesForTargets(targets: string[], dims: ProjectDimensions): ProjectProfile {
+  const products = [...new Set(targets.map(target => inferDimensions([target]).product))];
+  if (products.length <= 1) return composeProfile({ ...dims, product: products[0] ?? dims.product });
+  const bases = products.map(product => BASE_PROFILES[product]);
+  const combined: ProjectProfile = {
+    id: products.join("+"), label: bases.map(base => base.label).join(" / "),
+    initSteps: "项目包含多个客户端。以下每段规范仅约束相应客户端，CLI 无界面不影响其他客户端；分别安排客户端和共享服务，保留全部已选平台。\n" + bases.map(base => base.initSteps).join("\n"),
+    platformSpec: bases.map(base => base.platformSpec).join("\n"),
+    evaluatorHint: bases.map(base => base.evaluatorHint).join("\n"),
+    suggestedStack: [...new Set(bases.flatMap(base => base.suggestedStack))],
+  };
+  return mergeProfile(combined, DEPLOY_OVERRIDES[dims.deploy],
+    aiProfileOverride(dims), STORAGE_OVERRIDES[dims.storage]);
 }
 
 function inferDimensions(targets: string[]): ProjectDimensions {
@@ -509,7 +546,7 @@ function inferDimensions(targets: string[]): ProjectDimensions {
   // 按优先级匹配：CLI > 小程序 > 移动端 > 桌面 > 库 > 后端 > Web（默认）
   if (set.has("cli")) product = "cli";
   else if (set.has("wechat-miniprogram")) product = "miniprogram";
-  else if (set.has("ios-mobile") || set.has("android-mobile") || set.has("mobile") || set.has("flutter") || set.has("react-native")) product = "mobile";
+  else if ([...set].some(isMobileTarget) || set.has("mobile") || set.has("flutter") || set.has("react-native")) product = "mobile";
   else if (set.has("library") || set.has("sdk")) product = "library";
   else if (set.has("windows-desktop") || set.has("macos-desktop") || set.has("linux-desktop") || set.has("desktop") || set.has("electron") || set.has("tauri")) product = "desktop";
   else if (set.has("api") || set.has("backend") || set.has("server")) product = "backend";
@@ -740,7 +777,11 @@ const DESIGN_SPEC = `## 设计判断与工艺
 
 开始视觉任务且当前上下文尚未加载时，从 available_skills 找到 ui-aesthetic 的 <location> 并 Read；用其中的构图、材质、移动重组与实际验收方法。相对参考路径按该技能目录解析，仅加载与任务相关的部分。技能未启用或不可用时遵循下面的核心要求，不去搜索同名替代品。局部修改沿用当前设计，不自动重做全站。
 
-**约束优先**：有 .easymint/design/visual-spec.json 时，Read 它与 .easymint/design/theme.css、.easymint/design/components.css、.easymint/design/PORTING.md，使用同目录 templates 中对应的真实代码。预览、原型和实现复用同一风格包的组件、状态、材质及装饰结构，不能只把CSS值写进文字。改变方向用可用的 set_project_design；用户修改过的文件保留并合并，缺已声明资源不能静默切换主题。
+**约束优先**：有 .easymint/design/visual-spec.json 时，Read 它与 .easymint/design/theme.css、.easymint/design/components.css、.easymint/design/PORTING.md，优先使用同目录 showcase 双端场景中的真实代码，旧模板仅作兼容。预览、原型和实现复用同一风格包的组件、状态、材质及装饰结构，不能只把CSS值写进文字。改变方向用可用的 set_project_design；用户修改过的文件保留并合并，缺已声明资源不能静默切换主题。
+
+**先看选中的真实场景**：项目存在 DESIGN.md、scene-contract.json、showcase.html 与 showcase-mobile.html 时，先读这些文件，再查看相关 CSS 与 runtime.js。它们就是用户选择时看到的实际源码，是主要视觉依据；旧 templates/ 与 gallery.html 仅用于旧项目兼容，不能用通用看板取代所选场景。按用户的真实任务重组内容，保留风格最有辨识度的构图、字体角色、材质和必要控件；不要为了覆盖组件种类添加无用表单、统计或弹窗。
+
+**参考、复现、对照，再打磨**：复杂材质/交互先查有可运行演示、源码和明确许可的成熟实现，读核心代码，优先合法复用，不能只看截图后凭印象仿写。先在同背景、同尺寸、同状态下实现一个代表性控件，再扩展整页；保留用户认可的版本，一轮只改一组因素。玻璃的透光、曲面、反射和阴影要关联，不能把“更有存在感”简单解释成加厚白边、加阴影或整体模糊。图标检查实际绘制边界和按钮内对齐；小圆形控件与光学图在高像素密度下也不能有阶梯锯齿。功能测试、类型检查和构建成功不证明视觉更好，必须分开报告。
 
 **内容与构图优先于换色**：先明确用户第一眼应该看到什么、下一步做什么，以真实标题、列表、字段或作品组织主次与浏览顺序。工作台、内容页和活动页可以有不同的密度与构图；不要把任何任务都做成居中Hero、三个同款圆角卡片、渐变CTA。不要为画面饱满虚构统计、客户或功能，不擅自改产品名；操作型页面用任务/对象标题，不用通用抒情口号替代。设计记忆点可来自排版、比例与真实内容，不必额外塞一个装饰物。
 

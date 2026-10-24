@@ -1,0 +1,15 @@
+{
+  "background": "landscape",
+  "shape": "nav",
+  "regular": false,
+  "moving": true,
+  "interaction": true,
+  "offset": 0,
+  "selected": 1,
+  "bezel": 10,
+  "thickness": 0.8,
+  "gain": 1.5,
+  "mode": "polar",
+  "ink": "white",
+  "vote": ""
+}

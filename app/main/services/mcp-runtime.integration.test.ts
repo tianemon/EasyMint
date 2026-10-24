@@ -117,7 +117,7 @@ describe("Pi MCP host integration", () => {
     expect(fs.existsSync(resourceLog)).toBe(false);
   });
 
-  it("honors the official process-wide codemode worker limit and releases capacity after cancellation", async () => {
+  it("queues codemode at the process-wide worker limit and releases capacity after cancellation", async () => {
     let entered = 0;
     const releases: Array<() => void> = [];
     const waitTool: ToolDefinition = { name: "upgrade_wait", label: "Wait", description: "Controlled wait", parameters: { type: "object", properties: {} },
@@ -131,17 +131,26 @@ describe("Pi MCP host integration", () => {
     const abort = new AbortController();
     const first = script(session, 'await tools.upgrade_wait({});', "first", abort.signal);
     const second = script(other, 'await tools.upgrade_wait({});', "second");
+    let third: ReturnType<typeof script> | undefined;
+    const thirdAbort = new AbortController();
     void first.catch(() => {}); void second.catch(() => {});
     try {
       await vi.waitFor(() => expect(entered).toBe(2));
-      const third = await script(session, 'text("third must not start");', "third");
-      expect(JSON.stringify(third.content)).toContain("Codemode worker limit reached (2");
+      let thirdSettled = false;
+      third = script(session, 'await tools.upgrade_wait({}); text("queued run completed");', "third", thirdAbort.signal);
+      void third.then(() => { thirdSettled = true; }, () => { thirdSettled = true; });
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(entered).toBe(2);
+      expect(thirdSettled).toBe(false);
       abort.abort(); await first;
-      await vi.waitFor(async () => {
-        const next = await script(session, 'text("capacity released");', "replacement");
-        expect(JSON.stringify(next.content)).toContain("capacity released");
-      });
-    } finally { abort.abort(); for (const release of releases) release(); await Promise.allSettled([first, second]); }
+      await vi.waitFor(() => expect(entered).toBe(3));
+      releases[2]!();
+      expect(JSON.stringify((await third).content)).toContain("queued run completed");
+    } finally {
+      abort.abort(); thirdAbort.abort();
+      for (const release of releases) release();
+      await Promise.allSettled([first, second, ...(third ? [third] : [])]);
+    }
   });
 
   it("never starts unapproved or readonly servers, including direct retry", async () => {

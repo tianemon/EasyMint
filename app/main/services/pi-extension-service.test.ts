@@ -385,16 +385,17 @@ describe("native Pi extension discovery", () => {
   it("pins the Pi Git parser contract to the locked SDK version", async () => {
     // 升级 @earendil-works/pi-coding-agent 时本测试刻意失败：必须复核 dist/utils/git.js 的
     // parseGitUrl 行为（EM 经内部入口直接复用该文件，见 pi-extension-service.ensurePiGitParser）
-    // 1.1.0 → 1.3.0 复核记录（2026-10-17）：四种 Git 写法（简写 / 带 ref / HTTPS / SSH）
+    // 1.3.0 → 1.4.0 复核记录（2026-10-24）：四种 Git 写法（简写 / 带 ref / HTTPS / SSH）
     // 身份归一化和非法路径拒绝继续由下方真实 SDK 调用验证。
-    // 另已复核同期 getAliases（jiti 别名表）逐项相同、私有 API clearExtensionCache 仍在
+    // getAliases 新增 pi-ai/models（含旧包名兼容别名）；Git 解析和 config.js 未变。
+    // 私有 API clearExtensionCache 仍在
     // dist/core/extensions/loader.js、package.json 的 piConfig.configDir 仍被 config.js 读取。
     const require = createRequire(path.join(__dirname, "anchor.cjs"));
     const manifestPath = (require.resolve.paths("@earendil-works/pi-coding-agent") ?? [])
       .map((root) => path.join(root, "@earendil-works", "pi-coding-agent", "package.json"))
       .find((file) => fs.existsSync(file));
     expect(manifestPath).toBeDefined();
-    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.3.0");
+    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.4.0");
     const { parseGitUrl } = await import(pathToFileURL(path.join(path.dirname(manifestPath!), "dist", "utils", "git.js")).href);
     const forms = ["git:github:owner/repo", "git:github.com/owner/repo@tag", "https://github.com/owner/repo.git", "git:git@github.com:owner/repo.git"];
     const identities = forms.map((source) => {

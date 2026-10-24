@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./interaction-motion.css";
+@import "./new-project-flow.css";
 @plugin "@tailwindcss/typography";
 
 /* Tailwind 4 主题：注册设计 token。
@@ -288,9 +290,9 @@ html[data-platform="win32"] {
   --shadow-menu: 0 12px 40px rgba(0,0,0,0.16);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.03);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.04);
-  /* 用户气泡:亮色下为 accent 白(文字反色);暗色主题覆盖为深灰 */
-  --msg-user-bg: var(--color-accent);
-  --msg-user-text: var(--color-text-inverse);
+  /* 用户气泡：两种主题均沿用参考图的蓝底白字。 */
+  --msg-user-bg: #183e76;
+  --msg-user-text: #f6fafe;
   --color-input-card: var(--color-elevated);
 
   /* ── Font ────────────────────────── */
@@ -331,6 +333,7 @@ html[data-platform="win32"] {
 
   /* ── Spacing (4px grid) ──────────── */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px; --s16: 64px;
+  --chat-content-inset: calc(var(--s16) + 75px);
 
   /* ── Animation ───────────────────── */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
@@ -499,8 +502,8 @@ html[data-platform="win32"] {
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
   /* 用户气泡:深灰(略亮于 AI 气泡 card-agent #242424 以区分),文字转亮色 */
-  --msg-user-bg: #2a2a2a;
-  --msg-user-text: var(--color-text-primary);
+  --msg-user-bg: #183e76;
+  --msg-user-text: #f6fafe;
   /* 输入卡片:还原 elevated 原值(独立变量保留,便于将来单独调) */
   --color-input-card: #1c1c1c;
 }
@@ -517,7 +520,7 @@ html[data-platform="win32"] {
 
 /* ── Sidebar ──────────────────────────────────── */
 .sidebar {
-  width: 275px; flex-shrink: 0; position: relative;
+  width: 300px; flex-shrink: 0; position: relative;
   display: flex; flex-direction: column;
   background: var(--color-sidebar);
   -webkit-app-region: drag;
@@ -591,7 +594,10 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 @media (max-height: 700px) {
   .main-area .creation-welcome { top: auto; bottom: 24px; }
 }
-.creation-dialog-overlay, .creation-preview-overlay { background: rgb(12 20 17 / 40%); }
+.creation-dialog-overlay, .creation-preview-overlay {
+  background: rgb(16 16 16 / 32%);
+  backdrop-filter: blur(10px);
+}
 .creation-dialog { width: min(560px, calc(100vw - 32px)); height: min(660px, calc(100dvh - 48px)); background: var(--modal-fill); border: 0; border-radius: var(--radius-lg); box-shadow: var(--shadow-menu); overflow: hidden; }
 .creation-icon-button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; color: var(--color-text-secondary); border-radius: var(--radius-lg); font-size: var(--text-sm); }
 .creation-icon-button:hover { background: var(--color-surface-hover); }
@@ -973,7 +979,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   /* position: 遮罩锚点;flex-shrink 0: 防压缩;底部间距: 窗口边距(原 chat-input-area 职责)
      +10px: 卡片视觉上移(原 --s4=16px);ChatPanel 的 FLIP 落点改为动态读实际值,不再硬编码 16px */
   position: relative; flex-shrink: 0;
-  margin: 0 var(--s16) calc(var(--s4) + 10px);
+  margin: 0 var(--chat-content-inset) calc(var(--s4) + 10px);
 }
 /* 状态指示光效:三预设(orbit/slide/breathe)全 canvas 每帧绘制(OrbitGlow/SlideGlow/BreatheGlow)。
    canvas 定位:替换元素 absolute+inset+width:auto 时布局用 intrinsic 尺寸而非 inset 推导——

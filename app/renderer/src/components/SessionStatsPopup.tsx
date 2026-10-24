@@ -1,6 +1,7 @@
+import { useChatStore } from "../stores/chat-store";
 import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale, uiI18n } from "../lib/i18n";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Modal } from "./ui/Modal";
 import { formatTokenWindow } from "../lib/token-format";
 import { costFormula, formatCostCny } from "@shared/usd-cny-rate";
@@ -26,6 +27,19 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<string | null>(null);
+  const sessionMessages = useChatStore(state => state.messagesBySession[sessionId]);
+  // Keep the original main-session metric: cache reads / all input, including cold starts.
+  const cacheRate = useMemo(() => {
+    let read = 0, input = 0, write = 0;
+    for (const message of sessionMessages ?? []) {
+      const usage = message.usage;
+      read += usage?.cacheReadTokens ?? 0;
+      input += usage?.inputTokens ?? 0;
+      write += usage?.cacheWriteTokens ?? 0;
+    }
+    const total = read + input + write;
+    return total > 0 ? ((read / total) * 100).toFixed(2) : null;
+  }, [sessionMessages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +126,13 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
                 <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.share")}</span><span className="text-text-primary tabular-nums">{fmtPct(stats.contextUsage.percent)}</span></div>
                 <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.used")}</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.contextUsage.tokens)}</span></div>
                 <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.limit")}</span><span className="text-text-primary tabular-nums">{formatTokenWindow(stats.contextUsage.contextWindow)}</span></div>
+              </div>
+            )}
+
+            {cacheRate !== null && (
+              <div className="border-t border-border pt-3 flex justify-between items-center" title={uiText("ui.ChatInput.includesColdStartTurnsProviderCachesMay")}>
+                <span className="text-text-secondary">{uiText("ui.ChatInput.averageCacheHitRate").trim()}</span>
+                <span className="text-text-primary tabular-nums">{cacheRate}%</span>
               </div>
             )}
 

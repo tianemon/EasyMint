@@ -1,8 +1,11 @@
+import { ExecutionTimer } from "./ExecutionTimer";
+import { useProcessDisclosure } from "./chat-process-disclosure";
+import { buildTurnPresentations, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
 import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
 import { formatNumber } from "../lib/locale-format";
-import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
+import { uiText, useUiLocale, uiI18n, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
@@ -38,6 +41,7 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
+import { startsMessageIdentity } from "./chat-message-presentation";
 import { UserMessageText } from "./UserMessageText";
 import { ImageRecoveryDialog } from "./ImageRecoveryDialog";
 import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE, encodeAttachedImages, pendingImageBase64Bytes, type ContextImageEntry } from "@shared/image-context";
@@ -707,6 +711,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // - 任何用户输入(wheel/touch/mousedown)后 500ms 内的 scroll 变化 = 用户滚动意图——
   //   覆盖滚轮/触摸板/触屏/滚动条拖动;程序性贴底/测量增长(无用户输入)的 scroll 永不误判
   // - autoScrollRef=false:用户滚离底部(dist>8);恢复:滚回底部(dist<8) → 跟随 + 隐藏气泡
+  const [inspectingProcess, setInspectingProcess] = useState(false);
+  useEffect(() => setInspectingProcess(false), [sid]);
   const lastUserInputRef = useRef(0); // 最近一次用户输入时间(判定窗口)
   const markUserInput = useCallback(() => { lastUserInputRef.current = Date.now(); }, []);
   const handleScroll = useCallback(() => {
@@ -716,6 +722,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const atBottom = distFromBottom < 8;
     if (atBottom) {
+      setInspectingProcess(false);
       autoScrollRef.current = true; // 滚回底部 → 恢复自动跟随
       // 气泡消失(用户已看到新消息);跨阈值时更新渲染 state
       if (showNewMsgRef.current) setShowNewMsg(false);
@@ -738,6 +745,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // 按住指针期间暂停贴底（理由见下方 anchorTo）：必须用 state 而非 ref——库在每次渲染时
   // 应用 options，ref 变化不会触发重渲染，anchorTo 就换不过来
+  const processAnchorRef = useRef<number | null>(null);
   const [holdPointer, setHoldPointer] = useState(false);
   const handlePointerDown = useCallback(() => {
     setHoldPointer(true);
@@ -759,6 +767,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     containerRef.current = el;
     setScrollEl(el);
   }, []);
+  useLayoutEffect(() => {
+    if (!scrollEl) return;
+    const measureScrollbar = () => {
+      scrollEl.style.setProperty("--chat-scrollbar-width", `${scrollEl.offsetWidth - scrollEl.clientWidth}px`);
+    };
+    measureScrollbar();
+    const observer = new ResizeObserver(measureScrollbar);
+    observer.observe(scrollEl);
+    return () => observer.disconnect();
+  }, [scrollEl]);
   // 眨眼开关落在「最新一条 Mint 消息」所在的行：用户消息和系统通知行没有 Mint 头像，
   // 若只按「最后一行」判，通知行插到末尾时流式中的头像会突然停眨
   const liveIndex = useMemo(() => {
@@ -783,10 +801,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }
     return -1;
   }, [messages]);
+  const expandedTurns = useProcessDisclosure(state => state.expanded);
+  const toggleProcess = useProcessDisclosure(state => state.toggle);
+  const runningTurn = useMemo(() => busy && !manualCompactingRef.current && !summarizing ? runningTurnPosition(messages) : undefined, [messages, busy, compacting, summarizing]);
+  const turnPresentations = useMemo(() => buildTurnPresentations(messages, busy), [messages, busy]);
+  const isProcessHidden = (index: number): boolean => {
+    const turn = turnPresentations.get(index);
+    return !!turn && !expandedTurns[`${sid}:${turn.key}`] && !turn.finalEntries.has(index);
+  };
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollEl,
-    estimateSize: () => 100,
+    estimateSize: (index) => isProcessHidden(index) && turnPresentations.get(index)?.first !== index ? 0 : 100,
     overscan: 8,
     // 正规手段(替代手写贴底链):anchorTo: "end" 是库原生聊天列表机制——
     // 用户在底部时内容测量变化(流式增长)自动保持贴底;用户滚动离开自动停止跟随。
@@ -795,16 +821,37 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 按住指针期间暂停贴底：流式时持续贴底会把指针下的内容顶走，按下与松手之间指针下的
     // 元素换掉后浏览器就不再派发 click（气泡里的图片/文件链接、折叠箭头、复制按钮都点不动，
     // 用户 2026-09-23 反馈）。暂停后内容改为在下方增长，指针下的元素不动；松手即恢复。
-    anchorTo: holdPointer ? undefined : "end",
+    anchorTo: holdPointer || inspectingProcess ? undefined : "end",
     // measureElement 在 React commit 阶段触发 onChange，默认的 flushSync 会
     // 报 "flushSync was called from inside a lifecycle method"——改走普通调度
     useFlushSync: false,
   });
+  const foldLayoutKey = Array.from(turnPresentations.entries()).map(([index, turn]) => `${index}:${expandedTurns[`${sid}:${turn.key}`] ? "open" : "closed"}`).join(",");
+  const hiddenProcessRowsRef = useRef(new Set<number>());
+  useLayoutEffect(() => {
+    const hidden = new Set(Array.from(turnPresentations.keys()).filter(index => isProcessHidden(index) && turnPresentations.get(index)?.first !== index));
+    for (const index of hiddenProcessRowsRef.current) {
+      if (hidden.has(index) || index >= messages.length) continue;
+      const row = containerRef.current?.querySelector(`[data-index="${index}"]`);
+      virtualizer.resizeItem(index, row?.getBoundingClientRect().height || 100);
+    }
+    for (const index of hidden) {
+      if (!hiddenProcessRowsRef.current.has(index)) virtualizer.resizeItem(index, 0);
+    }
+    hiddenProcessRowsRef.current = hidden;
+    if (processAnchorRef.current === null) return;
+    const index = processAnchorRef.current;
+    processAnchorRef.current = null;
+    // Inspect from the process heading rather than anchoring to the final answer below it.
+    virtualizer.scrollToIndex(index, { align: "start" });
+    // foldLayoutKey tracks visibility; streamed content is measured by ResizeObserver.
+  }, [foldLayoutKey, virtualizer]);
   // 贴底(发送消息/气泡点击):virtualizer.scrollToIndex 官方 API。
   // rAF 延迟:事件处理中 virtualizer 的 count 还是旧值(React 渲染时才 setOptions 更新),
   // scrollToIndex 内部 clamp 到 count-1——发送消息同步插入用户消息后立即调用会滚到
   // 旧最后一条(AI 消息);rAF 时 React 已重渲染,count 更新,定位到用户消息
   const scrollToBottom = useCallback((_force = false) => {
+    setInspectingProcess(false);
     const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
     const target = msgs.length - 1;
     if (target < 0) return;
@@ -837,6 +884,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const idx = messages.findIndex((m) => m.id === msgId);
     if (idx < 0) return;
     autoScrollRef.current = false;
+    setInspectingProcess(true);
+    const turn = turnPresentations.get(idx);
+    if (turn && !expandedTurns[`${sid}:${turn.key}`] && !turn.finalEntries.has(idx)) toggleProcess(`${sid}:${turn.key}`);
     if (idx < messages.length - 1) {
       // 非末尾:显示回底按钮(用户可从历史位置一键回底);目标即末尾则保持贴底态
       awayFromBottomRef.current = true;
@@ -848,7 +898,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     setHighlightMsgId(msgId);
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = setTimeout(() => setHighlightMsgId(null), 1500);
-  }, [messages, virtualizer]);
+  }, [messages, virtualizer, turnPresentations, expandedTurns, sid, toggleProcess]);
 
   // 跳转校正:测量推进(totalSize 变化)时重新对齐;目标进入渲染范围后按 DOM 实测位置
   // 精确对齐并结束。1.2s 超时保险(测量不再变化时 effect 不再触发,靠超时清理 pending)
@@ -1461,6 +1511,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       })) return;
       if (["turn_start", "turn_end", "waiting_user", "compacting", "compaction_finished", "error"].includes(event.type)) statusRevisionRef.current++;
       if (event.type === "waiting_user" || event.type === "turn_end") applyPiRunStatus(sidRef.current, event, stoppedRef.current);
+      if (event.type === "turn_end" && event.outcome) {
+        const tail = useChatStore.getState().messagesBySession[sidRef.current]?.slice().reverse() ?? [];
+        const boundary = tail.findIndex(m => m.role === "user" && (!m.customType || m.details?.startsExecution === true));
+        const latest = (boundary < 0 ? tail : tail.slice(0, boundary)).find(m => m.role === "ai");
+        if (latest) useChatStore.getState().setMessageUsage(sidRef.current, latest.id, latest.usage, { turnOutcome: event.outcome });
+      }
       // 打断后:只丢弃被打断回合的残留帧;通知(新注入)正常渲染,新回合(turn_start)开始 → 恢复渲染。
       // (原实现 return 丢弃一切——打断通知/总结回合全被吞,磁盘有而 UI 无)
       // 但打断后 1.5s 内到的 turn_start 是**被打断回合自己的残留**(SDK 在回合内每个工具批次/续跑
@@ -1487,7 +1543,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 输出段块(assistant 消息)内容帧处理:无当前块 → 按消息对象创建时间戳插入新块,
       // 有当前块 → 全量替换内容(帧是累计全文快照)。块 piTs 固定于创建时刻,通知按
       // 各自 ts 插到块之间,UI 顺序 = jsonl 落盘顺序(不依赖广播到达顺序)
-      const handleBlocks = (blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>, frameTs: number) => {
+      const handleBlocks = (blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string; phase?: "commentary" | "final_answer" }>, frameTs: number) => {
         const rawEntries = piBlocksToEntries(blocks);
         if (rawEntries.length === 0) return;
         const hasText = rawEntries.some((e) => e.kind === "text");
@@ -1504,7 +1560,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           useChatStore.getState().replaceAiEntriesById(sidRef.current, latestAiIdRef.current, entries);
         } else {
           latestAiIdRef.current = useChatStore.getState().insertUserMsgAt(sidRef.current, {
-            role: "ai" as const, entries, timestamp: Date.now(), streaming: true,
+            role: "ai" as const, entries, timestamp: Date.now(), streaming: true, piTs: frameTs,
             agentRole: event.agentRole, forwarded: event.forwarded, forwardedFrom: event.forwardedFrom,
           }, frameTs);
         }
@@ -1539,7 +1595,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         handleBlocks(event.blocks, event.timestamp ?? Date.now());
         // 回合完整消息（message_end，partial=false）携带 usage → 挂到本回合 AI 消息
         if (!event.partial && latestAiIdRef.current) {
-          useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage, { durationMs: event.durationMs, provider: event.provider, model: event.model });
+          useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage, { durationMs: event.durationMs, provider: event.provider, model: event.model, stopReason: event.stopReason });
         }
       }
       // entry_appended — 条目 id 回填(气泡 ↔ 会话条目 id 贯通):
@@ -2694,7 +2750,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       {/* 打断丢弃插话的提示——紧贴输入卡：「我刚发出去那条到底发没发出去」与输入动作同一视线区域 */}
       <DroppedSteerNotice dropped={droppedQueue} />
       {contextImageBytes + pendingImageBytes >= contextImageWarnAt && !busy && (
-        <div className="mx-[var(--s16)] mb-2 px-3 py-2 rounded-[var(--radius-lg)] border border-warning-border bg-surface-elevated text-xs text-text-secondary flex items-center justify-between gap-3">
+        <div className="mx-[var(--chat-content-inset)] mb-2 px-3 py-2 rounded-[var(--radius-lg)] border border-warning-border bg-surface-elevated text-xs text-text-secondary flex items-center justify-between gap-3">
           <span>
             {uiText("ui.ChatPanel.largeImagePayload")}{contextImageBytes > 0 ? uiText("ui.ChatPanel.aboutMbInHistory", { v0: (contextImageBytes / (1024 * 1024)).toFixed(1) }) : ""}{pendingImageBytes > 0 ? uiText("ui.ChatPanel.aboutMbOfNewlyEncodedImages", { v0: (pendingImageBytes / (1024 * 1024)).toFixed(1) }) : ""}{uiText("ui.ChatPanel.newImagesWillBeResizedButThe")}</span>
           {contextImageBytes > 0 && <button type="button" className="shrink-0 text-text-primary underline cursor-pointer" onClick={() => { void manageContextImages(); }}>{uiText("ui.ChatPanel.cleanUpHistoricalImages")}</button>}
@@ -2821,11 +2877,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             <div />
           )
         ) : (
-          <div className="px-8 py-4">
+          <div className="chat-message-content py-4">
             {/* 虚拟化消息列表：absolute 定位 + translateY，测量高度撑起滚动空间 */}
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((vi) => {
-                const msg = messages[vi.index]!;
+                const originalMsg = messages[vi.index]!;
+                const turn = turnPresentations.get(vi.index);
+                const expanded = !!turn && !!expandedTurns[`${sid}:${turn.key}`];
+                const hidden = isProcessHidden(vi.index);
+                const msg = turn && !expanded ? { ...originalMsg, entries: turn.finalEntries.get(vi.index) ?? [] } : originalMsg;
+                const header = turn?.first === vi.index;
                 return (
                   <div
                     key={vi.key}
@@ -2835,7 +2896,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     // mint-live：只给「最新一条 Mint 消息」且会话在跑时加，其内头像眨眼（规则见 index.css）。
                     // 开关做成祖先容器上的 CSS 类而不是逐个头像传 props：内联 SVG 的 SMIL 时间线是文档级的，
                     // 多实例各自调用 pause/unpause 会互相覆盖；CSS 类没有执行顺序问题。
-                    className={`pb-8${busy && vi.index === liveIndex ? " mint-live" : ""}`}
+                    className={`${hidden ? (header ? "pb-2" : "") : "pb-8"}${busy && vi.index === liveIndex ? " mint-live" : ""}`}
                   >
                     {/* 跳转高亮层:常驻 absolute 不占布局(虚拟滚动测量零干扰)、opacity 过渡
                         (圆角始终存在,消失只是淡出,无「圆角变直角」)、仅上边外扩 5px——
@@ -2843,8 +2904,26 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     <div
                       className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[var(--radius-lg)] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
                     />
-                    <MemoChatMessage
+                    {runningTurn?.first === vi.index && <ExecutionTimer startedAt={runningTurn.startedAt} />}
+                    {header && turn && (
+                      <button type="button" className="execution-process-toggle" aria-expanded={expanded}
+                        onClick={() => {
+                          autoScrollRef.current = false;
+                          awayFromBottomRef.current = true;
+                          setAwayFromBottom(true);
+                          pendingJumpRef.current = turn.first;
+                          jumpStartedAtRef.current = Date.now();
+                          processAnchorRef.current = turn.first;
+                          setInspectingProcess(true);
+                          toggleProcess(`${sid}:${turn.key}`);
+                        }}>
+                        <span>{executionLabel(turn.durationMs, uiI18n.language.startsWith("en"))}</span>
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ transform: expanded ? "rotate(90deg)" : undefined }}><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" /></svg>
+                      </button>
+                    )}
+                    {!hidden && <MemoChatMessage
                       msg={msg}
+                      showIdentity={!!turn && !expanded || startsMessageIdentity(messages, vi.index) || (busy && vi.index === liveIndex)}
                       streaming={busy && vi.index === streamIndex}
                       userBubble={userBubble}
                       onPin={handlePin}
@@ -2852,7 +2931,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       busy={busy}
                       onContextMenu={handleMsgContextMenu}
                       sid={sid}
-                    />
+                    />}
                     {/* 委派进度卡片：任意时刻最多一张(跨批次合并,含所有委派的任务行),
                         固定在「最新 triggerMsgId」对应消息下方(左对齐气泡)；全部委派缺
                         triggerMsgId(委派由 Mint 主动发起,消息未落盘时捕获不到)时
@@ -2885,6 +2964,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 );
               })}
             </div>
+            {runningTurn?.first === -1 && <ExecutionTimer startedAt={runningTurn.startedAt} />}
             {showConfirmDev && (
               <div className="flex justify-center pb-3">
                 <button
@@ -2902,7 +2982,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             前一条被响应后组件若被复用（无 key），后一条会继承前一条的本地 state——已置 true 的
             submitting 让确认/取消永久点不动，编辑中的正文也会串到下一条上。key 保证换请求即重挂载。 */}
         {pendingAsk && (
-          <div className="mx-[var(--s16)] pt-1 pb-2">
+          <div className="mx-[var(--chat-content-inset)] pt-1 pb-2">
             <AskUserCard key={pendingAsk.requestId} request={pendingAsk} />
           </div>
         )}
@@ -2911,10 +2991,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       {/* 状态栏:独立于输入区,渲染在输入容器上方 */}
       <StatusBar sessionId={sidRef.current} />
 
-      {/* Attach preview — above thinking when busy;左右边距与输入卡片(var(--s16))一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
+      {/* Attach preview — above thinking when busy;左右边距与输入卡片(--chat-content-inset)一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
           复用 ChatInput 胶囊式组件(busy/非 busy 视觉一致,不再有 64px 放大缩略图) */}
       {busy && attaches.length > 0 && (
-        <div className="mx-[var(--s16)] px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview attaches={attaches} setAttaches={setAttaches} onPreview={openViewer} /></div>
+        <div className="mx-[var(--chat-content-inset)] px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview attaches={attaches} setAttaches={setAttaches} onPreview={openViewer} /></div>
       )}
 
       {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方)。
@@ -2924,11 +3004,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         className={`relative ${(!hasMessages || leavingStartCard) ? "flex-1 flex flex-col justify-center" : "shrink-0"}`}
         style={!hasMessages && !leavingStartCard ? { transform: "translateY(-195px)" } : undefined}
       >
-        {/* 空态模块:角色选择 + 输入卡片作为整体(角色 ml-4 对齐卡片左 margin 16px)。
+        {/* 空态模块:角色选择 + 输入卡片共用横向边距，始终对齐。
             existingSid 会话(磁盘消息加载中)不显示角色选择——恢复会话沿用 tab 的 isDesigner */}
         {!hasMessages && !existingSid && !leavingStartCard ? (
           <div className="w-full flex flex-col gap-2">
-            <div className="flex items-center gap-2 ml-[66px]">
+            <div className="flex items-center gap-2 mx-[var(--chat-content-inset)]">
               <span className="text-sm text-text-muted">{uiText("ui.ChatPanel.agentCapabilities")}</span>
               {/* 轨道(背景框):参考 liquid-glass user info card——blur 20px 雾面 + saturate 140,
                   静止无弹性无 hover 光晕(示例 user card 无 onClick 即无 hover 效果);
@@ -3109,6 +3189,7 @@ function ImagePathOnlyTag(): JSX.Element {
 
 interface MemoChatMessageProps {
   msg: ChatMessage;
+  showIdentity: boolean;
   /** 本条消息是否正在增长（只有末尾那条为真）——驱动流式 markdown 与思考块的流式态 */
   streaming: boolean;
   /** 本会话是否处于回合中（重新生成入口的临时不可用判据，与编辑入口同一套） */
@@ -3121,7 +3202,7 @@ interface MemoChatMessageProps {
   sid: string;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
   useUiLocale();
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
@@ -3151,6 +3232,14 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
   // 操作条显隐：hover 消息立即显示；离开消息后 1s 缓冲（期间鼠标移到按钮上则继续显示）
   const [actionsVisible, setActionsVisible] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
+  const [actionsFocused, setActionsFocused] = useState(false);
+  const actionFocusProps = {
+    tabIndex: 0,
+    onFocusCapture: () => setActionsFocused(true),
+    onBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActionsFocused(false);
+    },
+  };
   const showActions = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
     setActionsVisible(true);
@@ -3194,7 +3283,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
           onContextMenu={(e) => onContextMenu(msg, e)}
         >
           <div style={{ width: 40, flexShrink: 0 }} />
-          <div className="relative w-fit max-w-[75%] min-w-0 my-1" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
+          <div className="relative w-fit max-w-[75%] min-w-0 my-1" {...actionFocusProps} onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             {/* 无描边(用户 2026-09-15):本气泡无投影,靠 bg-surface-elevated 与聊天区底色的层差分区 */}
             <div className="msg-bubble-system rounded-[var(--radius-lg)] rounded-bl-[4px] bg-surface-elevated overflow-hidden">
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
@@ -3298,18 +3387,18 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
               </div>}
             </div>
             {/* 与其他气泡一致:复制完整文本 + 钉住(悬停显示) */}
-            <BubbleActions text={body} onPin={onPin} sid={sid} visible={actionsVisible} />
+            <BubbleActions text={body} onPin={onPin} sid={sid} visible={actionsVisible || actionsFocused} />
           </div>
         </div>
       );
     }
     return (
-      <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
+      <div className="msg-in msg-in-user" onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
              max-w-[60%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
-          <div className="relative shrink-0 max-w-[60%] min-w-0" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
-            {userBubble(msg, { text: copyText, onPin, sid, visible: actionsVisible })}
+          <div className="relative shrink-0 max-w-[60%] min-w-0" {...actionFocusProps} onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
+            {userBubble(msg, { text: copyText, onPin, sid, visible: actionsVisible || actionsFocused })}
           </div>
         </div>
       </div>
@@ -3323,16 +3412,16 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
   const displayName = role ?? "Mint";
 
   return (
-    <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
+    <div className={`msg-in${msg.durationMs !== undefined || msg.usage ? " msg-with-output-meta" : ""}`} onContextMenu={(e) => onContextMenu(msg, e)} aria-label={displayName}>
       <div className="flex gap-4 items-start max-w-[75%]">
         {/* Mint 头像：内联矢量 SVG，有会话在跑时播眨眼（控制值在组件内部取全局态，见 MintAvatar）；角色消息仍用首字母 */}
-        {role ? (
+        {!showIdentity ? <div className={`msg-avatar-spacer${role ? " is-agent" : ""}`} aria-hidden="true" /> : role ? (
           <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
         ) : (
           <MintAvatar size={40} className="msg-avatar mint" />
         )}
-        <div className="min-w-0 relative" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
-          <div className="msg-from">
+        <div className="min-w-0 relative" {...actionFocusProps} onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
+          <div className={`msg-from${showIdentity ? "" : " msg-from-continuation"}`}>
             {displayName}
             {msg.outOfContext ? <OutOfContextTag className="ml-1.5" /> : null}
             {msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag className="ml-1.5" /> : null}
@@ -3342,32 +3431,28 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
           </div>
           <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
             {blocks.map((block, i) => (
-              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} isStreamingTail={streaming && i === blocks.length - 1} />
+              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} running={busy} isStreamingTail={streaming && i === blocks.length - 1} />
             ))}
-            {/* 回合 usage：气泡内容区底部右对齐——贴内容右下，与 hover 复制工具条（气泡外）永不冲突。
-                 口径：输入 = 未缓存 + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}
-            {msg.durationMs !== undefined && (
-              <div className="mt-1 text-right break-all text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-                {(msg.durationMs / 1000).toFixed(1)}s
-              </div>
-            )}
-            {msg.usage && (() => {
-              const total = (msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0) + (msg.usage.cacheWriteTokens || 0);
-              const read = msg.usage.cacheReadTokens || 0;
-              return (
-                <div className="mt-1 flex justify-end whitespace-nowrap text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-                  {uiText("ui.ChatPanel.input")}{fmtTokenCount(total)}
-                  {" · "}{uiText("ui.ChatPanel.output")}{fmtTokenCount(msg.usage.outputTokens || 0)}
-                  {read > 0 && total > 0 ? uiText("ui.ChatPanel.cacheHit", { v0: ((read / total) * 100).toFixed(2) }) : ""}
-                </div>
-              );
-            })()}
           </div>
           <BubbleActions
             text={copyText}
             onPin={onPin}
             sid={sid}
-            visible={actionsVisible}
+            visible={actionsVisible || actionsFocused}
+            metadata={(msg.durationMs !== undefined || msg.usage) && (
+              <div className="msg-output-meta flex flex-wrap items-center gap-x-2 text-[length:var(--text-2xs)] text-text-muted tabular-nums">
+                {msg.durationMs !== undefined && <span>{(msg.durationMs / 1000).toFixed(1)}s</span>}
+                {msg.usage && (() => {
+                  const total = (msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0) + (msg.usage.cacheWriteTokens || 0);
+                  const read = msg.usage.cacheReadTokens || 0;
+                  return <span className="break-words">
+                    {uiText("ui.ChatPanel.input")}{fmtTokenCount(total)}
+                    {" · "}{uiText("ui.ChatPanel.output")}{fmtTokenCount(msg.usage.outputTokens || 0)}
+                    {read > 0 && total > 0 ? uiText("ui.ChatPanel.cacheHit", { v0: ((read / total) * 100).toFixed(2) }) : ""}
+                  </span>;
+                })()}
+              </div>
+            )}
             regenerate={{ disabledReason: rewindUnavailableReason(msg, busy, "重新生成"), onClick: () => onRegenerate(msg) }}
           />
         </div>
@@ -3405,7 +3490,6 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
        此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
     <div className="flex gap-4 items-start">
       <div className="min-w-0">
-        <div className="msg-from text-right">{uiText("ui.ChatPanel.user")}</div>
         <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
         {msg.attaches && msg.attaches.length > 0 && (
           /* 编辑态也显示附件：编辑只改文本，重发会带上它们（sendText 以气泡为准） */
@@ -3454,9 +3538,9 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
           msg.text ? <UserMessageText text={msg.text} /> : null
         )}
         </div>
-        {/* 铅笔常驻在每条 user 气泡下（用户已确认）；不可用时置灰并给出原因（title） */}
+        {/* 用户操作按钮统一随 hover 显隐；编辑态的发送入口保持可见。 */}
         <div className="flex items-center justify-between gap-1 mt-0.5 min-h-6">
-          <BubbleActions text={actions.text} onPin={actions.onPin} sid={actions.sid} visible={actions.visible && !isEditing} inline />
+          <BubbleActions text={actions.text} onPin={actions.onPin} sid={actions.sid} visible={actions.visible && !isEditing} edit={{ disabledReason: editDisabledReason, onClick: () => onStartEdit?.() }} inline />
           {/* 单条移出上下文后仍显示气泡，编辑态不显示标记（即将重发它）。 */}
           {!isEditing && msg.outOfContext ? <OutOfContextTag /> : null}
           {!isEditing && msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag /> : null}
@@ -3474,21 +3558,9 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
             >
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onStartEdit}
-              disabled={!!editDisabledReason}
-              title={editDisabledReason ?? uiText("ui.ChatPanel.editAndResend")}
-              aria-label={uiText("ui.ChatPanel.editMessage2")}
-              className={`p-0.5 transition-colors ${editDisabledReason ? "text-text-muted opacity-40 cursor-not-allowed" : "text-text-muted hover:text-text-primary"}`}
-            >
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
-            </button>
-          )}
+          ) : null}
         </div>
       </div>
-      <div className="msg-avatar user">U</div>
     </div>
   );
 }

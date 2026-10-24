@@ -177,7 +177,8 @@ interface StreamEvent {
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
       | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "compaction_finished" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed" | "retry_state" | "queue_dropped" | "nested_tool" | "waiting_user";
-  blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
+  stopReason?: string;
+  blocks?: Array<{ type: string; text?: string; phase?: "commentary" | "final_answer"; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   imagePath?: string;
   durationMs?: number;
@@ -298,6 +299,8 @@ interface ElectronAPI {
     onChanged: (callback: (data: { projectPath: string }) => void) => () => void;
   };
   agent: {
+    formAssist: (request: import("@shared/form-assist").FormAssistRequest) => Promise<string>;
+    cancelFormAssist: (requestId: string) => Promise<void>;
     nativeAiModels: () => Promise<{ chat: Array<import("@shared/native-ai").ModelReference & { name: string }>; image: Array<import("@shared/native-ai").ModelReference & { name: string }> }>;
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;

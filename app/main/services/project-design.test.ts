@@ -25,6 +25,30 @@ describe('project visual pipeline', () => {
     it('updates a prototype importing canonical project files and preserves its body', () => { const r = root(); saveProjectDesign(r, { styleId: 'flat' }, 'tech', resources); fs.mkdirSync(path.join(r, 'prototype')); let template = fs.readFileSync(path.join(r, '.easymint/design/templates/template-dashboard.html'), 'utf8'); for (const [marker, tag, file] of [['theme', 'style', 'theme.css'], ['components', 'style', 'components.css'], ['runtime', 'script', 'runtime.js']])
         template = template.replace(new RegExp(`<${tag} data-easymint-${marker}>[\\s\\S]*?</${tag}>`), tag === 'style' ? `<link rel="stylesheet" href="../.easymint/design/${file}">` : `<script src="../.easymint/design/${file}"></script>`); fs.writeFileSync(path.join(r, 'prototype/index.html'), template); saveProjectDesign(r, { styleId: 'glass' }, undefined, resources); expect(fs.readFileSync(path.join(r, 'prototype/index.html'), 'utf8').match(/<div class="sample-app[^>]+>/)?.[0]).toContain('data-style="glass"'); });
     it('allows a layout merge using an existing alternative template then adopts it atomically', () => { const r = root(); saveProjectDesign(r, { styleId: 'glass', layout: 'dashboard' }, 'tech', resources); fs.mkdirSync(path.join(r, 'prototype')); const file = path.join(r, 'prototype/index.html'); fs.writeFileSync(file, fs.readFileSync(path.join(r, '.easymint/design/templates/template-dashboard.html'), 'utf8')); expect(() => saveProjectDesign(r, { styleId: 'glass', layout: 'form' }, undefined, resources)).toThrow('content merge'); const merged = fs.readFileSync(path.join(r, '.easymint/design/templates/template-form.html'), 'utf8').replace('Studio', 'MERGED USER CONTENT'); fs.writeFileSync(file, merged); saveProjectDesign(r, { styleId: 'glass', layout: 'form' }, undefined, resources); expect(readProjectDesign(r)?.selection.layout).toBe('form'); expect(fs.readFileSync(file, 'utf8')).toContain('MERGED USER CONTENT'); });
+    it('ships the selected scene, mobile source and implementation guide without a motion destination',()=>{
+        for(const style of STYLE_PRESETS){const r=root();saveProjectDesign(r,{styleId:style.id},undefined,resources);
+            const dir=path.join(r,'.easymint/design');
+            const contract=JSON.parse(fs.readFileSync(path.join(dir,'scene-contract.json'),'utf8'));
+            expect(contract.styleId).toBe(style.id);expect(contract.sources.mobile).toBe('showcase-mobile.html');
+            expect(fs.readFileSync(path.join(dir,'DESIGN.md'),'utf8')).toContain('same renderers');
+            expect(fs.readFileSync(path.join(dir,'showcase-mobile.html'),'utf8')).toContain('data-device="mobile"');
+            expect(fs.existsSync(path.join(dir,'motion.html'))).toBe(false);
+        }
+    });
+    it('keeps a scene prototype linked while updating its effect and preserving edited content',()=>{
+        const r=root();saveProjectDesign(r,{styleId:'flat'},undefined,resources);fs.mkdirSync(path.join(r,'prototype'));
+        const file=path.join(r,'prototype/index.html');fs.writeFileSync(file,fs.readFileSync(path.join(r,'.easymint/design/showcase.html'),'utf8').replace('日常精选','USER COLLECTION'));
+        saveProjectDesign(r,{styleId:'flat',effect:'subtle'},undefined,resources);
+        const html=fs.readFileSync(file,'utf8');expect(html).toContain('USER COLLECTION');expect(html).toContain('data-style="flat" data-effect="subtle" data-sc-mode="page"');
+    });
+    it('can adopt another scene only when its previous scene has no user changes',()=>{
+        const r=root();saveProjectDesign(r,{styleId:'flat'},undefined,resources);fs.mkdirSync(path.join(r,'prototype'));
+        const file=path.join(r,'prototype/index.html');fs.copyFileSync(path.join(r,'.easymint/design/showcase.html'),file);
+        saveProjectDesign(r,{styleId:'business'},undefined,resources);expect(fs.readFileSync(file,'utf8')).toContain('data-sc-scene="operations"');
+        fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('项目总览','USER WORKSPACE'));
+        expect(()=>saveProjectDesign(r,{styleId:'editorial'},undefined,resources)).toThrow('scene has user changes');
+        expect(fs.readFileSync(file,'utf8')).toContain('USER WORKSPACE');expect(readProjectDesign(r)?.selection.styleId).toBe('business');
+    });
     it('refuses missing assets instead of providing a stale generation contract', () => { const r = root(); saveProjectDesign(r, { styleId: 'glass' }, '', resources); fs.unlinkSync(path.join(r, '.easymint/design/theme.css')); expect(() => projectDesignSection(r)).toThrow('asset missing'); });
     it('exports native component states and normalizes brand primitives without losing flat geometry', () => { const r = root(); const spec = saveProjectDesign(r, { styleId: 'flat', brandId: 'apple' }, '', resources); expect(spec.primitive.radius.primary).toBe('0px'); expect(spec.semantic.controls.primary.border).toContain(spec.semantic.accent); expect(spec.provenance.traits).toBeDefined(); expect(JSON.parse(fs.readFileSync(path.join(r, '.easymint/design/native-tokens.json'), 'utf8')).states).toEqual(spec.states); });
     it('refuses to leave an existing unlinked prototype silently unchanged', () => { const r = root(); saveProjectDesign(r, { styleId: 'flat' }, '', resources); fs.mkdirSync(path.join(r, 'prototype')); fs.writeFileSync(path.join(r, 'prototype/index.html'), '<h1>User prototype</h1>'); expect(() => saveProjectDesign(r, { styleId: 'glass' }, '', resources)).toThrow('not linked'); expect(readProjectDesign(r)?.selection.styleId).toBe('flat'); expect(fs.readFileSync(path.join(r, 'prototype/index.html'), 'utf8')).toBe('<h1>User prototype</h1>'); });
@@ -41,7 +65,7 @@ describe('project visual pipeline', () => {
         expect(controls.input.color).not.toBe('#ffffff');
         expect(controls.card.background).toBe('#ffffff');
         expect(spec.provenance.traits).toBeDefined();
-    } expect(createVisualSpec({ styleId: 'glass', effect: 'subtle' }).material.blur).toBe(8); });
+    } expect(createVisualSpec({ styleId: 'glass', effect: 'subtle' }).material.blur).toBe(4); });
     it('normalizes references with explicit quality, and rejects text-only references and CSS injection', () => { expect(BRAND_REFERENCES).toHaveLength(74); for (const brand of BRAND_REFERENCES) {
         if (brand.quality === 'reference')
             expect(() => createVisualSpec({ brandId: brand.id })).toThrow();

@@ -216,3 +216,43 @@ describe("Store.setLastProjectId — 打开项目时刷新 lastOpenedAt", () => 
       .toBe("2026-01-01T00:00:00.000Z");
   });
 });
+
+describe("project display names and directory names", () => {
+  function creationService(): ProjectService {
+    const template = path.join(tmpDir, "creation-template");
+    fs.mkdirSync(template);
+    fs.writeFileSync(path.join(template, "README.md"), "Template");
+    return new ProjectService(store, template);
+  }
+
+  it("preserves the entered display name while using the translated folder name", () => {
+    const service = creationService();
+    const project = service.create({ name: "小账本", directoryName: "budget-book", path: path.join(tmpDir, "projects") });
+    expect(project.name).toBe("小账本");
+    expect(path.basename(project.path)).toBe("budget-book");
+    expect(service.get(project.id)).toMatchObject({ name: "小账本", exists: true, path: project.path });
+    expect(fs.readFileSync(path.join(project.path, "README.md"), "utf8")).toBe("Template");
+  });
+
+  it("keeps callers without a separate folder name compatible", () => {
+    const service = creationService();
+    const project = service.create({ name: "legacy", path: path.join(tmpDir, "projects") });
+    expect(project.name).toBe("legacy");
+    expect(path.basename(project.path)).toBe("legacy");
+  });
+
+  it.each(["../existing", "nested/folder", "nested\\folder", "", ".", ".."]) ("rejects unsafe folder names: %s", directoryName => {
+    const service = creationService();
+    expect(() => service.create({ name: "小账本", directoryName, path: path.join(tmpDir, "projects") })).toThrow();
+    expect(store.getProjects()).toHaveLength(0);
+    expect(fs.existsSync(path.join(tmpDir, "projects"))).toBe(false);
+  });
+
+  it("still rejects a populated directory when a separate display name is supplied", () => {
+    const service = creationService();
+    const root = path.join(tmpDir, "projects");
+    service.create({ name: "小账本", directoryName: "budget-book", path: root });
+    expect(() => service.create({ name: "另一个账本", directoryName: "budget-book", path: root })).toThrow("已存在且非空");
+    expect(store.getProjects()).toHaveLength(1);
+  });
+});

@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { build } from 'esbuild';
+const root = path.resolve(import.meta.dirname, '..');
+const source = path.join(root, 'design-assets/labs/liquid-glass');
+const out = path.join(root, 'docs/design/liquid-glass-comparison-2026-10-24');
+fs.mkdirSync(out, { recursive: true });
+await build({ entryPoints: [path.join(source, 'app.tsx')], bundle: true, outfile: path.join(out, 'lab.js'), platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.html': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, minify: true, legalComments: 'eof' });
+fs.copyFileSync(path.join(source, 'PROVENANCE.md'), path.join(out, 'PROVENANCE.md'));
+fs.copyFileSync(path.join(source, 'presets/c-candidate-2026-10-24.json'), path.join(out, 'c-candidate.json'));
+for (const project of ['rdev', 'optics']) fs.copyFileSync(path.join(source, 'vendor', project, 'LICENSE'), path.join(out, `${project}-LICENSE.txt`));
+const licenses = [['rdev', path.join(source, 'vendor/rdev/LICENSE')], ['optics', path.join(source, 'vendor/optics/LICENSE')], ['shuding', path.join(source, 'vendor/rdev/SHUDING-LICENSE')], ...['react', 'react-dom', 'scheduler'].map(name => [name, path.join(root, 'node_modules', name, 'LICENSE')])];
+fs.writeFileSync(path.join(out, 'third-party-licenses.txt'), licenses.map(([name, file]) => `${name}\n${fs.readFileSync(file, 'utf8')}`).join('\n\n'));
+fs.writeFileSync(path.join(out, 'index.html'), '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Em · 液态玻璃同场对照</title><link rel="stylesheet" href="./lab.css"></head><body><div id="root"></div><script defer src="./lab.js"></script></body></html>');
+const baselineFiles = ['markup.html', 'material.css', 'liquid-interactions.ts', 'liquid-lens.ts'];
+fs.writeFileSync(path.join(out, 'build-manifest.json'), JSON.stringify({ builtAt: new Date().toISOString(), baseline: Object.fromEntries(baselineFiles.map(file => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(source, 'baseline', file))).digest('hex')])) }, null, 2));
+console.log(`Comparison built: ${out}/index.html`);

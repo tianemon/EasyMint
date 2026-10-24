@@ -30,15 +30,16 @@
     "typecheck": "concurrently --kill-others-on-fail --names main,preload,renderer \"tsc --noEmit -p app/main/tsconfig.json\" \"tsc --noEmit -p app/preload/tsconfig.json\" \"tsc --noEmit -p app/renderer/tsconfig.json\"",
     "test": "vitest run",
     "check:visual-brands": "node scripts/gen-visual-brands.cjs --check",
-    "check:visual-design": "node scripts/gen-visual-brands.cjs --check && node scripts/gen-visual-templates.mjs --check"
+    "check:visual-design": "node scripts/gen-visual-brands.cjs --check && node scripts/gen-visual-templates.mjs --check",
+    "install:deps": "node scripts/install-deps.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.75",
-    "@earendil-works/pi-agent-core": "1.3.0",
-    "@earendil-works/pi-ai": "1.3.0",
-    "@earendil-works/pi-codemode": "1.3.0",
-    "@earendil-works/pi-coding-agent": "1.3.0",
-    "@earendil-works/pi-mcp": "1.3.0",
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-codemode": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-mcp": "1.4.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.14.13",
     "archiver": "^8.0.0",

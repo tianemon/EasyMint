@@ -237,13 +237,13 @@ Mint 的联网能力（搜索资料、读网页正文）由 [Tavily](https://tav
 ```bash
 git clone https://github.com/tianemon/EasyMint.git
 cd EasyMint
-npm install
+node scripts/install-deps.cjs
 npm run dev          # Vite dev server + Electron
 npm run build        # 生产构建
 npm run lint         # ESLint + TypeScript 类型检查
 ```
 
-需要 Node.js 环境。
+需要 Node.js 环境。安装脚本通过 `ELECTRON_MIRROR` 配置 Electron 下载镜像；已有环境变量会保留。锁文件安装可使用 `node scripts/install-deps.cjs ci`。
 
 ---
 

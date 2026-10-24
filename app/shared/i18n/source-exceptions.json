@@ -86,11 +86,6 @@
   },
   {
     "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "名称「{{v0}}」，项目形式「{{v1}}」，完成度「{{v2}}」",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
     "text": "描述「{{v0}}」",
     "reason": "Internal structured project context for the agent"
   },
@@ -106,47 +101,12 @@
   },
   {
     "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "无",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
     "text": "UI 风格「{{v0}}」",
     "reason": "Internal structured project context for the agent"
   },
   {
     "file": "app/renderer/src/components/NewProjectDialog.tsx",
     "text": "未指定",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "部署「{{v0}}」",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "AI 辅助",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "Agent 自主决策",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "多 Agent 协作",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "AI 集成「{{v0}}」",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "预算「{{v0}}」",
     "reason": "Internal structured project context for the agent"
   },
   {
@@ -182,26 +142,6 @@
   {
     "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
     "text": "免费",
-    "reason": "Persisted budget/deployment choice; labels are translated separately"
-  },
-  {
-    "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
-    "text": "本地",
-    "reason": "Persisted budget/deployment choice; labels are translated separately"
-  },
-  {
-    "file": "app/renderer/src/components/new-project/StepComponents.tsx",
-    "text": "本地",
-    "reason": "Persisted budget/deployment choice; labels are translated separately"
-  },
-  {
-    "file": "app/renderer/src/components/new-project/StepComponents.tsx",
-    "text": "云端",
-    "reason": "Persisted budget/deployment choice; labels are translated separately"
-  },
-  {
-    "file": "app/renderer/src/components/new-project/StepComponents.tsx",
-    "text": "混合",
     "reason": "Persisted budget/deployment choice; labels are translated separately"
   },
   {
@@ -308,5 +248,65 @@
     "file": "app/renderer/src/components/new-project/project-requirements.ts",
     "text": "混合",
     "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "名称「{{v0}}」，项目形式「{{v1}}」",
+    "reason": "Internal project context passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/creation-rules.ts",
+    "text": "本地",
+    "reason": "Legacy persisted deployment identifiers used by compatibility rules, not display text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/creation-rules.ts",
+    "text": "云端",
+    "reason": "Legacy persisted deployment identifiers used by compatibility rules, not display text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/creation-rules.ts",
+    "text": "混合",
+    "reason": "Legacy persisted deployment identifiers used by compatibility rules, not display text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "让 Mint 推荐",
+    "reason": "Internal deployment preferences passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "无需后端",
+    "reason": "Internal deployment preferences passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "微信云开发",
+    "reason": "Internal deployment preferences passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "本地",
+    "reason": "Internal deployment preferences passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "云端服务",
+    "reason": "Internal deployment preferences passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "本机使用并连接在线服务",
+    "reason": "Internal deployment preferences passed to the agent, not interface text"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "待补充",
+    "reason": "Internal agent context: distinguish unspecified feature requirements from an explicit empty requirement"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "\n- 目标包含鸿蒙应用：技术方案需明确鸿蒙目标版本、工具链与支持范围，不得只交付 iOS/Android 或默认视为已支持鸿蒙。",
+    "reason": "Internal project platform instruction, not interface copy"
   }
 ]

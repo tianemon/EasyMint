@@ -3,7 +3,7 @@ import type { AIIntegration } from "../../../../shared/prompts";
 import { useSettingsStore } from "../../stores/settings-store";
 
 export type BudgetChoice = "充足" | "少量" | "免费";
-export type DeployChoice = "云端" | "本地" | "混合";
+export type DeployChoice = "云端" | "本地" | "混合" | "auto" | "client-only" | "cloud-dev";
 export type CompletenessChoice = "full" | "mvp" | "demo";
 export type SceneChoice = "practical" | "commercial" | "validation" | "interest" | "learning" | "experiment" | "unknown";
 
@@ -37,6 +37,7 @@ export const TARGET_OPTIONS = [
   { value: "wechat-miniprogram", get label() { return uiText("ui.ProjectFormTypes.wechatMiniProgram"); }, get desc() { return uiText("ui.ProjectFormTypes.runsInsideWechatWithoutInstallation"); } },
   { value: "ios-mobile", get label() { return uiText("ui.ProjectFormTypes.iosApp"); }, get desc() { return uiText("ui.ProjectFormTypes.nativeIphoneIpadApp"); } },
   { value: "android-mobile", get label() { return uiText("ui.ProjectFormTypes.androidApp"); }, get desc() { return uiText("ui.ProjectFormTypes.nativeAndroidPhoneTabletApp"); } },
+  { value: "harmony-mobile", get label() { return uiText("creation.platform.harmony"); }, get desc() { return uiText("creation.platform.harmonyHint"); } },
   { value: "windows-desktop", get label() { return uiText("ui.ProjectFormTypes.windowsDesktopApp"); }, get desc() { return uiText("ui.ProjectFormTypes.nativeWindowsDesktopApp"); } },
   { value: "macos-desktop", get label() { return uiText("ui.ProjectFormTypes.macosDesktopApp"); }, get desc() { return uiText("ui.ProjectFormTypes.nativeMacDesktopApp"); } },
   { value: "linux-desktop", get label() { return uiText("ui.ProjectFormTypes.linuxDesktopApp"); }, get desc() { return uiText("ui.ProjectFormTypes.nativeLinuxDesktopApp"); } },
@@ -44,13 +45,13 @@ export const TARGET_OPTIONS = [
 ] as const;
 
 export const SCENE_OPTIONS = [
+  { value: "unknown", get label() { return uiText("ui.ProjectFormTypes.notSureLetAiDecide"); }, get desc() { return uiText("ui.ProjectFormTypes.mintWillClarifyInConversation"); } },
   { value: "practical", get label() { return uiText("ui.ProjectFormTypes.forMyselfOrMyTeamReadyFor"); }, get desc() { return uiText("ui.ProjectFormTypes.practicalUse"); } },
   { value: "commercial", get label() { return uiText("ui.ProjectFormTypes.launchOrSellAProduct"); }, get desc() { return uiText("ui.ProjectFormTypes.commercialDelivery"); } },
   { value: "validation", get label() { return uiText("ui.ProjectFormTypes.buildSomethingToValidateAnIdea"); }, get desc() { return uiText("ui.ProjectFormTypes.ideaValidation"); } },
   { value: "interest", get label() { return uiText("ui.ProjectFormTypes.createForFunOrExploreAnInterest"); }, get desc() { return uiText("ui.ProjectFormTypes.personalInterest"); } },
   { value: "learning", get label() { return uiText("ui.ProjectFormTypes.learnAiCodingAsIBuild"); }, get desc() { return uiText("ui.ProjectFormTypes.learningByDoing"); } },
   { value: "experiment", get label() { return uiText("ui.ProjectFormTypes.testWhetherATechnologyWorks"); }, get desc() { return uiText("ui.ProjectFormTypes.technicalExperiment"); } },
-  { value: "unknown", get label() { return uiText("ui.ProjectFormTypes.notSureLetAiDecide"); }, get desc() { return uiText("ui.ProjectFormTypes.mintWillClarifyInConversation"); } },
 ] as const;
 
 export const COMPLETENESS_OPTIONS = [
@@ -101,10 +102,10 @@ export const DEFAULT_DATA: ProjectFormData = {
   dir: useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject",
   completeness: "mvp",
   features: [],
-  uiStyle: "",
+  uiStyle: "minimalism",
   uiPalette: "default",
   uiEffect: "standard",
   techBudget: "少量",
-  deployPlatform: "本地",
+  deployPlatform: "auto",
   aiIntegration: "none",
 };

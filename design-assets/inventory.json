@@ -1,0 +1,1736 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-24",
+  "purpose": "Curated complete product scenes with actual dual-device source, reusable material engines and an archived independent motion library.",
+  "styleSystem": {
+    "styles": [
+      {
+        "id": "minimalism",
+        "name": "极简主义",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "spacious",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/minimalism-dashboard.html",
+        "scene": "journal",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "flat",
+        "name": "扁平化",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/flat-dashboard.html",
+        "scene": "shop",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "material",
+        "name": "Material Design",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/material-dashboard.html",
+        "scene": "community",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "glass",
+        "name": "玻璃拟态",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/glass-dashboard.html",
+        "scene": "glass-workspace",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "neumorphism",
+        "name": "新拟态",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/neumorphism-dashboard.html",
+        "scene": "audio-console",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "skeuomorphism",
+        "name": "拟物化",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/skeuomorphism-dashboard.html",
+        "scene": "planner",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "liquid-glass",
+        "name": "液态玻璃",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/liquid-glass-dashboard.html",
+        "scene": "ios-music",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "claymorphism",
+        "name": "黏土拟态",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/claymorphism-dashboard.html",
+        "scene": "habit-garden",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "business",
+        "name": "商务专业",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "compact",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/business-dashboard.html",
+        "scene": "operations",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "luxury",
+        "name": "轻奢",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "spacious",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/luxury-dashboard.html",
+        "scene": "atelier",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "bento",
+        "name": "Bento 网格",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/bento-dashboard.html",
+        "scene": "dayboard",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "colorful",
+        "name": "活力彩色",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/colorful-dashboard.html",
+        "scene": "learning",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "retro",
+        "name": "复古几何",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/retro-dashboard.html",
+        "scene": "festival",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "soft",
+        "name": "柔和舒缓",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/soft-dashboard.html",
+        "scene": "breathing",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "editorial",
+        "name": "杂志排版",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "spacious",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/editorial-dashboard.html",
+        "scene": "edition",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "dark",
+        "name": "深色暗阶",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/dark-dashboard.html",
+        "scene": "studio",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      },
+      {
+        "id": "tech",
+        "name": "赛博朋克",
+        "status": "product-scene-preview-available",
+        "sources": [
+          "app/shared/visual-design/presets.ts",
+          "app/shared/visual-design/extra-presets.ts",
+          "app/shared/visual-design/showcase.ts",
+          "resources/visual-design/showcase.css",
+          "app/shared/visual-design/scene-contract.ts",
+          "app/shared/visual-design/curated-showcases.ts",
+          "resources/visual-design/scene-showcase.css"
+        ],
+        "recipeRoles": [
+          "card",
+          "primary",
+          "secondary",
+          "input",
+          "menu"
+        ],
+        "density": "comfortable",
+        "frameworkPackage": false,
+        "preview": "docs/design/ui-curation-2026-10-23/current/tech-dashboard.html",
+        "scene": "mission",
+        "picker": "complete-scene-only",
+        "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
+      }
+    ],
+    "palettes": [
+      "default",
+      "mono",
+      "coral",
+      "green",
+      "violet"
+    ],
+    "effects": [
+      "subtle",
+      "standard"
+    ],
+    "layouts": [
+      "dashboard",
+      "landing",
+      "form",
+      "detail"
+    ],
+    "assets": [
+      "resources/visual-design/style-preview.css",
+      "resources/visual-design/component-gallery.css",
+      "resources/visual-design/layouts.css",
+      "resources/visual-design/additional-styles.css",
+      "resources/visual-design/runtime.js"
+    ],
+    "renderer": "app/shared/visual-design/document.ts",
+    "projectInstaller": "app/main/services/project-design.ts"
+  },
+  "componentGallery": {
+    "source": "app/renderer/src/components/new-project/ComponentGallery.tsx",
+    "categories": [
+      "buttons",
+      "inputs",
+      "choices",
+      "selects",
+      "navigation",
+      "data",
+      "feedback",
+      "layers"
+    ],
+    "status": "interactive-showcase-not-installable-framework-library"
+  },
+  "pageTemplates": [
+    {
+      "id": "dashboard",
+      "source": "resources/em-html-editor/template-dashboard.html",
+      "type": "generated-HTML-seed",
+      "generator": "scripts/gen-visual-templates.mjs",
+      "projectOutput": ".easymint/design/templates/template-dashboard.html",
+      "legacyProjectOutput": ".easymint/templates/template-dashboard.html",
+      "note": "Selected-style output and legacy seed are separate installation paths, not eight independent design systems."
+    },
+    {
+      "id": "landing",
+      "source": "resources/em-html-editor/template-landing.html",
+      "type": "generated-HTML-seed",
+      "generator": "scripts/gen-visual-templates.mjs",
+      "projectOutput": ".easymint/design/templates/template-landing.html",
+      "legacyProjectOutput": ".easymint/templates/template-landing.html",
+      "note": "Selected-style output and legacy seed are separate installation paths, not eight independent design systems."
+    },
+    {
+      "id": "form",
+      "source": "resources/em-html-editor/template-form.html",
+      "type": "generated-HTML-seed",
+      "generator": "scripts/gen-visual-templates.mjs",
+      "projectOutput": ".easymint/design/templates/template-form.html",
+      "legacyProjectOutput": ".easymint/templates/template-form.html",
+      "note": "Selected-style output and legacy seed are separate installation paths, not eight independent design systems."
+    },
+    {
+      "id": "detail",
+      "source": "resources/em-html-editor/template-detail.html",
+      "type": "generated-HTML-seed",
+      "generator": "scripts/gen-visual-templates.mjs",
+      "projectOutput": ".easymint/design/templates/template-detail.html",
+      "legacyProjectOutput": ".easymint/templates/template-detail.html",
+      "note": "Selected-style output and legacy seed are separate installation paths, not eight independent design systems."
+    }
+  ],
+  "brandReferences": [
+    {
+      "id": "airbnb",
+      "name": "Airbnb",
+      "quality": "derived",
+      "curated": true,
+      "source": "brand-tokens/brands/airbnb/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "airtable",
+      "name": "Airtable",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/airtable/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "apple",
+      "name": "Apple",
+      "quality": "derived",
+      "curated": true,
+      "source": "brand-tokens/brands/apple/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "binance",
+      "name": "Binance",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/binance/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "bmw",
+      "name": "Bmw",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/bmw/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "bmw-m",
+      "name": "Bmw M",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/bmw-m/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "bugatti",
+      "name": "Bugatti",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/bugatti/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "cal",
+      "name": "Cal",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/cal/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/claude/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/clay/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "clickhouse",
+      "name": "Clickhouse",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/clickhouse/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "cohere",
+      "name": "Cohere",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/cohere/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "coinbase",
+      "name": "Coinbase",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/coinbase/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "composio",
+      "name": "Composio",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/composio/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/cursor/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "dell-1996",
+      "name": "Dell-1996",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/dell-1996/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "elevenlabs",
+      "name": "Elevenlabs",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/elevenlabs/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "expo",
+      "name": "Expo",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/expo/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "ferrari",
+      "name": "Ferrari",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/ferrari/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "figma",
+      "name": "Figma",
+      "quality": "derived",
+      "curated": true,
+      "source": "brand-tokens/brands/figma/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "framer",
+      "name": "Framer",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/framer/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "hashicorp",
+      "name": "Hashicorp",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/hashicorp/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "hp",
+      "name": "Hp",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/hp/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "ibm",
+      "name": "Ibm",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/ibm/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "intercom",
+      "name": "Intercom",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/intercom/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "kraken",
+      "name": "Kraken",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/kraken/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "lamborghini",
+      "name": "Lamborghini",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/lamborghini/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "linear.app",
+      "name": "Linear.app",
+      "quality": "derived",
+      "curated": true,
+      "source": "brand-tokens/brands/linear.app/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "lovable",
+      "name": "Lovable",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/lovable/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "mastercard",
+      "name": "Mastercard",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/mastercard/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "meta",
+      "name": "Meta",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/meta/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "minimax",
+      "name": "Minimax",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/minimax/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "mintlify",
+      "name": "Mintlify",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/mintlify/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "miro",
+      "name": "Miro",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/miro/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "mistral.ai",
+      "name": "Mistral.ai",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/mistral.ai/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "mongodb",
+      "name": "Mongodb",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/mongodb/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "nike",
+      "name": "Nike",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/nike/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "nintendo-2001",
+      "name": "Nintendo-2001",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/nintendo-2001/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "quality": "derived",
+      "curated": true,
+      "source": "brand-tokens/brands/notion/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "nvidia",
+      "name": "Nvidia",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/nvidia/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/ollama/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "opencode.ai",
+      "name": "Opencode.ai",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/opencode.ai/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "pinterest",
+      "name": "Pinterest",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/pinterest/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "playstation",
+      "name": "Playstation",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/playstation/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "posthog",
+      "name": "Posthog",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/posthog/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "raycast",
+      "name": "Raycast",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/raycast/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "renault",
+      "name": "Renault",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/renault/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "replicate",
+      "name": "Replicate",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/replicate/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "resend",
+      "name": "Resend",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/resend/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "revolut",
+      "name": "Revolut",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/revolut/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "runwayml",
+      "name": "Runwayml",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/runwayml/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "sanity",
+      "name": "Sanity",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/sanity/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "sentry",
+      "name": "Sentry",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/sentry/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/shopify/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/slack/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "spacex",
+      "name": "Spacex",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/spacex/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/spotify/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "starbucks",
+      "name": "Starbucks",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/starbucks/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "quality": "derived",
+      "curated": true,
+      "source": "brand-tokens/brands/stripe/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/supabase/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "superhuman",
+      "name": "Superhuman",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/superhuman/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "tesla",
+      "name": "Tesla",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/tesla/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "theverge",
+      "name": "Theverge",
+      "quality": "reference",
+      "curated": false,
+      "source": "brand-tokens/brands/theverge/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "together.ai",
+      "name": "Together.ai",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/together.ai/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "uber",
+      "name": "Uber",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/uber/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/vercel/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "vodafone",
+      "name": "Vodafone",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/vodafone/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "voltagent",
+      "name": "Voltagent",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/voltagent/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "warp",
+      "name": "Warp",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/warp/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "webflow",
+      "name": "Webflow",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/webflow/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "wired",
+      "name": "Wired",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/wired/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "wise",
+      "name": "Wise",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/wise/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "x.ai",
+      "name": "X.ai",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/x.ai/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    },
+    {
+      "id": "zapier",
+      "name": "Zapier",
+      "quality": "derived",
+      "curated": false,
+      "source": "brand-tokens/brands/zapier/DESIGN.md",
+      "assetType": "design-reference",
+      "implementation": "tokens-and-guidance-not-original-brand-components",
+      "sourcePath": "app/shared/visual-design/brands.json"
+    }
+  ],
+  "motionReferences": [
+    {
+      "id": "05-cel-boil",
+      "name": "逐帧手绘",
+      "type": "motion-scene",
+      "tech": "Canvas · 抽帧与线条沸腾",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/05-cel-boil",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "03-isometric",
+      "name": "等距 2.5D",
+      "type": "motion-scene",
+      "tech": "Three.js · 正交投影",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/03-isometric",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "01-flat-vector",
+      "name": "平面矢量",
+      "type": "motion-scene",
+      "tech": "Canvas · 几何编排",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/01-flat-vector",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "02-line-art",
+      "name": "线条艺术",
+      "type": "motion-scene",
+      "tech": "Canvas · 描边与路径",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/02-line-art",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "04-3d-render",
+      "name": "3D 柔性渲染",
+      "type": "motion-scene",
+      "tech": "Three.js · 本轮实时重建",
+      "status": "independent-reconstruction",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/soft-3d.js",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "08-morph",
+      "name": "形状变形",
+      "type": "motion-scene",
+      "tech": "Canvas · 连续形变",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/08-morph",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "19-paperclip",
+      "name": "贴纸图解",
+      "type": "motion-scene",
+      "tech": "Canvas · 图像与图解",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/19-paperclip",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "22-hud",
+      "name": "科幻 HUD",
+      "type": "motion-scene",
+      "tech": "WebGL + Canvas · 多层合成",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/22-hud",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "06-collage",
+      "name": "拼贴剪贴",
+      "type": "motion-scene",
+      "tech": "Canvas · 剪影与印刷",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/06-collage",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "12-aurora-glass",
+      "name": "极光玻璃",
+      "type": "motion-scene",
+      "tech": "WebGL · 光场与折射",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/12-aurora-glass",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "09-bauhaus",
+      "name": "包豪斯几何",
+      "type": "motion-scene",
+      "tech": "Canvas · 模数网格",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/09-bauhaus",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "10-synthwave",
+      "name": "复古合成波",
+      "type": "motion-scene",
+      "tech": "Three.js · 辉光与后处理",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/10-synthwave",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "20-pixel",
+      "name": "像素冒险",
+      "type": "motion-scene",
+      "tech": "Canvas · 整数像素",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/20-pixel",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "07-liquid",
+      "name": "液态运动",
+      "type": "motion-scene",
+      "tech": "WebGL · 液体与融合",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/07-liquid",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    },
+    {
+      "id": "18-hanazi",
+      "name": "综艺花字",
+      "type": "motion-scene",
+      "tech": "Canvas · 多层字形与照片",
+      "status": "adapted-upstream-runtime",
+      "origin": "https://github.com/Vincentwei1021/mg-styles-15",
+      "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
+      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/18-hanazi",
+      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "productTemplate": false,
+      "license": {
+        "sceneCode": "Upstream MIT; reconstruction authored locally",
+        "externalMedia": "Check individual fonts/images/textures separately before distribution"
+      },
+      "storage": "local-git-ignored-reference"
+    }
+  ],
+  "researchExamples": [
+    {
+      "id": "workbench",
+      "name": "分析工作台",
+      "type": "scenario-study",
+      "sources": [
+        "docs/design/ui-curation-2026-10-23/showroom.js",
+        "docs/design/ui-curation-2026-10-23/showroom.css"
+      ],
+      "upstreamSourceStatus": "Original Margin dashboard source not obtained",
+      "status": "local-study-not-approved-template"
+    },
+    {
+      "id": "shop",
+      "name": "插画店铺",
+      "type": "scenario-study",
+      "sources": [
+        "docs/design/ui-curation-2026-10-23/showroom.js",
+        "docs/design/ui-curation-2026-10-23/showroom.css"
+      ],
+      "status": "local-study-not-approved-template"
+    },
+    {
+      "id": "folder",
+      "name": "玻璃收纳",
+      "type": "interaction-component-study",
+      "sources": [
+        "docs/design/ui-curation-2026-10-23/folder-study.js",
+        "docs/design/ui-curation-2026-10-23/folder-study.css"
+      ],
+      "status": "independently-authored-study-user-accepted-as-example-only",
+      "notes": "Not the original 21st component. Rectangular edge fix included. Not accepted as a polished built-in template."
+    },
+    {
+      "id": "glass",
+      "name": "CSS 玻璃材质",
+      "type": "material-study",
+      "sources": [
+        "docs/design/ui-curation-2026-10-23/showroom.js",
+        "docs/design/ui-curation-2026-10-23/showroom.css"
+      ],
+      "status": "CSS-approximation-not-optical-refraction"
+    }
+  ],
+  "externalCandidates": [
+    {
+      "id": "react-bits-folder",
+      "source": "docs/reference/react-bits-folder/manifest.json",
+      "status": "source-archived-research-only",
+      "licenseAtArchivedRevision": "MIT + Commons Clause; do not treat as unrestricted component redistribution"
+    },
+    {
+      "id": "21st-glass-folder",
+      "sourceNotes": "docs/design/ui-curation-2026-10-23/folder-sources.md",
+      "status": "preview-found-complete-source-not-acquired"
+    },
+    {
+      "id": "lightswind-glass-folder",
+      "sourceNotes": "docs/design/ui-curation-2026-10-23/folder-sources.md",
+      "status": "candidate-source-and-license-not-verified"
+    }
+  ],
+  "archivedPrototypes": [
+    {
+      "source": "docs/design/em-interface-prototype-2026-10-23",
+      "status": "rejected-not-baseline"
+    }
+  ],
+  "supportingMedia": {
+    "upstreamRuntimeFiles": 117,
+    "referencePosters": 15,
+    "fontFamilies": 16,
+    "manifests": [
+      "docs/design/ui-curation-2026-10-23/motion/upstream-files.json",
+      "docs/design/ui-curation-2026-10-23/motion/poster-files.json",
+      "docs/design/ui-curation-2026-10-23/motion/font-sources.json",
+      "docs/design/ui-curation-2026-10-23/motion/runtime-provenance.json"
+    ],
+    "excludeFromAssetCounts": [
+      "node_modules",
+      "compiled duplicates",
+      "screenshots",
+      "logs",
+      "server pid files"
+    ]
+  },
+  "portability": {
+    "trackedInventory": true,
+    "ignoredSourceRoot": "docs/",
+    "warning": "A fresh checkout will not contain docs research assets; future library admission needs an explicit audited copy with attribution, license and pinned source. Inventory does not copy or ship assets."
+  },
+  "showcaseImplementation": {
+    "asOf": "2026-10-24",
+    "productStyles": 17,
+    "sharedRenderer": "app/shared/visual-design/showcase.ts",
+    "sharedInteractions": "app/shared/visual-design/showcase-interactions.ts",
+    "sourceDelivery": [
+      ".easymint/design/showcase.html",
+      ".easymint/design/motion.html",
+      ".easymint/design/components.css",
+      ".easymint/design/runtime.js"
+    ],
+    "curatedHistoricalMotion": {
+      "count": 2,
+      "ids": [
+        "01-flat-vector",
+        "09-bauhaus"
+      ],
+      "source": "assets/design-motion/PROVENANCE.md",
+      "license": "assets/design-motion/LICENSE",
+      "autoload": false
+    },
+    "note": "Product pages, component galleries and motion studies are separate presentations. Motion studies are not component kits. Native framework components are not claimed.",
+    "mode": "one-curated-product-scene-per-style",
+    "sceneCount": 17,
+    "dualDevice": true,
+    "motionPerStyle": false,
+    "pickerControls": [
+      "device",
+      "effect"
+    ],
+    "secondaryAction": "expand-preview",
+    "removedPickerControls": [
+      "palette",
+      "brand",
+      "component-categories",
+      "layout-categories",
+      "motion",
+      "viewport-presets"
+    ],
+    "projectExports": [
+      ".easymint/design/showcase.html",
+      ".easymint/design/showcase-mobile.html",
+      ".easymint/design/scene-contract.json",
+      ".easymint/design/DESIGN.md"
+    ],
+    "primaryReference": "actual-scene-html-css-runtime",
+    "verification": "34 real browser screenshots; no horizontal overflow or clipped controls at 900x700 web and 390x780 mobile; representative interactions checked"
+  },
+  "glassRevision": {
+    "date": "2026-10-24",
+    "glass": {
+      "scene": "glass-workspace",
+      "blur": {
+        "frosted": 24,
+        "clear": 4
+      },
+      "source": "app/shared/visual-design/glass-showcase.ts"
+    },
+    "liquidGlass": {
+      "scene": "ios-music",
+      "variants": {
+        "regular": 3,
+        "clear": 0.25
+      },
+      "renderer": "app/shared/visual-design/liquid-showcase.ts",
+      "interactions": "app/shared/visual-design/liquid-interactions.ts",
+      "lensField": "app/shared/visual-design/liquid-lens.ts",
+      "nativeParity": false,
+      "surfaceTint": "Fixed neutral film; background transmits continuously without light/dark theme thresholds",
+      "transmission": {
+        "regularOpacity": 0.302,
+        "clearOpacity": 0.094
+      },
+      "interaction": "Drag-follow tab capsule with spring settle; local continuous glyph contrast for both variants",
+      "edgeTreatment": {
+        "bezel": 10,
+        "thickness": 0.8,
+        "gain": 1.5,
+        "innerFeatherFraction": 0.4,
+        "rendering": "Adopted C: squircle profile, Fresnel-weighted ray refraction and matched reflection map; inner shoulder fades smoothly",
+        "stackedBevels": false,
+        "sampling": "2x sampling within a 512x256 cap, with analytic subpixel reflection coverage and vector glyphs"
+      },
+      "references": [
+        "https://www.apple.com/os/ios/",
+        "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views"
+      ],
+      "engine": "resources/visual-design/liquid-optics-engine.mjs",
+      "license": "resources/visual-design/liquid-optics-LICENSE.txt",
+      "sourceRepository": "https://github.com/sohumsuthar/liquid-glass",
+      "sourceCommit": "fb0e2dd45c1c76f2385dabffbb448c1099cd19cc"
+    },
+    "appearanceOptionSizing": "Matched triggers and option tiles",
+    "motionScope": "Keep current entry unchanged. Future motion studies should be peer templates, not per-style variants.",
+    "references": [
+      "https://developer.apple.com/design/human-interface-guidelines/materials",
+      "https://developer.apple.com/videos/play/wwdc2025/219/",
+      "https://developer.apple.com/videos/play/wwdc2025/323/"
+    ]
+  }
+}

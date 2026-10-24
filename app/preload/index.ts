@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   project: {
     list: () => ipcRenderer.invoke("project:list"),
-    create: (opts: { name: string; path: string }) => ipcRenderer.invoke("project:create", opts),
+    create: (opts: { name: string; path: string; directoryName?: string }) => ipcRenderer.invoke("project:create", opts),
     checkDir: (dir: string, name: string) => ipcRenderer.invoke("project:check-dir", { dir, name }) as Promise<{ conflict: boolean }>,
     openedInWindows: () => ipcRenderer.invoke("project:opened-in-windows") as Promise<string[]>,
     delete: (id: string) => ipcRenderer.invoke("project:delete", { id }),
@@ -309,6 +309,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string; isDesigner?: boolean; mdView?: "preview" | "source" }>; activeTabId: string | null } | null>,
   },
   agent: {
+    formAssist: (request: import("../shared/form-assist").FormAssistRequest) => ipcRenderer.invoke("agent:form-assist", request) as Promise<string>,
+    cancelFormAssist: (requestId: string) => ipcRenderer.invoke("agent:cancel-form-assist", { requestId }) as Promise<void>,
     nativeAiModels: () => ipcRenderer.invoke("agent:nativeAiModels"),
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),

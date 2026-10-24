@@ -46,9 +46,9 @@ describe('source-preserving prototype updates',()=>{
     expect(result).toContain('sample-glass-window');
     expect(artwork(result)).not.toContain('sample-artwork-poster');
   });
-  it('switches the actual material structure between every built-in direction and baseline materials',()=>{
-    const pairs=STYLE_PRESETS.flatMap(style=>[[style.id,'glass'],['flat',style.id]] as const);
-    for(const [from,to] of pairs){const f=fixture(from,to);expect(artwork(updatePrototypeHtml(f.before,f.update)),`${from} → ${to}`).toBe(artwork(f.after));}
+  it.each(STYLE_PRESETS.flatMap(style=>[[style.id,'glass'],['flat',style.id]] as const))('switches material structure from %s to %s', (from,to)=>{
+    const f=fixture(from,to);
+    expect(artwork(updatePrototypeHtml(f.before,f.update))).toBe(artwork(f.after));
   });
   it('recognizes actual external file URLs with cache parameters, fragments and a relative base',()=>{
     const {before,update}=fixture();

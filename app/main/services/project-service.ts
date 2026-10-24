@@ -94,14 +94,15 @@ export class ProjectService {
       .sort((a, b) => openedAt(b) - openedAt(a));
   }
 
-  create(opts: { name: string; path: string }): Project {
+  create(opts: { name: string; path: string; directoryName?: string }): Project {
     const projects = this.store.getProjects();
     const basePath = resolveHome(opts.path);
+    const directoryName = opts.directoryName ?? opts.name;
     // 名称含路径分隔符会解析成嵌套目录（用户可能从翻译/粘贴带入）——先拒绝再解析
-    if (/[\\/]/.test(opts.name)) {
-      throw new Error(`项目名称不能包含路径分隔符：${opts.name}`);
+    if (!directoryName.trim() || directoryName === "." || directoryName === ".." || /[\\/]/.test(directoryName)) {
+      throw new Error(`项目文件夹名称无效：${directoryName}`);
     }
-    const resolvedPath = path.resolve(basePath, opts.name);
+    const resolvedPath = path.resolve(basePath, directoryName);
     const targetDir = resolvedPath;
     // 目录冲突防护：已存在且非空 = 拒绝创建——静默把模板合进既有目录会造成不可逆数据污染
     //（曾发生：重复创建同名项目 → 旧内容混入模板；空目录已存在则允许（可复用预建目录））

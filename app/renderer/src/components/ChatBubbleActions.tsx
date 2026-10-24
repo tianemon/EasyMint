@@ -1,10 +1,11 @@
 import { uiText, useUiLocale } from "../lib/i18n";
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect, type ReactNode } from "react";
 import { PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
 
 /** 气泡复制按钮：复制整条文本 */
 function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
+  useUiLocale();
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard.writeText(text).then(() => {
@@ -15,7 +16,9 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   return (
     <button
       onClick={handleCopy}
-     
+      aria-label={uiText("common.copy")}
+      title={uiText("common.copy")}
+
       className="flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {copied ? (
@@ -30,6 +33,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
 /** 气泡钉住按钮：把整条文本钉为便签；
     已钉状态由 store 驱动（同内容便签存在即显示勾，任何入口钉住/删除都联动） */
 function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string) => void; sid: string }): JSX.Element {
+  useUiLocale();
   const pinned = usePinStore((s) => (s.pinsBySession[sid] || []).some((p) => p.content === text));
   const handlePin = () => {
     if (!text.trim()) return;
@@ -38,7 +42,9 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
   return (
     <button
       onClick={handlePin}
-      
+      aria-label={uiText("ui.ChatPanel.pin")}
+      title={uiText("ui.ChatPanel.pin")}
+
       className="flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {pinned ? (
@@ -67,23 +73,50 @@ function RegenerateBubbleBtn({ disabledReason, onClick }: { disabledReason?: str
   );
 }
 
-/** 气泡操作容器：复制 + 钉住 + （仅 assistant 气泡）重新生成按钮统一挂在一体化工具条中；
+function EditBubbleBtn({ disabledReason, onClick }: { disabledReason?: string; onClick: () => void }): JSX.Element {
+  useUiLocale();
+  return <button type="button" onClick={onClick} disabled={!!disabledReason}
+    title={disabledReason ?? uiText("ui.ChatPanel.editAndResend")} aria-label={uiText("ui.ChatPanel.editMessage2")}
+    className={`flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] text-text-secondary transition-colors ${disabledReason ? "opacity-40 cursor-not-allowed" : "hover:text-text-primary hover:bg-surface-hover"}`}>
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
+  </button>;
+}
+
+/** 气泡操作容器：复制 + 钉住 + （仅 assistant 气泡）重新生成按钮以无边框图标按钮统一展示；
     默认隐藏，由消息 hover 状态驱动显隐（visible），隐藏时不可交互 */
-export function BubbleActions({ text, onPin, sid, visible, regenerate, inline = false }: {
+export function BubbleActions({ text, onPin, sid, visible, regenerate, edit, metadata, inline = false }: {
   text: string;
   onPin: (text: string) => void;
   sid: string;
   visible: boolean;
+  metadata?: ReactNode;
   /** 重新生成入口：只有 assistant 气泡传（undefined = 不渲染该按钮）；不可用时置灰 + title 说明原因 */
   regenerate?: { disabledReason?: string; onClick: () => void };
-  /** 用户气泡与铅笔共用一行；其它气泡仍悬浮在气泡下方。 */
+  edit?: { disabledReason?: string; onClick: () => void };
+  /** 用户气泡的复制、钉住、编辑共用一行；其它气泡仍悬浮在气泡下方。 */
   inline?: boolean;
 }): JSX.Element {
+  const footerRef = useRef<HTMLDivElement>(null);
+  const hasMetadata = !!metadata;
+  useLayoutEffect(() => {
+    const footer = footerRef.current;
+    const row = footer?.closest<HTMLElement>(".msg-in");
+    if (!hasMetadata || !footer || !row) return;
+    const measure = () => row.style.setProperty("--message-footer-height", `${footer.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(footer);
+    return () => { observer.disconnect(); row.style.removeProperty("--message-footer-height"); };
+  }, [hasMetadata]);
   return (
-    <div className={`${inline ? "shrink-0" : "absolute top-full left-0 mt-1"} flex items-center rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-      <CopyBubbleBtn text={text} />
-      <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
-      {regenerate && <RegenerateBubbleBtn disabledReason={regenerate.disabledReason} onClick={regenerate.onClick} />}
+    <div ref={footerRef} inert={!visible} className={`${inline ? "shrink-0" : "absolute top-full left-0 mt-1"} flex items-center ${metadata ? "bubble-actions-with-meta" : ""} transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+      <div className="flex items-center shrink-0">
+        <CopyBubbleBtn text={text} />
+        <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
+        {edit && <EditBubbleBtn disabledReason={edit.disabledReason} onClick={edit.onClick} />}
+        {regenerate && <RegenerateBubbleBtn disabledReason={regenerate.disabledReason} onClick={regenerate.onClick} />}
+      </div>
+      {metadata}
     </div>
   );
 }

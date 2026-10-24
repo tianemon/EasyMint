@@ -59,6 +59,21 @@ export function updatePrototypeHtml(html: string, update: PrototypeUpdate): stri
   if (update.previous.selection.layout !== update.next.selection.layout && attribute(root, "data-layout") !== update.next.selection.layout)
     throw new Error("Existing prototype layout requires a content merge: copy the chosen layout from .easymint/design/templates into prototype/index.html, retain user content and its data-layout attribute, then call set_project_design again.");
 
+  const scenes=nodes.filter(node=>attribute(node,"class")?.split(/\s+/).includes("sc-page"));
+  for(const scene of scenes){
+    const style=attribute(scene,"data-style");
+    if(style!==update.previous.selection.styleId&&style!==update.next.selection.styleId)throw new Error("Prototype scene has user changes; reconcile its selected style before updating.");
+    if(update.previous.selection.styleId!==update.next.selection.styleId&&style!==update.next.selection.styleId){
+      const actual=JSON.stringify(canonical(scene));
+      const match=update.templates.map(template=>({before:elements(template.before).find(node=>attribute(node,"class")?.split(/\s+/).includes("sc-page")),after:elements(template.after).find(node=>attribute(node,"class")?.split(/\s+/).includes("sc-page")),html:template.after})).find(candidate=>candidate.before&&actual===JSON.stringify(canonical(candidate.before)));
+      if(!match?.after)throw new Error("Prototype scene has user changes; merge the selected scene while preserving user content before updating. Nothing was overwritten.");
+      const old=range(scene),next=range(match.after);patches.push({start:old.startOffset,end:old.endOffset,value:match.html.slice(next.startOffset,next.endOffset)});
+    }else{
+      const effect=scene.sourceCodeLocation?.attrs?.["data-effect"];
+      if(effect)patches.push({start:effect.startOffset,end:effect.endOffset,value:`data-effect="${update.next.selection.effect}"`});
+    }
+  }
+
   for (const resource of update.resources) {
     const managed = nodes.filter(node => attribute(node, `data-easymint-${resource.marker}`) !== undefined);
     if (managed.length > 1 || managed.some(node => node.tagName !== resource.tag))

@@ -7,6 +7,7 @@ import type { NestedToolCalls } from "@shared/nested-calls";
 
 export interface TextEntry {
   kind: "text";
+  phase?: import("@shared/response-phase").ResponsePhase;
   text: string;
   timestamp: number;
   source?: string;

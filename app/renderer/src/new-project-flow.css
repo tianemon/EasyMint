@@ -1,0 +1,157 @@
+/* Fixed creation shell: the full existing StylePicker remains inside the third pane. */
+:root .creation-dialog.creation-wizard {
+  width: min(1080px, calc(100vw - 48px));
+  height: min(660px, calc(100dvh - 48px));
+  display: grid;
+  grid-template-columns: 152px minmax(0, 1fr);
+  --creation-step-size: 64px;
+  padding: 0;
+  border-radius: 14px;
+}
+.creation-wizard-rail { display: flex; flex-direction: column; min-height: 0; padding: 24px 10px 18px; background: var(--field-idle); border-right: 0; }
+.creation-wizard-title { margin: 0 10px; font-size: 20px; line-height: 28px; font-weight: 600; color: var(--color-text-primary); }
+.creation-wizard-nav { position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 8px; margin-top: 28px; }
+.creation-wizard-selection { position: absolute; inset: 0 0 auto; height: var(--creation-step-size); border-radius: 8px; background: var(--color-sidebar-active); z-index: -1; pointer-events: none; transition: transform 280ms cubic-bezier(.22,.8,.2,1); }
+.creation-wizard-nav-step { display: flex; align-items: center; gap: 10px; min-height: var(--creation-step-size); padding: 10px; width: 100%; border: 0; border-radius: 8px; background: transparent; text-align: left; color: var(--color-text-muted); transition: background 140ms, color 140ms; }
+.creation-wizard-nav-step:hover:not(:disabled):not([aria-current]) { background: var(--color-surface-hover); }
+.creation-wizard-nav-step:disabled { opacity: .45; cursor: default; }
+.creation-wizard-nav-step:focus-visible { outline: 2px solid var(--color-text-secondary); outline-offset: -2px; }
+.creation-wizard-number { display: grid; place-items: center; width: 27px; height: 27px; flex-shrink: 0; border: 1px solid var(--color-border-strong); border-radius: 50%; font-size: 11px; font-variant-numeric: tabular-nums; transition: background 200ms,color 200ms,border-color 200ms; }
+.creation-wizard-nav-step[aria-current] .creation-wizard-number { background: var(--color-text-primary); border-color: var(--color-text-primary); color: var(--modal-fill); }
+.creation-wizard-nav-step > span:last-child { min-width: 0; flex: 1; }
+.creation-wizard-nav-step strong { display: block; font-size: 13px; line-height: 19px; font-weight: 500; }
+.creation-wizard-nav-step small { display: block; font-size: 10px; line-height: 15px; margin-top: 4px; }
+.creation-wizard-nav-step[aria-current] strong { color: var(--color-text-primary); font-weight: 600; }
+.creation-wizard-draft { display: flex; align-items: center; gap: 7px; margin-top: auto; padding: 18px 12px 0; color: var(--color-text-muted); font-size: 10px; }
+.creation-wizard-draft > span { width: 4px; height: 4px; background: var(--color-text-muted); border-radius: 50%; }
+.creation-wizard-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.creation-wizard-header { display: flex; justify-content: space-between; gap: 12px; height: 80px; flex-shrink: 0; padding: 24px 20px 16px; }
+.creation-wizard-heading { display: flex; align-items: baseline; gap: 14px; min-width: 0; animation: creation-heading-in 200ms ease-out backwards; }
+.creation-wizard-step-title { margin: 0; font-size: 22px; line-height: 32px; font-weight: 600; white-space: nowrap; color: var(--color-text-primary); outline: none; }
+.creation-wizard-heading p { margin: 0; color: var(--color-text-muted); font-size: 11px; line-height: 18px; }
+.creation-step-viewport { position: relative; flex: 1; min-height: 0; min-width: 0; margin: 0 20px; overflow: hidden; isolation: isolate; }
+.creation-wizard-pane { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding: 0 3px 20px 0; scrollbar-width: thin; scrollbar-gutter: stable; overscroll-behavior: contain; scroll-padding-block: 12px; }
+.creation-wizard-pane[hidden] { display: none; }
+.creation-wizard .creation-step-content { animation: none; min-height: 100%; }
+.creation-wizard-notice { margin: 0 0 14px; font-size: 12px; line-height: 1.65; color: var(--color-text-secondary); }
+.creation-wizard-notice.text-danger { color: var(--color-danger); }
+.creation-wizard-footer { height: 64px; flex-shrink: 0; margin: 0 20px; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 0; }
+.creation-wizard-footer > div { display: flex; align-items: center; gap: 10px; }
+.creation-wizard-footer button { min-height: 35px; padding: 7px 14px; border-radius: 7px; font-size: 12px; transition: background 140ms,opacity 140ms,transform 120ms; }
+.creation-wizard-footer button:disabled { opacity: .35; cursor: default; }
+.creation-wizard-previous,.creation-wizard-direct { color: var(--color-text-secondary); background: transparent; border: 0; }
+.creation-wizard-previous:hover:not(:disabled),.creation-wizard-direct:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.creation-wizard-next { min-width: 100px; border: 0; }
+.creation-target-group { margin-top: 12px; }
+.creation-target-group-label { display: block; margin-bottom: 7px; font-size: 11px; line-height: 16px; color: var(--color-text-muted); }
+.creation-target-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.creation-target-options button { min-height: 38px; border: 1px solid transparent; border-radius: 7px; background: var(--preset-idle); color: var(--color-text-secondary); padding: 8px; font-size: 12px; line-height: 18px; transition: background 140ms,box-shadow 140ms,color 140ms; }
+.creation-target-options button[aria-pressed="true"] { background: var(--preset-active); color: var(--color-text-primary); border-color: transparent; font-weight: 600; }
+.creation-target-options button:hover:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 999px var(--preset-hover); }
+/* The preview keeps its view/device/appearance controls; only the enclosing shell changes. */
+.creation-wizard .creation-style-layout { grid-template-columns: 144px minmax(0,1fr); gap: 12px; }
+.creation-wizard .creation-style-options { max-height: min(490px, calc(100dvh - 240px)); overflow-y: auto; scrollbar-width: thin; padding: 4px; gap: 4px; border-radius: 10px; background: color-mix(in srgb, var(--field-idle) 55%, transparent); }
+.creation-wizard .creation-style-option { min-height: 50px; flex-shrink: 0; padding: 7px 8px; }
+.creation-wizard .creation-style-option.is-selected { background: var(--color-surface-alt); }
+.creation-wizard .creation-style-option small { font-size: 10px; color: var(--color-text-muted); }
+.creation-wizard .creation-style-motif { display: none; }
+.creation-wizard .creation-preview-tools { flex-wrap: wrap; row-gap: 6px; }
+.creation-wizard .creation-preview-actions { margin-left: auto; }
+@keyframes creation-heading-in { from { opacity: .35; translate: 0 3px; } to { opacity: 1; translate: 0 0; } }
+@media(max-width:950px) {
+  :root .creation-dialog.creation-wizard { grid-template-columns: 148px minmax(0,1fr); width: calc(100vw - 24px); }
+  .creation-wizard-rail { padding-inline: 12px; }
+  .creation-wizard-nav-step { gap: 10px; padding-inline: 10px; }
+  .creation-wizard-nav-step small { display: none; }
+  .creation-wizard-header { padding-inline: 18px; }
+  .creation-step-viewport,.creation-wizard-footer { margin-inline: 18px; }
+  .creation-wizard .creation-style-layout { grid-template-columns: 126px minmax(0,1fr); gap: 12px; }
+  .creation-wizard-heading { gap: 10px; }
+  .creation-wizard-heading p { font-size: 10px; }
+  .creation-target-options button { font-size: 11px; }
+}
+@media(max-width:650px) {
+  :root .creation-dialog.creation-wizard { grid-template-columns: 124px minmax(0,1fr); height: calc(100dvh - 24px); }
+  .creation-wizard-rail { padding-inline: 8px; }
+  .creation-wizard-title { font-size: 16px; margin-inline: 8px; }
+  .creation-wizard-number { width: 22px; height: 22px; }
+  .creation-wizard-nav-step { gap: 8px; padding-inline: 7px; }
+  .creation-wizard-nav-step strong { font-size: 11px; }
+  .creation-wizard-header { padding-inline: 16px; }
+  .creation-wizard-heading { flex-wrap: wrap; align-content: flex-start; row-gap: 3px; }
+  .creation-wizard-step-title { font-size: 18px; line-height: 26px; }
+  .creation-step-viewport,.creation-wizard-footer { margin-inline: 16px; }
+  .creation-wizard-draft { padding-inline: 7px; font-size: 9px; }
+  .creation-target-options { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .creation-wizard .creation-style-layout { display: flex; flex-direction: column; }
+  .creation-wizard .creation-style-options { width: 100%; max-height: 170px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .creation-wizard-footer button { font-size: 11px; padding-inline: 8px; }
+  .creation-wizard-next { min-width: 72px; }
+  .creation-wizard-footer > div { gap: 3px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .creation-wizard-selection,.creation-wizard-nav-step,.creation-wizard-number { transition: none; }
+  .creation-wizard-heading { animation: none; }
+}
+/* Keep future steps readable even before the required project identity is entered. */
+.creation-wizard-nav-step:disabled { opacity: 1; }
+.creation-wizard-nav-step:not([aria-current]) strong { color: var(--color-text-secondary); }
+@media(min-width:841px) and (min-height:650px) {
+  .creation-wizard-pane[data-step="3"]:not([hidden]) { display: flex; flex-direction: column; overflow: hidden; }
+  .creation-wizard-pane[data-step="3"] > .creation-step-content { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+  .creation-wizard .creation-style-picker { flex: 1; min-height: 0; }
+  .creation-wizard .creation-style-layout { flex: 1; min-height: 0; grid-template-rows: minmax(0,1fr); align-items: stretch; }
+  .creation-wizard .creation-preview-panel { display: flex; flex-direction: column; min-height: 0; }
+  .creation-wizard .creation-preview-tools { flex-shrink: 0; }
+  .creation-wizard .component-gallery-host { flex: 1; min-height: 0; height: auto; }
+}
+.creation-inline-layout-viewport { display: flex; flex: 1; min-width: 0; min-height: 260px; height: 400px; }
+
+.creation-target-options button:focus-visible { outline: 2px solid var(--color-text-secondary); outline-offset: 2px; }
+/* Use the app's Chromium scrollbar skin rather than the OS light track.
+   A non-auto scrollbar-width takes precedence over ::-webkit-scrollbar styling. */
+.creation-wizard-pane {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+  padding-right: 12px;
+}
+.creation-wizard-pane::-webkit-scrollbar { width: 8px; height: 8px; }
+.creation-wizard-pane::-webkit-scrollbar-track,
+.creation-wizard-pane::-webkit-scrollbar-corner { background: transparent; }
+.creation-wizard-pane::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  background-clip: padding-box;
+}
+.creation-wizard-pane::-webkit-scrollbar-thumb:hover {
+  border-width: 1px;
+  background-color: var(--color-text-secondary);
+}
+
+/* UI元素库设计.md: dark selected options are recessed surfaces, never inverse light fills. */
+[data-theme="dark"] .creation-wizard-nav-step[aria-current] .creation-wizard-number {
+  background: var(--preset-active);
+  border-color: transparent;
+  color: var(--color-text-primary);
+}
+.creation-preview-panel>.sc-preview-host{min-height:260px}
+/* Scene curation: device and effect use the same segmented control. */
+.creation-scene-panel{gap:10px}
+.creation-scene-toolbar{justify-content:flex-start;gap:12px;flex-shrink:0;flex-wrap:wrap;margin-bottom:0}
+.creation-scene-tools{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex-wrap:nowrap}
+.creation-scene-tools .creation-device-switch{flex:none}
+.creation-scene-tools .creation-device-switch button{flex:none;white-space:nowrap}
+.creation-scene-effects button{min-width:54px;justify-content:center}
+.creation-scene-toolbar>.creation-expand-button{margin-left:auto;font-size:11px;background:none}
+.creation-scene-workspace{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;gap:12px}
+.creation-scene-dialog-header{align-items:center;flex-shrink:0;margin-bottom:0}
+.creation-scene-workspace>.sc-preview-host{flex:1;min-height:0}
+.creation-scene-large-mobile{min-width:0;min-height:0;flex:1}
+.creation-scene-panel>.sc-preview-host{flex:1;min-height:0}
+.creation-scene-panel .creation-inline-layout-viewport{flex:1;min-height:0}
+/* Size containment in PreviewViewport needs a definite host, including while switching devices. */
+.creation-scene-panel .creation-inline-layout-viewport{position:relative;flex:1 1 320px;min-height:260px;height:auto}
+.creation-scene-panel .creation-inline-layout-viewport>.creation-preview-stage,.creation-scene-large-mobile>.creation-preview-stage{position:absolute;inset:0}
+.creation-scene-large-mobile{position:relative;align-self:stretch}

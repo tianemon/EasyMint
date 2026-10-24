@@ -1,10 +1,11 @@
-/** Pi 1.3.0 host hooks. Fail closed on upstream drift; no copied connection state machine. */
+/** Pi 1.4.0 host hooks. Fail closed on upstream drift; no copied connection state machine. */
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const root = path.join(__dirname, "..", "node_modules/@earendil-works/pi-coding-agent");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-if (pkg.version !== "1.3.0") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
+if (pkg.version !== "1.4.0") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
+// 2026-10-24: all six pristine host-hook files are byte-identical between 1.3.0 and 1.4.0.
 const expected = {
   "dist/extensions/mcp/index.js": "c0570b9d256120a1df9b65a015964076dff6a3710646e041fcb2770ae7132fde",
   "dist/extensions/mcp/index.d.ts": "2326ac2f37daa7bbf258629846b4ff6d4d8d2c570331777b2da0852525de843e",
@@ -16,7 +17,7 @@ const expected = {
 const hash = source => createHash("sha256").update(source).digest("hex");
 // Generate from pristine source, not from the previously patched result. Layered patches otherwise
 // cease being idempotent as soon as a later edit changes an earlier replacement's text.
-const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.3.0.json");
+const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.4.0.json");
 const cached = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, "utf8")) : {};
 const originals = {}, sources = {}, current = {};
 for (const [file, checksum] of Object.entries(expected)) {
@@ -53,7 +54,7 @@ patch("dist/extensions/mcp/index.js", `        });
         // The first prompt waits for servers`, `        };
         pi.on("session_start", startHostSession);
         // The first prompt waits for servers`);
-// Preserve Pi 1.3.0's abortable lifetime and tracked actions, including pending startup.
+// Preserve Pi 1.4.0's abortable lifetime and tracked actions, including pending startup.
 patch("dist/extensions/mcp/index.js", `        pi.on("session_shutdown", async () => {
             session.abort();
             const closing = connections();
@@ -238,4 +239,4 @@ for (const [file, source] of Object.entries(sources)) {
 fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 fs.writeFileSync(cacheFile + ".tmp", JSON.stringify(nextCache));
 fs.renameSync(cacheFile + ".tmp", cacheFile);
-console.log("[patch-pi-mcp] Pi 1.3.0 host hooks verified");
+console.log("[patch-pi-mcp] Pi 1.4.0 host hooks verified");

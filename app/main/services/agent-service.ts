@@ -1039,7 +1039,7 @@ export class AgentService {
       // 不做超时限制——SDK/API 端自处理（长思考任务可能合法超过 10 分钟，EM 层超时
       // 会误掐断；且曾因只 reject 不取消底层导致会话卡死）。中断由用户主动打断触发。
       const send = systemPayload
-        ? session.sendCustomMessage(systemPayload, { triggerTurn: true })
+        ? session.sendCustomMessage({ ...systemPayload, details: { ...systemPayload.details, startsExecution: true } }, { triggerTurn: true })
         : session.prompt(text, {
           ...(images ? { images } : {}),
           // abort 可能发生在 SDK prompt 的异步预处理（认证/扩展/图片归一）期间。
@@ -1298,6 +1298,7 @@ export class AgentService {
     }
     if (opts?.rewind && hadCurrentPrompt) return { rewound: await this.rewindIfNoOutput(chat) };
     if (opts?.rewind) return { rewound: false }; // 界面残留忙碌态不能撤掉上一轮已结束的提问
+    if (!hadCurrentPrompt) return { rewound: false };
     console.log(`[agent] 打断未请求撤回（runId=${runId}）：编辑重发/关闭等路径，消息保留在上下文`);
     return { rewound: false };
   }
@@ -2808,7 +2809,7 @@ export class AgentService {
     if (!chat?.session || this.closingChats.has(chat.chatId)) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
     // 第二段按 kind 取标签——非委派消息不该顶着「Agent执行结果」抬头(单一来源见 SYSTEM_MESSAGE_LABELS)
-    const payload = systemMessage(kind, `[系统消息]-[${SYSTEM_MESSAGE_LABELS[kind]}]\n${text}`);
+    const payload = systemMessage(kind, `[系统消息]-[${SYSTEM_MESSAGE_LABELS[kind]}]\n${text}`, { startsExecution: false });
     if (opts?.triggerTurn) {
       if (this.activePromptSessions.has(chat.sessionId)) {
         if (chat.session.isStreaming) {

@@ -123,7 +123,7 @@ export function Modal({
     const collectFocusable = (): HTMLElement[] => {
       if (!panel) return [];
       return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
+        (el) => !el.closest("[inert],[hidden]") && (el.offsetParent !== null || el === document.activeElement),
       );
     };
 

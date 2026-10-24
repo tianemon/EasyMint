@@ -1,3 +1,4 @@
+import { responsePhase, type ResponsePhase } from "../../shared/response-phase";
 import { toolResultForUi, type ToolPresentation } from "../../shared/tool-presentation";
 /**
  * Pi 事件 → 前端 PiChatEvent 格式转换
@@ -17,6 +18,7 @@ export interface PiChatEvent {
   blocks?: ChatBlock[];
   partial?: boolean;
   imagePath?: string;
+  stopReason?: string;
   durationMs?: number;
   provider?: string;
   model?: string;
@@ -72,6 +74,7 @@ export interface PiChatEvent {
 export type PiEntryRole = SessionMessageEntry["message"]["role"];
 
 interface ChatBlock {
+  phase?: ResponsePhase;
   type: "text" | "tool_use" | "tool_result" | "thinking";
   text?: string;
   id?: string;
@@ -82,10 +85,11 @@ interface ChatBlock {
 
 interface AssistantMessageLike {
   role: "assistant";
+  stopReason?: string;
   durationMs?: number;
   provider?: string;
   model?: string;
-  content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; arguments?: Record<string, unknown>; thinking?: string; content?: unknown }>;
+  content: Array<{ type: string; text?: string; textSignature?: string; id?: string; name?: string; input?: Record<string, unknown>; arguments?: Record<string, unknown>; thinking?: string; content?: unknown }>;
   /** Pi 归一化 usage（input 为未缓存输入；cacheRead/cacheWrite 缓存读/写——磁盘统计同源，见 getSessionStats） */
   usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
 }
@@ -105,7 +109,7 @@ function extractUsage(msg: AssistantMessageLike): { inputTokens: number; outputT
 function messageToBlocks(msg: AssistantMessageLike): ChatBlock[] {
   const blocks: ChatBlock[] = [];
   for (const b of msg.content) {
-    if (b.type === "text" && b.text) blocks.push({ type: "text" as const, text: b.text });
+    if (b.type === "text" && b.text) blocks.push({ type: "text" as const, text: b.text, phase: responsePhase(b.textSignature) });
     // Pi 的 toolCall 块参数字段是 arguments（磁盘数据实证）；兼容 input 双格式
     else if (b.type === "toolCall") blocks.push({ type: "tool_use" as const, id: b.id, name: b.name, input: b.input ?? b.arguments });
     else if (b.type === "thinking") {
@@ -212,6 +216,9 @@ export function createMessageEntryTracker(opts: {
     observe(event) {
       flush();
       if (event.type === "message_end") {
+        // Only user/assistant bubbles need entryIds. Custom messages are persisted as
+        // custom_message entries; other roles do not have independently editable bubbles.
+        if (event.message.role !== "user" && event.message.role !== "assistant") return;
         pending.push(event.message);
         if (!scheduled) {
           scheduled = true;
@@ -337,7 +344,7 @@ export function bridgeSessionEvents(
           timestamp: (msg as { timestamp?: number }).timestamp,
           // 回合完整消息携带 usage——每条回复的 token/缓存统计（前端挂消息渲染）
           usage: extractUsage(msg),
-          durationMs: msg.durationMs, provider: msg.provider, model: msg.model,
+          stopReason: msg.stopReason, durationMs: msg.durationMs, provider: msg.provider, model: msg.model,
         });
       }
       break;

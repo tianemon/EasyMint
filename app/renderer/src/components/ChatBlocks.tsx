@@ -2,7 +2,8 @@ import { toolResultText } from "../lib/tool-result-text";
 import { diffBody, protectionRule, toolPresentation, type ToolPresentation } from "@shared/tool-presentation";
 import { appText } from "../lib/i18n";
 import { uiText, useUiLocale } from "../lib/i18n";
-import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useMemo, useEffect, useRef, memo } from "react";
+import { useFoldBody } from "./ui/useFoldBody";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
 import { MARKDOWN_PROSE_CLASS, renderMarkdownToHtml } from "../lib/markdown";
@@ -492,13 +493,11 @@ export function TextBlockView({ block, streaming, tail }: { block: TextBlock; st
   );
 }
 
-function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: boolean }): JSX.Element {
+function ThinkingBlockView({ block, active, running }: { block: ThinkingBlock; active?: boolean; running?: boolean }): JSX.Element {
   useUiLocale();
   // active = 流式中且本块是消息尾块(思考正在增长):自动展开;思考结束(不再是尾块)自动收起。
   const [open, setOpen] = useState(false);
-  // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时思考内容不参与气泡宽度计算
-  // (仅 0fr 藏高度时,思考内不可断行长行/URL 仍把气泡撑到展开宽度)
-  const [bodyMounted, setBodyMounted] = useState(false);
+  const { bodyMounted, toggle: toggleFold } = useFoldBody(open, setOpen);
   // 用户是否手动展开过:手动干预后不再随思考结束自动收起(保留用户意图,想看历史就留着)
   const userCtrlRef = useRef(false);
   const prevActiveRef = useRef(false);
@@ -511,17 +510,6 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
   const lastUserInputRef = useRef(0);
   const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
 
-  // body 挂载与 open 同步:展开立即挂载;收起等 0fr 过渡(200ms)播完再卸载(宽度随动画收窄)。
-  // 手动展开需先挂载(0fr)下一帧再置 open——同帧置 1fr 无过渡,展开动画消失(见 toggle)
-  useEffect(() => {
-    if (open) { setBodyMounted(true); return; }
-    const t = setTimeout(() => setBodyMounted(false), 230);
-    return () => clearTimeout(t);
-  }, [open]);
-  // 手动展开的 rAF 延迟(自动展开 active 路径直接 setOpen,不走此)
-  const rafRef = useRef<number>(0);
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
-
   // active true(思考开始/思考中持续):自动展开;标记非用户手动(供结束自动收起判定)
   useEffect(() => {
     if (active) {
@@ -531,12 +519,12 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
     }
   }, [active]);
 
-  // active true→false(思考结束,正文/工具开始):用户没手动干预过才自动收起
+  // 整轮结束后才自动收起；正文/工具接续时保留过程，手动展开不受自动收起影响。
   useEffect(() => {
     const act = !!active;
-    if (!act && prevActiveRef.current && !userCtrlRef.current) setOpen(false);
-    prevActiveRef.current = act;
-  }, [active]);
+    if (!act && !running && prevActiveRef.current && !userCtrlRef.current) setOpen(false);
+    if (act || !running) prevActiveRef.current = act;
+  }, [active, running]);
 
   // 内容增长自动贴底;手动展开(查看历史)从顶部看——开头是新思考,底部跟随无意义
   useEffect(() => {
@@ -560,15 +548,8 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
 
   const toggle = (): void => {
     userCtrlRef.current = true;
-    if (!open) {
-      // 手动展开:先挂载(0fr 隐藏),下一帧置 open 播 0fr→1fr 动画
-      setBodyMounted(true);
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => setOpen(true));
-      autoScrollRef.current = false; // 手动展开:从顶部看历史
-    } else {
-      setOpen(false);
-    }
+    autoScrollRef.current = false; // 手动查看时保留阅读位置
+    toggleFold();
   };
 
   // 思考仍在增长(active)时,末尾几个可见字符渐隐——只给这几个字包一层 span。
@@ -582,6 +563,7 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
     <div className="mt-1.5 mb-1">
       <button
         onClick={toggle}
+        aria-expanded={open}
         className="inline-flex items-center gap-1.5 py-0.5 text-left rounded-[var(--radius-lg)] transition-colors group"
       >
         {/* 大脑图标(Lucide brain)——思考块标识,与输入卡片思考等级图标统一 */}
@@ -614,7 +596,7 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
       {/* 展开动画:grid-rows 0fr↔1fr 平滑展开/收起。折叠时 body 不渲染(bodyMounted)——
           思考内容不参与气泡宽度计算;收起时 0fr 过渡播放完才卸载,宽度随动画收窄 */}
       {bodyMounted && (
-      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      <div inert={!open} className={`chat-fold grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
         <div className="overflow-hidden">
           {/* 展开区:纯色块(无左竖线),底色比气泡深一档;封顶 6 行超出滚动(溢出时外层 1fr 轨匹配内层 maxHeight) */}
           <div
@@ -638,44 +620,6 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
   );
 }
 
-/** 折叠展开区内容挂载控制(通用,供工具块等手动折叠用):
- *  折叠(bodyMounted=false)时内容不渲染——不参与气泡宽度计算(0fr 只藏高度,不可断行长行仍撑宽);
- *  展开:先挂载(0fr 隐藏),下一帧切 open 播 grid-rows 0fr→1fr 动画;
- *  收起:先播 1fr→0fr 动画,结束后卸载 body(宽度随即收回,不遮挡收起过程)。
- *  返回 { bodyMounted, contentReady, toggle }——contentReady=动画态(用于箭头/网格类) */
-function useFoldBody(open: boolean, setOpen: (v: boolean) => void): {
-  bodyMounted: boolean;
-  contentReady: boolean;
-  toggle: () => void;
-} {
-  // 内容是否挂载(渲染于 grid 内;未挂载 = 零宽度贡献)
-  // 初值跟随 open:默认展开的块(提问卡)首帧就得有内容——只由 toggle 挂载会让它「展开却空白」
-  const [bodyMounted, setBodyMounted] = useState(open);
-  // 首帧挂载后动画才就绪:挂载同一帧切 1fr 无过渡(从 0fr 起步才播动画),用 rAF 延迟一帧
-  const rafRef = useRef<number>(0);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // toggle:折叠中→先挂载再置 open(播动画);展开中→先收起,过渡完再卸载
-  const toggle = useCallback(() => {
-    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
-    if (!open) {
-      // 展开:先挂载(0fr 隐藏) → 下一帧切 1fr 播高度动画
-      setBodyMounted(true);
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => setOpen(true));
-    } else {
-      // 收起:先播 0fr 动画 → 结束后卸载 body(宽度收回)
-      setOpen(false);
-      hideTimerRef.current = setTimeout(() => setBodyMounted(false), 230); // 200ms 过渡 + 余量
-    }
-  }, [open, setOpen]);
-  // 组件卸载清理:取消挂起的 rAF/卸载 timer(虚拟列表行回收时防泄漏/卸载后 setState)
-  useEffect(() => () => {
-    cancelAnimationFrame(rafRef.current);
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-  }, []);
-
-  return { bodyMounted, contentReady: open, toggle };
-}
 
 function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?: boolean }): JSX.Element {
   const items = block.items;
@@ -698,6 +642,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
         role="button"
         tabIndex={0}
         onClick={fold.toggle}
+        aria-expanded={open}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fold.toggle(); } }}
         className="flex w-fit items-center gap-1.5 py-0.5 cursor-pointer select-none group"
       >
@@ -717,7 +662,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
       {/* 展开动画:grid rows 0fr↔1fr 高度过渡;宽度块级自适应——气泡内其他内容更宽则铺满,
           组内容更宽则撑开气泡;折叠时 body 不渲染(bodyMounted)宽度零贡献 */}
       {fold.bodyMounted && (
-      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      <div inert={!open} className={`chat-fold grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
         <div className="overflow-hidden min-w-0">
           {/* 组展开容器:深色块 padding 左右 8px + 上下 1px(用户确认:上下边距主要由工具行自身 mt/mb 贡献,
               容器 padding 只做微调,2px→1px 后视觉仍均匀);折叠时高度 0 背景自然不可见 */}
@@ -1183,7 +1128,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
           气泡内其他内容(文本等)更宽则展开区铺满气泡,展开内容更宽则撑开气泡(max-w 75% 内)。
           折叠时 body 不渲染(bodyMounted)——隐藏内容不再撑开气泡宽度 */}
       {fold.bodyMounted && (
-      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${showInput && hasExpandable ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      <div inert={!showInput} className={`chat-fold grid transition-[grid-template-rows] duration-200 ease-out ${showInput && hasExpandable ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
         <div className="overflow-hidden min-w-0">
           {hasExpandable && (
             // 展开区:纯色块,底色比气泡深一档;内容随工具类型
@@ -1245,10 +1190,10 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block, streaming, isStreamingTail }: { block: Block; streaming?: boolean; isStreamingTail?: boolean }): JSX.Element | null {
+export function ChatBlockView({ block, streaming, isStreamingTail, running }: { block: Block; streaming?: boolean; isStreamingTail?: boolean; running?: boolean }): JSX.Element | null {
   switch (block.kind) {
     case "text": return <TextBlockView block={block} streaming={streaming} tail={isStreamingTail} />;
-    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} />;
+    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} running={running} />;
     case "tool-group": return <ToolGroupView block={block} streaming={streaming} />;
     case "system": return null;
     case "tool-result-only": return <ToolResultOnlyView block={block} />;

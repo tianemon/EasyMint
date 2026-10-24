@@ -39,9 +39,11 @@ describe("visual preset generation handoff", () => {
       const context = presetDesignContext(preset.id);
       expect(context).toContain(preset.id);
       expect(context).toContain(".easymint/design/visual-spec.json");
-      const snapshot = presetFromVisualSpec(createVisualSpec({ styleId: preset.id }));
-      expect(snapshot.recipes).toEqual(preset.recipes);
-      expect(snapshot.artwork).toEqual(preset.artwork);
+      const visual=createVisualSpec({styleId:preset.id});
+      const snapshot=presetFromVisualSpec(visual);
+      const preview=resolveStylePreset(preset,visual.selection);
+      expect(snapshot.recipes).toEqual(preview.recipes);
+      expect(snapshot.artwork).toEqual(preview.artwork);
     }
     expect(presetDesignContext("")).toContain("minimalism; palette");
     expect(presetDesignContext("User-defined style")).toContain("User visual brief: User-defined style");
@@ -65,7 +67,7 @@ describe("independent style palettes", () => {
       const spec = createVisualSpec({ styleId: preset.id });
       expect(spec.material.layout).toEqual(preset.layout);
       expect(spec.material.artwork).toEqual(preset.artwork);
-      expect(presetFromVisualSpec(spec).recipes).toEqual(preset.recipes);
+      expect(presetFromVisualSpec(spec).recipes).toEqual(resolveStylePreset(preset,spec.selection).recipes);
       expect(context).toContain("components.css");
       expect(context).not.toContain(JSON.stringify(preset.recipes));
       expect(preset.colors.accent).toBe(preset.accent);
@@ -76,7 +78,8 @@ describe("independent style palettes", () => {
     for (const choice of ["", "custom", "unrecognized-style"]) {
       const context = presetDesignContext(choice);
       expect(context).toContain("minimalism; palette");
-      expect(context).toContain("Reuse these actual component classes");
+      expect(context).toContain("Reuse this actual composition");
+      expect(context).toContain("showcase-mobile.html");
       if (choice) expect(context).toContain(`User visual brief: ${choice}`);
       expect(context).not.toContain("Web layout:");
     }
@@ -146,4 +149,18 @@ describe("appearance recovery and handoff", () => {
       }
     }
   });
+});
+
+it("defaults empty legacy style choices and preserves all selected mobile platforms", () => {
+  const result = parseProjectDraft(JSON.stringify({ step: 2, data: { ...DEFAULT_DATA, name: "Mobile", uiStyle: "", targets: ["ios-mobile", "android-mobile", "harmony-mobile"] } }));
+  expect(result?.data.uiStyle).toBe("minimalism");
+  expect(result?.data.targets).toEqual(["ios-mobile", "android-mobile", "harmony-mobile"]);
+  expect(result?.step).toBe(2);
+});
+
+it("gives empty older drafts three feature slots without changing authored features", () => {
+  const blank = parseProjectDraft(JSON.stringify({ data: { ...DEFAULT_DATA, name: "Restored" }, step: 1 }));
+  expect(blank?.data.features).toEqual([{ name: "" }, { name: "" }, { name: "" }]);
+  const authored = parseProjectDraft(JSON.stringify({ data: { ...DEFAULT_DATA, name: "Restored", features: [{ name: "Keep exactly" }] }, step: 1 }));
+  expect(authored?.data.features).toEqual([{ name: "Keep exactly" }]);
 });

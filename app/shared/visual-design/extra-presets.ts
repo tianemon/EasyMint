@@ -40,7 +40,7 @@ export const EXTRA_STYLE_PRESETS = [
     artwork: { color: "#7c9ac6", soft: "#dce9ef", ink: "#203147" },
     recipes: {card:r("#ffffff", "#20222b", "0 solid transparent",24),primary:r("#27323f","#ffffff","0 solid transparent",28,"inset 0 1px 1px #ffffff65, 0 3px 8px #26394c20"),secondary:r("#ffffff9c","#27323f","0 solid transparent",28,"inset 0 1px 1px #ffffffed, inset 0 -1px 2px #20334b25, 0 4px 12px #26394c14"),input:r("#ffffffb3","#20222b","0 solid transparent",24,"inset 0 1px 3px #192e4212"),menu:r("#f8fbfff2","#20222b","0 solid transparent",24,"inset 0 1px 0 #ffffff, 0 18px 40px #20374c2e")},
     layout:{web:"Quiet opaque content beneath floating rounded optical navigation and toolbars; media-led landscape with distinct functional layers.",mobile:"Content-first full-width media and opaque cards; compact floating bottom navigation and glass controls separated from content."},
-    rules:"Liquid Glass inspired by Apple HIG: use optical, rounded, adaptive-looking material on functional navigation, toolbars and transient controls, not every content card. Clear edge highlights and inner optical shading over rich content; opaque content remains readable. Web CSS is an approximation, not Apple's native refraction renderer. Keep controls semantically accessible; reduced transparency gets an opaque fallback.",
+    rules:"Liquid Glass inspired by Apple HIG: use optical, rounded material on functional navigation, toolbars and transient controls, not every content card. Clear edge highlights and inner optical shading over rich content; opaque content remains readable. The selected SONORA material defaults to clear over media; retain regular with stronger diffusion when legibility requires it. The SONORA sample demonstrates a floating tab bar, separate search affordance, mini-player accessory, expanding player and interactive sliders. Keep a stable neutral film while background colours transmit continuously; do not switch the whole surface theme at scroll thresholds. Clear glyph contrast adapts locally. The selected tab capsule follows dragging and settles with a spring. Use the adopted C optical implementation: squircle surface, Fresnel-weighted refraction and reflection, bezel 10px, base thickness 0.8 and gain 1.5, with a shared smooth inner shoulder. Preview and exported runtime share this engine; do not replace it with a blur-only imitation. Web CSS is an approximation, not Apple's native refraction renderer. Keep controls semantically accessible; reduced transparency gets an opaque fallback.",
   }),
   direction("claymorphism", {
     accent:"#65459b",soft:"#eae0fa",onSoft:"#4e347b",background:"#f4f1fb",radius:28,font:"ui-rounded, system-ui, sans-serif",
@@ -99,18 +99,18 @@ export const EXTRA_STYLE_PRESETS = [
     rules:"Editorial design separates display, reading and small metadata roles, informed by publication typography. Use mastheads, column rules, readable measures and clear hierarchy rather than just putting a serif font on an ordinary dashboard. Do not embed commercial fonts; reuse available local stacks and keep real product content first.",
   }),
   direction("dark", {
-    accent:"#d7e3fb",soft:"#29354b",onSoft:"#e7efff",background:"#11151c",tone:"dark",radius:10,
-    artwork:{color:"#9dadd1",soft:"#293246",ink:"#e8eefc"},
-    recipes:{card:r("#1d2430","#edf2f8","1px solid #344051",12),primary:r("#d7e3fb","#172334","0 solid transparent",8),secondary:r("#29354b","#e7efff","0 solid transparent",8),input:r("#131b26","#edf2f8","1px solid #3b4a5f",8),menu:r("#303c4d","#edf2f8","1px solid #536178",10,"0 14px 32px #00000080")},
+    accent:"#c9b8ff",soft:"#2d273f",onSoft:"#ede5ff",background:"#101114",tone:"dark",radius:10,muted:"#a6a6b3",border:"#2c2c35",
+    artwork:{color:"#bca5e7",soft:"#342a49",ink:"#ececf2"},
+    recipes:{card:r("#1a1a21","#ececf2","1px solid #30303a",12),primary:r("#c9b8ff","#1e1637","0 solid transparent",8),secondary:r("#2d273f","#ede5ff","0 solid transparent",8),input:r("#131318","#ececf2","1px solid #3a3a47",8),menu:r("#2c2c38","#ececf2","1px solid #4b465e",10,"0 14px 32px #00000080")},
     layout:{web:"Low-light workbench with separate sunken, default, raised and overlay surfaces; restrained type and compact useful content.",mobile:"Readable low-light cards and compact navigation; brighter transient layers preserve focus and controls without broad glow."},
     rules:"Dark is a theme interpreted as a low-light workbench. Elevation needs distinct surface luminance as well as shadow, following Atlassian guidance. Avoid pure-black/pure-white flattening, transparent gray stacks, tiny dim text and decorative glass. Selected, disabled, focus and overlay states must stay legible.",
   }),
   direction("tech", {
-    accent:"#91e9df",soft:"#173e43",onSoft:"#c7fff7",background:"#0c171e",tone:"dark",radius:3,font:"'Courier New', 'PingFang SC', monospace",
-    artwork:{color:"#91e9df",soft:"#15323d",ink:"#d9fbf6"},texture:"linear-gradient(#91e9df06 1px,transparent 1px),linear-gradient(90deg,#91e9df06 1px,transparent 1px)",
-    recipes:{card:r("#112832","#e2f5f4","1px solid #315460",3),primary:r("#91e9df","#102c30","1px solid #91e9df",3),secondary:r("#173e43","#c7fff7","1px solid #417b7c",3),input:r("#0a1d25","#e2f5f4","1px solid #36616b",2),menu:r("#193740","#e2f5f4","1px solid #57838b",3,"0 10px 28px #00000065")},
-    layout:{web:"Futuristic functional frame: precise technical grid, clipped corner geometry, monospaced readouts and a focused signal-like illustration.",mobile:"Clear segmented technical masthead and narrow-frame controls; simplify diagnostic ornament while preserving task hierarchy."},
-    rules:"Futuristic direction informed by Arwes primitives: precision frames, angular cuts, sparse signal accents and monospaced information. Do not substitute flashing neon, rainbow glow or fake critical telemetry for real content. Grid and frames are quiet scaffolding; text and controls remain accessible. Respect reduced motion.",
+    accent:"#95f8e2",soft:"#103333",onSoft:"#b9fff0",background:"#030b0f",ink:"#dcf6f5",muted:"#87afb5",border:"#1e4549",tone:"dark",radius:2,font:"'Courier New', 'PingFang SC', monospace",
+    artwork:{color:"#46f3e7",soft:"#0b292b",ink:"#d8fff5"},texture:"linear-gradient(#46f3e706 1px,transparent 1px),linear-gradient(90deg,#46f3e706 1px,transparent 1px)",
+    recipes:{card:r("#092124","#dcf6f5","1px solid #1e4549",2),primary:r("#95f8e2","#07281f","0 solid transparent",0),secondary:r("#103333","#b9fff0","1px solid #326c66",0),input:r("#061819","#dcf6f5","1px solid #326c66",2),menu:r("#10312f","#dcf6f5","1px solid #528b7e",2,"0 10px 28px #00000065")},
+    layout:{web:"Cyberpunk network terminal: central live rotating cyan globe with radial ticks and node links, narrow left relay traffic and right telemetry columns, cyan commands and a compact event log.",mobile:"Retain the holographic sphere, drop auxiliary relay chrome and reflow telemetry below it. Preserve readable labels, clear signal colours and angular controls."},
+    rules:"Use the selected NEXUS scene HTML, CSS and SVG as the implementation reference, informed by the archived 22-hud cyberpunk study. Match the reference palette: near-black ink, ion-cyan emissive signals, cool-white data. No purple, violet, magenta or rainbow accents are deliberate roles. Neon mode is an angular vector globe over a perspective grid with emissive coasts and moving packets. Holographic mode is a volumetric dotted-land sphere with suspended orbital rings and a luminous scanning layer. The difference must be structural and obvious in a still image as well as in motion. Use the original canvas renderer in the shared scene runtime; do not substitute a static illustration. Build layered radial scales, spherical grid, network paths and restrained signal bloom. No full-screen flashing, blurred body text or random neon cards. Diagnostic motion must respond to interaction and respect reduced motion. Keep all data explicitly demonstrative until wired to real state.",
   }),
 ] as const;
 
@@ -142,7 +142,7 @@ export function resolveExtraAppearance(preset: StylePreset, appearance: StyleApp
     if(preset.id==="colorful")preset.artwork.color=`color-mix(in srgb,${preset.artwork.color} 70%,#ffffff)`;
     if(preset.id==="business"||preset.id==="editorial")preset.density="compact";
     if(preset.id==="tech")preset.texture="none";
-    if(preset.id==="dark")preset.recipes.card.background="#19212c";
+    if(preset.id==="dark")preset.recipes.card.background="#1a1a21";
     if(preset.id==="luxury")preset.recipes.card.background="#fafafd";
   }
   if(appearance.palette==="mono") {

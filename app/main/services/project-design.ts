@@ -1,3 +1,5 @@
+import { createSceneContract, sceneImplementationGuide } from "../../shared/visual-design/scene-contract";
+import { showcaseRuntimeSource } from "../../shared/visual-design/showcase-runtime";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -8,7 +10,7 @@ import { updatePrototypeHtml } from "./project-design-html";
 const DIR = '.easymint/design';
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const read = (file: string) => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
-const allowed = (relative: string) => relative === 'prototype/index.html' || relative === '.easymint/project-profile.json' || /^\.easymint\/design\/(?:visual-spec\.json|theme\.css|components\.css|runtime\.js|native-tokens\.json|PORTING\.md|gallery\.html|manifest\.json|templates\/template-(?:landing|dashboard|form|detail)\.html)$/.test(relative);
+const allowed = (relative: string) => relative === 'prototype/index.html' || relative === '.easymint/project-profile.json' || /^\.easymint\/design\/(?:visual-spec\.json|theme\.css|components\.css|runtime\.js|native-tokens\.json|PORTING\.md|gallery\.html|showcase(?:-mobile)?\.html|scene-contract\.json|DESIGN\.md|motion\.html|manifest\.json|templates\/template-(?:landing|dashboard|form|detail)\.html)$/.test(relative);
 function target(root: string, relative: string): string {
     if (!allowed(relative))
         throw new Error('Invalid managed design path');
@@ -73,7 +75,7 @@ export function recoverProjectDesign(root: string): void {
 }
 export function loadVisualAssets(resources = getResourcesDir()): VisualAssets {
     const dir = path.join(resources, 'visual-design');
-    return { css: VISUAL_STYLE_FILES.map(name => fs.readFileSync(path.join(dir, name), 'utf8')).join('\n'), runtime: fs.readFileSync(path.join(dir, 'runtime.js'), 'utf8') };
+    return { css: VISUAL_STYLE_FILES.map(name => fs.readFileSync(path.join(dir, name), 'utf8')).join('\n'), runtime: fs.readFileSync(path.join(dir, 'runtime.js'), 'utf8') + '\n' + showcaseRuntimeSource() };
 }
 export function readProjectDesign(root: string): VisualSpec | null {
     recoverProjectDesign(root);
@@ -110,8 +112,12 @@ export function saveProjectDesign(root: string, selection: VisualSelection, plat
     files.set(`${DIR}/components.css`, assets.css);
     files.set(`${DIR}/runtime.js`, assets.runtime);
     files.set(`${DIR}/native-tokens.json`, JSON.stringify({ schemaVersion: 1, source: 'visual-spec.json', platforms: spec.selection.targets, primitive: spec.primitive, semantic: spec.semantic, components: resolvedComponents(spec), states: spec.states, material: spec.material }, null, 2) + '\n');
-    files.set(`${DIR}/PORTING.md`, '# Visual implementation contract\n\nWeb/Electron: reuse theme.css, components.css and runtime.js. Templates and gallery contain real working components. Copy inline marked theme/component style blocks into a single-file prototype, or import these project-relative files. Preserve the CSS classes, component states and material layers.\n\nNative Flutter/SwiftUI/Compose/React Native: use native-tokens.json as the decision source. Translate semantic colors, typography, spacing, radii, shadows and component states into the target toolkit. Do not copy CSS strings into native properties. Glass requires native blur/backdrop layers; declare unsupported effects and use the selected surface fallback rather than silently switching styles. Provide the actual target preview before claiming pixel parity.\n\nTo change an existing prototype layout, merge its content into the matching generated template first, keeping data-easymint-root and data-layout, then call set_project_design with that layout. This adoption is checked before saving.\n\nUpdate appearance through set_project_design. It preserves edited managed files by reporting a conflict. User overrides belong in a separate project stylesheet, not in the generated theme. Brand references are inspirations; use the same available font stack in preview and implementation.\n');
+    files.set(`${DIR}/PORTING.md`, '# Visual implementation contract\n\nWeb/Electron: reuse theme.css, components.css and runtime.js. Read DESIGN.md and scene-contract.json first. showcase.html and showcase-mobile.html are the selected complete product scene, sharing the picker source. Reuse their defining layout, useful controls and material layers. Templates and gallery are legacy compatibility starters, not the selected direction. There is no per-style motion destination. Copy inline marked theme/component style blocks into a single-file prototype, or import these project-relative files. Preserve the CSS classes, component states and material layers.\n\nNative Flutter/SwiftUI/Compose/React Native: use native-tokens.json as the decision source. Translate semantic colors, typography, spacing, radii, shadows and component states into the target toolkit. Do not copy CSS strings into native properties. Glass requires native blur/backdrop layers; declare unsupported effects and use the selected surface fallback rather than silently switching styles. Provide the actual target preview before claiming pixel parity.\n\nTo change an existing prototype layout, merge its content into the matching generated template first, keeping data-easymint-root and data-layout, then call set_project_design with that layout. This adoption is checked before saving.\n\nUpdate appearance through set_project_design. It preserves edited managed files by reporting a conflict. User overrides belong in a separate project stylesheet, not in the generated theme. Brand references are inspirations; use the same available font stack in preview and implementation.\n');
     const title = spec.selection.projectName || path.basename(root);
+    files.set(`${DIR}/showcase.html`, renderVisualDocument(spec, assets, { layout: 'showcase', title }));
+    files.set(`${DIR}/showcase-mobile.html`, renderVisualDocument(spec, assets, { layout: 'showcase', device: 'mobile', title }));
+    files.set(`${DIR}/scene-contract.json`, JSON.stringify(createSceneContract(spec), null, 2)+'\n');
+    files.set(`${DIR}/DESIGN.md`, sceneImplementationGuide(spec));
     files.set(`${DIR}/gallery.html`, renderVisualDocument(spec, assets, { layout: 'gallery', title }));
     for (const layout of VISUAL_LAYOUTS)
         files.set(`${DIR}/templates/template-${layout}.html`, renderVisualDocument(spec, assets, { layout, title }));
@@ -129,7 +135,7 @@ export function saveProjectDesign(root: string, selection: VisualSelection, plat
         const updated = updatePrototypeHtml(prototype, {
             root, previous: parseVisualSpec(JSON.parse(oldSpec)), next: spec,
             resources: ([['theme','style','theme.css'],['components','style','components.css'],['runtime','script','runtime.js']] as const).map(([marker,tag,file]) => ({ marker,tag,file,before:before(`${DIR}/${file}`),after:files.get(`${DIR}/${file}`)! })),
-            templates: VISUAL_LAYOUTS.map(layout => ({ before: before(`${DIR}/templates/template-${layout}.html`) ?? '', after: files.get(`${DIR}/templates/template-${layout}.html`)! })),
+            templates: [...VISUAL_LAYOUTS.map(layout => ({ before: before(`${DIR}/templates/template-${layout}.html`) ?? '', after: files.get(`${DIR}/templates/template-${layout}.html`)! })), { before: before(`${DIR}/showcase.html`)??'', after: files.get(`${DIR}/showcase.html`)! }, { before: before(`${DIR}/showcase-mobile.html`)??'', after: files.get(`${DIR}/showcase-mobile.html`)! }],
         });
         if (updated !== prototype)
             files.set('prototype/index.html', updated);
@@ -169,5 +175,6 @@ export function ensureProjectDesign(root: string): boolean {
     for (const name of ['theme.css', 'components.css', 'runtime.js', 'native-tokens.json', ...VISUAL_LAYOUTS.map(l => `templates/template-${l}.html`)])
         if (!fs.existsSync(target(root, `${DIR}/${name}`)))
             throw new Error(`Project visual asset missing: ${name}. Restore the project design before generation.`);
+    if(fs.existsSync(target(root, `${DIR}/scene-contract.json`)))for(const name of ['DESIGN.md','showcase.html','showcase-mobile.html'])if(!fs.existsSync(target(root, `${DIR}/${name}`)))throw new Error(`Project visual asset missing: ${name}. Restore the project design before generation.`);
     return true;
 }

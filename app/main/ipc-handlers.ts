@@ -1,3 +1,5 @@
+import { FORM_ASSIST_KINDS } from "../shared/form-assist";
+import { FormAssistService } from "./services/form-assist-service";
 import { saveProjectDesign } from "./services/project-design";
 import { parseNativeAiSettings } from "../shared/native-ai";
 import { saveUiLanguage, getUiLanguageState, t } from "./services/ui-language";
@@ -112,6 +114,28 @@ interface Services {
 }
 
 export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store, remoteTerminalService }: Services): void {
+  const formAssist = new FormAssistService(async () => {
+    const repository = await getNativeConfig(store);
+    const runtime = await repository.getRuntime();
+    return { runtime, model: repository.getDefaultModel() };
+  });
+  const formOwners = new Set<number>();
+  const formRequest = z.object({ requestId: z.string().uuid(), kind: z.enum(FORM_ASSIST_KINDS), prompt: z.string().min(1).max(20_000) });
+  ipcMain.handle("agent:form-assist", (event, payload) => {
+    const request = formRequest.parse(payload);
+    const sender = event.sender;
+    if (sender.isDestroyed()) throw new Error("Form request owner is closed");
+    if (!formOwners.has(sender.id)) {
+      formOwners.add(sender.id);
+      sender.once("destroyed", () => { formAssist.cancelOwner(sender.id); formOwners.delete(sender.id); });
+    }
+    return formAssist.run(sender.id, request);
+  });
+  ipcMain.handle("agent:cancel-form-assist", (event, payload) => {
+    const { requestId } = z.object({ requestId: z.string().uuid() }).parse(payload);
+    formAssist.cancel(event.sender.id, requestId);
+  });
+  app.once("before-quit", () => formAssist.dispose());
   /**
    * file:* / shell 日志通道的可信根解析：目标路径必须落在某个已登记项目根之内
    * （`~/.ssh/id_rsa`、`/etc/passwd`、`~/Documents/../.ssh/id_rsa` 均无项目根包含 → 拒绝）。
