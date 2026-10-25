@@ -24,16 +24,20 @@ export function applyPiRunStatus(sessionId: string, event: { type: string; waiti
   }
 }
 
-export function restorePiRunStatus(sessionId: string, state: AgentBusyState): void {
+export function restorePiRunStatus(sessionId: string, state: AgentBusyState, restore: { signals?: boolean; asks?: boolean } = {}): void {
   const status = useStatusStore.getState();
-  clearPiRunSignals(sessionId);
-  status.popSignal(sessionId, "compact");
   status.setCompacting(sessionId, state.compacting);
-  if (state.busy) status.pushSignal(sessionId, "request", uiText("ui.ChatPanel.processing"));
-  if (state.compacting) status.pushSignal(sessionId, "compact", uiText("ui.ChatPanel.compactingSession"));
-  applyPiRunStatus(sessionId, { type: "waiting_user", waiting: state.waiting });
-  useAskStore.getState().clearForSession(sessionId);
-  for (const ask of state.pendingAsks) useAskStore.getState().setAsk(ask);
+  if (restore.signals !== false) {
+    clearPiRunSignals(sessionId);
+    status.popSignal(sessionId, "compact");
+    if (state.busy) status.pushSignal(sessionId, "request", uiText("ui.ChatPanel.processing"));
+    if (state.compacting) status.pushSignal(sessionId, "compact", uiText("ui.ChatPanel.compactingSession"));
+    applyPiRunStatus(sessionId, { type: "waiting_user", waiting: state.waiting });
+  }
+  if (restore.asks !== false) {
+    useAskStore.getState().clearForSession(sessionId);
+    for (const ask of state.pendingAsks) useAskStore.getState().setAsk(ask);
+  }
 }
 
 export function clearPiRunSignals(sessionId: string): void {

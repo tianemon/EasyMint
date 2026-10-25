@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { startsMessageIdentity } from "./chat-message-presentation";
+import { executionPreviewEntries, startsMessageIdentity } from "./chat-message-presentation";
 import type { ChatMessage } from "./chat-utils";
+import type { StreamEntry } from "./StreamPanel";
 
 const ai = (id: number, patch: Partial<ChatMessage> = {}): ChatMessage => ({
   id, role: "ai", timestamp: id, entries: [{ kind: "text", text: "reply", timestamp: id }], ...patch,
@@ -31,5 +32,21 @@ describe("message identity presentation", () => {
   it.each(["outOfContext", "imageStripped", "forwarded"] as const)("keeps %s identity and warning context visible", flag => {
     expect(messageIdentityStarts([ai(1), ai(2, { [flag]: true }), ai(3)]))
       .toEqual([true, true, true]);
+  });
+});
+
+describe("running execution preview", () => {
+  it("keeps text and errors visible while hiding thoughts and tool records", () => {
+    const entries: StreamEntry[] = [
+      { kind: "thinking", text: "reasoning", timestamp: 0 },
+      { kind: "text", text: "progress", phase: "commentary", timestamp: 1 },
+      { kind: "tool_use", id: "read", name: "read", input: {}, collapsed: true, timestamp: 2 },
+      { kind: "tool_result", toolUseId: "read", content: "content", isError: false, timestamp: 3 },
+      { kind: "error", data: "failed", timestamp: 4 },
+      { kind: "text", text: "answer", phase: "final_answer", timestamp: 5 },
+      { kind: "tool_result", toolUseId: "write", content: "permission denied", isError: true, timestamp: 6 },
+    ];
+    expect(executionPreviewEntries(entries)).toEqual([entries[1], entries[4], entries[5]]);
+    expect(entries).toHaveLength(7);
   });
 });

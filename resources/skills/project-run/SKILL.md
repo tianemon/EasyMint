@@ -33,7 +33,7 @@ description: >-
 ## 规则
 
 - 多入口（前后端分离、跨平台）写多条
-- **静态 HTML 页面（纯 HTML/CSS/JS，无构建工具、无 npm 依赖）不需要开发服务器**：run_command 用 open index.html（mac 直接打开）或 python3 -m http.server 8000（本地静态托管），url 对应 file:// 路径或 http://localhost:8000。不要为静态页面无谓创建 dev server 或引入框架构建
+- **静态 HTML 页面（纯 HTML/CSS/JS，无构建工具、无 npm 依赖）**：交付预览用 show_prototype 指定真实页面（例如 `{ "path": "app/index.html" }），将返回的本地 HTTP 地址写成可点击链接；EasyMint 自带静态托管，无需用户安装 Python 或手动起服务。该地址随应用退出失效，不把临时端口写入 run.json。仅当用户需要独立于 EasyMint 的长期运行脚本时，按实际可用环境配置静态服务器与对应 url；不要为静态页面引入框架构建。
 - 用户提出相关需求时，直接读现有 run.json 追加/更新——不必等任务全部完成，项目可运行即可生成；项目完成时生成（每次回到 done 更新）
 
 ## 脚本管理（不只限于启动项目）

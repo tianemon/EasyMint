@@ -7,6 +7,7 @@ import { loadUserEnv } from "./utils/user-path";
 import { installSystemProxyFetch, redactProxyUrl } from "./services/system-proxy";
 import { getResourcesDir, emHome } from "./utils/paths";
 import { prototypeBaseUrl } from "./utils/prototype-html";
+import { closeAssetPreviews } from "./services/asset-preview-service";
 import { EditorFileAccess } from "./services/editor-file-access";
 import {
   startAutoUpdater,
@@ -481,6 +482,7 @@ async function runQuitCleanup(): Promise<void> {
     await sharedServices.agentService.shutdown();   // 内部含 backgroundShellRegistry.stopAll()
     sharedServices.remoteTerminalService.close();
   });
+  await step("资产预览服务", () => closeAssetPreviews());
   await step("运行面板进程", () => { stopAllProcesses("SIGTERM", processPids); });
   await step("命令通道进程", () => { signalTrackedChildren("SIGTERM", trackedChildren); });
 

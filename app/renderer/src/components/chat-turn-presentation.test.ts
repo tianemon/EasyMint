@@ -24,15 +24,18 @@ describe("completed turn presentation", () => {
     const messages = [ai(1, [text("checking")]), ai(2, [text("answer")], { streaming: true })];
     expect(buildTurnPresentations(messages, false).size).toBe(0);
     messages[1]!.turnOutcome = "completed";
-    expect(buildTurnPresentations(messages, true).size).toBe(0);
+    const running = buildTurnPresentations(messages, true);
+    expect(running.size).toBe(2);
+    expect(running.get(1)?.active).toBe(true);
+    expect(buildFinalAnswerEntries(messages, true).size).toBe(0);
     expect(buildTurnPresentations(messages, false).size).toBe(2);
   });
   it.each(["error", "aborted", "length", "toolUse"])("keeps %s output visible", stopReason => {
     expect(buildTurnPresentations([ai(1, [text("checking")]), ai(2, [text("partial")], { stopReason, turnOutcome: "completed" })], false).size).toBe(0);
   });
   it("never treats earlier commentary as a final answer", () => {
-    expect(buildTurnPresentations([ai(1, [text("checking")]), ai(2, [{ kind: "thinking", text: "reasoning", timestamp: 0 }])], false).size).toBe(0);
-    expect(buildTurnPresentations([ai(1, [text("checking")]), ai(2, [text("checking", "commentary")])], false).size).toBe(0);
+    expect(buildFinalAnswerEntries([ai(1, [text("checking")]), ai(2, [{ kind: "thinking", text: "reasoning", timestamp: 0 }])], false).size).toBe(0);
+    expect(buildFinalAnswerEntries([ai(1, [text("checking")]), ai(2, [text("checking", "commentary")])], false).size).toBe(0);
   });
   it("keeps unanswered tool requests visible", () => {
     const call: StreamEntry = { kind: "tool_use", id: "ask", name: "ask_user", input: {}, collapsed: true, timestamp: 0 };
@@ -49,11 +52,64 @@ describe("completed turn presentation", () => {
   });
   it("keeps older completed turns folded while the current turn runs", () => {
     const messages = [ai(1, [text("checking")]), ai(2, [text("answer")]), question, ai(4, [text("running")])];
-    expect([...buildTurnPresentations(messages, true).keys()]).toEqual([0, 1]);
+    const turns = buildTurnPresentations(messages, true);
+    expect([...turns.keys()]).toEqual([0, 1, 3]);
+    expect(turns.get(3)?.active).toBe(true);
+    expect(turns.get(3)?.finalEntries.size).toBe(0);
   });
-  it("does not fold uncertain legacy or cancelled turns", () => {
+  it("does not fold uncertain legacy or failed turns", () => {
     expect(buildTurnPresentations([ai(1, [text("checking")]), ai(2, [text("answer")], { stopReason: undefined })], false).size).toBe(0);
-    expect(buildTurnPresentations([ai(1, [text("checking")]), ai(2, [text("answer")], { turnOutcome: "cancelled" })], false).size).toBe(0);
+    expect(buildTurnPresentations([ai(1, [text("checking")]), ai(2, [text("answer")], { turnOutcome: "failed" })], false).size).toBe(0);
+  });
+  it("folds an interrupted turn and keeps only an explicitly tagged conclusion visible", () => {
+    const entries = [text("working", "commentary"), text("partial answer", "final_answer")];
+    const turn = buildTurnPresentations([question, ai(2, entries, { turnOutcome: "cancelled", stopReason: "aborted", turnDurationMs: 9000 })], false).get(1)!;
+    expect(turn.interrupted).toBe(true);
+    expect(turn.durationMs).toBe(9000);
+    expect(turn.finalEntries.get(1)).toEqual([entries[1]]);
+  });
+  it("folds interrupted commentary and pending tools without inventing a conclusion", () => {
+    const call: StreamEntry = { kind: "tool_use", id: "bash", name: "bash", input: {}, collapsed: true, timestamp: 0 };
+    const turn = buildTurnPresentations([question, ai(2, [text("working", "commentary"), call], { turnOutcome: "cancelled", stopReason: "aborted", turnDurationMs: 3000 })], false).get(1)!;
+    expect(turn.interrupted).toBe(true);
+    expect(turn.finalEntries.size).toBe(0);
+    expect(turn.durationMs).toBe(3000);
+  });
+  it("folds a completed run that produced process text but no conclusion", () => {
+    const turn = buildTurnPresentations([question, ai(2, [text("only commentary", "commentary")], { turnOutcome: "completed", turnDurationMs: 2000 })], false).get(1)!;
+    expect(turn.finalEntries.size).toBe(0);
+    expect(turn.interrupted).toBe(false);
+  });
+  it("folds an interrupted run even when it contains an error entry", () => {
+    const entries: StreamEntry[] = [{ kind: "thinking", text: "reasoning", timestamp: 0 }, { kind: "error", data: "aborted", timestamp: 1 }];
+    const turn = buildTurnPresentations([question, ai(2, entries, { turnOutcome: "cancelled", stopReason: "aborted" })], false).get(1)!;
+    expect(turn.interrupted).toBe(true);
+    expect(turn.finalEntries.size).toBe(0);
+  });
+  it("switches directly from active preview to interrupted folding while busy is still settling", () => {
+    const messages = [question, ai(2, [{ kind: "thinking", text: "reasoning", timestamp: 0 }], { streaming: true, stopReason: undefined })];
+    expect(buildTurnPresentations(messages, true).get(1)?.active).toBe(true);
+    messages[1] = { ...messages[1]!, turnOutcome: "cancelled", stopReason: "aborted" };
+    const settled = buildTurnPresentations(messages, true).get(1)!;
+    expect(settled.active).toBeUndefined();
+    expect(settled.interrupted).toBe(true);
+  });
+  it("keeps the disclosure key stable when an entry id is backfilled", () => {
+    const messages = [question, ai(2, [text("working", "commentary")], { streaming: true, stopReason: undefined })];
+    const before = buildTurnPresentations(messages, true).get(1)!.key;
+    messages[1] = { ...messages[1]!, entryId: "uuid-after-start" };
+    expect(buildTurnPresentations(messages, true).get(1)!.key).toBe(before);
+  });
+  it("presents all unsettled segments of the current execution as one running group", () => {
+    const call: StreamEntry = { kind: "tool_use", id: "read", name: "read", input: {}, collapsed: true, timestamp: 0 };
+    const notice: ChatMessage = { id: 3, role: "user", customType: "system_message", details: { kind: "delegation", startsExecution: true }, timestamp: 3000 };
+    const messages = [question, ai(2, [{ kind: "thinking", text: "first", timestamp: 0 }, call], { stopReason: "toolUse", timestamp: 2000 }),
+      notice, ai(4, [{ kind: "thinking", text: "second", timestamp: 0 }], { streaming: true, stopReason: undefined, timestamp: 4000 })];
+    const turns = buildTurnPresentations(messages, true);
+    const turn = turns.get(1)!;
+    expect(turn.active).toBe(true);
+    expect(turn.first).toBe(1);
+    expect(turns.get(3)).toBe(turn);
   });
   it("folds in-run notifications but leaves later background events independent", () => {
     const notification = { ...question, id: 3, customType: "system_message", details: { kind: "summary" } };
@@ -63,6 +119,61 @@ describe("completed turn presentation", () => {
   it("formats known elapsed time and leaves unknown time unspecified", () => {
     expect(executionLabel(undefined, false)).toBe("执行过程");
     expect(executionLabel(138000, false)).toBe("用时 2分钟 18秒");
+    expect(executionLabel(9000, false, false, true)).toBe("执行了 9 秒被打断");
+    expect(executionLabel(undefined, false, false, true)).toBe("执行过程（已打断）");
+  });
+});
+
+describe("segmented execution settlement", () => {
+  it.each(["steer", "system"])("keeps %s segments together after completion and history reload", trigger => {
+    const boundary: ChatMessage = { id: 3, role: "user", timestamp: 2000, text: "continue",
+      ...(trigger === "system" ? { customType: "system_message", details: { kind: "delegation", startsExecution: true } } : {}) };
+    const messages = [question,
+      ai(2, [text("first progress", "commentary")], { stopReason: "toolUse" }), boundary,
+      ai(4, [text("second progress", "commentary")], { streaming: true, stopReason: undefined })];
+    const key = buildTurnPresentations(messages, true).get(1)!.key;
+    messages[3] = { ...messages[3]!, streaming: false, stopReason: "stop", turnOutcome: "completed", durationMs: 2000,
+      entries: [text("second progress", "commentary"), text("answer", "final_answer")] };
+    // Reloaded records have stop reasons, but no live turnOutcome metadata.
+    for (const snapshot of [messages, messages.map(message => ({ ...message, turnOutcome: undefined }))]) {
+      const turns = buildTurnPresentations(snapshot, false);
+      expect(turns.get(1)?.key).toBe(key);
+      expect(turns.get(3)).toBe(turns.get(1));
+      expect(turns.get(1)?.active).toBeFalsy();
+      expect(turns.get(1)?.durationMs).toBe(6000);
+      expect([...buildFinalAnswerEntries(snapshot, false).keys()]).toEqual([3]);
+    }
+  });
+
+  it.each([false, true])("keeps all segments folded after cancellation (busy=%s)", busy => {
+    const messages = [question,
+      ai(2, [text("first progress", "commentary")], { stopReason: "toolUse" }),
+      { ...question, id: 3, timestamp: 2000 },
+      ai(4, [text("second progress", "commentary")], { streaming: true, stopReason: undefined })];
+    const key = buildTurnPresentations(messages, true).get(1)!.key;
+    messages[3] = { ...messages[3]!, streaming: false, stopReason: "aborted", turnOutcome: "cancelled" };
+    const turns = buildTurnPresentations(messages, busy);
+    expect(turns.get(1)?.key).toBe(key);
+    expect(turns.get(3)).toBe(turns.get(1));
+    expect(turns.get(1)?.interrupted).toBe(true);
+    expect(turns.get(1)?.finalEntries.size).toBe(0);
+    expect(runningTurnPosition(messages)?.startedAt).toBe(0);
+    const reloaded = messages.map(message => ({ ...message, turnOutcome: undefined }));
+    expect(buildTurnPresentations(reloaded, false).get(1)?.interrupted).toBe(true);
+  });
+
+  it("settles earlier segmented executions independently of a new running prompt", () => {
+    const messages = [question,
+      ai(2, [text("first progress", "commentary")], { stopReason: "toolUse" }),
+      { ...question, id: 3 }, ai(4, [text("answer")], { turnOutcome: "completed" }),
+      { ...question, id: 5 }, ai(6, [text("new progress")], { streaming: true, stopReason: undefined })];
+    const turns = buildTurnPresentations(messages, true);
+    expect(turns.get(1)).toBeDefined();
+    expect(turns.get(1)).toBe(turns.get(3));
+    expect(turns.get(1)?.active).toBeFalsy();
+    expect(turns.get(5)?.active).toBe(true);
+    expect(turns.get(5)?.key).not.toBe(turns.get(1)?.key);
+    expect(buildFinalAnswerEntries(messages, true).get(3)).toEqual(messages[3]!.entries);
   });
 });
 
@@ -75,6 +186,15 @@ describe("phase and terminal metadata", () => {
     const messages = mapSessionMessages([{ type: "assistant", message: { content: [{ type: "text", text: "answer", textSignature: '{"v":1,"id":"x","phase":"final_answer"}' }], stopReason: "stop", timestamp: 1 } }]);
     expect(messages[0]?.entries?.[0]).toHaveProperty("phase", "final_answer");
     expect(messages[0]?.stopReason).toBe("stop");
+  });
+  it("keeps an aborted turn folded after reopening history", () => {
+    const messages = mapSessionMessages([
+      { type: "user", message: { content: "question", timestamp: 1 } },
+      { type: "assistant", message: { content: [{ type: "text", text: "working" }], stopReason: "aborted", timestamp: 5000 } },
+    ]);
+    const turn = buildTurnPresentations(messages, false).get(1)!;
+    expect(turn.interrupted).toBe(true);
+    expect(turn.finalEntries.size).toBe(0);
   });
   it("does not lose an empty error ending when loading history", () => {
     const messages = mapSessionMessages([{ type: "assistant", message: { content: [{ type: "text", text: "checking" }], stopReason: "stop" } }, { type: "assistant", message: { content: [], stopReason: "error" } }]);
@@ -142,4 +262,15 @@ it("keeps the active execution start anchored while thinking and tool messages a
   messages.push(ai(4, [text("working", "commentary")], {streaming:true,stopReason:undefined}));
   expect(runningTurnPosition(messages)?.first).toBe(1);
   expect(buildFinalAnswerEntries(messages,true).size).toBe(0);
+});
+
+it("keeps the execution disclosure key stable from running to completion", () => {
+  const thinking: StreamEntry = { kind: "thinking", text: "reasoning", timestamp: 0 };
+  const messages = [question, ai(2, [thinking, text("working", "commentary")], { streaming: true, stopReason: undefined })];
+  const running = buildTurnPresentations(messages, true).get(1)!;
+  expect(running.active).toBe(true);
+  messages[1] = { ...messages[1]!, entries: [thinking, text("working", "commentary"), text("answer", "final_answer")], streaming: false, stopReason: "stop", turnOutcome: "completed" };
+  const completed = buildTurnPresentations(messages, false).get(1);
+  expect(completed?.key).toBe(running.key);
+  expect(completed?.active).toBeUndefined();
 });

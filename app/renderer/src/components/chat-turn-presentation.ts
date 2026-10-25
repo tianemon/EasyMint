@@ -8,6 +8,8 @@ export interface TurnPresentation {
   last: number;
   finalEntries: Map<number, StreamEntry[]>;
   durationMs?: number;
+  active?: boolean;
+  interrupted?: boolean;
 }
 
 /** Explicit markers survive reloads. Legacy notifications split only after a terminal reply. */
@@ -49,20 +51,49 @@ function executionGroups(messages: readonly ChatMessage[]): Array<{ start?: Chat
   return groups;
 }
 
+function groupIsActive(messages: readonly ChatMessage[], indices: readonly number[], busy: boolean): boolean {
+  if (!busy) return false;
+  const lastAi = [...indices].reverse().find(i => messages[i]!.role === "ai");
+  if (lastAi === undefined) return true;
+  const last = messages[lastAi]!;
+  return last.turnOutcome !== "cancelled" && last.turnOutcome !== "failed" && last.stopReason !== "aborted";
+}
+
+function groupIsTerminal(messages: readonly ChatMessage[], indices: readonly number[]): boolean {
+  const lastAi = [...indices].reverse().find(i => messages[i]!.role === "ai");
+  if (lastAi === undefined) return true;
+  const last = messages[lastAi]!;
+  return !!last.turnOutcome || ["stop", "error", "aborted"].includes(last.stopReason ?? "");
+}
+
+/** User/system-triggered segments stay in one execution through settlement and history reload. */
+function presentationGroups(messages: readonly ChatMessage[], busy: boolean): Array<{ start?: ChatMessage; indices: number[]; active: boolean }> {
+  const groups: Array<{ start?: ChatMessage; indices: number[] }> = [];
+  for (const group of executionGroups(messages)) {
+    const previous = groups.at(-1);
+    if (previous && !groupIsTerminal(messages, previous.indices)) previous.indices.push(...group.indices);
+    else groups.push(group);
+  }
+  return groups.map((group, index) => ({ ...group,
+    active: index === groups.length - 1 && groupIsActive(messages, group.indices, busy),
+  }));
+}
+
 /** A finished model/tool step alone is not an authoritative conclusion. */
 function selectFinalEntries(messages: readonly ChatMessage[], indices: number[], active: boolean): Map<number, StreamEntry[]> {
   const result = new Map<number, StreamEntry[]>();
   const lastAi = [...indices].reverse().find(i => messages[i]!.role === 'ai');
   if (active || lastAi === undefined) return result;
   const last = messages[lastAi]!;
+  const interrupted = last.turnOutcome ? last.turnOutcome === 'cancelled' : last.stopReason === 'aborted';
   const terminal = (!last.stopReason || last.stopReason === 'stop') &&
     (last.turnOutcome === 'completed' || (!last.streaming && last.stopReason === 'stop'));
-  if (!terminal || (last.turnOutcome && last.turnOutcome !== 'completed')) return result;
+  if (!interrupted && (!terminal || (last.turnOutcome && last.turnOutcome !== 'completed'))) return result;
   const tagged = indices.some(i => messages[i]!.entries?.some(e => e.kind === 'text' && e.phase === 'final_answer'));
   for (const index of indices) {
     if (messages[index]!.role !== 'ai') continue;
     const selected = (messages[index]!.entries ?? []).filter(e => e.kind === 'text' &&
-      (tagged ? e.phase === 'final_answer' : index === lastAi && e.phase !== 'commentary'));
+      (interrupted ? e.phase === 'final_answer' : tagged ? e.phase === 'final_answer' : index === lastAi && e.phase !== 'commentary'));
     if (selected.length) result.set(index, selected);
   }
   return result;
@@ -71,10 +102,9 @@ function selectFinalEntries(messages: readonly ChatMessage[], indices: number[],
 /** Shared with folding, including plain replies that do not need an execution heading. */
 export function buildFinalAnswerEntries(messages: readonly ChatMessage[], busy: boolean): Map<number, StreamEntry[]> {
   const result = new Map<number, StreamEntry[]>();
-  const groups = executionGroups(messages);
-  groups.forEach((group, index) => {
-    for (const [i, entries] of selectFinalEntries(messages, group.indices, busy && index === groups.length - 1)) result.set(i, entries);
-  });
+  for (const group of presentationGroups(messages, busy)) {
+    for (const [i, entries] of selectFinalEntries(messages, group.indices, group.active)) result.set(i, entries);
+  }
   return result;
 }
 
@@ -89,31 +119,43 @@ export function buildTurnPresentations(messages: readonly ChatMessage[], busy: b
     indices = indices.filter(i => i <= lastAi);
     const group = indices.map(i => messages[i]!);
     const last = messages[lastAi]!;
+    if (active) {
+      const first = indices[0]!;
+      const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries: new Map<number, StreamEntry[]>(), active: true };
+      for (const i of indices) result.set(i, turn);
+      return;
+    }
+    const interrupted = last.turnOutcome ? last.turnOutcome === "cancelled" : last.stopReason === "aborted";
     const terminal = (!last.stopReason || last.stopReason === "stop") && (last.turnOutcome === "completed" || (!last.streaming && last.stopReason === "stop"));
-    if (active || (last.turnOutcome && last.turnOutcome !== "completed") || !terminal || group.some(m => m.agentRole || m.forwarded || m.outOfContext || m.imageStripped)) return;
-    if (group.some(m => m.entries?.some(e => e.kind === "error"))) return;
+    if (!interrupted && ((last.turnOutcome && last.turnOutcome !== "completed") || !terminal)) return;
+    if (group.some(m => m.agentRole || m.forwarded || m.outOfContext || m.imageStripped)) return;
+    if (!interrupted && group.some(m => m.entries?.some(e => e.kind === "error"))) return;
     const finalEntries = selectFinalEntries(messages, indices, active);
-    if (!finalEntries.size) return;
     const hasProcess = indices.some(i => messages[i]!.customType || (messages[i]!.entries ?? []).some(e => !finalEntries.get(i)?.includes(e)));
     if (!hasProcess) return;
-    // Unanswered tools (especially ask_user) must remain visible.
+    // Completed turns leave unanswered tools visible; interrupted tools belong to the folded process.
     const entries = group.flatMap(m => m.entries ?? []);
     const completed = new Set(entries.filter(e => e.kind === "tool_result").map(e => e.kind === "tool_result" ? e.toolUseId : ""));
-    if (entries.some(e => e.kind === "tool_use" && (!e.id || !completed.has(e.id)))) return;
+    if (!interrupted && entries.some(e => e.kind === "tool_use" && (!e.id || !completed.has(e.id)))) return;
     const first = indices[0]!;
     const startMessage = userStart ?? messages[first]!;
     const start = startMessage.piTs ?? startMessage.timestamp;
     const end = (last.piTs ?? last.timestamp) + (last.durationMs ?? 0);
-    const durationMs = last.durationMs !== undefined && end >= start ? end - start : undefined;
-    const turn = { key: messages[first]!.entryId ?? String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries, durationMs };
+    const fallbackDuration = interrupted ? Math.max(0, (last.piTs ?? last.timestamp) - start) : undefined;
+    const measuredDuration = last.durationMs !== undefined && end >= start ? end - start : fallbackDuration;
+    const durationMs = last.turnDurationMs ?? measuredDuration;
+    const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries, durationMs, interrupted };
     for (const i of indices) result.set(i, turn);
   };
-  const groups = executionGroups(messages);
-  groups.forEach((group, index) => finish(group.indices, group.start, busy && index === groups.length - 1));
+  for (const group of presentationGroups(messages, busy)) finish(group.indices, group.start, group.active);
   return result;
 }
 
-export function executionLabel(durationMs: number | undefined, english: boolean, running = false): string {
+export function executionLabel(durationMs: number | undefined, english: boolean, running = false, interrupted = false): string {
+  if (interrupted) {
+    if (durationMs === undefined) return uiI18n.t("ui.ChatPanel.interruptedProcess", { lng: english ? "en" : "zh-CN" });
+    return uiI18n.t("ui.ChatPanel.interruptedTime", { lng: english ? "en" : "zh-CN", seconds: Math.max(0, Math.floor(durationMs / 1000)) });
+  }
   if (durationMs === undefined) return uiI18n.t("ui.ChatPanel.executionProcess", { lng: english ? "en" : "zh-CN" });
   const seconds = Math.max(0, Math.floor(durationMs / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -121,7 +163,7 @@ export function executionLabel(durationMs: number | undefined, english: boolean,
 }
 
 export function runningTurnPosition(messages: readonly ChatMessage[]): { first: number; startedAt: number } | undefined {
-  const group = executionGroups(messages).at(-1)!;
+  const group = presentationGroups(messages, true).at(-1)!;
   const first = group.indices.find(index => messages[index]!.role === "ai") ?? -1;
   const start = group.start ?? (first >= 0 ? messages[first] : undefined);
   return start ? { first, startedAt: start.piTs ?? start.timestamp } : undefined;

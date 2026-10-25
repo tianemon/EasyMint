@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "AI 项目工作台 — 基于 Pi Agent Core 的智能编程助手，让不懂技术的人也能构建软件",
   "private": true,
   "license": "MIT",
@@ -88,6 +88,7 @@
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1",
     "eslint": "^10.11.0",
+    "happy-dom": "21.0.4",
     "monaco-editor": "^0.56.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",

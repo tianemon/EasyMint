@@ -34,6 +34,8 @@ export interface ChatMessage {
   stopReason?: string;
   turnOutcome?: "completed" | "cancelled" | "failed";
   durationMs?: number;
+  /** Whole-execution elapsed time captured at turn_end; unlike per-message durationMs. */
+  turnDurationMs?: number;
   provider?: string;
   model?: string;
   text?: string;

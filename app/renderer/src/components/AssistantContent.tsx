@@ -5,13 +5,12 @@ import { buildBlocks, ChatBlockView } from './ChatBlocks';
 
 import { assistantSegments } from './chat-message-presentation';
 
-export function AssistantContent({ entries, conclusions, messageId, toolInputs, streaming, running, actions, actionEvents }: {
+export function AssistantContent({ entries, conclusions, messageId, toolInputs, streaming, actions, actionEvents }: {
   entries: StreamEntry[];
   conclusions: readonly StreamEntry[];
   messageId: string;
   toolInputs: Map<string, Record<string, unknown>>;
   streaming: boolean;
-  running: boolean;
   actions?: ReactNode;
   actionEvents?: HTMLAttributes<HTMLDivElement>;
 }) {
@@ -23,7 +22,7 @@ export function AssistantContent({ entries, conclusions, messageId, toolInputs, 
     <div key={index} className={segment.conclusion ? 'msg-conclusion msg-bubble-agent' : 'msg-process-stack'}
       {...(segment.conclusion ? actionEvents : {})}>
       {segment.blocks.map((block, i) => block.kind === "system" ? <div key={`${messageId}-${index}-${i}`} role="alert" className="text-danger">{appText(block.message)}</div> : <ChatBlockView key={`${messageId}-${index}-${i}`} block={block}
-        streaming={streaming} running={running} isStreamingTail={streaming && index === segments.length - 1 && i === segment.blocks.length - 1} />)}
+        streaming={streaming} isStreamingTail={streaming && index === segments.length - 1 && i === segment.blocks.length - 1} />)}
       {index === lastConclusion && actions}
     </div>
   ))}</>;

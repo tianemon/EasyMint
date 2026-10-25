@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { createProjectDesignTool } from "./project-design-tool";
+import { createAssetPreview } from "./asset-preview-service";
 import { broadcast } from "./ipc-broadcast";
 import { describeImage, webFetch, webSearch, isToolEnabled } from "./api-clients";
 import { validateTaskStatus } from "./hooks";
@@ -56,13 +57,20 @@ export async function createProductTools(projectPath?: string, getSessionId?: ()
     broadcast("agent:task-status", { taskId: "", status: "pending", projectPath });
     return "已通知前端刷新任务列表";
   })) as any);
-  tools.push(defineTool(noArgTool("show_prototype", "显示原型", "打开 EM HTML 编辑器预览原型。**「打开/预览」≠「验证渲染」**：用户要看原型时直接打开即可；渲染正确性审查是交付前的另一步（见 creation-flow-prototype），不要夹带在这里做。", () => {
-    if (!projectPath) return "当前无项目路径";
-    const original = join(projectPath, "prototype", "index.html");
-    const filePath = existsSync(original) ? original : join(projectPath, ".easymint", "design", "gallery.html");
-    broadcast("editor:open-prototype", { projectPath, filePath });
-    return "原型已生成，编辑器窗口即将打开。";
-  })) as any);
+  tools.push(defineTool({
+    name: "show_prototype", label: "显示原型",
+    description: "为项目内静态 HTML 页面创建可点击的本地 HTTP 预览链接，同时打开 EM HTML 编辑器。可选 path 指定项目相对路径（如 app/index.html）；省略时先找 prototype/index.html，再找设计画廊。返回 url 可直接作为 Markdown 链接；服务随 EasyMint 退出关闭，仅本机可访问。需要构建或后端的应用应使用其实际开发服务地址。打开预览不代表完成渲染验收。",
+    promptSnippet: "获取静态 HTML 页面的本地 HTTP 预览链接并打开编辑器",
+    parameters: { type: "object", properties: { path: { type: "string", description: "项目内 HTML 页面路径；省略时预览默认原型" } } },
+    async execute(_id: string, input: { path?: string }) {
+      if (!projectPath) throw new Error("当前无项目路径");
+      const original = join(projectPath, "prototype", "index.html");
+      const filePath = input.path ?? (existsSync(original) ? original : join(projectPath, ".easymint", "design", "gallery.html"));
+      const preview = await createAssetPreview(projectPath, filePath);
+      broadcast("editor:open-prototype", { projectPath, filePath: preview.filePath });
+      return { content: [{ type: "text" as const, text: `[打开原型预览](${preview.url})\n此链接仅供本机访问，EasyMint 退出后失效。` }], details: preview };
+    },
+  }) as ToolDefinition);
 
   tools.push(await createProjectDesignTool(projectPath));
 

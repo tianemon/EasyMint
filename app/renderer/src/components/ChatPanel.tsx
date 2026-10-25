@@ -1,6 +1,5 @@
-import { ExecutionTimer } from "./ExecutionTimer";
 import { useProcessDisclosure } from "./chat-process-disclosure";
-import { buildTurnPresentations, buildFinalAnswerEntries, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
+import { buildTurnPresentations, buildFinalAnswerEntries, executionLabel, runningTurnPosition, type TurnPresentation } from "./chat-turn-presentation";
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
 import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
@@ -42,7 +41,7 @@ import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
 import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
-import { startsMessageIdentity } from "./chat-message-presentation";
+import { executionPreviewEntries, startsMessageIdentity } from "./chat-message-presentation";
 import { UserMessageText } from "./UserMessageText";
 import { ImageRecoveryDialog } from "./ImageRecoveryDialog";
 import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE, encodeAttachedImages, pendingImageBase64Bytes, type ContextImageEntry } from "@shared/image-context";
@@ -227,13 +226,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [sessionLoading, setSessionLoading] = useState(false);
   // 缓存恢复的使用率暂存:消息加载完成后再应用(避免加载期间输入卡片显示旧进度误导)
   const pendingCtxRef = useRef<number | null>(null);
-  // Prevent a remount snapshot from overwriting newer live events.
+  // Run boundaries and high-frequency signals guard different parts of snapshot recovery.
+  const runStatusRevisionRef = useRef(0);
   const statusRevisionRef = useRef(0);
+  const askStatusRevisionRef = useRef(0);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
   const rearmAfterExitRef = useRef(false);
   // 待执行的压缩（回合中点了压缩——SDK 压缩需空闲，等 agent:exit 回合结束后执行）
-  const pendingCompactRef = useRef<{ instructions?: string } | null>(null);
+  const pendingCompactRef = useRef<{ instructions?: string; operationId: number; sessionId: string } | null>(null);
+  const compactOperationRef = useRef(0);
   // 手动压缩标记(context-summarizing type=compact 已广播):compacting 事件据此区分
   // 手动压缩 vs SDK 自动压缩(阈值/溢出)——自动压缩时给用户原因提示
   const manualCompactingRef = useRef(false);
@@ -794,17 +796,44 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, [messages]);
   const expandedTurns = useProcessDisclosure(state => state.expanded);
   const toggleProcess = useProcessDisclosure(state => state.toggle);
+  const closeProcess = useProcessDisclosure(state => state.close);
+  const executionBusy = (busy || stoppedRef.current) && !manualCompactingRef.current && !summarizing;
   // Identity animation belongs to the active execution, not the newest streamed message.
   const activeTurnFirst = useMemo(() => {
     const first = busy ? runningTurnPosition(messages)?.first : undefined;
     return first !== undefined && first >= 0 ? first : undefined;
   }, [messages, busy]);
-  const runningTurn = useMemo(() => busy && !manualCompactingRef.current && !summarizing ? runningTurnPosition(messages) : undefined, [messages, busy, compacting, summarizing]);
-  const turnPresentations = useMemo(() => buildTurnPresentations(messages, busy), [messages, busy]);
-  const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, busy), [messages, busy]);
+  const runningTurn = useMemo(() => executionBusy ? runningTurnPosition(messages) : undefined, [messages, executionBusy]);
+  const turnPresentations = useMemo(() => buildTurnPresentations(messages, executionBusy), [messages, executionBusy]);
+  const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, executionBusy), [messages, executionBusy]);
+  const hasActiveTurn = useMemo(() => Array.from(new Set(turnPresentations.values())).some(turn => turn.active), [turnPresentations]);
+  const activeDisclosuresRef = useRef(new Set<string>());
+  useEffect(() => {
+    const active = new Set(Array.from(new Set(turnPresentations.values())).filter(turn => turn.active).map(turn => `${sid}:${turn.key}`));
+    for (const key of activeDisclosuresRef.current) {
+      if (!active.has(key)) closeProcess(key);
+    }
+    activeDisclosuresRef.current = active;
+  }, [turnPresentations, sid, closeProcess]);
   const isProcessHidden = (index: number): boolean => {
     const turn = turnPresentations.get(index);
-    return !!turn && !expandedTurns[`${sid}:${turn.key}`] && !turn.finalEntries.has(index);
+    if (!turn || expandedTurns[`${sid}:${turn.key}`] || turn.finalEntries.has(index)) return false;
+    if (turn.active) {
+      if (index === turn.first) return false;
+      const message = messages[index];
+      return message?.role !== "ai" || executionPreviewEntries(message.entries ?? []).length === 0;
+    }
+    return true;
+  };
+  const inspectTurn = (turn: TurnPresentation): void => {
+    autoScrollRef.current = false;
+    awayFromBottomRef.current = true;
+    setAwayFromBottom(true);
+    pendingJumpRef.current = turn.first;
+    jumpStartedAtRef.current = Date.now();
+    processAnchorRef.current = turn.first;
+    setInspectingProcess(true);
+    toggleProcess(`${sid}:${turn.key}`);
   };
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -823,7 +852,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 报 "flushSync was called from inside a lifecycle method"——改走普通调度
     useFlushSync: false,
   });
-  const foldLayoutKey = Array.from(turnPresentations.entries()).map(([index, turn]) => `${index}:${expandedTurns[`${sid}:${turn.key}`] ? "open" : "closed"}`).join(",");
+  const foldLayoutKey = Array.from(turnPresentations.entries()).map(([index, turn]) => `${index}:${expandedTurns[`${sid}:${turn.key}`] ? "open" : "closed"}:${isProcessHidden(index) ? "hidden" : "visible"}`).join(",");
   const hiddenProcessRowsRef = useRef(new Set<number>());
   useLayoutEffect(() => {
     const hidden = new Set(Array.from(turnPresentations.keys()).filter(index => isProcessHidden(index) && turnPresentations.get(index)?.first !== index));
@@ -1036,6 +1065,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
   }, []);
 
+  const handleCompactFailure = useCallback((sessionId: string, operationId: number, error: unknown) => {
+    console.error("[ChatPanel] 压缩上下文失败:", error);
+    if (sidRef.current !== sessionId || compactOperationRef.current !== operationId) return;
+    const compacting = useStatusStore.getState().bySession[sessionId]?.compacting ?? false;
+    useStatusStore.getState().popSignal(sessionId, "compact");
+    if (compacting || !busyRef.current) manualCompactingRef.current = false;
+    if (compacting) {
+      busyRef.current = false;
+      setBusy(false);
+      useStatusStore.getState().setCompacting(sessionId, false);
+    }
+    const message = uiText("ui.ChatPanel.compactionFailed", { v0: appMessage(error instanceof Error ? error.message : String(error)) });
+    useStatusStore.getState().pushSignal(sessionId, "error", message, 8000);
+    if (sidRef.current === sessionId) showFlowError("system", message);
+  }, [showFlowError]);
+
   // ── 子 Agent 委派进度卡片 ─────────────────────────
   // 多委派并存：按 delegationId 索引（此前是单对象 state——新委派直接覆盖旧卡片，
   // 且旧委派的进度事件到达时按「delegationId 变了=新委派」重置任务行，卡片来回跳）
@@ -1115,10 +1160,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (!(pendingFirstTurnRef.current && sidRef.current?.startsWith("__new_"))) return;
       }
       useAskStore.getState().setAsk(data);
+      askStatusRevisionRef.current++;
       statusRevisionRef.current++;
     });
     const offClosed = window.electronAPI.agent.onAskClosed((data) => {
-      if (useAskStore.getState().asks[data.requestId]?.sessionId === sidRef.current) statusRevisionRef.current++;
+      if (useAskStore.getState().asks[data.requestId]?.sessionId === sidRef.current) {
+        askStatusRevisionRef.current++;
+        statusRevisionRef.current++;
+      }
       useAskStore.getState().clearAsk(data.requestId);
     });
     return () => { offReq(); offClosed(); };
@@ -1458,14 +1507,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     let cancelled = false;
     void (async () => {
       for (let attempt = 0; attempt < 3; attempt++) {
-        const revision = statusRevisionRef.current;
+        const runRevision = runStatusRevisionRef.current;
+        const signalRevision = statusRevisionRef.current;
+        const askRevision = askStatusRevisionRef.current;
         const state = await window.electronAPI.agent.busyState(existingSid);
         if (cancelled || sidRef.current !== existingSid) return;
-        if (statusRevisionRef.current !== revision) continue;
+        if (runStatusRevisionRef.current !== runRevision) continue;
         if (state.chatId) { currentChatRef.current = state.chatId; setCurrentRunId(state.chatId); }
+        busyRef.current = state.busy;
         setBusy(state.busy);
         manualCompactingRef.current = state.compacting && !state.running;
-        restorePiRunStatus(existingSid, state);
+        // Content/tool events only guard their own signal class; pending asks recover independently.
+        restorePiRunStatus(existingSid, state, {
+          signals: statusRevisionRef.current === signalRevision,
+          asks: askStatusRevisionRef.current === askRevision,
+        });
         return;
       }
       console.warn("[chat] 会话状态连续变化，保留实时事件状态");
@@ -1479,6 +1535,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 用户消息由主进程确认后广播给其它终端。发送它的 tab 已做乐观追加，按 sourceTabId 跳过；
       // 其它窗口/手机发来的消息在这里补入，保证同一会话多终端一致。
       if (event.type === "user_message" && event.sessionId === sidRef.current) {
+        runStatusRevisionRef.current++;
         statusRevisionRef.current++;
         if (event.details?.sourceTabId === tabId) return;
         const messageId = typeof event.details?.messageId === "string" ? event.details.messageId : undefined;
@@ -1506,13 +1563,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         eventChatId: event.chatId,
         eventSessionId: event.sessionId,
       })) return;
-      if (["turn_start", "turn_end", "waiting_user", "compacting", "compaction_finished", "error"].includes(event.type)) statusRevisionRef.current++;
+      if (["turn_start", "turn_end", "compacting", "compaction_finished", "error"].includes(event.type)) {
+        runStatusRevisionRef.current++;
+        statusRevisionRef.current++;
+      } else if (["waiting_user", "message_start", "message", "tool_progress", "tool_done", "retry_state"].includes(event.type)) statusRevisionRef.current++;
       if (event.type === "waiting_user" || event.type === "turn_end") applyPiRunStatus(sidRef.current, event, stoppedRef.current);
       if (event.type === "turn_end" && event.outcome) {
-        const tail = useChatStore.getState().messagesBySession[sidRef.current]?.slice().reverse() ?? [];
+        const currentMessages = useChatStore.getState().messagesBySession[sidRef.current] ?? [];
+        const tail = currentMessages.slice().reverse();
         const boundary = tail.findIndex(m => m.role === "user" && (!m.customType || m.details?.startsExecution === true));
         const latest = (boundary < 0 ? tail : tail.slice(0, boundary)).find(m => m.role === "ai");
-        if (latest) useChatStore.getState().setMessageUsage(sidRef.current, latest.id, latest.usage, { turnOutcome: event.outcome });
+        const startedAt = event.outcome === "cancelled" ? runningTurnPosition(currentMessages)?.startedAt : undefined;
+        const turnDurationMs = startedAt !== undefined ? Math.max(0, (event.timestamp ?? Date.now()) - startedAt) : undefined;
+        if (latest) useChatStore.getState().setMessageUsage(sidRef.current, latest.id, latest.usage, { turnOutcome: event.outcome, turnDurationMs });
       }
       // 打断后:只丢弃被打断回合的残留帧;通知(新注入)正常渲染,新回合(turn_start)开始 → 恢复渲染。
       // (原实现 return 丢弃一切——打断通知/总结回合全被吞,磁盘有而 UI 无)
@@ -1566,6 +1629,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // Pi 新 assistant turn 开始 → 重置输出段块状态
       // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
       if (event.type === "turn_start") {
+        manualCompactingRef.current = false;
         useStatusStore.getState().popSignal(sidRef.current, "outcome");
         // 重试退避等待结束(新一次尝试真跑起来了) → 清重试态:退避窗口已过,
         // 留着会让「正在重试 1/3（约 2 秒后）」挂到本次尝试结束(甚至重试成功后)
@@ -1779,6 +1843,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         return;
       }
       if (runId !== currentChatRef.current) return;
+      runStatusRevisionRef.current++;
       statusRevisionRef.current++;
       // 被打断的回合已退场 → 后续事件按新回合对待（防 stoppedRef 卡住把真正的
       // 后续回合全吞掉）；下面的 1.5s 过滤只管「不重复清理界面状态」
@@ -1802,7 +1867,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (pend) {
         pendingCompactRef.current = null;
         useStatusStore.getState().pushSignal(sidRef.current, "compact", uiText("ui.ChatPanel.turnFinishedCompactingContext"));
-        window.electronAPI.agent.compact(sidRef.current, pend.instructions || undefined).catch(() => {});
+        window.electronAPI.agent.compact(pend.sessionId, pend.instructions || undefined).catch(error => handleCompactFailure(pend.sessionId, pend.operationId, error));
       }
     });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
@@ -1817,11 +1882,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         }
         // 便签跟随迁移（临时 sid → 真实 sid）；须在 sidRef.current 更新前调用
         usePinStore.getState().migrateSession(sidRef.current, realSid);
+        // 状态信号跟随临时 sid 迁移：清掉旧 key，真实 key 先恢复等待模型，后续实时事件再精确更新。
+        useStatusStore.getState().reset(sidRef.current);
         // 清掉临时 sid 的 busy 标记(发送时按 temp 设置),再挂到真实 sid
         useTabStore.getState().setSessionRunning(sidRef.current, false);
         setSid(realSid);
         sidRef.current = realSid;
         useTabStore.getState().setSessionRunning(realSid, true);
+        useStatusStore.getState().pushSignal(realSid, "request", uiText("ui.ChatPanel.waitingForModel"));
         // 会话切换重置阈值防重标记(组件实例复用,不重置会残留上个会话的 threshold → 新会话不弹窗)
         ctxThresholdFiredRef.current = 0;
         // 新会话创建前的等级选择(sid 为空时写不进缓存)→ 现在补写持久化
@@ -2307,6 +2375,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       resolveReady,
     };
     pendingSendRef.current = pendingSend;
+    if (!useStatusStore.getState().bySession[sidRef.current]?.compacting) useStatusStore.getState().popSignal(sidRef.current, "compact");
+    pendingCompactRef.current = null;
+    compactOperationRef.current++;
+    runStatusRevisionRef.current++;
     statusRevisionRef.current++;
     if (!busyRef.current) applyPiRunStatus(sidRef.current, { type: "turn_start" });
     busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.waitingForModel"));
@@ -2761,6 +2833,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         setAttaches={setAttaches}
         onSend={sendText}
         onStop={() => {
+          runStatusRevisionRef.current++;
           statusRevisionRef.current++;
           stoppedRef.current = true;
           busyRef.current = false;
@@ -2795,6 +2868,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               });
           }
           setBusy(false);
+          if (pendingCompactRef.current) useStatusStore.getState().popSignal(stoppedSid, "compact");
+          compactOperationRef.current++;
           pendingCompactRef.current = null;
           abortedRunPendingRef.current = !!(rid || pendingSend); // 无 chatId 时回包后补 abort
           clearPiRunSignals(stoppedSid);
@@ -2829,21 +2904,25 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const doCompact = useCallback(async (instructions?: string) => {
     // 压缩进行中(compacting):忽略重复触发——等当前压缩结束(其完成事件清 busy 后用户可再触发)
     if (useStatusStore.getState().bySession[sidRef.current]?.compacting) return;
+    const operationId = ++compactOperationRef.current;
+    const sessionId = sidRef.current;
     if (busyRef.current) {
-      pendingCompactRef.current = { instructions };
-      useStatusStore.getState().pushSignal(sidRef.current, "compact", uiText("ui.ChatPanel.contextWillCompactAfterTheCurrentTurn"));
+      pendingCompactRef.current = { instructions, operationId, sessionId };
+      useStatusStore.getState().pushSignal(sessionId, "compact", uiText("ui.ChatPanel.contextWillCompactAfterTheCurrentTurn"));
       return;
     }
     // 重启后会话未激活（未发过消息）：主进程 activeChats 里没有它，压缩会直接失败。
     // 先按需激活（加载历史）拿 chatId——后续 compacted/usage 广播也按它匹配
     if (!currentChatRef.current) {
       try {
-        const cid = await window.electronAPI.agent.activate(sidRef.current, projectPath);
+        const cid = await window.electronAPI.agent.activate(sessionId, projectPath);
+        if (sidRef.current !== sessionId || compactOperationRef.current !== operationId) return;
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       } catch (e) { console.error("[ChatPanel] 激活会话失败:", e); }
     }
-    window.electronAPI.agent.compact(sidRef.current, instructions).catch(() => {});
-  }, [projectPath]);
+    if (sidRef.current !== sessionId || compactOperationRef.current !== operationId) return;
+    window.electronAPI.agent.compact(sessionId, instructions).catch(error => handleCompactFailure(sessionId, operationId, error));
+  }, [projectPath, handleCompactFailure]);
   const handleImmediateCompact = useCallback(() => {
     doCompact();
     setCompactDialog(null);
@@ -2883,7 +2962,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 const turn = turnPresentations.get(vi.index);
                 const expanded = !!turn && !!expandedTurns[`${sid}:${turn.key}`];
                 const hidden = isProcessHidden(vi.index);
-                const msg = turn && !expanded ? { ...originalMsg, entries: turn.finalEntries.get(vi.index) ?? [] } : originalMsg;
+                const msg = turn && !expanded ? { ...originalMsg, entries: turn.active ? executionPreviewEntries(originalMsg.entries ?? []) : turn.finalEntries.get(vi.index) ?? [] } : originalMsg;
                 const header = turn?.first === vi.index;
                 return (
                   <div
@@ -2901,22 +2980,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[var(--radius-lg)] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
                     />
                     {originalMsg.role === "ai" && (header || !turn && !hidden && !!originalMsg.entries?.length && startsMessageIdentity(messages, vi.index)) && (
-                      <AssistantIdentity msg={originalMsg} live={activeTurnFirst !== undefined && vi.index >= activeTurnFirst} />
+                      <AssistantIdentity msg={originalMsg} live={vi.index === activeTurnFirst} />
                     )}
-                    {runningTurn?.first === vi.index && <ExecutionTimer startedAt={runningTurn.startedAt} />}
-                    {header && turn && (
-                      <button type="button" className="execution-process-toggle" aria-expanded={expanded}
-                        onClick={() => {
-                          autoScrollRef.current = false;
-                          awayFromBottomRef.current = true;
-                          setAwayFromBottom(true);
-                          pendingJumpRef.current = turn.first;
-                          jumpStartedAtRef.current = Date.now();
-                          processAnchorRef.current = turn.first;
-                          setInspectingProcess(true);
-                          toggleProcess(`${sid}:${turn.key}`);
-                        }}>
-                        <span>{executionLabel(turn.durationMs, uiI18n.language.startsWith("en"))}</span>
+                    {header && turn?.active && (
+                      <StatusBar sessionId={sidRef.current} startedAt={runningTurn?.startedAt} expanded={expanded} onToggle={() => inspectTurn(turn)} />
+                    )}
+                    {header && turn && !turn.active && (
+                      <button type="button" className="execution-process-toggle" aria-expanded={expanded} onClick={() => inspectTurn(turn)}>
+                        <span>{executionLabel(turn.durationMs, uiI18n.language.startsWith("en"), false, turn.interrupted)}</span>
                         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ transform: expanded ? "rotate(90deg)" : undefined }}><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" /></svg>
                       </button>
                     )}
@@ -2961,7 +3032,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 );
               })}
             </div>
-            {runningTurn?.first === -1 && <ExecutionTimer startedAt={runningTurn.startedAt} />}
             {showConfirmDev && (
               <div className="flex justify-center pb-3">
                 <button
@@ -2974,6 +3044,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
           </div>
         )}
+        {!hasActiveTurn && <StatusBar sessionId={sidRef.current} startedAt={runningTurn?.startedAt} showCompletedOutcome={false} />}
         {/* Mint 提问卡片：独立于消息列表（空态也显示），渲染在滚动区尾部；宽度与输入卡片一致。
             key=requestId：同一时刻可能有多条挂起请求排队（模型一批并行调用），一次只显示第一条；
             前一条被响应后组件若被复用（无 key），后一条会继承前一条的本地 state——已置 true 的
@@ -2984,9 +3055,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           </div>
         )}
       </div>
-
-      {/* 状态栏:独立于输入区,渲染在输入容器上方 */}
-      <StatusBar sessionId={sidRef.current} />
 
       {/* Attach preview — above thinking when busy;左右边距与输入卡片(--chat-content-inset)一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
           复用 ChatInput 胶囊式组件(busy/非 busy 视觉一致,不再有 64px 放大缩略图) */}
@@ -3418,7 +3486,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, conclusions,
       <div className="msg-agent-row">
         <div className="msg-agent-content min-w-0 relative">
           <AssistantContent entries={visible} conclusions={conclusions ?? []} messageId={String(msg.id)} toolInputs={toolInputs}
-            streaming={streaming} running={busy}
+            streaming={streaming}
             actionEvents={{ ...actionFocusProps, onMouseEnter: showActions, onMouseLeave: scheduleHideActions }}
             actions={hasConclusion && <BubbleActions
             text={copyText}
@@ -3540,9 +3608,9 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
               title={uiText("ui.AskUserCard.send")}
               aria-label={uiText("ui.ChatPanel.sendEditedMessage")}
               onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
-              className="p-0.5 text-text-muted hover:text-text-primary transition-colors"
+              className="p-[3px] text-text-muted hover:text-text-primary transition-colors"
             >
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
             </button>
           ) : null}
         </div>

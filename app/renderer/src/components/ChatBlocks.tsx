@@ -493,14 +493,11 @@ export function TextBlockView({ block, streaming, tail }: { block: TextBlock; st
   );
 }
 
-function ThinkingBlockView({ block, active, running }: { block: ThinkingBlock; active?: boolean; running?: boolean }): JSX.Element {
+function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: boolean }): JSX.Element {
   useUiLocale();
-  // active = 流式中且本块是消息尾块(思考正在增长):自动展开;思考结束(不再是尾块)自动收起。
+  // Thinking never opens by itself: execution status is the live indicator; readers opt in per block.
   const [open, setOpen] = useState(false);
   const { bodyMounted, toggle: toggleFold } = useFoldBody(open, setOpen);
-  // 用户是否手动展开过:手动干预后不再随思考结束自动收起(保留用户意图,想看历史就留着)
-  const userCtrlRef = useRef(false);
-  const prevActiveRef = useRef(false);
   const boxRef = useRef<HTMLDivElement>(null);
   // 自动贴底跟随:用户滚离底部(dist>8)暂停,回底恢复(对齐 OutputWindow 交互)
   const autoScrollRef = useRef(true);
@@ -509,22 +506,6 @@ function ThinkingBlockView({ block, active, running }: { block: ThinkingBlock; a
    *  的保护窗口"：流式时每帧都在贴底，那道窗口会吞掉用户滚动，表现为"强制锁底滚不动"） */
   const lastUserInputRef = useRef(0);
   const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
-
-  // active true(思考开始/思考中持续):自动展开;标记非用户手动(供结束自动收起判定)
-  useEffect(() => {
-    if (active) {
-      userCtrlRef.current = false;
-      autoScrollRef.current = true; // 思考自动展开 → 贴底跟随最新
-      setOpen(true);
-    }
-  }, [active]);
-
-  // 整轮结束后才自动收起；正文/工具接续时保留过程，手动展开不受自动收起影响。
-  useEffect(() => {
-    const act = !!active;
-    if (!act && !running && prevActiveRef.current && !userCtrlRef.current) setOpen(false);
-    if (act || !running) prevActiveRef.current = act;
-  }, [active, running]);
 
   // 内容增长自动贴底;手动展开(查看历史)从顶部看——开头是新思考,底部跟随无意义
   useEffect(() => {
@@ -547,7 +528,6 @@ function ThinkingBlockView({ block, active, running }: { block: ThinkingBlock; a
   };
 
   const toggle = (): void => {
-    userCtrlRef.current = true;
     autoScrollRef.current = false; // 手动查看时保留阅读位置
     toggleFold();
   };
@@ -1190,10 +1170,10 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block, streaming, isStreamingTail, running }: { block: Block; streaming?: boolean; isStreamingTail?: boolean; running?: boolean }): JSX.Element | null {
+export function ChatBlockView({ block, streaming, isStreamingTail }: { block: Block; streaming?: boolean; isStreamingTail?: boolean }): JSX.Element | null {
   switch (block.kind) {
     case "text": return <TextBlockView block={block} streaming={streaming} tail={isStreamingTail} />;
-    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} running={running} />;
+    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} />;
     case "tool-group": return <ToolGroupView block={block} streaming={streaming} />;
     case "system": return null;
     case "tool-result-only": return <ToolResultOnlyView block={block} />;

@@ -53,4 +53,17 @@ describe("Pi status transitions", () => {
     expect(useStatusStore.getState().bySession.s?.signals).toEqual([]);
     expect(Object.keys(useAskStore.getState().asks)).toEqual(["other"]);
   });
+  it("restores pending asks independently of live signals and does not resurrect closed asks", () => {
+    const status = useStatusStore.getState();
+    status.pushSignal("s", "tool:live", "live tool");
+    const state = { busy: true, running: true, sdkIdle: false, compacting: false, waiting: true,
+      pendingAsks: [{ sessionId: "s", requestId: "ask", questions: [], allowCustom: true, createdAt: 1 }] };
+    restorePiRunStatus("s", state, { signals: false, asks: true });
+    expect(useStatusStore.getState().bySession.s?.signals.map(signal => signal.id)).toEqual(["tool:live"]);
+    expect(useAskStore.getState().asks.ask?.sessionId).toBe("s");
+    useAskStore.getState().clearForSession("s");
+    restorePiRunStatus("s", state, { signals: false, asks: false });
+    expect(useAskStore.getState().asks).toEqual({});
+    expect(useStatusStore.getState().bySession.s?.signals.map(signal => signal.id)).toEqual(["tool:live"]);
+  });
 });

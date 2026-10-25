@@ -2067,6 +2067,8 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
 .msg-conclusion {
   position: relative; background: transparent; box-shadow: none; border: 0;
 }
+.msg-conclusion .prose > :first-child,
+.msg-conclusion .prose > :first-child > :first-child { margin-top: 0; }
 .msg-process-stack { margin-block: 2px; min-width: 0; }
 .msg-process-stack .prose { font-size: var(--text-detail); color: var(--color-text-secondary); }
 .msg-process-stack .prose > :first-child { margin-top: 0; }

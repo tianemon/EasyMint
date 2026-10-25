@@ -7,6 +7,7 @@ import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
 import { useAskStore } from "../stores/ask-store";
 import { ModelGlyph } from "./ModelGlyph";
+import { ExecutionTimer } from "./ExecutionTimer";
 
 /** 旧的状态栏符号动画：字符序列顺序播放 → 端点停顿 → 倒序播放 → 停顿，循环。
  *  已由动态模型图标（ModelGlyph）替代，按要求保留代码备查——恢复旧动画时把下面注释解开。
@@ -35,7 +36,13 @@ function buildShimmerStyle(durationSec: number): CSSProperties {
  * 常驻活跃动画已移至输入卡片流光(OrbitGlow/SlideGlow/BreatheGlow canvas 组件);
  * 符号动画与状态文本同现同消:运行或交互等待时显示状态，回合结束结果短暂保留到 outcome 信号过期。
  */
-export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | null {
+export function StatusBar({ sessionId, startedAt, expanded, onToggle, showCompletedOutcome = true }: {
+  sessionId: string;
+  startedAt?: number;
+  expanded?: boolean;
+  onToggle?: () => void;
+  showCompletedOutcome?: boolean;
+}): JSX.Element | null {
   useUiLocale();
   // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
   const session = useStatusStore((s) => s.bySession[sessionId]);
@@ -80,7 +87,8 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
 
   // 等待用户和结束结果也显示；空闲的旧工具进度不显示。
   // （变量名沿用 showSymbols:该位置原本放字符符号动画，现由 ModelGlyph 占这个位置）
-  const showSymbols = !!text && (busy || waiting || current?.id === "outcome" || current?.id === "error" || current?.id === "stopping");
+  const hideCompletedOutcome = !showCompletedOutcome && !busy && current?.id === "outcome" && text === uiText("pi.completed");
+  const showSymbols = !!text && !hideCompletedOutcome && (busy || waiting || current?.id === "outcome" || current?.id === "error" || current?.id === "stopping");
   /* 旧字符符号动画的帧推进（已停用，保留备查——恢复时同时把上方常量与 react import 解开）
   const [symIdx, setSymIdx] = useState(0);
   const idxRef = useRef(0);
@@ -115,7 +123,8 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   const symbol = SYMBOLS[symIdx];
   */
 
-  if (!showSymbols && !summarizing) return null;
+  const showStatus = showSymbols || (busy && startedAt !== undefined);
+  if (!showStatus && !summarizing) return null;
 
   // 流光时长:一圈 = 颜色数 × 4s(shimmerSweep 位移 600% = 2 圈,总时长 = 颜色数 × 8s)
   // 速度档位:每周期 4s 由用户确认(原 3s 偏快);想再慢把系数 8 改大(每周期 = 系数/2 s)
@@ -133,24 +142,34 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   // 参考：文字流光一轮（shimmerSweep 一轮）实际是 shimmerDuration 的一半，要完全同步就改成分母 2。
   const glyphShimmerDuration = (shimmerDuration * 2) / 3;
 
+  const statusContent = (
+    <>
+      <span
+        className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
+        style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
+      >
+        <ModelGlyph animated={busy && !waiting} />
+      </span>
+      {text
+        ? <span className="min-w-0 break-words text-xs font-medium" style={textStyle} role="status">{appText(text)}</span>
+        : startedAt !== undefined ? <ExecutionTimer startedAt={startedAt} /> : null}
+      {onToggle && (
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0" style={{ transform: expanded ? "rotate(90deg)" : undefined }}>
+          <path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      )}
+    </>
+  );
+
   return (
     <>
-      {showSymbols && (
-        <div className="statusbar" role="status">
-          {/* 状态图标（动态模型图标,固定宽度防挤压文本横跳）+ 状态文本,一同出现一同消失。
-              图标只在流光模式下变色：颜色循环靠类 .status-glyph-shimmer，内联 style 只传时长变量。
-              不要在这里铺 textStyle——流光模式的 shimmerStyle 自带 animation（文字扫光），
-              内联 animation 会盖掉类的 color 循环，图标就永远不变色（且该 span 里没有文字，渐变本来也用不上）。
-              原字符符号动画保留为注释（见文件顶部常量与下方 effect） */}
-          <span
-            className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
-            style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
-          >
-            <ModelGlyph animated={busy && !waiting} />
-          </span>
-          <span className="min-w-0 break-words text-xs font-medium" style={textStyle}>{appText(text)}</span>
-        </div>
-      )}
+      {showStatus && (onToggle ? (
+        <button type="button" className="statusbar execution-process-toggle" aria-expanded={expanded} onClick={onToggle}>
+          {statusContent}
+        </button>
+      ) : (
+        <div className="statusbar">{statusContent}</div>
+      ))}
       {summarizing && (
         <div className="flex items-center gap-2 mx-[var(--chat-content-inset)] px-4 py-2 text-text-primary text-sm bg-accent-bg shrink-0">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>

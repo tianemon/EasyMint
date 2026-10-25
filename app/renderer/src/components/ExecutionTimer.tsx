@@ -11,7 +11,7 @@ export function ExecutionTimer({ startedAt }: { startedAt: number }): JSX.Elemen
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
-  return <div className="execution-process-toggle execution-process-running" role="timer">
+  return <span role="timer" className="text-xs font-medium">
     {executionLabel(Math.max(0, now - startedAt), locale.startsWith("en"), true)}
-  </div>;
+  </span>;
 }

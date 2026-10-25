@@ -35,6 +35,19 @@ describe("observable run status", () => {
     useStatusStore.getState().pushSignal("session", "error", "authentication failed", 8000);
     expect(render()).toContain("authentication failed");
   });
+  it("keeps cancellation feedback while allowing the completed status to end with the execution", () => {
+    useStatusStore.getState().pushSignal("session", "outcome", uiText("pi.completed"), 4000);
+    expect(renderToStaticMarkup(createElement(StatusBar, { sessionId: "session", showCompletedOutcome: false }))).toBe("");
+    useStatusStore.getState().pushSignal("session", "outcome", uiText("pi.cancelled"), 4000);
+    expect(renderToStaticMarkup(createElement(StatusBar, { sessionId: "session", showCompletedOutcome: false }))).toContain(uiText("pi.cancelled"));
+  });
+  it("renders the live execution status as an expandable control with a timer fallback", () => {
+    useTabStore.getState().setSessionRunning("session", true);
+    const html = renderToStaticMarkup(createElement(StatusBar, { sessionId: "session", startedAt: Date.now(), expanded: false, onToggle: () => {} }));
+    expect(html).toContain("<button");
+    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("role=\"timer\"");
+  });
   it("shows the remaining parallel tool after another tool finishes", () => {
     const status = useStatusStore.getState();
     useTabStore.getState().setSessionRunning("session", true);

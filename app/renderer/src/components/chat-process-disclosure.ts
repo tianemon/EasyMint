@@ -4,8 +4,15 @@ import { create } from "zustand";
 export const useProcessDisclosure = create<{
   expanded: Record<string, boolean>;
   toggle: (key: string) => void;
+  close: (key: string) => void;
 }>((set) => ({
   expanded: {},
+  close: (key) => set(state => {
+    if (!state.expanded[key]) return state;
+    const expanded = { ...state.expanded };
+    delete expanded[key];
+    return { expanded };
+  }),
   toggle: (key) => set(state => {
     const expanded = { ...state.expanded };
     if (expanded[key]) delete expanded[key];

@@ -45,6 +45,7 @@
 .execution-process-toggle {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
   width: calc(100% - 2 * (var(--s8) + var(--s4)));
   margin: 0 0 8px calc(var(--s8) + var(--s4));
@@ -58,6 +59,10 @@
   cursor: pointer;
   transition: color 140ms ease;
 }
+.statusbar.execution-process-toggle {
+  margin: 0 0 8px calc(var(--s8) + var(--s4));
+  padding: 4px 0 9px;
+}
 .execution-process-toggle:hover { color: var(--color-text-primary); }
 .execution-process-toggle svg { transition: transform 180ms ease; }
 @media (prefers-reduced-motion: reduce) {
@@ -69,8 +74,6 @@
 
 /* Keep matching horizontal insets for the message area and composer. */
 .chat-message-content { padding-inline: calc(var(--chat-content-inset) - var(--s8)); }
-.execution-process-running { cursor: default; }
-.execution-process-running:hover { color: var(--color-text-muted); }
 [data-theme="dark"] .execution-process-toggle { border-bottom-color: #2c2c2c; }
 
 /* Stats share the action row's visibility and stay outside the message surface. */
