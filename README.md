@@ -31,6 +31,14 @@ EasyMint is powered by the built-in [Pi Coding Agent](https://github.com/earendi
 
 *A project conversation in EasyMint. Read the delivery summary first and expand thinking and tool activity when needed. Screenshots currently show the Chinese interface; the application also supports English.*
 
+## Design philosophy: turn an idea into a project that can be discussed
+
+Many software projects do not begin with a complete requirements document. They begin with a vague observation: a workflow is too cumbersome, a tool is missing something, or someone wants to build a small product for themselves. The real questions appear only after starting—how should the features be separated, how do prototyping, development, and acceptance fit together, and how should the request be expressed to an AI so that the result is usable?
+
+EasyMint does not assume that the user already knows these things. The four-step project definition turns “what I want to make” into constraints that can be selected and revised one at a time: basic information establishes scope; the feature list helps decompose capabilities; visual direction turns aesthetic preference into comparable pages; and delivery preferences make completeness, deployment, AI capabilities, and cost boundaries explicit. The user does not need to learn prompt engineering or understand a project structure first; they only need to make judgments about the choices in front of them.
+
+Once the project begins, Mint moves between implementation, explanation, and review. The user can see how requirements become tasks, how tasks become prototypes and code, which constraints shaped the result, and how the next round of changes can be expressed. EasyMint is not intended to let people skip learning. It is intended to make the first project possible, then build an understanding of software lifecycles and AI collaboration through real work.
+
 ## Quick start
 
 Download an installer from [Releases](https://github.com/tianemon/EasyMint/releases):
@@ -63,25 +71,36 @@ Static prototype links are **local to your computer and remain available while E
 
 > EasyMint may be a poor fit if you only need inline code completion or want a CLI without project guidance. It does not provide shared cloud-hosted sessions or documents.
 
-## A visual tour
+## How a project begins: four steps, then collaboration
 
-### 1. Define the project and choose a visual direction
+The four-step flow is not a questionnaire that must be completed in one pass. It unfolds the decisions that are easiest to blur into an order of dependency. Each step offers comparable choices and accepts a custom description; the user makes the first decision, and Mint continues to clarify it in conversation.
 
-Start with the purpose, target platform, and features. In the four-step project wizard, choose a visual style through complete page previews. Switch between web and mobile views or describe a custom direction.
+| Step | What the user decides | What becomes a project constraint |
+|---|---|---|
+| **Step 1 · Basics** | What the project is, how it will be used, and where it runs | Name, use case, and target platforms |
+| **Step 2 · Features** | What the first version must accomplish | A feature list that can be discussed and decomposed, with optional recommendations from Mint |
+| **Step 3 · Visual direction** | How it should look and feel | Complete page previews across web and mobile, or a custom design brief |
+| **Step 4 · Delivery** | How complete this version should be, how it runs, and what it may cost | Completeness, deployment, AI capabilities, and budget boundaries |
 
-| Project details | Visual style preview |
-|---|---|
-| ![Project wizard with name, location, use case, and target platforms](assets/screenshots/project-create.png) | ![Cyberpunk style shown as a complete interactive page in the project wizard](assets/screenshots/style-select.png) |
+### Steps 1–2: turn a vague idea into project scope
 
-### 2. Try what Mint builds
+Start with a name, purpose, and target platforms, then separate “the thing I want to build” into concrete capabilities. It is acceptable not to know the full requirements yet: choose the closest use case, ask Mint for feature suggestions, and add or remove items from there.
 
-Move from a design discussion to an actual page you can open and use. This photo wall is one example of a project produced with EasyMint. Static prototypes can be delivered through a local preview link so you can try the interactions before continuing.
+![Project wizard with name, location, use case, and target platforms](assets/screenshots/project-create.png)
 
-![Photo wall prototype produced with EasyMint, shown in a browser](assets/screenshots/prototype-preview.png)
+### Step 3: express visual preference through pages, not terminology
 
-### 3. Follow the work and run the project
+Visual styles are not presented as abstract labels. Each direction is rendered as a complete page, with web and mobile previews and support for a custom description. The user does not need design vocabulary to judge whether the result feels right.
 
-Keep the task list and project scripts beside the conversation. Track implementation tasks, start or stop a local preview, and manage repeatable run commands from the sidebar.
+![Cyberpunk style shown as a complete interactive page in the project wizard](assets/screenshots/style-select.png)
+
+### Step 4: define completeness and delivery boundaries
+
+The final step grounds the project in more concrete constraints: whether this version is a full release, an MVP, or a demonstration prototype; whether it runs locally or in the cloud; whether it needs AI capabilities; and whether the technical budget is flexible, limited, or free-only. These choices do not replace later discussion, but they give the first implementation a clear scope and explicit trade-offs.
+
+### After creation: from tasks and prototypes to a runnable project
+
+Once the four steps are confirmed, Mint turns the project scope into subsequent tasks. UI projects can be tried through a local prototype link before implementation is approved. During development, task progress and run scripts remain beside the conversation. Repeatable commands live in the run panel, so starting, stopping, and inspecting logs do not require leaving the workspace.
 
 | Task progress | Run scripts |
 |---|---|
