@@ -10,7 +10,7 @@
 <h1 align="center">EasyMint</h1>
 
 <p align="center">
-  <strong>An open-source desktop AI coding platform with a built-in Pi Agent.</strong>
+  <strong>An open-source AI coding workspace, from your first idea to working software.</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,13 @@
 
 ## Overview
 
-EasyMint is an **open-source desktop AI coding platform with a built-in Pi Agent**. [Pi Coding Agent](https://github.com/earendil-works/pi) provides the coding engine, while EasyMint adds a graphical interface, multi-agent collaboration, and project guidance from requirements to delivery.
+Describe what you want to build, refine the features with Mint, and continue through design, development, and acceptance in one desktop workspace. For UI projects that need a prototype, choose a visual direction and try an interactive page before approving implementation.
+
+EasyMint is powered by the built-in [Pi Coding Agent](https://github.com/earendil-works/pi), with a graphical interface, multi-agent collaboration, and local project and session management. It supports macOS, Windows, and Linux.
+
+![Mint presents a project delivery summary, with execution details folded above it](assets/screenshots/main.png)
+
+*A project conversation in EasyMint. Read the delivery summary first and expand thinking and tool activity when needed. Screenshots currently show the Chinese interface; the application also supports English.*
 
 It supports two kinds of users:
 
@@ -33,13 +39,13 @@ It supports two kinds of users:
 Projects can start in two ways, with the option to switch at any time:
 
 - **Start with a conversation**: describe your idea directly. Mint fills in missing details through a guided workflow. You can also skip the guidance and let the AI work from your description.
-- **Start with a form**: provide a name, use case, features, style, and budget. Mint follows up on open questions in the conversation.
+- **Start with a form**: work through project details, features, visual style, and delivery preferences. Mint follows up on open questions in the conversation.
 
 ## Why EasyMint
 
 Writing code is only part of delivering usable software. Requirements, prototypes, technical decisions, and acceptance checks also need attention. **EasyMint brings these steps into one desktop application**: clarify requirements, produce an interactive prototype, confirm the technical plan, and check the result against the approved prototype.
 
-- **Guidance without assuming coding experience**: seven gates cover intent, scope, prototype, user approval, technical plan, development, and acceptance against the approved prototype. Each gate has a confirmation point.
+- **Guidance without assuming coding experience**: seven checkpoints cover intent, scope, prototype, user approval, technical planning, development, and acceptance. The workflow adapts to project complexity, asking for approval where needed and letting simple tasks proceed directly.
 - **Reusable project knowledge**: lessons learned are stored in Markdown, selected by technology stack, and reused across sessions alongside project rules.
 - **Local data**: project files and session records stay in `~/.easymint/` and the project's `.easymint/` directory. Cross-device migration uses encrypted local-network transfer with whole-package verification. **No accounts and no telemetry.** When you start a conversation, prompts, project context, code, command output, and images are sent directly to your configured AI provider. See [PRIVACY.md](PRIVACY.md) for details (Chinese).
 - **Isolated development environments**: Standard mode redirects dependencies, caches, and temporary files into a project-specific runtime. Commands run inside an operating-system sandbox: Seatbelt on macOS, bubblewrap on Linux, and a dedicated sandbox account on Windows. Network access uses a domain allowlist; eligible individual browser and container commands can use compatibility exemptions. `git push` can use the SSH agent in Standard mode. Tools such as `gh` that need host credentials may require Full access. Read-only mode is available for inspection. Full access uses your real environment without an OS sandbox; dangerous system operations receive best-effort checks before execution.
@@ -55,9 +61,10 @@ This provides:
 
 ## Features
 
-- **Conversational project guidance**: create projects through chat or forms. Seven gates cover intent, scope, prototype, user approval, technical planning (capability, current research, and cost checks), development, and acceptance against the approved prototype.
-- **Prototypes first**: projects of moderate complexity or greater receive interactive HTML prototypes from the built-in designer agent and brand library before development.
-- **Multi-agent collaboration**: project management, coding, evaluation, and design agents coordinate work until it is complete.
+- **Guided project creation**: start from chat or a four-step form. Mint adapts requirements, prototypes, technical planning, and acceptance to the scope of the project.
+- **Visual direction before implementation**: preview complete page styles, switch between web and mobile views, and add your own design brief. The selected direction carries into the prototype and implementation.
+- **Prototypes you can try**: UI projects of moderate complexity or greater start with an interactive HTML prototype. Static pages receive a clickable local preview link, so you can try the core interactions without starting a server yourself.
+- **Multi-agent collaboration**: Mint coordinates requirements and tasks, Builder implements, Evaluator checks the result, and Mint-D handles prototype design. Follow delegated work through visible progress and results.
 - **Subagent delegation**: delegate research, code exploration, and analysis; receive summaries without filling the main conversation with details. Progress and output are visible.
 - **Permission modes**: Read-only, Standard (default), and Full access. Standard mode isolates the development environment and applies an OS sandbox and network allowlist. Full access uses the host environment after a risk confirmation.
 - **Skill interoperability**: discover and reuse skills from Claude Code, Codex, and GitHub Agent Skills.
@@ -65,36 +72,53 @@ This provides:
 - **Experience retention**: when enabled, Mint records useful lessons after tasks. Entries can be edited or deleted and reused by technology stack.
 - **Context management**: monitor context usage, confirm compaction at a threshold, and interrupt compaction when needed.
 - **Issue tracking**: record and edit issues, update their status, and let Mint work through the list.
+- **Personal to-dos**: keep project ideas and follow-up items close to the conversation.
 - **Session management**: multiple tabs and windows, per-session activity state, archiving, and restoration.
+- **Readable execution history**: thinking and tool activity stay folded behind the execution status, while conclusions remain visible. Interrupted work also folds into its execution record.
 - **Run panel**: detect, run, stop, restart, edit, and delete project scripts. Monitor ports and view ANSI-colored logs.
 - **Input history**: search previous prompts in a side drawer and jump to the original message.
 - **Pinned notes**: pin important AI output as resizable floating notes that persist with the session.
 - **Local ownership**: project and session data stay on your machine. [PRIVACY.md](PRIVACY.md) explains provider requests, agent capabilities, and credential storage (Chinese).
 - **Cross-device migration**: discover devices on the same LAN, pair once, and transfer projects and historical sessions with file selection and ignore rules. The receiving device confirms each transfer. Encryption and package verification protect transfers; interrupted transfers do not leave partially imported projects.
 
-## Screenshots
+## A visual tour
 
-Screenshots show the Chinese interface.
+### 1. Define the project and choose a visual direction
 
-| Main window |
-|---|
-| ![Main window](assets/screenshots/main.png) |
+Start with the purpose, target platform, and features. In the four-step project wizard, choose a visual style through complete page previews. Switch between web and mobile views or describe a custom direction.
 
-| Task panel | Run panel |
+| Project details | Visual style preview |
 |---|---|
-| ![Task panel](assets/screenshots/task-panel.png) | ![Run panel](assets/screenshots/run-panel.png) |
+| ![Project wizard with name, location, use case, and target platforms](assets/screenshots/project-create.png) | ![Cyberpunk style shown as a complete interactive page in the project wizard](assets/screenshots/style-select.png) |
+
+### 2. Try what Mint builds
+
+Move from a design discussion to an actual page you can open and use. This photo wall is one example of a project produced with EasyMint. Static prototypes can be delivered through a local preview link so you can try the interactions before continuing.
+
+![Photo wall prototype produced with EasyMint, shown in a browser](assets/screenshots/prototype-preview.png)
+
+### 3. Follow the work and run the project
+
+Keep the task list and project scripts beside the conversation. Track implementation tasks, start or stop a local preview, and manage repeatable run commands from the sidebar.
+
+| Task progress | Run scripts |
+|---|---|
+| ![Task list alongside a project conversation](assets/screenshots/task-panel.png) | ![Run panel with local preview and project scripts](assets/screenshots/run-panel.png) |
+
+<details>
+<summary>More workspace tools: agent templates, skills, input history, and pinned notes</summary>
+
+Choose agent responsibilities and reuse skills and MCP integrations in settings. During a conversation, revisit earlier prompts or keep useful output visible as a floating note.
+
+| Agent templates | Skills and integrations |
+|---|---|
+| ![Built-in Mint, Mint-D, Builder, and Evaluator agent templates](assets/screenshots/agent-templates.png) | ![Skill settings showing discovered skills and enable controls](assets/screenshots/skills-mcp.png) |
 
 | Input history | Pinned notes |
 |---|---|
-| ![Input history](assets/screenshots/history-drawer.png) | ![Pinned notes](assets/screenshots/pin-notes.png) |
+| ![Searchable prompt history in a side drawer](assets/screenshots/history-drawer.png) | ![Important output pinned beside the conversation](assets/screenshots/pin-notes.png) |
 
-| Subagent output | Shell output |
-|---|---|
-| ![Subagent output](assets/screenshots/agent-output.png) | ![ANSI shell output](assets/screenshots/shell-output.png) |
-
-| Vision model settings | Input status indicators |
-|---|---|
-| ![Vision model](assets/screenshots/vision-model.png) | ![Agent and shell status](assets/screenshots/agent-capsules.png) |
+</details>
 
 ## Multi-agent collaboration
 
