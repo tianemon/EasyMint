@@ -17,6 +17,9 @@ describe("message identity presentation", () => {
     expect(messageIdentityStarts(messages)).toEqual([true, true, false, false]);
     expect(messages).toEqual(before);
   });
+  it("starts a heading for automatic output after a settled plain reply", () => {
+    expect(messageIdentityStarts([ai(1, { turnOutcome: "completed" }), ai(2)])).toEqual([true, true]);
+  });
   it("starts a new heading after a question or a system notification", () => {
     expect(messageIdentityStarts([ai(1), user(2), ai(3), user(4, { customType: "system_message" }), ai(5)]))
       .toEqual([true, true, true, true, true]);

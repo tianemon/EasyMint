@@ -108,6 +108,34 @@ export function buildFinalAnswerEntries(messages: readonly ChatMessage[], busy: 
   return result;
 }
 
+/** Timing is independent of process folding, including plain replies and failed runs. */
+export function buildTurnTimings(messages: readonly ChatMessage[], busy: boolean): Map<number, { first: number; startedAt: number; durationMs?: number; active: boolean }> {
+  const result = new Map<number, { first: number; startedAt: number; durationMs?: number; active: boolean }>();
+  for (const group of presentationGroups(messages, busy)) {
+    const indices = group.indices.filter(index => messages[index]!.role === "ai");
+    const first = indices[0];
+    const lastIndex = indices.at(-1);
+    if (first === undefined || lastIndex === undefined) continue;
+    const timing = { first, startedAt: messageTime(group.start ?? messages[first]!),
+      durationMs: group.active ? undefined : turnDuration(messages, first, lastIndex, group.start), active: group.active };
+    for (const index of indices) result.set(index, timing);
+  }
+  return result;
+}
+
+function messageTime(message: ChatMessage): number {
+  return message.piTs ?? message.timestamp;
+}
+
+function turnDuration(messages: readonly ChatMessage[], first: number, lastIndex: number, startMessage?: ChatMessage): number | undefined {
+  const last = messages[lastIndex]!;
+  const start = messageTime(startMessage ?? messages[first]!);
+  const end = messageTime(last) + (last.durationMs ?? 0);
+  const interrupted = last.turnOutcome ? last.turnOutcome === "cancelled" : last.stopReason === "aborted";
+  const fallback = interrupted ? Math.max(0, messageTime(last) - start) : undefined;
+  return last.turnDurationMs ?? (last.durationMs !== undefined && end >= start ? end - start : fallback);
+}
+
 /** Presentation only: original messages, entry IDs and tool associations stay intact. */
 export function buildTurnPresentations(messages: readonly ChatMessage[], busy: boolean): Map<number, TurnPresentation> {
   const result = new Map<number, TurnPresentation>();
@@ -138,12 +166,7 @@ export function buildTurnPresentations(messages: readonly ChatMessage[], busy: b
     const completed = new Set(entries.filter(e => e.kind === "tool_result").map(e => e.kind === "tool_result" ? e.toolUseId : ""));
     if (!interrupted && entries.some(e => e.kind === "tool_use" && (!e.id || !completed.has(e.id)))) return;
     const first = indices[0]!;
-    const startMessage = userStart ?? messages[first]!;
-    const start = startMessage.piTs ?? startMessage.timestamp;
-    const end = (last.piTs ?? last.timestamp) + (last.durationMs ?? 0);
-    const fallbackDuration = interrupted ? Math.max(0, (last.piTs ?? last.timestamp) - start) : undefined;
-    const measuredDuration = last.durationMs !== undefined && end >= start ? end - start : fallbackDuration;
-    const durationMs = last.turnDurationMs ?? measuredDuration;
+    const durationMs = turnDuration(messages, first, lastAi, userStart);
     const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries, durationMs, interrupted };
     for (const i of indices) result.set(i, turn);
   };

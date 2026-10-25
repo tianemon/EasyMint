@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTurnPresentations, buildFinalAnswerEntries, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
+import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
 import { mapSessionMessages, mergeConsecutiveText, piBlocksToEntries, type ChatMessage } from "./chat-utils";
 import type { StreamEntry } from "./StreamPanel";
 const text = (text: string, phase?: "commentary" | "final_answer"): StreamEntry => ({ kind: "text", text, phase, timestamp: 0 });
@@ -273,4 +273,30 @@ it("keeps the execution disclosure key stable from running to completion", () =>
   const completed = buildTurnPresentations(messages, false).get(1);
   expect(completed?.key).toBe(running.key);
   expect(completed?.active).toBeUndefined();
+});
+
+
+describe("identity timing independent of disclosure", () => {
+  it("keeps the whole plain reply time after its running process heading disappears", () => {
+    const messages = [question, ai(2, [text("answer")], { timestamp: 60000, durationMs: 2000, turnOutcome: "completed" })];
+    expect(buildTurnPresentations(messages, false).size).toBe(0);
+    expect(buildTurnTimings(messages, false).get(1)).toEqual({ first: 1, startedAt: 0, durationMs: 62000, active: false });
+  });
+  it("uses the final run duration when a warning prevents process folding", () => {
+    const messages = [question, ai(2, [text("checking", "commentary")], { durationMs: 1000 }),
+      ai(3, [text("answer")], { imageStripped: true, turnDurationMs: 75000, durationMs: 2000 })];
+    expect(buildTurnPresentations(messages, false).size).toBe(0);
+    const timings = buildTurnTimings(messages, false);
+    expect(timings.get(1)).toBe(timings.get(2));
+    expect(timings.get(1)?.durationMs).toBe(75000);
+  });
+  it.each(["cancelled", "failed"] as const)("stops the identity clock on %s before busy clears", outcome => {
+    const messages = [question, ai(2, [text("working", "commentary")], { streaming: true, stopReason: undefined })];
+    expect(buildTurnTimings(messages, true).get(1)?.active).toBe(true);
+    messages[1] = { ...messages[1]!, turnOutcome: outcome, turnDurationMs: 9000 };
+    expect(buildTurnTimings(messages, true).get(1)).toEqual({ first: 1, startedAt: 0, durationMs: 9000, active: false });
+  });
+  it("preserves unknown historical durations without inventing zero", () => {
+    expect(buildTurnTimings([question, ai(2, [text("answer")])], false).get(1)?.durationMs).toBeUndefined();
+  });
 });

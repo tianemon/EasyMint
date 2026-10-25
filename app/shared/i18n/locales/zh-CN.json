@@ -2090,6 +2090,7 @@
   "ui.ChatPanel.executionProcess": "执行过程",
   "ui.ChatPanel.runningTime": "已执行 {{minutes}}分钟 {{seconds}}秒",
   "ui.ChatPanel.elapsedTime": "用时 {{minutes}}分钟 {{seconds}}秒",
+  "ui.ChatPanel.processedTime": "已处理 {{minutes}}分{{seconds}}秒",
   "ui.ChatPanel.interruptedTime": "执行了 {{seconds}} 秒被打断",
   "ui.ChatPanel.interruptedProcess": "执行过程（已打断）",
   "ui.ChatPanel.compactionFailed": "压缩上下文失败：{{v0}}",

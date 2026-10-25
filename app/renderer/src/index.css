@@ -1553,6 +1553,16 @@ select.input {
   color: var(--msg-user-text);
   box-shadow: var(--msg-user-shadow);
 }
+/* Keep scrollbar space stable so hovering never reflows a long user message. */
+.msg-bubble-user .user-message-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.msg-bubble-user:hover .user-message-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+}
+.msg-bubble-user:hover .user-message-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
 .msg-bubble-agent {
   background: var(--color-card-agent);
   box-shadow: var(--msg-agent-shadow);

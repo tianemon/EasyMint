@@ -12,7 +12,8 @@ export function startsMessageIdentity(messages: readonly ChatMessage[], index: n
     if (previous.role !== "ai") return true;
     // Empty streaming placeholders are not rendered and must not consume a heading.
     if (!previous.entries?.length) continue;
-    return previous.agentRole !== message.agentRole
+    return previous.turnOutcome !== undefined
+      || previous.agentRole !== message.agentRole
       || previous.model !== message.model
       || previous.provider !== message.provider
       || !!previous.forwarded || !!message.forwarded

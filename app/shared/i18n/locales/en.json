@@ -2090,6 +2090,7 @@
   "ui.ChatPanel.executionProcess": "Execution process",
   "ui.ChatPanel.runningTime": "Running for {{minutes}}m {{seconds}}s",
   "ui.ChatPanel.elapsedTime": "Elapsed {{minutes}}m {{seconds}}s",
+  "ui.ChatPanel.processedTime": "Processed for {{minutes}}m {{seconds}}s",
   "ui.ChatPanel.interruptedTime": "Interrupted after {{seconds}}s",
   "ui.ChatPanel.interruptedProcess": "Execution interrupted",
   "ui.ChatPanel.compactionFailed": "Failed to compact context: {{v0}}",

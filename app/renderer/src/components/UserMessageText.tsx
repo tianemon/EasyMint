@@ -5,7 +5,7 @@
 export function UserMessageText({ text }: { text: string }): JSX.Element {
   return (
     <div
-      className="whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0 overflow-y-auto overscroll-contain"
+      className="user-message-scroll whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0 overflow-y-auto overscroll-contain"
       style={{ maxHeight: "calc(12lh + 0.5px)" }}
     >{text}</div>
   );

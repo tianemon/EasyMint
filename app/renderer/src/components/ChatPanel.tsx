@@ -1,10 +1,10 @@
 import { useProcessDisclosure } from "./chat-process-disclosure";
-import { buildTurnPresentations, buildFinalAnswerEntries, executionLabel, runningTurnPosition, type TurnPresentation } from "./chat-turn-presentation";
+import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runningTurnPosition, type TurnPresentation } from "./chat-turn-presentation";
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
 import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
 import { formatNumber } from "../lib/locale-format";
-import { uiText, useUiLocale, uiI18n, appText, appMessage } from "../lib/i18n";
+import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AttachItem, ChatMessage, PendingUserBubble, displayCompactionSummary, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
@@ -39,6 +39,7 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
+import { ExecutionTimer, IdentityTime } from "./ExecutionTimer";
 import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
 import { executionPreviewEntries, startsMessageIdentity } from "./chat-message-presentation";
@@ -798,11 +799,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const toggleProcess = useProcessDisclosure(state => state.toggle);
   const closeProcess = useProcessDisclosure(state => state.close);
   const executionBusy = (busy || stoppedRef.current) && !manualCompactingRef.current && !summarizing;
-  // Identity animation belongs to the active execution, not the newest streamed message.
-  const activeTurnFirst = useMemo(() => {
-    const first = busy ? runningTurnPosition(messages)?.first : undefined;
-    return first !== undefined && first >= 0 ? first : undefined;
-  }, [messages, busy]);
+  const turnTimings = useMemo(() => buildTurnTimings(messages, executionBusy), [messages, executionBusy]);
+  // A cancelled/failed run stops its identity clock before the busy flag settles.
+  const activeTurnFirst = busy ? Array.from(turnTimings.values()).find(timing => timing.active)?.first : undefined;
   const runningTurn = useMemo(() => executionBusy ? runningTurnPosition(messages) : undefined, [messages, executionBusy]);
   const turnPresentations = useMemo(() => buildTurnPresentations(messages, executionBusy), [messages, executionBusy]);
   const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, executionBusy), [messages, executionBusy]);
@@ -2980,14 +2979,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[var(--radius-lg)] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
                     />
                     {originalMsg.role === "ai" && (header || !turn && !hidden && !!originalMsg.entries?.length && startsMessageIdentity(messages, vi.index)) && (
-                      <AssistantIdentity msg={originalMsg} live={vi.index === activeTurnFirst} />
+                      <AssistantIdentity msg={originalMsg} live={vi.index === activeTurnFirst} durationMs={turnTimings.get(vi.index)?.durationMs} startedAt={vi.index === activeTurnFirst ? turnTimings.get(vi.index)?.startedAt : undefined} />
                     )}
                     {header && turn?.active && (
                       <StatusBar sessionId={sidRef.current} startedAt={runningTurn?.startedAt} expanded={expanded} onToggle={() => inspectTurn(turn)} />
                     )}
                     {header && turn && !turn.active && (
                       <button type="button" className="execution-process-toggle" aria-expanded={expanded} onClick={() => inspectTurn(turn)}>
-                        <span>{executionLabel(turn.durationMs, uiI18n.language.startsWith("en"), false, turn.interrupted)}</span>
+                        <span>{uiText(turn.interrupted ? "ui.ChatPanel.interruptedProcess" : "ui.ChatPanel.executionProcess")}</span>
                         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ transform: expanded ? "rotate(90deg)" : undefined }}><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" /></svg>
                       </button>
                     )}
@@ -3250,13 +3249,18 @@ function ImagePathOnlyTag(): JSX.Element {
   return <span className="inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle">{uiText("ui.ChatPanel.imagesSentAsPathsOnly")}</span>;
 }
 
-export function AssistantIdentity({ msg, live }: { msg: ChatMessage; live: boolean }): JSX.Element {
+export function AssistantIdentity({ msg, live, durationMs, startedAt }: { msg: ChatMessage; live: boolean; durationMs?: number; startedAt?: number }): JSX.Element {
   useUiLocale();
   const role = msg.agentRole;
   return <div className={`msg-in msg-assistant-identity${live ? " mint-live" : ""}`}>
     {role ? <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
       : <MintAvatar size={28} className="mint-avatar" />}
     <span>{role ?? "Mint"}</span>
+    {!role && <span className="text-xs font-normal text-text-muted whitespace-nowrap">
+      {live && startedAt !== undefined
+        ? <ExecutionTimer startedAt={startedAt} processed />
+        : <IdentityTime durationMs={durationMs} />}
+    </span>}
     {msg.outOfContext && <OutOfContextTag />}
     {msg.imageStripped && !msg.outOfContext && <ImageStrippedTag />}
     {role && msg.forwarded && <span className="text-text-secondary">{msg.forwardedFrom ? uiText("ui.ChatPanel.from", { v0: msg.forwardedFrom }) : uiText("ui.ChatPanel.forwarded")}</span>}
@@ -3585,7 +3589,7 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
             onBlur={onCancel}
             rows={1}
             placeholder={uiText("ui.ChatPanel.editMessage")}
-            className="block max-w-full min-w-[3ch] bg-transparent outline-none resize-none overflow-y-auto overscroll-contain max-h-[calc(12lh+0.5px)] [field-sizing:content]"
+            className="user-message-scroll block max-w-full min-w-[3ch] bg-transparent outline-none resize-none overflow-y-auto overscroll-contain max-h-[calc(12lh+0.5px)] [field-sizing:content]"
           />
         ) : (
           /* 封顶规格见 UserMessageText（主聊天与子 Agent 过程视图共用，避免两份实现） */
