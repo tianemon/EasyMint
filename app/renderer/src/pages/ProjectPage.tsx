@@ -359,6 +359,20 @@ export function ProjectPage(): JSX.Element {
     });
   }, [renameNewName, projectName, projectPath]);
 
+  /* 引导 CTA 的跟手柔光：指针位置直接写进 CSS 变量（原生 DOM 写，不走 state——
+     pointermove 频率高，走 state 会让整个 ProjectPage 重渲染）。视觉全在样式里：
+     .creation-welcome-action::before 用 --mx/--my 定位光斑，--glow-o 控制亮灭。 */
+  const trackCtaGlow = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${Math.round(e.clientX - rect.left)}px`);
+    el.style.setProperty("--my", `${Math.round(e.clientY - rect.top)}px`);
+    el.style.setProperty("--glow-o", "1");
+  };
+  const fadeCtaGlow = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.setProperty("--glow-o", "0");
+  };
+
   const renderTabContent = () => {
     return (
       <>
@@ -420,6 +434,9 @@ export function ProjectPage(): JSX.Element {
         {/* tab 内容全部保持挂载、按 activeTabId 切显隐(不卸载)：卸载会丢会话/编辑器的组件内状态(输入框草稿、滚动位置) */}
         <div className="flex-1 min-h-0 relative">
           {renderTabContent()}
+          {/* 空项目引导：三行文案分三级（见 index.css .creation-welcome），按钮独立成第四行。
+              不放进 ChatPanel 的居中空态组：那组的居中位移是围绕「角色选择 + 输入卡片」调的，
+              多一段内容会连带把输入卡片顶上去，位置就不对了 */}
           {!projectId && !tabs.some((tab) => tab.sessionId || tab.type === "file") && (
             <div className="creation-welcome">
               <div className="creation-welcome-copy">
@@ -427,7 +444,14 @@ export function ProjectPage(): JSX.Element {
                 <h2>{uiText("creation.welcome.title")}</h2>
                 <p>{uiText("creation.welcome.description")}</p>
               </div>
-              <button type="button" className="creation-welcome-action btn-accent" onClick={() => setShowNewProject(true)}>
+              <button
+                type="button"
+                className="creation-welcome-action btn-accent"
+                onClick={() => setShowNewProject(true)}
+                onPointerEnter={trackCtaGlow}
+                onPointerMove={trackCtaGlow}
+                onPointerLeave={fadeCtaGlow}
+              >
                 {uiText("creation.welcome.action")}
               </button>
             </div>

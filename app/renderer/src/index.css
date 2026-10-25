@@ -580,16 +580,60 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-project-switch:hover .sb-project-switch-icon { color: var(--color-text-primary); transform: translateY(1px); }
 .sb-menu-wrap { position: relative; -webkit-app-region: no-drag; }
 
-/* Project creation: quiet surfaces, stable geometry, short purposeful transitions. */
-.creation-welcome { position: absolute; z-index: 1; top: 64px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: space-between; gap: var(--s6); width: min(680px, calc(50% - var(--s8))); padding: 20px 24px; border: 0; border-radius: var(--radius-lg); background: var(--color-surface); }
-.creation-welcome-copy { flex: 1; min-width: 0; }
+/* Project creation: quiet surfaces, stable geometry, short purposeful transitions.
+   空项目引导(2026-10-25)：不带容器底色——它不是一块面板，而是输入区上方的一段开场白。
+   三行文案分级，亮度与字号同向递减；按钮独立成第四行，与文案左对齐：
+     ① 「开始创造」20px / 主文本色 —— 这块的锚点，要显眼
+     ② 副标题 15px / 主文本色 —— 与①同亮度，靠字号和间距让位
+     ③ 说明 12px / 次级色 —— 唯一亮度降档的一行（说明性，不必抢读）
+   左边缘与输入卡片/「Agent能力」行同一条线（--chat-content-inset）。 */
+.creation-welcome {
+  position: absolute; z-index: 1; top: 64px;
+  left: var(--chat-content-inset);
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s4);
+  width: min(620px, calc(100% - 2 * var(--chat-content-inset)));
+}
+.creation-welcome-copy { width: 100%; min-width: 0; }
 .creation-eyebrow { display: block; font-size: var(--text-2xs); color: var(--color-accent); font-weight: 600; letter-spacing: .08em; }
-.creation-welcome .creation-eyebrow { color: var(--color-text-muted); font-weight: 500; letter-spacing: .04em; }
-.creation-welcome h2 { margin: 6px 0 8px; font-size: var(--text-base); color: var(--color-text-primary); font-weight: 500; line-height: 1.5; }
-.creation-welcome p { font-size: var(--text-xs); color: var(--color-text-secondary); line-height: 1.7; text-wrap: pretty; }
-.creation-welcome-action { flex-shrink: 0; min-height: 36px; padding: 8px 14px; border-radius: var(--radius-lg); font-size: var(--text-xs); font-weight: 500; }
-@media (max-width: 1100px) {
-  .creation-welcome { width: min(560px, calc(100% - 64px)); }
+.creation-welcome .creation-eyebrow {
+  font-size: calc(20px * var(--ui-scale)); line-height: 1.3; letter-spacing: .02em;
+  color: var(--color-text-primary); font-weight: 500;
+}
+.creation-welcome h2 { margin: 8px 0 0; font-size: var(--text-base); color: var(--color-text-primary); font-weight: 500; line-height: 1.5; }
+.creation-welcome p { margin-top: 4px; font-size: var(--text-xs); color: var(--color-text-secondary); line-height: 1.7; text-wrap: pretty; }
+/* 就地反馈(2026-10-25)：这枚 CTA 用「跟手 + 物理」而不是两档跳变——
+   ① hover 抬起 1px + 底部柔影（只有 1px：再多就成网页按钮了）
+   ② 指针跟随的柔光：位置由 JS 写进 --mx/--my（onPointerMove，不触发 React 重渲染），
+      --glow-o 只在指针进入时点亮、离开淡出；柔光走 ::before + z-index:-1，
+      配 isolation:isolate 才能压在底色之上、文字之下（不糊字）
+   ③ 按下压缩到 .97（90ms，快），松手沿 overshoot 曲线弹回（260ms，慢）——按下快、回弹软，
+      这是"橡皮/磁吸"手感的关键：回弹曲线写在常态里，按下时只覆盖时长
+   全程只动 1~2px 的位移，不参与布局；prefers-reduced-motion 见本段末尾的降级块 */
+/* ⚠ 选择器统一多带一层 .creation-welcome：与下面 .btn-accent 同权重时后者在源序更靠后，
+   会把 transition（.btn-accent 只写了 background 0.15s）和暗色底色一起盖掉 */
+.creation-welcome .creation-welcome-action {
+  position: relative; isolation: isolate; overflow: hidden;
+  flex-shrink: 0; min-height: 36px; padding: 8px 14px; border-radius: var(--radius-lg);
+  font-size: var(--text-xs); font-weight: 500;
+  /* 配色跟「用户气泡」同一组变量：浅色 = accent 绿 + 反白字（与 .btn-accent 原本那对同值），
+     暗色 = #183e76 深蓝 + #f6fafe 近白字。气泡改色，这枚按钮自动跟着走 */
+  background: var(--msg-user-bg); color: var(--msg-user-text);
+  transition: transform 260ms cubic-bezier(.22, 1.4, .36, 1), background 150ms var(--ease-smooth), box-shadow 180ms var(--ease-smooth);
+}
+.creation-welcome .creation-welcome-action::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgb(255 255 255 / 12%), transparent 72%);
+  opacity: var(--glow-o, 0);
+  transition: opacity 180ms var(--ease-smooth);
+}
+.creation-welcome .creation-welcome-action:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgb(0 0 0 / 28%); }
+.creation-welcome .creation-welcome-action:active { transform: translateY(0) scale(.97); box-shadow: none; transition-duration: 90ms; }
+/* 暗色这条必须带 [data-theme] + .creation-welcome 两层：与 .btn-accent 的 [data-theme] 规则同权重时它源序在后 */
+[data-theme="dark"] .creation-welcome .creation-welcome-action { background: var(--msg-user-bg); color: var(--msg-user-text); }
+[data-theme="dark"] .creation-welcome .creation-welcome-action:hover { background: #1d4a8a; }
+@media (max-width: 1200px) {
+  /* 窄窗口收窄行宽（calc 兜底仍保证不越出输入卡片的安全边距） */
+  .creation-welcome { width: min(520px, calc(100% - 2 * var(--chat-content-inset))); }
 }
 @media (max-height: 700px) {
   .main-area .creation-welcome { top: auto; bottom: 24px; }
@@ -712,13 +756,18 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 @keyframes creation-step-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 600px) {
   .creation-progress-label { gap: var(--s1); font-size: var(--text-11); }
-  .creation-welcome { top: 52px; width: calc(100% - 32px); padding: var(--s4); gap: var(--s4); flex-wrap: wrap; }
+  .creation-welcome { top: 52px; left: var(--s4); width: calc(100% - 2 * var(--s4)); }
   .creation-dialog-footer { padding-inline: var(--s3); }
   .creation-preview-footer { align-items: flex-start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   .creation-step-content, .creation-preview-dialog, .creation-spotlight { animation: none; }
   .creation-progress-line, .creation-style-option, .creation-device-switch button { transition: none; }
+  /* CTA 的位移/回弹与跟手柔光整体关掉，只留底色反馈（位移一律归零，避免残留 1px 抬起）；
+     选择器同样多带 .creation-welcome，否则压不过上面的 .creation-welcome .creation-welcome-action */
+  .creation-welcome .creation-welcome-action { transition: background 150ms var(--ease-smooth); transform: none; }
+  .creation-welcome .creation-welcome-action:hover, .creation-welcome .creation-welcome-action:active { transform: none; box-shadow: none; }
+  .creation-welcome .creation-welcome-action::before { display: none; }
 }
 /* 项目菜单按钮：无边框图标按钮，与 SessionBar 的归档/新建同一套语言（静默 → hover 高亮）。
    盒 30px（原 26）配 16px 图标，避免图标在盒内显得空 */
