@@ -163,6 +163,25 @@ main { display: block; }
 .hero-shot { margin: 52px auto 0; }
 .hero-shot img { border-radius: 16px; }
 
+.media-frame {
+  position: relative; overflow: hidden;
+  border-radius: 16px; border: 1px solid var(--line-strong);
+  background: var(--surface); box-shadow: var(--shadow);
+}
+.hero-video { display: block; width: 100%; height: auto; aspect-ratio: 1174 / 714; }
+.media-toggle {
+  position: absolute; right: 12px; bottom: 12px;
+  padding: 7px 14px; border: 0; border-radius: 999px;
+  background: rgba(18, 18, 16, .62); color: #fff;
+  font: inherit; font-size: 12px; letter-spacing: .02em;
+  cursor: pointer; opacity: 0;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: opacity .2s;
+}
+.media-frame:hover .media-toggle,
+.media-toggle:focus-visible { opacity: 1; }
+@media (hover: none) { .media-toggle { opacity: 1; } }
+
 /* ---------- cards ---------- */
 
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -174,7 +193,7 @@ main { display: block; }
 }
 .card h3 { margin: 20px 0 8px; padding: 0 20px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
 .card p { margin: 0 0 22px; padding: 0 20px; font-size: 14px; color: var(--muted); line-height: 1.65; }
-.shot-card img { border-bottom: 1px solid var(--line); }
+.shot-card img { border-bottom: 1px solid var(--line); aspect-ratio: 16 / 9; object-fit: cover; object-position: top center; }
 
 /* ---------- abilities ---------- */
 

@@ -118,7 +118,45 @@
     Array.prototype.forEach.call(items, function (el) { io.observe(el); });
   }
 
+  function initHeroVideo() {
+    var video = document.getElementById('heroVideo');
+    var button = document.getElementById('heroToggle');
+    if (!video || !button || typeof video.play !== 'function') return;
+
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    function label(playing) {
+      button.textContent = playing ? '暂停' : '播放';
+      button.setAttribute('aria-label', playing ? '暂停动效' : '播放动效');
+    }
+    function play() {
+      var result = video.play();
+      if (result && typeof result.then === 'function') {
+        result.then(function () { label(true); }, function () { label(false); });
+      } else {
+        label(true);
+      }
+    }
+    function pause() { video.pause(); label(false); }
+
+    video.addEventListener('play', function () { label(true); });
+    video.addEventListener('pause', function () { label(false); });
+    button.addEventListener('click', function () { video.paused ? play() : pause(); });
+
+    if (reduce && reduce.matches) { label(false); return; }
+
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) { entry.isIntersecting ? play() : video.pause(); });
+      }, { threshold: 0.25 });
+      io.observe(video);
+    } else {
+      play();
+    }
+  }
+
   loadRelease();
   initCopy();
   initReveal();
+  initHeroVideo();
 })();

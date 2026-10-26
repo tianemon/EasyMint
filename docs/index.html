@@ -49,34 +49,37 @@
     <p class="fineprint"><span class="ver" data-version hidden></span>免费开源 · 无需注册 · 项目与对话留在本机</p>
 
     <figure class="shot hero-shot reveal">
-      <picture>
-        <source type="image/webp" srcset="assets/main-1000.webp 1000w, assets/main-1600.webp 1600w" sizes="(max-width: 900px) 100vw, 1040px">
-        <img src="assets/main-1000.webp" width="1600" height="906" alt="EasyMint 的项目会话界面：左侧是项目与会话列表，中间是 Mint 汇报这一轮交付结论的对话" fetchpriority="high">
-      </picture>
-      <figcaption>结论先给，思考与工具过程默认收起——想看细节再展开。</figcaption>
+      <div class="media-frame">
+        <video id="heroVideo" class="hero-video" width="1174" height="714" poster="assets/hero-poster.webp" autoplay muted loop playsinline preload="metadata"
+               aria-label="演示：在新建项目里填写基本信息，切到 UI 风格后右侧实时预览不同风格的完整页面">
+          <source src="assets/hero-loop.mp4" type="video/mp4">
+        </video>
+        <button id="heroToggle" class="media-toggle" type="button" aria-label="暂停动效">暂停</button>
+      </div>
+      <figcaption>15 套界面风格，选之前就能看到完整页面——能点、能切手机版。</figcaption>
     </figure>
   </section>
 
   <section id="see" class="section">
     <div class="section-head">
       <h2>先看它长什么样</h2>
-      <p>判断要不要试，其实只需要三件事：怎么开始、怎么确认、怎么跑起来。</p>
+      <p>判断要不要试，其实只需要三件事：怎么对话、怎么跑、谁在干活。</p>
     </div>
     <div class="grid-3">
       <article class="card shot-card reveal">
-        <img src="assets/project-create-900.webp" width="900" height="510" alt="新建项目向导的第一步：项目名称、存放路径、用途与目标平台">
-        <h3>从四个问题开始</h3>
-        <p>这是什么、给谁用、跑在什么设备上、做成什么样。答案会变成项目范围，而不是聊天记录里的一段话。</p>
-      </article>
-      <article class="card shot-card reveal">
-        <img src="assets/style-select-900.webp" width="900" height="510" alt="视觉方向选择页：以完整页面呈现不同风格，可切换网页与手机预览">
-        <h3>先说清楚要什么样子</h3>
-        <p>每种风格都用完整页面给你看，能点、能切手机版。不认识设计术语，也判断得出「像不像我想的」。</p>
+        <img src="assets/main-900.webp" width="900" height="510" alt="项目会话界面：左侧是项目与会话列表，中间是 Mint 汇报这一轮交付结论的对话">
+        <h3>对话就是操作台</h3>
+        <p>说一句要做的事，它拆任务、写代码、跑起来。结论先给你，思考与工具过程默认收起，想看细节再展开。</p>
       </article>
       <article class="card shot-card reveal">
         <img src="assets/run-panel-900.webp" width="900" height="510" alt="运行面板：本地预览地址、项目脚本与带颜色的日志输出">
-        <h3>跑起来才算做完</h3>
+        <h3>点一下就运行</h3>
         <p>启动项目、看端口、读日志都在同一个窗口里，不用另开终端，也不用记命令。</p>
+      </article>
+      <article class="card shot-card reveal">
+        <img src="assets/agent-templates-900.webp" width="900" height="510" alt="Agent 模板设置：Mint、Mint-D、Builder 与 Evaluator 四个内置角色及各自的职责说明">
+        <h3>几个角色分工</h3>
+        <p>实现、验收、设计、调研各有人负责，不是让一个角色什么都干。谁做的、做到哪一步都能看见。</p>
       </article>
     </div>
   </section>
