@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EasyMint · 说清你想做什么，它在你的电脑上做出来</title>
+<meta name="description" content="EasyMint 是开源的桌面 AI 编程工作台：先把一句想法问成需求，做出能点开试用的原型，再写成真正跑得起来的代码。支持 macOS、Windows 与 Linux，项目与会话留在本机。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="EasyMint">
+<meta property="og:title" content="EasyMint · 说清你想做什么，它在你的电脑上做出来">
+<meta property="og:description" content="开源的桌面 AI 编程工作台。不用会写代码，也能把一个想法做成能运行的项目。">
+<meta property="og:image" content="https://tianemon.github.io/EasyMint/assets/og.jpg">
+<meta property="og:url" content="https://tianemon.github.io/EasyMint/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/icon.png">
+<script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="./">
+      <img src="assets/icon.png" width="26" height="26" alt="">
+      <span>EasyMint</span>
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#see">效果</a>
+      <a href="#ability">能做什么</a>
+      <a href="#flow">怎么开始</a>
+      <a href="#install">安装</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" data-download href="https://github.com/tianemon/EasyMint/releases/latest">下载</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <p class="eyebrow">开源 · 桌面应用 · macOS / Windows / Linux</p>
+    <h1>说清你想做什么，<br>它在你的电脑上做出来。</h1>
+    <p class="lede">EasyMint 是一个桌面 AI 编程工作台。你先描述想法，它把需求问清楚、做出能点击的页面，再写成真正跑得起来的代码。<strong>不用会写代码。</strong></p>
+    <div class="actions">
+      <a class="btn btn-primary btn-lg" data-download data-label href="https://github.com/tianemon/EasyMint/releases/latest">下载 EasyMint</a>
+      <a class="btn btn-ghost btn-lg" href="#see">先看效果</a>
+    </div>
+    <p class="fineprint"><span class="ver" data-version hidden></span>免费开源 · 无需注册 · 项目与对话留在本机</p>
+
+    <figure class="shot hero-shot reveal">
+      <picture>
+        <source type="image/webp" srcset="assets/main-1000.webp 1000w, assets/main-1600.webp 1600w" sizes="(max-width: 900px) 100vw, 1040px">
+        <img src="assets/main-1000.webp" width="1600" height="906" alt="EasyMint 的项目会话界面：左侧是项目与会话列表，中间是 Mint 汇报这一轮交付结论的对话" fetchpriority="high">
+      </picture>
+      <figcaption>结论先给，思考与工具过程默认收起——想看细节再展开。</figcaption>
+    </figure>
+  </section>
+
+  <section id="see" class="section">
+    <div class="section-head">
+      <h2>先看它长什么样</h2>
+      <p>判断要不要试，其实只需要三件事：怎么开始、怎么确认、怎么跑起来。</p>
+    </div>
+    <div class="grid-3">
+      <article class="card shot-card reveal">
+        <img src="assets/project-create-900.webp" width="900" height="510" alt="新建项目向导的第一步：项目名称、存放路径、用途与目标平台">
+        <h3>从四个问题开始</h3>
+        <p>这是什么、给谁用、跑在什么设备上、做成什么样。答案会变成项目范围，而不是聊天记录里的一段话。</p>
+      </article>
+      <article class="card shot-card reveal">
+        <img src="assets/style-select-900.webp" width="900" height="510" alt="视觉方向选择页：以完整页面呈现不同风格，可切换网页与手机预览">
+        <h3>先说清楚要什么样子</h3>
+        <p>每种风格都用完整页面给你看，能点、能切手机版。不认识设计术语，也判断得出「像不像我想的」。</p>
+      </article>
+      <article class="card shot-card reveal">
+        <img src="assets/run-panel-900.webp" width="900" height="510" alt="运行面板：本地预览地址、项目脚本与带颜色的日志输出">
+        <h3>跑起来才算做完</h3>
+        <p>启动项目、看端口、读日志都在同一个窗口里，不用另开终端，也不用记命令。</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="ability" class="section section-alt">
+    <div class="section-head">
+      <h2>它替你处理掉的那些麻烦</h2>
+      <p>没有一句是需要你先学会才用得上的。</p>
+    </div>
+    <div class="grid-3 abilities">
+      <div class="ability reveal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M17.5 13.5l1.8 1.8 3.2-3.6"/></svg>
+        <h3>把想法问成需求</h3>
+        <p>四步问答加随时追问，最后落成一份能施工的范围：功能、风格、完成度、预算。</p>
+      </div>
+      <div class="ability reveal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v3M15 3v3M5 9h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V10a1 1 0 011-1z"/><path d="M9 14l2 2 4-4"/></svg>
+        <h3>先给能点的原型</h3>
+        <p>界面类项目先出整套页面，点开就能试用。确认过再写正式实现，避免白做一遍。</p>
+      </div>
+      <div class="ability reveal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15 15.4c3 0 5 1.8 5 4.1"/></svg>
+        <h3>几个 AI 分工干活</h3>
+        <p>实现、验收、设计、调研各有人负责，不是让一个角色什么都干。谁做的、做到哪一步都能看见。</p>
+      </div>
+      <div class="ability reveal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg>
+        <h3>进度一直看得见</h3>
+        <p>任务清单、待办、运行面板就排在对话旁边。它做到哪、卡在哪，不用靠猜。</p>
+      </div>
+      <div class="ability reveal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        <h3>默认关在沙盒里</h3>
+        <p>只读、标准、完全访问三档权限。默认档跑在系统沙盒内，写文件、读凭据都要过边界。</p>
+      </div>
+      <div class="ability reveal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 5h3M11 18.5h2"/></svg>
+        <h3>手机上接着盯</h3>
+        <p>扫个码连上同一局域网里的电脑，就能远程发消息、看进度。项目仍在电脑上。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="flow" class="section">
+    <div class="section-head">
+      <h2>开始一个项目，只要回答四件事</h2>
+      <p>不是必须先想清楚才能用——先选接近的，Mint 会边问边补。</p>
+    </div>
+    <ol class="steps">
+      <li class="reveal">
+        <span class="step-no">1</span>
+        <h3>这是什么</h3>
+        <p>名称、用途、在哪些设备上运行。</p>
+      </li>
+      <li class="reveal">
+        <span class="step-no">2</span>
+        <h3>第一版要做哪些事</h3>
+        <p>功能清单可以自己写，也可以让它先给一版再删改。</p>
+      </li>
+      <li class="reveal">
+        <span class="step-no">3</span>
+        <h3>想要什么感觉</h3>
+        <p>看完整页面挑方向，或直接描述你想要的样子。</p>
+      </li>
+      <li class="reveal">
+        <span class="step-no">4</span>
+        <h3>做到什么程度</h3>
+        <p>完整版、MVP 还是演示；跑本地还是云端；预算边界。</p>
+      </li>
+    </ol>
+    <p class="note">填完不是结束，而是第一轮讨论的起点。后面所有改动都在对话里说就行。</p>
+  </section>
+
+  <section class="section section-split">
+    <div class="split">
+      <div class="split-text">
+        <h2>做的事都留在会话里</h2>
+        <p>左边是任务与进度，右边是对话与结论。需要跑一下看看，就在运行面板点一下，日志跟着滚。</p>
+        <ul class="ticks">
+          <li>任务拆到能逐条验收，不合格退回重做</li>
+          <li>反复用的命令收进运行面板，启动停止都不用记</li>
+          <li>重要结论可以钉成便签，固定在旁边</li>
+        </ul>
+      </div>
+      <figure class="shot reveal">
+        <img src="assets/workspace-1100.webp" width="1100" height="623" alt="会话里 Mint 汇报下一步与已记录的经验，重要结论以便签固定在右侧">
+      </figure>
+    </div>
+  </section>
+
+  <section id="install" class="section section-alt">
+    <div class="section-head">
+      <h2>装好它，三步</h2>
+      <p>下载包都在 GitHub Releases，选你的系统即可。</p>
+    </div>
+
+    <div class="install-grid">
+      <article class="install-step reveal">
+        <h3><span class="badge">1</span>下载并安装</h3>
+        <p>macOS 用 <code>.dmg</code>，Windows 用 <code>.exe</code> 安装版（也有免安装的便携版），Linux 用 <code>.AppImage</code> 或 <code>.deb</code>。</p>
+        <p class="systems">
+          <a data-os="mac" href="https://github.com/tianemon/EasyMint/releases/latest">macOS（Apple 芯片）</a>
+          <a data-os="win" href="https://github.com/tianemon/EasyMint/releases/latest">Windows x64</a>
+          <a data-os="linux" href="https://github.com/tianemon/EasyMint/releases/latest">Linux x64</a>
+        </p>
+      </article>
+
+      <article class="install-step reveal">
+        <h3><span class="badge">2</span>macOS 首次打开要放行一次</h3>
+        <p>安装包没有 Apple 开发者签名，系统会拦一次。点「完成」，不要点「移到废纸篓」，然后任选一种方式放行：</p>
+        <div class="cmd">
+          <code>sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app</code>
+          <button class="copy" data-copy="sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app" aria-label="复制命令">复制</button>
+        </div>
+        <p class="fine">或者在「系统设置 → 隐私与安全性」里点「仍要打开」。手动下载的新安装包需要再放行一次；应用内自动更新不需要。Windows 若提示 SmartScreen，点「更多信息 → 仍要运行」。</p>
+      </article>
+
+      <article class="install-step reveal">
+        <h3><span class="badge">3</span>接上 AI 供应商</h3>
+        <p>按引导配置即可：可以用订阅账号登录（Anthropic、OpenAI Codex、GitHub Copilot 等），也可以填任意兼容接口的 API Key。EasyMint 本身不需要注册账号。</p>
+        <p class="fine">对话按供应商规则计费；凭据只存在你自己的电脑上。</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="faq" class="section">
+    <div class="section-head">
+      <h2>常有人问</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>完全不会写代码，能用吗？</summary>
+        <p>能。整个流程是按「先做选择、再逐项修改」设计的：你描述想要什么，判断做出来的东西对不对，不需要写提示词，也不需要看懂代码。当然，愿意看代码随时能看、能改。</p>
+      </details>
+      <details>
+        <summary>没有 API Key 也能用吗？</summary>
+        <p>可以。Anthropic、OpenAI Codex、GitHub Copilot、OpenRouter、Kimi、xAI 等支持在应用内用浏览器登录授权，用现有订阅即可；其余供应商填 API Key。</p>
+      </details>
+      <details>
+        <summary>要花钱吗？</summary>
+        <p>EasyMint 本身开源免费（MIT）。模型调用按你选择的供应商计费，应用内不额外收费。</p>
+      </details>
+      <details>
+        <summary>我的文件会被上传吗？</summary>
+        <p>项目文件和对话都存在你本机的 <code>~/.easymint/</code> 与项目目录里，EasyMint 没有账号系统、没有遥测。只有你发起的 AI 请求会带着相关上下文发给所选供应商，适用对方的隐私政策。</p>
+      </details>
+      <details>
+        <summary>支持哪些系统？</summary>
+        <p>macOS（Apple 芯片）、Windows x64、Linux x64。手机端可以连同一局域网内的电脑远程使用，项目和会话仍留在电脑上。</p>
+      </details>
+      <details>
+        <summary>和编辑器里的 AI 补全有什么不同？</summary>
+        <p>它不是补全插件，而是一整套从需求、原型到运行的工作台：有项目定义、任务拆解、多角色协作、运行面板和权限边界。如果你只要代码补全，别的工具可能更轻便。</p>
+      </details>
+      <details>
+        <summary>装了以后怎么更新？</summary>
+        <p>应用内自动更新，不需要重新下载、也不需要再放行。手动下载新安装包时才需要重新处理一次隔离标记。</p>
+      </details>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-inner">
+    <div class="foot-brand">
+      <img src="assets/icon.png" width="24" height="24" alt="">
+      <span>EasyMint</span>
+      <span class="dot">·</span>
+      <span class="muted">MIT 许可 · 开源</span>
+    </div>
+    <nav class="foot-links" aria-label="相关链接">
+      <a href="https://github.com/tianemon/EasyMint">GitHub</a>
+      <a href="https://gitee.com/tianemon/easymint">Gitee 镜像</a>
+      <a href="https://github.com/tianemon/EasyMint/blob/main/CHANGELOG.md">更新日志</a>
+      <a href="https://github.com/tianemon/EasyMint/blob/main/PRIVACY.md">隐私说明</a>
+      <a href="https://github.com/tianemon/EasyMintMobile">手机端</a>
+    </nav>
+  </div>
+  <p class="foot-note">功能细节与实现说明在仓库的 README 里；这一页只负责让你先看清它是什么。</p>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>
