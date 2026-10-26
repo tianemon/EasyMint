@@ -118,45 +118,79 @@
     Array.prototype.forEach.call(items, function (el) { io.observe(el); });
   }
 
-  function initHeroVideo() {
-    var video = document.getElementById('heroVideo');
-    var button = document.getElementById('heroToggle');
-    if (!video || !button || typeof video.play !== 'function') return;
+  function initTour() {
+    var stack = document.getElementById('tourStack');
+    var dots = document.getElementById('tourDots');
+    var section = document.getElementById('tour');
+    if (!stack || !dots || !section) return;
 
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    var cards = Array.prototype.slice.call(stack.querySelectorAll('.stack-card'));
+    var panels = Array.prototype.slice.call(section.querySelectorAll('[data-tour-panel]'));
+    var dotButtons = Array.prototype.slice.call(dots.querySelectorAll('.dot'));
+    var counter = section.querySelector('[data-tour-index]');
+    var total = cards.length;
+    var current = 0;
 
-    function label(playing) {
-      button.textContent = playing ? '暂停' : '播放';
-      button.setAttribute('aria-label', playing ? '暂停动效' : '播放动效');
+    function render(next) {
+      current = (next + total) % total;
+
+      cards.forEach(function (card, i) {
+        var offset = (i - current + total) % total;
+        var pos = 'x';
+        if (offset === 0) pos = '0';
+        else if (offset === 1) pos = '1';
+        else if (offset === 2) pos = '2';
+        else if (offset === total - 1) pos = '-1';
+        card.setAttribute('data-pos', pos);
+      });
+
+      panels.forEach(function (panel, i) {
+        panel.classList.toggle('is-active', i === current);
+      });
+
+      dotButtons.forEach(function (dot, i) {
+        var active = i === current;
+        dot.classList.toggle('is-active', active);
+        if (active) dot.setAttribute('aria-current', 'true');
+        else dot.removeAttribute('aria-current');
+      });
+
+      if (counter) counter.textContent = ('0' + (current + 1)).slice(-2);
     }
-    function play() {
-      var result = video.play();
-      if (result && typeof result.then === 'function') {
-        result.then(function () { label(true); }, function () { label(false); });
-      } else {
-        label(true);
-      }
-    }
-    function pause() { video.pause(); label(false); }
 
-    video.addEventListener('play', function () { label(true); });
-    video.addEventListener('pause', function () { label(false); });
-    button.addEventListener('click', function () { video.paused ? play() : pause(); });
+    dots.addEventListener('click', function (event) {
+      var button = event.target.closest('.dot');
+      if (!button) return;
+      render(dotButtons.indexOf(button));
+    });
 
-    if (reduce && reduce.matches) { label(false); return; }
+    dots.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      var step = event.key === 'ArrowRight' ? 1 : -1;
+      render(current + step);
+      dotButtons[current].focus();
+    });
 
-    if ('IntersectionObserver' in window) {
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) { entry.isIntersecting ? play() : video.pause(); });
-      }, { threshold: 0.25 });
-      io.observe(video);
-    } else {
-      play();
-    }
+    var startX = null;
+    var stage = section.querySelector('.tour-stage');
+    stage.addEventListener('pointerdown', function (event) {
+      startX = event.clientX;
+    });
+    stage.addEventListener('pointerup', function (event) {
+      if (startX === null) return;
+      var delta = event.clientX - startX;
+      startX = null;
+      if (Math.abs(delta) < 48) return;
+      render(current + (delta < 0 ? 1 : -1));
+    });
+    stage.addEventListener('pointercancel', function () { startX = null; });
+
+    render(0);
   }
 
   loadRelease();
   initCopy();
   initReveal();
-  initHeroVideo();
+  initTour();
 })();

@@ -26,9 +26,8 @@
       <span>EasyMint</span>
     </a>
     <nav class="nav-links" aria-label="页面导航">
-      <a href="#see">效果</a>
+      <a href="#tour">效果</a>
       <a href="#ability">能做什么</a>
-      <a href="#flow">怎么开始</a>
       <a href="#install">安装</a>
       <a href="#faq">常见问题</a>
     </nav>
@@ -44,44 +43,113 @@
     <p class="lede">EasyMint 是一个桌面 AI 编程工作台。你先描述想法，它把需求问清楚、做出能点击的页面，再写成真正跑得起来的代码。<strong>不用会写代码。</strong></p>
     <div class="actions">
       <a class="btn btn-primary btn-lg" data-download data-label href="https://github.com/tianemon/EasyMint/releases/latest">下载 EasyMint</a>
-      <a class="btn btn-ghost btn-lg" href="#see">先看效果</a>
+      <a class="btn btn-ghost btn-lg" href="#tour">看它怎么做</a>
     </div>
     <p class="fineprint"><span class="ver" data-version hidden></span>免费开源 · 无需注册 · 项目与对话留在本机</p>
 
     <figure class="shot hero-shot reveal">
-      <div class="media-frame">
-        <video id="heroVideo" class="hero-video" width="1174" height="714" poster="assets/hero-poster.webp" autoplay muted loop playsinline preload="metadata"
-               aria-label="演示：在新建项目里填写基本信息，切到 UI 风格后右侧实时预览不同风格的完整页面">
-          <source src="assets/hero-loop.mp4" type="video/mp4">
-        </video>
-        <button id="heroToggle" class="media-toggle" type="button" aria-label="暂停动效">暂停</button>
-      </div>
-      <figcaption>15 套界面风格，选之前就能看到完整页面——能点、能切手机版。</figcaption>
+      <img src="assets/shot-welcome.webp" width="1600" height="906" alt="EasyMint 启动后的首页：左侧是项目与会话，中间是「开始创造」和输入框" fetchpriority="high">
+      <figcaption>打开就是一句话的开始——想不清楚也没关系，它会一步步问。</figcaption>
     </figure>
   </section>
 
-  <section id="see" class="section">
-    <div class="section-head">
-      <h2>先看它长什么样</h2>
-      <p>判断要不要试，其实只需要三件事：怎么对话、怎么跑、谁在干活。</p>
+  <section id="tour" class="section tour-section">
+    <div class="section-head tour-head">
+      <h2>它会带你走完整个过程</h2>
+      <p>从一句模糊的话，到能点开试用的页面，再到真正跑起来。点下面的圆点看每一步。</p>
     </div>
-    <div class="grid-3">
-      <article class="card shot-card reveal">
-        <img src="assets/main-900.webp" width="900" height="510" alt="项目会话界面：左侧是项目与会话列表，中间是 Mint 汇报这一轮交付结论的对话">
-        <h3>对话就是操作台</h3>
-        <p>说一句要做的事，它拆任务、写代码、跑起来。结论先给你，思考与工具过程默认收起，想看细节再展开。</p>
-      </article>
-      <article class="card shot-card reveal">
-        <img src="assets/run-panel-900.webp" width="900" height="510" alt="运行面板：本地预览地址、项目脚本与带颜色的日志输出">
-        <h3>点一下就运行</h3>
-        <p>启动项目、看端口、读日志都在同一个窗口里，不用另开终端，也不用记命令。</p>
-      </article>
-      <article class="card shot-card reveal">
-        <img src="assets/agent-templates-900.webp" width="900" height="510" alt="Agent 模板设置：Mint、Mint-D、Builder 与 Evaluator 四个内置角色及各自的职责说明">
-        <h3>几个角色分工</h3>
-        <p>实现、验收、设计、调研各有人负责，不是让一个角色什么都干。谁做的、做到哪一步都能看见。</p>
-      </article>
+
+    <div class="tour">
+      <div class="tour-text">
+        <p class="tour-count"><span data-tour-index>01</span><span class="tour-sep">/</span>07</p>
+
+        <article class="tour-panel is-active" data-tour-panel>
+          <h3>四个问题，定下项目范围</h3>
+          <p>这是什么、给谁用、跑在哪、做成什么样。答案会变成项目范围，而不是聊天记录里的一段话。</p>
+          <ul class="ticks">
+            <li>每一步都能用现成选项开始</li>
+            <li>说不清的地方，让 Mint 先给一版再改</li>
+          </ul>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>先看到样子，再决定</h3>
+          <p>15 套界面风格，每一套都以完整页面呈现，可以切网页，也可以切手机版。</p>
+          <ul class="ticks">
+            <li>点开就是能滚动的真页面，不是效果图</li>
+            <li>不认识设计术语，也判断得出像不像</li>
+          </ul>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>先给能点的原型</h3>
+          <p>界面类项目先出整套页面，试用确认之后再写正式实现，避免方向错了白做一遍。</p>
+          <ul class="ticks">
+            <li>原型就是本机链接，打开即用</li>
+            <li>改哪里、怎么改，直接在对话里说</li>
+          </ul>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>拆到能逐条验收</h3>
+          <p>每件事都拆成可勾选的条目，完成、进行中一眼看清；做不合格的会被退回重做。</p>
+          <ul class="ticks">
+            <li>任务清单排在会话旁边，不用问进度</li>
+            <li>想到的补充先记进待办，不会打断当前工作</li>
+          </ul>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>点一下就运行</h3>
+          <p>启动项目、看端口、读日志都在同一个窗口里，不用另开终端，也不用记命令。</p>
+          <ul class="ticks">
+            <li>反复用的命令收进运行面板</li>
+            <li>日志带颜色，出错的位置一眼能找到</li>
+          </ul>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>几个角色分工</h3>
+          <p>Mint 统筹需求与任务，Builder 写实现，Evaluator 对照需求验收，Mint-D 出界面原型。</p>
+          <ul class="ticks">
+            <li>谁负责哪一段、做到哪一步都能看见</li>
+            <li>也能新建自己的角色模板</li>
+          </ul>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>结论留在手边</h3>
+          <p>一轮做完，交付结论直接可读；重要内容还能钉成便签，固定在会话旁边。</p>
+          <ul class="ticks">
+            <li>过程默认收起，结论永远在最上面</li>
+            <li>便签随会话保存，下次打开还在</li>
+          </ul>
+        </article>
+
+    <div class="tour-dots" id="tourDots" aria-label="切换演示步骤">
+      <button class="dot is-active" type="button" aria-label="01 四个问题，定下项目范围" aria-current="true"><span></span></button>
+      <button class="dot" type="button" aria-label="02 先看到样子，再决定"><span></span></button>
+      <button class="dot" type="button" aria-label="03 先给能点的原型"><span></span></button>
+      <button class="dot" type="button" aria-label="04 拆到能逐条验收"><span></span></button>
+      <button class="dot" type="button" aria-label="05 点一下就运行"><span></span></button>
+      <button class="dot" type="button" aria-label="06 几个角色分工"><span></span></button>
+      <button class="dot" type="button" aria-label="07 结论留在手边"><span></span></button>
     </div>
+      </div>
+
+      <div class="tour-stage">
+        <div class="stack" id="tourStack">
+          <figure class="stack-card" data-pos="0"><img src="assets/tour-01-guide.webp" width="1240" height="729" alt="新建项目第一步：项目名称、存放路径、用途与目标平台"></figure>
+          <figure class="stack-card" data-pos="1"><img src="assets/tour-02-style.webp" width="1240" height="729" alt="UI 风格选择：左侧风格列表，右侧是完整页面预览"></figure>
+          <figure class="stack-card" data-pos="2"><img src="assets/tour-03-prototype.webp" width="1240" height="729" alt="应用内打开的可交互原型页面：多列照片墙"></figure>
+          <figure class="stack-card" data-pos="x"><img src="assets/tour-04-tasks.webp" width="1240" height="729" alt="会话旁的任务面板：五条任务标记完成"></figure>
+          <figure class="stack-card" data-pos="x"><img src="assets/tour-05-run.webp" width="1240" height="729" alt="运行面板：本地预览、打开页面与更新素材三条脚本"></figure>
+          <figure class="stack-card" data-pos="x"><img src="assets/tour-06-agents.webp" width="1240" height="729" alt="Agent 模板：Mint、Mint-D、Builder、Evaluator 四个角色的职责"></figure>
+          <figure class="stack-card" data-pos="-1"><img src="assets/tour-07-notes.webp" width="1240" height="729" alt="会话中把重要结论钉成悬浮便签"></figure>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <section id="ability" class="section section-alt">
@@ -89,7 +157,7 @@
       <h2>它替你处理掉的那些麻烦</h2>
       <p>没有一句是需要你先学会才用得上的。</p>
     </div>
-    <div class="grid-3 abilities">
+    <div class="abilities">
       <div class="ability reveal">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M17.5 13.5l1.8 1.8 3.2-3.6"/></svg>
         <h3>把想法问成需求</h3>
@@ -120,53 +188,6 @@
         <h3>手机上接着盯</h3>
         <p>扫个码连上同一局域网里的电脑，就能远程发消息、看进度。项目仍在电脑上。</p>
       </div>
-    </div>
-  </section>
-
-  <section id="flow" class="section">
-    <div class="section-head">
-      <h2>开始一个项目，只要回答四件事</h2>
-      <p>不是必须先想清楚才能用——先选接近的，Mint 会边问边补。</p>
-    </div>
-    <ol class="steps">
-      <li class="reveal">
-        <span class="step-no">1</span>
-        <h3>这是什么</h3>
-        <p>名称、用途、在哪些设备上运行。</p>
-      </li>
-      <li class="reveal">
-        <span class="step-no">2</span>
-        <h3>第一版要做哪些事</h3>
-        <p>功能清单可以自己写，也可以让它先给一版再删改。</p>
-      </li>
-      <li class="reveal">
-        <span class="step-no">3</span>
-        <h3>想要什么感觉</h3>
-        <p>看完整页面挑方向，或直接描述你想要的样子。</p>
-      </li>
-      <li class="reveal">
-        <span class="step-no">4</span>
-        <h3>做到什么程度</h3>
-        <p>完整版、MVP 还是演示；跑本地还是云端；预算边界。</p>
-      </li>
-    </ol>
-    <p class="note">填完不是结束，而是第一轮讨论的起点。后面所有改动都在对话里说就行。</p>
-  </section>
-
-  <section class="section section-split">
-    <div class="split">
-      <div class="split-text">
-        <h2>做的事都留在会话里</h2>
-        <p>左边是任务与进度，右边是对话与结论。需要跑一下看看，就在运行面板点一下，日志跟着滚。</p>
-        <ul class="ticks">
-          <li>任务拆到能逐条验收，不合格退回重做</li>
-          <li>反复用的命令收进运行面板，启动停止都不用记</li>
-          <li>重要结论可以钉成便签，固定在旁边</li>
-        </ul>
-      </div>
-      <figure class="shot reveal">
-        <img src="assets/workspace-1100.webp" width="1100" height="623" alt="会话里 Mint 汇报下一步与已记录的经验，重要结论以便签固定在右侧">
-      </figure>
     </div>
   </section>
 
