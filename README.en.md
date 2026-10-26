@@ -49,6 +49,32 @@ Download an installer from [Releases](https://github.com/tianemon/EasyMint/relea
 | Windows · x64 | `.exe` installer or portable edition |
 | Linux · x64 | `.AppImage`, `.deb`, or `.tar.gz` |
 
+### First launch on macOS
+
+The build has no Apple Developer ID and cannot be notarized, so macOS blocks it once with "Apple cannot check EasyMint for malicious software". The dialog only offers "Done" and "Move to Trash".
+
+Right-click → Open no longer bypasses this since macOS 15. Use either of these (once).
+
+**Option 1: terminal (fastest)**
+
+```bash
+sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app
+```
+
+Enter your login password (it stays invisible while typing), then double-click the app. This only clears the quarantine flag for this app; it changes no system security settings and affects no other applications.
+
+**Option 2: System Settings**
+
+1. Click "Done" in the blocking dialog — not "Move to Trash"
+2. Open System Settings → Privacy & Security
+3. Scroll down to the Security section; macOS lists EasyMint as blocked
+4. Click "Open Anyway" and confirm with your password or Touch ID
+5. Double-click EasyMint again; the dialog now has an "Open" button
+
+**Every manual installer download needs this once**: a newly downloaded dmg carries the quarantine flag again. In-app auto-updates are unaffected (they bypass the browser, so no quarantine flag is set). Uninstalling the old version deletes no projects, sessions, or settings — they live in `~/.easymint/`.
+
+On Windows, if SmartScreen appears, click "More info" → "Run anyway". On Linux, the AppImage needs `chmod +x` first.
+
 See [CHANGELOG.md](CHANGELOG.md) for release and compatibility notes (Chinese).
 
 1. **Configure an AI provider.** Follow the first-launch setup and use an API key or account authorization supported by your provider. EasyMint has no separate account system; model usage follows your provider's billing rules. See [AI providers](#ai-providers).

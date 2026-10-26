@@ -25,21 +25,24 @@ import { readWindowState, trackWindowState, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH 
 // agentDir 用 ~/.easymint/agent（严格对应 Pi 默认的 ~/.pi/agent 层级，不再有 pi/pi-agent 子目录）
 const EM_HOME = emHome();
 process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "agent");
-// Pi SDK 品牌定制：项目级配置目录 .pi → .easymint（官方定制点 piConfig.configDir，幂等补写）。
-// 定位本地实际安装的 SDK 包（开发=项目 node_modules；打包=.asar.unpacked，@earendil-works 在 asarUnpack 名单）。
-// 写失败（如 mac 签名后权限）→ 降级保持 .pi 默认，功能不受影响。
+// Pi SDK 品牌定制：项目级配置目录 .pi → .easymint（官方定制点 piConfig.configDir）。
+// 改由 scripts/patch-pi-config.cjs 在 postinstall 阶段写入，打包产物自带该值。
+// 这里只读不写：app 包已做 ad-hoc 签名（mac.identity: "-"），运行时改包内任何文件
+// 都会失效 _CodeSignature/CodeResources，下次启动被 Gatekeeper 判为"已损坏"。
+// 因此只在值不符时告警，由 build 流程保证正确，不在用户机器上补救。
 try {
   let sdkPkgPath = path.join(app.getAppPath(), "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
   if (sdkPkgPath.includes(".asar")) sdkPkgPath = sdkPkgPath.replace(".asar", ".asar.unpacked");
   if (fs.existsSync(sdkPkgPath)) {
     const sdkPkg = JSON.parse(fs.readFileSync(sdkPkgPath, "utf-8")) as { piConfig?: { configDir?: string } };
     if (sdkPkg.piConfig?.configDir !== ".easymint") {
-      sdkPkg.piConfig = { ...sdkPkg.piConfig, configDir: ".easymint" };
-      fs.writeFileSync(sdkPkgPath, JSON.stringify(sdkPkg, null, 2));
-      console.log("[pi] SDK 项目级配置目录已定制为 .easymint:", sdkPkgPath);
+      console.warn(
+        "[pi] SDK 项目级配置目录未定制为 .easymint，后续建项目会落在 .pi/；重新执行 npm install 以应用 scripts/patch-pi-config.cjs：",
+        sdkPkgPath,
+      );
     }
   }
-} catch (e) { console.warn("[pi] SDK package.json 定制跳过（保持当前配置/只读环境）:", (e as Error).message); }
+} catch (e) { console.warn("[pi] SDK package.json 检测跳过（只读环境）:", (e as Error).message); }
 
 // 一次性迁移：旧布局 ~/.easymint/pi-agent/models-store.json → agent/（0.7.2 起 agentDir 统一）
 const LEGACY_PI_AGENT_STORE = path.join(EM_HOME, "pi-agent", "models-store.json");

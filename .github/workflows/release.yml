@@ -55,7 +55,10 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
-        run: npm run build:ci
+        # 未购买 Developer ID 证书时的分发签名：显式 ad-hoc。若不指定，electron-builder 在无证书的
+        # runner 上会直接跳过签名，产物没有 _CodeSignature，下载后 Gatekeeper 报「已损坏」（无法绕过）。
+        # 将来配了证书：删掉本行参数与上面的 CSC_IDENTITY_AUTO_DISCOVERY，改走正式签名 + 公证。
+        run: npm run build:ci -- -c.mac.identity=-
 
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
