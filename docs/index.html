@@ -3,297 +3,203 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EasyMint · 说清你想做什么，它在你的电脑上做出来</title>
-<meta name="description" content="EasyMint 是开源的桌面 AI 编程工作台：先把一句想法问成需求，做出能点开试用的原型，再写成真正跑得起来的代码。支持 macOS、Windows 与 Linux，项目与会话留在本机。">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#181818">
+<title>EasyMint · 让想法，在你的电脑上运行</title>
+<meta name="description" content="EasyMint 是开源的桌面 AI 编程工作台。从理清需求、预览原型到实现和运行，让没有编程经验的人也能参与软件创作。支持 macOS、Windows 和 Linux。">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="EasyMint">
-<meta property="og:title" content="EasyMint · 说清你想做什么，它在你的电脑上做出来">
-<meta property="og:description" content="开源的桌面 AI 编程工作台。不用会写代码，也能把一个想法做成能运行的项目。">
-<meta property="og:image" content="https://tianemon.github.io/EasyMint/assets/og.jpg">
+<meta property="og:title" content="EasyMint · 让想法，在你的电脑上运行">
+<meta property="og:description" content="从一句想法，到能亲手试用的作品。一个开源的桌面 AI 编程工作台。">
+<meta property="og:image" content="https://tianemon.github.io/EasyMint/assets/hero-workspace.png">
 <meta property="og:url" content="https://tianemon.github.io/EasyMint/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="assets/icon.png">
-<script>document.documentElement.classList.add('js')</script>
 <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 <a class="skip" href="#main">跳到正文</a>
-
 <header class="nav">
-  <div class="nav-inner">
-    <a class="brand" href="./">
-      <img src="assets/icon.png" width="26" height="26" alt="">
-      <span>EasyMint</span>
-    </a>
-    <nav class="nav-links" aria-label="页面导航">
-      <a href="#tour">效果</a>
-      <a href="#ability">能做什么</a>
-      <a href="#install">安装</a>
-      <a href="#faq">常见问题</a>
-    </nav>
-    <a class="btn btn-primary btn-sm" data-download href="https://github.com/tianemon/EasyMint/releases/latest">下载</a>
+  <div class="nav-inner wrap">
+    <a class="brand" href="./" aria-label="EasyMint 首页"><img src="assets/icon.png" width="32" height="32" alt=""><span>EasyMint<span class="brand-note">让想法生长</span></span></a>
+    <nav class="nav-links" aria-label="页面导航"><a href="#tour">产品体验</a><a href="#ability">自在创作</a><a href="#faq">常见问题</a><a href="https://github.com/tianemon/EasyMint">GitHub ↗</a></nav>
+    <a class="btn btn-dark btn-sm" href="#install">免费下载 <span aria-hidden="true">↓</span></a>
   </div>
 </header>
-
 <main id="main">
-
-  <section class="hero">
-    <p class="eyebrow">开源 · 桌面应用 · macOS / Windows / Linux</p>
-    <h1>说清你想做什么，<br>它在你的电脑上做出来。</h1>
-    <p class="lede">EasyMint 是一个桌面 AI 编程工作台。你先描述想法，它把需求问清楚、做出能点击的页面，再写成真正跑得起来的代码。<strong>不用会写代码。</strong></p>
-    <div class="actions">
-      <a class="btn btn-primary btn-lg" data-download data-label href="https://github.com/tianemon/EasyMint/releases/latest">下载 EasyMint</a>
-      <a class="btn btn-ghost btn-lg" href="#tour">看它怎么做</a>
-    </div>
-    <p class="fineprint"><span class="ver" data-version hidden></span>免费开源 · 无需注册 · 项目与对话留在本机</p>
-
-    <figure class="shot hero-shot reveal">
-      <img src="assets/shot-welcome.webp" width="1600" height="906" alt="EasyMint 启动后的首页：左侧是项目与会话，中间是「开始创造」和输入框" fetchpriority="high">
-      <figcaption>打开就是一句话的开始——想不清楚也没关系，它会一步步问。</figcaption>
-    </figure>
-  </section>
-
-  <section id="tour" class="section tour-section">
+<section class="hero wrap" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="seed" aria-hidden="true"></span> EasyMint · 开源的桌面 AI 编程工作台</p>
+    <h1 id="hero-title">让想法，<span class="ink-accent">真正运行起来。</span></h1>
+    <p class="hero-description">从需求、原型到实现和运行，和 Mint 一起把想法做成作品。</p>
+    <div class="actions"><a class="btn btn-primary btn-lg" href="#install">免费下载 EasyMint <span aria-hidden="true">↗</span></a><a class="btn btn-glass btn-lg" href="#tour">探索产品 <span aria-hidden="true">↓</span></a></div>
+  </div>
+  <div class="hero-visual">
+    <figure class="hero-result"><button class="hero-zoom" data-hero-zoom type="button" aria-label="放大 EasyMint 完整工作界面"><img src="assets/hero-workspace.png" width="2940" height="1666" alt="EasyMint 完整工作界面：左侧项目与会话，右侧显示照片墙项目的交付结果与输入框" fetchpriority="high"></button><figcaption><span><i class="result-dot" aria-hidden="true"></i> EasyMint 工作台</span></figcaption></figure>
+  </div>
+</section>
+<div class="promise-strip wrap"><p><span>01</span> 不用先学会写代码</p><p><span>02</span> 从需求一直做到运行</p><p><span>03</span> 项目和会话保存在本机</p><a href="https://github.com/tianemon/EasyMint">开源，让过程可见 <span aria-hidden="true">↗</span></a></div>
+  <section id="tour" class="section tour-section" aria-labelledby="tour-title">
     <div class="section-head tour-head">
-      <h2>它会带你走完整个过程</h2>
-      <p>从一句模糊的话，到能点开试用的页面，再到真正跑起来。点下面的圆点看每一步。</p>
+      <p class="section-kicker">从想法到运行</p><h2 id="tour-title">每往前一步，<br>都看得见结果。</h2>
+      <p>先把需求聊清楚，再看原型、做实现、检查和运行。<br class="desktop-break">你负责判断方向，Mint 帮你推进每一步。</p>
     </div>
 
     <div class="tour">
       <div class="tour-text">
-        <p class="tour-count"><span data-tour-index>01</span><span class="tour-sep">/</span>08</p>
+        <p class="tour-count">产品实拍 <span class="tour-sep">/</span> <span data-tour-index>01</span> — 08</p>
 
         <article class="tour-panel is-active" data-tour-panel>
-          <h3>四个问题，定下项目范围</h3>
-          <p>这是什么、给谁用、跑在哪、做成什么样。答案会变成项目范围，而不是聊天记录里的一段话。</p>
+          <h3>想法还模糊？<br>从几个选择开始。</h3>
+          <p>用途、功能、风格、交付方式，按顺序理清。没有完整方案，也能先选最接近的方向。</p>
           <ul class="ticks">
-            <li>每一步都能用现成选项开始</li>
-            <li>说不清的地方，让 Mint 先给一版再改</li>
+            <li>现成选项，让第一步更容易</li>
+            <li>拿不准的地方，继续和 Mint 商量</li>
+          </ul>
+          <button class="video-link" type="button" data-video>▷ 看 28 秒创建过程 <span aria-hidden="true">↗</span></button>
+        </article>
+
+        <article class="tour-panel" data-tour-panel>
+          <h3>喜欢什么风格，<br>看过再决定。</h3>
+          <p>把抽象的“简约一点”“有科技感”变成能直接比较的页面。网页和手机效果，都可以先看看。</p>
+          <ul class="ticks">
+            <li>15 套风格，以完整页面呈现</li>
+            <li>支持自定义描述，表达自己的偏好</li>
           </ul>
         </article>
 
         <article class="tour-panel" data-tour-panel>
-          <h3>先看到样子，再决定</h3>
-          <p>15 套界面风格，每一套都以完整页面呈现，可以切网页，也可以切手机版。</p>
+          <h3>先点开试试，<br>再让想法落地。</h3>
+          <p>界面类项目先做可交互的原型。布局、内容和操作合不合适，试过之后再推进正式实现。</p>
           <ul class="ticks">
-            <li>点开就是能滚动的真页面，不是效果图</li>
-            <li>不认识设计术语，也判断得出像不像</li>
+            <li>在本机预览，直接试用页面</li>
+            <li>哪里不合适，在对话里继续改</li>
           </ul>
         </article>
 
         <article class="tour-panel" data-tour-panel>
-          <h3>先给能点的原型</h3>
-          <p>界面类项目先出整套页面，试用确认之后再写正式实现，避免方向错了白做一遍。</p>
+          <h3>做到哪了，<br>不用一直追问。</h3>
+          <p>把大目标拆成具体任务，完成一项、确认一项。进度留在会话旁边，随时知道下一步做什么。</p>
           <ul class="ticks">
-            <li>原型就是本机链接，打开即用</li>
-            <li>改哪里、怎么改，直接在对话里说</li>
+            <li>任务状态和对话放在一起</li>
+            <li>临时想到的事，可以先记进待办</li>
           </ul>
         </article>
 
         <article class="tour-panel" data-tour-panel>
-          <h3>拆到能逐条验收</h3>
-          <p>每件事都拆成可勾选的条目，完成、进行中一眼看清；做不合格的会被退回重做。</p>
+          <h3>写完之后，<br>亲手运行看看。</h3>
+          <p>常用启动命令收进运行面板。打开预览、查看端口和日志，在同一个窗口里完成。</p>
           <ul class="ticks">
-            <li>任务清单排在会话旁边，不用问进度</li>
-            <li>想到的补充先记进待办，不会打断当前工作</li>
+            <li>重复使用的命令，一键启动</li>
+            <li>遇到报错，结合日志继续排查</li>
           </ul>
         </article>
 
         <article class="tour-panel" data-tour-panel>
-          <h3>点一下就运行</h3>
-          <p>启动项目、看端口、读日志都在同一个窗口里，不用另开终端，也不用记命令。</p>
+          <h3>有人动手，<br>也有人检查。</h3>
+          <p>Mint 统筹需求和任务，Builder 写实现，Evaluator 对照要求检查，Mint-D 负责界面原型。</p>
           <ul class="ticks">
-            <li>反复用的命令收进运行面板</li>
-            <li>日志带颜色，出错的位置一眼能找到</li>
+            <li>为不同工作分配不同角色</li>
+            <li>也可以配置自己的角色模板</li>
           </ul>
         </article>
 
         <article class="tour-panel" data-tour-panel>
-          <h3>几个角色分工</h3>
-          <p>Mint 统筹需求与任务，Builder 写实现，Evaluator 对照需求验收，Mint-D 出界面原型。</p>
+          <h3>之前怎么说的，<br>随时找回来。</h3>
+          <p>指令和提问按时间保留。想沿用之前的描述，找到那一条，填回输入框就能继续。</p>
           <ul class="ticks">
-            <li>谁负责哪一段、做到哪一步都能看见</li>
-            <li>也能新建自己的角色模板</li>
+            <li>按项目查看历史输入</li>
+            <li>复用原文，少打一遍字</li>
           </ul>
         </article>
 
         <article class="tour-panel" data-tour-panel>
-          <h3>说过的话都留着</h3>
-          <p>历史输入按时间排着这个项目里所有指令和提问，翻到那一条重发一遍就行，不用重新描述。</p>
+          <h3>重要的结论，<br>留在手边。</h3>
+          <p>把需要反复参考的内容钉成便签。对照需求、接着讨论时，不用再往上翻很长的聊天记录。</p>
           <ul class="ticks">
-            <li>带时间和上下文，一眼认出是哪一轮</li>
-            <li>点一下就把原文填回输入框</li>
+            <li>关键信息固定在会话旁边</li>
+            <li>随会话保存，下次接着看</li>
           </ul>
         </article>
 
-        <article class="tour-panel" data-tour-panel>
-          <h3>结论留在手边</h3>
-          <p>一轮做完，交付结论直接可读；重要内容还能钉成便签，固定在会话旁边。</p>
-          <ul class="ticks">
-            <li>过程默认收起，结论永远在最上面</li>
-            <li>便签随会话保存，下次打开还在</li>
-          </ul>
-        </article>
 
-    <div class="tour-dots" id="tourDots" aria-label="切换演示步骤">
-      <button class="dot is-active" type="button" aria-label="01 四个问题，定下项目范围" aria-current="true"><span></span></button>
-      <button class="dot" type="button" aria-label="02 先看到样子，再决定"><span></span></button>
-      <button class="dot" type="button" aria-label="03 先给能点的原型"><span></span></button>
-      <button class="dot" type="button" aria-label="04 拆到能逐条验收"><span></span></button>
-      <button class="dot" type="button" aria-label="05 点一下就运行"><span></span></button>
-      <button class="dot" type="button" aria-label="06 几个角色分工"><span></span></button>
-      <button class="dot" type="button" aria-label="07 说过的话都留着"><span></span></button>
-      <button class="dot" type="button" aria-label="08 结论留在手边"><span></span></button>
-    </div>
       </div>
 
-      <div class="tour-stage">
+      <div class="tour-stage"><button class="zoom-image" type="button" data-zoom aria-label="放大当前截图"></button>
         <div class="stack" id="tourStack">
-          <figure class="stack-card" data-pos="0"><img src="assets/tour-01-guide.webp" width="1240" height="729" alt="新建项目第一步：项目名称、存放路径、用途与目标平台"></figure>
-          <figure class="stack-card" data-pos="1"><img src="assets/tour-02-style.webp" width="1240" height="729" alt="UI 风格选择：左侧风格列表，右侧是完整页面预览"></figure>
-          <figure class="stack-card" data-pos="2"><img src="assets/tour-03-prototype.webp" width="1240" height="729" alt="应用内打开的可交互原型页面：多列照片墙"></figure>
-          <figure class="stack-card" data-pos="x"><img src="assets/tour-04-tasks.webp" width="1240" height="703" alt="会话旁的任务面板：五条任务标记完成"></figure>
-          <figure class="stack-card" data-pos="x"><img src="assets/tour-05-run.webp" width="1240" height="703" alt="运行面板：本地预览、打开页面与更新素材三条脚本"></figure>
-          <figure class="stack-card" data-pos="x"><img src="assets/tour-06-agents.webp" width="1240" height="729" alt="Agent 模板：Mint、Mint-D、Builder、Evaluator 四个角色的职责"></figure>
-          <figure class="stack-card" data-pos="x"><img src="assets/tour-08-history.webp" width="1240" height="703" alt="历史输入面板：右侧列出这个项目过去的指令与时间"></figure>
-          <figure class="stack-card" data-pos="-1"><img src="assets/tour-07-notes.webp" width="1240" height="729" alt="会话中把重要结论钉成悬浮便签"></figure>
+          <figure class="stack-card" data-pos="0"><img src="assets/tour-01-guide.png" width="2940" height="1666" alt="新建项目第一步：项目名称、存放路径、用途与目标平台" loading="lazy"></figure>
+          <figure class="stack-card" data-pos="1"><img src="assets/tour-02-style.png" width="2940" height="1666" alt="UI 风格选择：左侧风格列表，右侧是完整页面预览" loading="lazy"></figure>
+          <figure class="stack-card" data-pos="2"><img src="assets/tour-03-prototype.png" width="2940" height="1666" alt="照片墙项目在浏览器中的原型预览，包含完整浏览器窗口" loading="lazy"></figure>
+          <figure class="stack-card" data-pos="x"><div class="focus-shot" data-focus="tasks" style="--focus-x:0.54422%;--focus-y:28.45138%;--focus-w:19.31973%;--focus-h:61.34454%"><img src="assets/tour-04-tasks.png" width="2940" height="1666" alt="会话旁的任务面板：五条任务标记完成" loading="lazy"><span class="focus-region" aria-hidden="true"></span><span class="focus-label" aria-hidden="true">任务面板</span></div></figure>
+          <figure class="stack-card" data-pos="x"><div class="focus-shot" data-focus="run" style="--focus-x:0.54422%;--focus-y:28.45138%;--focus-w:19.31973%;--focus-h:61.34454%"><img src="assets/tour-05-run.png" width="2940" height="1666" alt="运行面板：本地预览、打开页面与更新素材三条脚本" loading="lazy"><span class="focus-region" aria-hidden="true"></span><span class="focus-label" aria-hidden="true">运行面板</span></div></figure>
+          <figure class="stack-card" data-pos="x"><img src="assets/tour-06-agents.png" width="2940" height="1666" alt="Agent 模板：Mint、Mint-D、Builder、Evaluator 四个角色的职责" loading="lazy"></figure>
+          <figure class="stack-card" data-pos="x"><div class="focus-shot" data-focus="history" style="--focus-x:79.59184%;--focus-y:0.00000%;--focus-w:20.40816%;--focus-h:100.00000%"><img src="assets/tour-08-history.png" width="2940" height="1666" alt="历史输入面板：右侧列出这个项目过去的指令与时间" loading="lazy"><span class="focus-region" aria-hidden="true"></span><span class="focus-label" aria-hidden="true">历史输入</span></div></figure>
+          <figure class="stack-card" data-pos="-1"><img src="assets/tour-07-notes.png" width="2940" height="1666" alt="会话中把重要结论钉成悬浮便签" loading="lazy"></figure>
         </div>
       </div>
     </div>
 
+    <div class="tour-controls">
+      <div class="tour-navigation">
+        <button class="arrow" type="button" data-tour-prev aria-label="上一张">←</button>
+            <div class="tour-dots" id="tourDots" aria-label="切换演示步骤">
+      <button class="dot is-active" type="button" aria-label="01 想法还模糊？从几个选择开始。" aria-current="true"><span></span></button>
+      <button class="dot" type="button" aria-label="02 喜欢什么风格，看过再决定。"><span></span></button>
+      <button class="dot" type="button" aria-label="03 先点开试试，再让想法落地。"><span></span></button>
+      <button class="dot" type="button" aria-label="04 做到哪了，不用一直追问。"><span></span></button>
+      <button class="dot" type="button" aria-label="05 写完之后，亲手运行看看。"><span></span></button>
+      <button class="dot" type="button" aria-label="06 有人动手，也有人检查。"><span></span></button>
+      <button class="dot" type="button" aria-label="07 之前怎么说的，随时找回来。"><span></span></button>
+      <button class="dot" type="button" aria-label="08 重要的结论，留在手边。"><span></span></button>
+    </div>
+        <button class="arrow" type="button" data-tour-next aria-label="下一张">→</button>
+      </div>
+    </div>
+    <p class="sr-only" data-tour-announcement aria-live="polite"></p>
   </section>
 
-  <section id="ability" class="section section-alt">
-    <div class="section-head">
-      <h2>它替你处理掉的那些麻烦</h2>
-      <p>没有一句是需要你先学会才用得上的。</p>
-    </div>
-    <div class="abilities">
-      <div class="ability reveal">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M17.5 13.5l1.8 1.8 3.2-3.6"/></svg>
-        <h3>把想法问成需求</h3>
-        <p>四步问答加随时追问，最后落成一份能施工的范围：功能、风格、完成度、预算。</p>
-      </div>
-      <div class="ability reveal">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v3M15 3v3M5 9h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V10a1 1 0 011-1z"/><path d="M9 14l2 2 4-4"/></svg>
-        <h3>先给能点的原型</h3>
-        <p>界面类项目先出整套页面，点开就能试用。确认过再写正式实现，避免白做一遍。</p>
-      </div>
-      <div class="ability reveal">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15 15.4c3 0 5 1.8 5 4.1"/></svg>
-        <h3>几个 AI 分工干活</h3>
-        <p>实现、验收、设计、调研各有人负责，不是让一个角色什么都干。谁做的、做到哪一步都能看见。</p>
-      </div>
-      <div class="ability reveal">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg>
-        <h3>进度一直看得见</h3>
-        <p>任务清单、待办、运行面板就排在对话旁边。它做到哪、卡在哪，不用靠猜。</p>
-      </div>
-      <div class="ability reveal">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-        <h3>默认关在沙盒里</h3>
-        <p>只读、标准、完全访问三档权限。默认档跑在系统沙盒内，写文件、读凭据都要过边界。</p>
-      </div>
-      <div class="ability reveal">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 5h3M11 18.5h2"/></svg>
-        <h3>手机上接着盯</h3>
-        <p>扫个码连上同一局域网里的电脑，就能远程发消息、看进度。项目仍在电脑上。</p>
-      </div>
-    </div>
-  </section>
 
-  <section id="install" class="section section-alt">
-    <div class="section-head">
-      <h2>装好它，三步</h2>
-      <p>下载包都在 GitHub Releases，选你的系统即可。</p>
+<section id="ability" class="section freedom-section">
+  <div class="wrap freedom-grid">
+    <div class="freedom-intro"><p class="section-kicker">你的工作台，你来选择</p><h2>创作的节奏，<br>留给自己。</h2><p>模型怎么选、项目放在哪、AI 能做什么，<br>都可以按自己的需要安排。</p><a class="text-link" href="https://github.com/tianemon/EasyMint#readme">查看完整功能说明 ↗</a></div>
+    <div class="freedom-items">
+      <article><span class="item-number">01 / MODEL</span><h3>用你习惯的 AI</h3><p>连接支持的供应商账号或 API Key，为不同任务选择模型。EasyMint 免费，模型使用按供应商规则计费。</p></article>
+      <article><span class="item-number">02 / LOCAL</span><h3>作品留在自己的电脑上</h3><p>代码、项目文件和会话保存在本地。AI 请求会把相关上下文发送给你选择的供应商。</p></article>
+      <article><span class="item-number">03 / CONTROL</span><h3>按任务决定权限</h3><p>只读、标准、完全访问三档权限。日常开发使用标准模式，命令在系统沙盒内执行。</p></article>
+      <article><span class="item-number">04 / CONNECT</span><h3>离开桌面，也能接着看</h3><p>手机与电脑连在同一局域网，扫码配对后，就能发消息、查看思考和工具调用，跟进任务进度。</p></article>
     </div>
-
-    <div class="install-grid">
-      <article class="install-step reveal">
-        <h3><span class="badge">1</span>下载并安装</h3>
-        <p>macOS 用 <code>.dmg</code>，Windows 用 <code>.exe</code> 安装版（也有免安装的便携版），Linux 用 <code>.AppImage</code> 或 <code>.deb</code>。</p>
-        <p class="systems">
-          <a data-os="mac" href="https://github.com/tianemon/EasyMint/releases/latest">macOS（Apple 芯片）</a>
-          <a data-os="win" href="https://github.com/tianemon/EasyMint/releases/latest">Windows x64</a>
-          <a data-os="linux" href="https://github.com/tianemon/EasyMint/releases/latest">Linux x64</a>
-        </p>
-      </article>
-
-      <article class="install-step reveal">
-        <h3><span class="badge">2</span>macOS 首次打开要放行一次</h3>
-        <p>安装包没有 Apple 开发者签名，系统会拦一次。点「完成」，不要点「移到废纸篓」，然后任选一种方式放行：</p>
-        <div class="cmd">
-          <code>sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app</code>
-          <button class="copy" data-copy="sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app" aria-label="复制命令">复制</button>
-        </div>
-        <p class="fine">或者在「系统设置 → 隐私与安全性」里点「仍要打开」。手动下载的新安装包需要再放行一次；应用内自动更新不需要。Windows 若提示 SmartScreen，点「更多信息 → 仍要运行」。</p>
-      </article>
-
-      <article class="install-step reveal">
-        <h3><span class="badge">3</span>接上 AI 供应商</h3>
-        <p>按引导配置即可：可以用订阅账号登录（Anthropic、OpenAI Codex、GitHub Copilot 等），也可以填任意兼容接口的 API Key。EasyMint 本身不需要注册账号。</p>
-        <p class="fine">对话按供应商规则计费；凭据只存在你自己的电脑上。</p>
-      </article>
-    </div>
-  </section>
-
-  <section id="faq" class="section">
-    <div class="section-head">
-      <h2>常有人问</h2>
-    </div>
-    <div class="faq">
-      <details>
-        <summary>完全不会写代码，能用吗？</summary>
-        <p>能。整个流程是按「先做选择、再逐项修改」设计的：你描述想要什么，判断做出来的东西对不对，不需要写提示词，也不需要看懂代码。当然，愿意看代码随时能看、能改。</p>
-      </details>
-      <details>
-        <summary>没有 API Key 也能用吗？</summary>
-        <p>可以。Anthropic、OpenAI Codex、GitHub Copilot、OpenRouter、Kimi、xAI 等支持在应用内用浏览器登录授权，用现有订阅即可；其余供应商填 API Key。</p>
-      </details>
-      <details>
-        <summary>要花钱吗？</summary>
-        <p>EasyMint 本身开源免费（MIT）。模型调用按你选择的供应商计费，应用内不额外收费。</p>
-      </details>
-      <details>
-        <summary>我的文件会被上传吗？</summary>
-        <p>项目文件和对话都存在你本机的 <code>~/.easymint/</code> 与项目目录里，EasyMint 没有账号系统、没有遥测。只有你发起的 AI 请求会带着相关上下文发给所选供应商，适用对方的隐私政策。</p>
-      </details>
-      <details>
-        <summary>支持哪些系统？</summary>
-        <p>macOS（Apple 芯片）、Windows x64、Linux x64。手机端可以连同一局域网内的电脑远程使用，项目和会话仍留在电脑上。</p>
-      </details>
-      <details>
-        <summary>和编辑器里的 AI 补全有什么不同？</summary>
-        <p>它不是补全插件，而是一整套从需求、原型到运行的工作台：有项目定义、任务拆解、多角色协作、运行面板和权限边界。如果你只要代码补全，别的工具可能更轻便。</p>
-      </details>
-      <details>
-        <summary>装了以后怎么更新？</summary>
-        <p>应用内自动更新，不需要重新下载、也不需要再放行。手动下载新安装包时才需要重新处理一次隔离标记。</p>
-      </details>
-    </div>
-  </section>
-
-</main>
-
-<footer class="foot">
-  <div class="foot-inner">
-    <div class="foot-brand">
-      <img src="assets/icon.png" width="24" height="24" alt="">
-      <span>EasyMint</span>
-      <span class="dot">·</span>
-      <span class="muted">MIT 许可 · 开源</span>
-    </div>
-    <nav class="foot-links" aria-label="相关链接">
-      <a href="https://github.com/tianemon/EasyMint">GitHub</a>
-      <a href="https://gitee.com/tianemon/easymint">Gitee 镜像</a>
-      <a href="https://github.com/tianemon/EasyMint/blob/main/CHANGELOG.md">更新日志</a>
-      <a href="https://github.com/tianemon/EasyMint/blob/main/PRIVACY.md">隐私说明</a>
-      <a href="https://github.com/tianemon/EasyMintMobile">手机端</a>
-    </nav>
   </div>
-  <p class="foot-note">功能细节与实现说明在仓库的 README 里；这一页只负责让你先看清它是什么。</p>
-</footer>
-
+</section>
+<section id="install" class="section install-section">
+  <div class="wrap install-layout">
+    <div class="install-intro"><p class="section-kicker">开始你的第一个项目</p><h2>下一步，<br>试试你的想法。</h2><p>下载桌面应用，接上 AI 供应商，<br>从一句“我想做……”开始。</p><span class="version-label" data-version hidden></span><p class="install-cost">MIT 开源 · 应用免费 · 模型费用另计</p></div>
+    <div class="install-content">
+      <div class="download-list" aria-label="选择安装包">
+        <a data-os="mac" href="https://github.com/tianemon/EasyMint/releases/latest"><span class="os-symbol" aria-hidden="true">⌘</span><span><strong>macOS</strong><small>Apple 芯片 · DMG 安装包</small></span><span class="download-arrow" aria-hidden="true">↓</span></a>
+        <a data-os="win" href="https://github.com/tianemon/EasyMint/releases/latest"><span class="os-symbol" aria-hidden="true">⊞</span><span><strong>Windows</strong><small>x64 · 安装版，另有便携版</small></span><span class="download-arrow" aria-hidden="true">↓</span></a>
+        <a data-os="linux" href="https://github.com/tianemon/EasyMint/releases/latest"><span class="os-symbol linux-symbol" aria-hidden="true">&gt;_</span><span><strong>Linux</strong><small>x64 · AppImage，另有 DEB / TAR.GZ</small></span><span class="download-arrow" aria-hidden="true">↓</span></a>
+      </div>
+      <p class="download-fallback">安装包来自 GitHub Releases。<a href="https://github.com/tianemon/EasyMint/releases/latest">查看全部下载 ↗</a></p>
+      <details class="install-help"><summary>macOS 首次打开被拦截？</summary><p>当前安装包未经 Apple 开发者签名及公证。确认来源可信后，可在「系统设置 → 隐私与安全性」中选择「仍要打开」。也可以安装到「应用程序」后，在终端执行：</p><div class="cmd"><code>sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app</code><button class="copy" type="button" data-copy="sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app" aria-label="复制 macOS 放行命令">复制</button></div><p>输入登录密码后再打开。此命令只清除 EasyMint 的隔离标记；每次手动下载新安装包需要重新处理。</p></details>
+      <p class="setup-note"><strong>安装好以后</strong> 按引导连接支持的 AI 账号或填写 API Key，再新建项目。Windows 若出现 SmartScreen 提示，确认来源后可选「更多信息 → 仍要运行」；Linux AppImage 首次运行需要执行 <code>chmod +x</code>。</p>
+    </div>
+  </div>
+</section>
+<section id="faq" class="section faq-section wrap">
+  <div class="section-head"><div><p class="section-kicker">开始之前</p><h2>你可能还想知道。</h2></div><p>少一点顾虑，<br>多一点动手的兴致。</p></div>
+  <div class="faq">
+    <details><summary>没有编程经验，也能开始吗？</summary><p>可以从描述想法、选择用途和界面风格开始，再通过对话逐步修改。AI 帮你实现，你仍需要试用结果、判断是否符合需求。复杂项目也需要反复检查和调整。</p></details>
+    <details><summary>EasyMint 免费，为什么还需要 AI 账号？</summary><p>EasyMint 是免费开源的工作台，模型能力由你连接的供应商提供。模型调用按对方规则计费，EasyMint 不另收应用使用费。支持的账号授权方式和 API Key 配置见仓库 README。</p></details>
+    <details><summary>我的项目和对话会发到哪里？</summary><p>项目文件和会话保存在本机，EasyMint 没有账号系统或遥测。发起 AI 请求时，相关消息、读取的文件和工具输出等上下文会发送给所选供应商，适用对方的数据政策。<a href="https://github.com/tianemon/EasyMint/blob/main/PRIVACY.md">查看隐私说明 ↗</a></p></details>
+    <details><summary>可以连接自己常用的模型吗？</summary><p>可以使用内置的供应商配置，也支持 OpenAI 或 Anthropic 兼容接口。部分供应商提供浏览器授权登录，其他供应商使用 API Key；具体可用方式以应用中的供应商选项为准。</p></details>
+    <details><summary>下载之后，怎么收到新版本？</summary><p>应用内支持检查、下载并安装更新；也可以到 GitHub Releases 手动下载。手动替换 macOS 安装包后，可能需要再次处理首次打开提示。</p></details>
+  </div>
+</section>
+<section class="closing wrap"><img src="assets/icon.png" width="56" height="56" alt=""><div><p>让下一个“要是有个工具就好了”，</p><h2>成为你做出来的那个。</h2></div><a class="btn btn-primary btn-lg" href="#install">开始创造 <span aria-hidden="true">↗</span></a></section>
+</main>
+<footer class="foot"><div class="wrap foot-inner"><a class="brand" href="./">EasyMint<span class="footer-license">开源 · MIT</span></a><nav class="foot-links" aria-label="相关链接"><a href="https://github.com/tianemon/EasyMint">GitHub ↗</a><a href="https://gitee.com/tianemon/easymint">Gitee ↗</a><a href="https://github.com/tianemon/EasyMint/blob/main/CHANGELOG.md">更新日志</a><a href="https://github.com/tianemon/EasyMint/blob/main/PRIVACY.md">隐私说明</a><a href="https://github.com/tianemon/EasyMintMobile">手机端</a></nav></div></footer>
+<dialog class="image-dialog" aria-label="产品截图大图"><button class="dialog-close" type="button" aria-label="关闭大图">关闭 ×</button><div class="dialog-stage"></div><p></p></dialog>
+<dialog class="video-dialog" aria-label="创建项目的原始操作录屏"><button class="dialog-close" type="button" aria-label="关闭视频">关闭 ×</button><video controls muted playsinline preload="none" poster="assets/tour-01-guide.png" data-source="assets/create-project-original.mp4" aria-label="28 秒创建项目操作录屏"></video><p>创建项目 · 原始录屏 · 2940 × 1912 · 约 28 秒</p></dialog>
 <script src="assets/site.js" defer></script>
 </body>
 </html>
