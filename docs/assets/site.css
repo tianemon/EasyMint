@@ -226,20 +226,29 @@ main { display: block; }
 .stack-card[data-pos="-1"] { transform: translate3d(-2.4%, 2.6%, 0) rotate(-3.6deg) scale(.972); opacity: 0; z-index: 6; }
 .stack-card[data-pos="x"] { transform: translate3d(0, 6%, 0) rotate(0deg) scale(.88); opacity: 0; z-index: 1; }
 
-.tour-dots { grid-row: 3; grid-column: 1; display: flex; justify-content: flex-start; gap: 6px; margin-top: 26px; padding: 0; }
-.dot {
+.tour-dots { grid-row: 3; grid-column: 1; display: flex; justify-content: flex-start; gap: 2px; margin-top: 26px; padding: 0; }
+.tour-dots .dot {
   display: grid; place-items: center;
-  width: 30px; height: 30px; padding: 0; border: 0; background: none; cursor: pointer;
+  width: 24px; height: 28px; padding: 0; border: 0; background: none; cursor: pointer;
 }
-.dot span {
-  display: block; width: 7px; height: 7px; border-radius: 999px;
+.tour-dots .dot span {
+  position: relative; display: block; overflow: hidden;
+  width: 7px; height: 7px; border-radius: 999px;
   background: var(--line-strong);
   transition: width .38s cubic-bezier(.22, 1, .36, 1), background .28s ease;
 }
-.dot:hover span { background: var(--faint); }
-.dot.is-active span { width: 26px; background: var(--accent); }
-.dot:focus-visible { outline: none; }
-.dot:focus-visible span { box-shadow: 0 0 0 3px var(--accent-soft); }
+.tour-dots .dot span i {
+  position: absolute; inset: 0; border-radius: inherit;
+  background: var(--accent);
+  transform: scaleX(0); transform-origin: left center;
+}
+.tour-dots .dot:hover span { background: var(--faint); }
+.tour-dots .dot.is-active span { width: 28px; background: var(--line-strong); }
+.tour-dots .dot.is-active span i { animation: dotFill var(--auto-ms, 6500ms) linear forwards; }
+.tour-dots.is-paused .dot.is-active span i { animation-play-state: paused; }
+@keyframes dotFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.tour-dots .dot:focus-visible { outline: none; }
+.tour-dots .dot:focus-visible span { box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ---------- abilities ---------- *//* ---------- abilities ---------- */
 
@@ -336,6 +345,7 @@ html.js .reveal.in { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .tour-dots .dot.is-active span i { animation: none; transform: scaleX(1); }
   html.js .reveal { opacity: 1; transform: none; transition: none; }
   .btn { transition: none; }
 }

@@ -124,12 +124,23 @@
     var section = document.getElementById('tour');
     if (!stack || !dots || !section) return;
 
+    var AUTO_MS = 6500;
     var cards = Array.prototype.slice.call(stack.querySelectorAll('.stack-card'));
     var panels = Array.prototype.slice.call(section.querySelectorAll('[data-tour-panel]'));
     var dotButtons = Array.prototype.slice.call(dots.querySelectorAll('.dot'));
     var counter = section.querySelector('[data-tour-index]');
     var total = cards.length;
     var current = 0;
+    var timer = null;
+    var paused = false;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    dots.style.setProperty('--auto-ms', AUTO_MS + 'ms');
+
+    dotButtons.forEach(function (dot) {
+      var span = dot.querySelector('span');
+      if (span && !span.querySelector('i')) span.appendChild(document.createElement('i'));
+    });
 
     function render(next) {
       current = (next + total) % total;
@@ -158,38 +169,98 @@
       if (counter) counter.textContent = ('0' + (current + 1)).slice(-2);
     }
 
+    function restartProgress() {
+      var bar = dotButtons[current] && dotButtons[current].querySelector('i');
+      if (!bar) return;
+      bar.style.animation = 'none';
+      void bar.offsetWidth;
+      bar.style.animation = '';
+    }
+
+    function schedule() {
+      clearTimeout(timer);
+      if (paused || (reduce && reduce.matches)) return;
+      timer = setTimeout(function () {
+        render(current + 1);
+        schedule();
+      }, AUTO_MS);
+    }
+
+    function pause() {
+      if (paused) return;
+      paused = true;
+      clearTimeout(timer);
+      dots.classList.add('is-paused');
+    }
+
+    function resume() {
+      if (!paused) return;
+      paused = false;
+      dots.classList.remove('is-paused');
+      restartProgress();
+      schedule();
+    }
+
+    function goto(next) {
+      render(next);
+      if (!paused) {
+        dots.classList.remove('is-paused');
+        restartProgress();
+        schedule();
+      }
+    }
+
     dots.addEventListener('click', function (event) {
       var button = event.target.closest('.dot');
       if (!button) return;
-      render(dotButtons.indexOf(button));
+      goto(dotButtons.indexOf(button));
     });
 
     dots.addEventListener('keydown', function (event) {
       if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
       event.preventDefault();
-      var step = event.key === 'ArrowRight' ? 1 : -1;
-      render(current + step);
+      goto(current + (event.key === 'ArrowRight' ? 1 : -1));
       dotButtons[current].focus();
     });
 
     var startX = null;
     var stage = section.querySelector('.tour-stage');
-    stage.addEventListener('pointerdown', function (event) {
-      startX = event.clientX;
-    });
+    stage.addEventListener('pointerdown', function (event) { startX = event.clientX; });
     stage.addEventListener('pointerup', function (event) {
       if (startX === null) return;
       var delta = event.clientX - startX;
       startX = null;
       if (Math.abs(delta) < 48) return;
-      render(current + (delta < 0 ? 1 : -1));
+      goto(current + (delta < 0 ? 1 : -1));
     });
     stage.addEventListener('pointercancel', function () { startX = null; });
 
+    section.addEventListener('pointerenter', pause);
+    section.addEventListener('pointerleave', resume);
+    section.addEventListener('focusin', pause);
+    section.addEventListener('focusout', function (event) {
+      if (!section.contains(event.relatedTarget)) resume();
+    });
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) pause(); else resume();
+    });
+
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) { if (!section.matches(':hover')) resume(); }
+          else pause();
+        });
+      }, { threshold: 0.35 });
+      io.observe(section);
+    }
+
     render(0);
+    schedule();
   }
 
-  loadRelease();
+  loadRelease();  loadRelease();
   initCopy();
   initReveal();
   initTour();
