@@ -106,7 +106,7 @@
 
 建议展示分区为产品风格、组件、业务区块、展示动效、图形/字体素材。一个资产可带多个用途标签，但动效场景不能自动晋升为整套 UI。每项记录来源、版本、许可、平台、预览、可安装状态、性能档位及依赖大小；未取得源码的参考只能展示为参考，不能显示“直接使用”。
 
-研究资料当前在被 Git 忽略的 docs/ 中。清单可以进入版本管理，但别的开发机不会自动获得这些本地资料。正式入库时应按来源与许可逐项转入正式资源目录，保留归属，不把整套动效依赖或品牌素材全量塞进应用。
+研究资料当前在被 Git 忽略的 private_docs/ 中（原 docs/，2026-10-26 改名）。清单可以进入版本管理，但别的开发机不会自动获得这些本地资料。正式入库时应按来源与许可逐项转入正式资源目录，保留归属，不把整套动效依赖或品牌素材全量塞进应用。
 
 ## 2026-10-24：产品场景总览
 
@@ -133,7 +133,7 @@
 
 动效首批接入原研究库的平面矢量、包豪斯几何，按需载入且手动播放，不伪装为组件模板。归档的其余 13 项没有随运行包引入。源码、修改记录与 MIT 许可位于 assets/design-motion；字体使用系统回退，包豪斯照片纹理改为确定性程序纹理。另有原创轻量 CSS 风格动效，支持暂停及 reduced-motion。
 
-重建检查页面：`node scripts/preview-visual-showcases.mjs`。输出为 docs/design/ui-showcases-2026-10-24/，不参与应用运行；正式实现不依赖 docs 研究目录。
+重建检查页面：`node scripts/preview-visual-showcases.mjs`。输出为 private_docs/design/ui-showcases-2026-10-24/，不参与应用运行；正式实现不依赖 private_docs 研究目录。
 
 ## 2026-10-24：玻璃材质专项修订
 
@@ -168,4 +168,4 @@
 
 新项目交付双端场景、完整样式与交互、scene-contract.json 和 DESIGN.md。Mint 的主/设计子会话与 ui-aesthetic 内置规范已加强“读实际源码 → 复用成熟实现 → 同条件小样对照 → 保留认可基线 → 实际渲染验收”的流程。旧项目无场景文件时仍走兼容起点，用户编辑的场景不被静默替换。
 
-检查页面：运行 node scripts/preview-visual-showcases.mjs，打开 docs/design/ui-showcases-2026-10-24/review.html。索引使用真实页面截图，点击进入实时场景，避免同时维持17个实时渲染器。此次逐页检查 Web 900×700、移动端390×780；记录在 scene-validation.json。
+检查页面：运行 node scripts/preview-visual-showcases.mjs，打开 private_docs/design/ui-showcases-2026-10-24/review.html。索引使用真实页面截图，点击进入实时场景，避免同时维持17个实时渲染器。此次逐页检查 Web 900×700、移动端390×780；记录在 scene-validation.json。

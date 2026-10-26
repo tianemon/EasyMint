@@ -19,12 +19,15 @@ task-*.png
 !assets/appicon-*.png
 **/.DS_Store
 !assets/screenshots/*.png
+!docs/**/*.png
 .easymint/
 .workbuddy/
 prototype/
 
-# 本地开发文档与数据(不开源):docs 含开发记录/设计思路/本地路径,
+# 私有文档与数据(不开源):private_docs 含开发记录/设计思路/本机路径,
+# 2026-10-26 由 docs/ 改名。docs/ 自本次起改为**公开**目录(官网页面与公共素材),进仓库;
+# 私有内容一律不进 docs/,放 private_docs/。
 # task.json 为运行数据,.npmrc 为本地 npm 源配置(CI 用 env 覆盖官方源,不受影响)
-docs/
+private_docs/
 task.json
 .npmrc

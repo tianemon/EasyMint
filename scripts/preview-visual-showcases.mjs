@@ -7,7 +7,7 @@ const {createVisualSpec,STYLE_PRESETS,renderVisualDocument,VISUAL_STYLE_FILES,sh
 const runtimePath=path.join(root,'resources/visual-design/runtime.js'),runtimeMarker='/* EasyMint scene runtime */',currentRuntime=fs.readFileSync(runtimePath,'utf8');
 const runtime=(currentRuntime.includes(runtimeMarker)?currentRuntime.slice(0,currentRuntime.indexOf(runtimeMarker)):currentRuntime+'\n')+showcaseRuntimeSource();fs.writeFileSync(runtimePath,runtime);
 const assets={css:VISUAL_STYLE_FILES.map(file=>fs.readFileSync(path.join(root,'resources/visual-design',file),'utf8')).join('\n'),runtime};
-const dir=path.join(root,'docs/design/ui-showcases-2026-10-24');fs.mkdirSync(dir,{recursive:true});
+const dir=path.join(root,'private_docs/design/ui-showcases-2026-10-24');fs.mkdirSync(dir,{recursive:true});
 for(const {id} of STYLE_PRESETS){const old=path.join(dir,`${id}-motion.html`);if(fs.existsSync(old))fs.unlinkSync(old);}
 for(const {id} of STYLE_PRESETS)for(const device of ['web','mobile']){const old=path.join(dir,`${id}-${device}-motion.html`);if(fs.existsSync(old))fs.unlinkSync(old);}
 for(const {id} of STYLE_PRESETS)for(const device of ['web','mobile']){

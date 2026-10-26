@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 const root=path.resolve(import.meta.dirname,'..');
-const source=path.join(root,'docs/design/ui-curation-2026-10-23/motion/vendor/demos/22-hud/assets/land-50m.json');
+const source=path.join(root,'private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/22-hud/assets/land-50m.json');
 const raw=fs.readFileSync(source),topology=JSON.parse(raw),{scale,translate}=topology.transform;
 const arcs=topology.arcs.map(arc=>{let x=0,y=0;return arc.map(([dx,dy])=>{x+=dx;y+=dy;return [x*scale[0]+translate[0],y*scale[1]+translate[1]];});});
 const distance=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],q=dx*dx+dy*dy,t=q?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/q)):0;return (p[0]-a[0]-t*dx)**2+(p[1]-a[1]-t*dy)**2;};

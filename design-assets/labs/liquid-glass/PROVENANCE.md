@@ -4,7 +4,7 @@
 
 ## 运行
 
-在仓库根目录执行 `node scripts/preview-glass-comparison.mjs`。生成目录为 `docs/design/liquid-glass-comparison-2026-10-24/`；通过已有本地 HTTP 服务打开该目录的 `index.html`。生成页面及资源均可离线运行。
+在仓库根目录执行 `node scripts/preview-glass-comparison.mjs`。生成目录为 `private_docs/design/liquid-glass-comparison-2026-10-24/`；通过已有本地 HTTP 服务打开该目录的 `index.html`。生成页面及资源均可离线运行。
 
 ## A：固定的本地基线
 

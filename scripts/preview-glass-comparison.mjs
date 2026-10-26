@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { build } from 'esbuild';
 const root = path.resolve(import.meta.dirname, '..');
 const source = path.join(root, 'design-assets/labs/liquid-glass');
-const out = path.join(root, 'docs/design/liquid-glass-comparison-2026-10-24');
+const out = path.join(root, 'private_docs/design/liquid-glass-comparison-2026-10-24');
 fs.mkdirSync(out, { recursive: true });
 await build({ entryPoints: [path.join(source, 'app.tsx')], bundle: true, outfile: path.join(out, 'lab.js'), platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.html': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, minify: true, legalComments: 'eof' });
 fs.copyFileSync(path.join(source, 'PROVENANCE.md'), path.join(out, 'PROVENANCE.md'));

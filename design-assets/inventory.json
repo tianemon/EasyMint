@@ -26,7 +26,7 @@
         ],
         "density": "spacious",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/minimalism-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/minimalism-dashboard.html",
         "scene": "journal",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -53,7 +53,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/flat-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/flat-dashboard.html",
         "scene": "shop",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -80,7 +80,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/material-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/material-dashboard.html",
         "scene": "community",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -107,7 +107,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/glass-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/glass-dashboard.html",
         "scene": "glass-workspace",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -134,7 +134,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/neumorphism-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/neumorphism-dashboard.html",
         "scene": "audio-console",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -161,7 +161,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/skeuomorphism-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/skeuomorphism-dashboard.html",
         "scene": "planner",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -188,7 +188,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/liquid-glass-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/liquid-glass-dashboard.html",
         "scene": "ios-music",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -215,7 +215,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/claymorphism-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/claymorphism-dashboard.html",
         "scene": "habit-garden",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -242,7 +242,7 @@
         ],
         "density": "compact",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/business-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/business-dashboard.html",
         "scene": "operations",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -269,7 +269,7 @@
         ],
         "density": "spacious",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/luxury-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/luxury-dashboard.html",
         "scene": "atelier",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -296,7 +296,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/bento-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/bento-dashboard.html",
         "scene": "dayboard",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -323,7 +323,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/colorful-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/colorful-dashboard.html",
         "scene": "learning",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -350,7 +350,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/retro-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/retro-dashboard.html",
         "scene": "festival",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -377,7 +377,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/soft-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/soft-dashboard.html",
         "scene": "breathing",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -404,7 +404,7 @@
         ],
         "density": "spacious",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/editorial-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/editorial-dashboard.html",
         "scene": "edition",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -431,7 +431,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/dark-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/dark-dashboard.html",
         "scene": "studio",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -458,7 +458,7 @@
         ],
         "density": "comfortable",
         "frameworkPackage": false,
-        "preview": "docs/design/ui-curation-2026-10-23/current/tech-dashboard.html",
+        "preview": "private_docs/design/ui-curation-2026-10-23/current/tech-dashboard.html",
         "scene": "mission",
         "picker": "complete-scene-only",
         "recipeRolesPurpose": "Legacy token/native compatibility, not a required component catalogue"
@@ -1294,8 +1294,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/05-cel-boil",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/05-cel-boil",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1311,8 +1311,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/03-isometric",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/03-isometric",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1328,8 +1328,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/01-flat-vector",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/01-flat-vector",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1345,8 +1345,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/02-line-art",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/02-line-art",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1362,8 +1362,8 @@
       "status": "independent-reconstruction",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/soft-3d.js",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/soft-3d.js",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1379,8 +1379,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/08-morph",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/08-morph",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1396,8 +1396,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/19-paperclip",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/19-paperclip",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1413,8 +1413,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/22-hud",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/22-hud",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1430,8 +1430,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/06-collage",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/06-collage",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1447,8 +1447,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/12-aurora-glass",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/12-aurora-glass",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1464,8 +1464,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/09-bauhaus",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/09-bauhaus",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1481,8 +1481,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/10-synthwave",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/10-synthwave",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1498,8 +1498,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/20-pixel",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/20-pixel",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1515,8 +1515,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/07-liquid",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/07-liquid",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1532,8 +1532,8 @@
       "status": "adapted-upstream-runtime",
       "origin": "https://github.com/Vincentwei1021/mg-styles-15",
       "revision": "49052d80bfaf9fa8412cc9710530e5e95a3b8d8c",
-      "sourcePath": "docs/design/ui-curation-2026-10-23/motion/vendor/demos/18-hanazi",
-      "preview": "docs/design/ui-curation-2026-10-23/motion/index.html",
+      "sourcePath": "private_docs/design/ui-curation-2026-10-23/motion/vendor/demos/18-hanazi",
+      "preview": "private_docs/design/ui-curation-2026-10-23/motion/index.html",
       "productTemplate": false,
       "license": {
         "sceneCode": "Upstream MIT; reconstruction authored locally",
@@ -1548,8 +1548,8 @@
       "name": "分析工作台",
       "type": "scenario-study",
       "sources": [
-        "docs/design/ui-curation-2026-10-23/showroom.js",
-        "docs/design/ui-curation-2026-10-23/showroom.css"
+        "private_docs/design/ui-curation-2026-10-23/showroom.js",
+        "private_docs/design/ui-curation-2026-10-23/showroom.css"
       ],
       "upstreamSourceStatus": "Original Margin dashboard source not obtained",
       "status": "local-study-not-approved-template"
@@ -1559,8 +1559,8 @@
       "name": "插画店铺",
       "type": "scenario-study",
       "sources": [
-        "docs/design/ui-curation-2026-10-23/showroom.js",
-        "docs/design/ui-curation-2026-10-23/showroom.css"
+        "private_docs/design/ui-curation-2026-10-23/showroom.js",
+        "private_docs/design/ui-curation-2026-10-23/showroom.css"
       ],
       "status": "local-study-not-approved-template"
     },
@@ -1569,8 +1569,8 @@
       "name": "玻璃收纳",
       "type": "interaction-component-study",
       "sources": [
-        "docs/design/ui-curation-2026-10-23/folder-study.js",
-        "docs/design/ui-curation-2026-10-23/folder-study.css"
+        "private_docs/design/ui-curation-2026-10-23/folder-study.js",
+        "private_docs/design/ui-curation-2026-10-23/folder-study.css"
       ],
       "status": "independently-authored-study-user-accepted-as-example-only",
       "notes": "Not the original 21st component. Rectangular edge fix included. Not accepted as a polished built-in template."
@@ -1580,8 +1580,8 @@
       "name": "CSS 玻璃材质",
       "type": "material-study",
       "sources": [
-        "docs/design/ui-curation-2026-10-23/showroom.js",
-        "docs/design/ui-curation-2026-10-23/showroom.css"
+        "private_docs/design/ui-curation-2026-10-23/showroom.js",
+        "private_docs/design/ui-curation-2026-10-23/showroom.css"
       ],
       "status": "CSS-approximation-not-optical-refraction"
     }
@@ -1589,24 +1589,24 @@
   "externalCandidates": [
     {
       "id": "react-bits-folder",
-      "source": "docs/reference/react-bits-folder/manifest.json",
+      "source": "private_docs/reference/react-bits-folder/manifest.json",
       "status": "source-archived-research-only",
       "licenseAtArchivedRevision": "MIT + Commons Clause; do not treat as unrestricted component redistribution"
     },
     {
       "id": "21st-glass-folder",
-      "sourceNotes": "docs/design/ui-curation-2026-10-23/folder-sources.md",
+      "sourceNotes": "private_docs/design/ui-curation-2026-10-23/folder-sources.md",
       "status": "preview-found-complete-source-not-acquired"
     },
     {
       "id": "lightswind-glass-folder",
-      "sourceNotes": "docs/design/ui-curation-2026-10-23/folder-sources.md",
+      "sourceNotes": "private_docs/design/ui-curation-2026-10-23/folder-sources.md",
       "status": "candidate-source-and-license-not-verified"
     }
   ],
   "archivedPrototypes": [
     {
-      "source": "docs/design/em-interface-prototype-2026-10-23",
+      "source": "private_docs/design/em-interface-prototype-2026-10-23",
       "status": "rejected-not-baseline"
     }
   ],
@@ -1615,10 +1615,10 @@
     "referencePosters": 15,
     "fontFamilies": 16,
     "manifests": [
-      "docs/design/ui-curation-2026-10-23/motion/upstream-files.json",
-      "docs/design/ui-curation-2026-10-23/motion/poster-files.json",
-      "docs/design/ui-curation-2026-10-23/motion/font-sources.json",
-      "docs/design/ui-curation-2026-10-23/motion/runtime-provenance.json"
+      "private_docs/design/ui-curation-2026-10-23/motion/upstream-files.json",
+      "private_docs/design/ui-curation-2026-10-23/motion/poster-files.json",
+      "private_docs/design/ui-curation-2026-10-23/motion/font-sources.json",
+      "private_docs/design/ui-curation-2026-10-23/motion/runtime-provenance.json"
     ],
     "excludeFromAssetCounts": [
       "node_modules",
@@ -1630,7 +1630,7 @@
   },
   "portability": {
     "trackedInventory": true,
-    "ignoredSourceRoot": "docs/",
+    "ignoredSourceRoot": "private_docs/",
     "warning": "A fresh checkout will not contain docs research assets; future library admission needs an explicit audited copy with attribution, license and pinned source. Inventory does not copy or ship assets."
   },
   "showcaseImplementation": {
