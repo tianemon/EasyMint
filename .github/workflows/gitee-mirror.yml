@@ -37,11 +37,11 @@ jobs:
           GITEE_REPO: ${{ vars.GITEE_REPO }}
         run: |
           set -euo pipefail
-          # checkout 默认只取当前 ref，推全量分支需要先显式取回所有分支
-          git fetch --prune origin "+refs/heads/*:refs/remotes/origin/*"
+          # 显式刷新分支和 tag；prune 同时清除 checkout 后主仓库已删除的 tag。
+          git fetch --prune origin "+refs/heads/*:refs/remotes/origin/*" "+refs/tags/*:refs/tags/*"
           REMOTE="https://${GITEE_USER}:${GITEE_TOKEN}@gitee.com/${GITEE_REPO}.git"
           git push --prune "$REMOTE" "+refs/remotes/origin/*:refs/heads/*"
-          git push --force "$REMOTE" --tags
+          git push --prune "$REMOTE" "+refs/tags/*:refs/tags/*"
 
       # 同号重发（不 bump 版本）时 Release 已存在，先查再改，避免 400 让工作流报红
       - name: Create or update Gitee release (notes only, no binaries)
