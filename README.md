@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="https://github.com/tianemon/EasyMint">GitHub</a> ·
-  <a href="https://gitee.com/tianemon/easymint">Gitee（国内镜像，代码与 Issue）</a>
+  <a href="https://gitee.com/tianemon/easymint">Gitee</a>
 </p>
 
 ---
