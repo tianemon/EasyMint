@@ -1,0 +1,83 @@
+name: Mirror to Gitee
+
+# Gitee 侧只承载「代码镜像 + 发行版说明」：本项目安装包 199/201 MB，超过 Gitee 免费版
+# 单附件 100 MB 上限（help.gitee.com/repository/release/create），二进制仍由 release.yml
+# 发到 GitHub Releases。
+#
+# 启用方式（三者都在 GitHub 仓库设置里配，不需要改本文件）：
+#   Variables: GITEE_MIRROR=on   ← 开关，未设置时整个工作流跳过，不会让 push 变红
+#              GITEE_REPO=<owner>/<repo>
+#   Secrets:   GITEE_USER（Gitee 空间地址，即 URL 里的用户名）
+#              GITEE_TOKEN（Gitee 私人令牌，作用域勾选 projects；推送与 OpenAPI 共用）
+#
+# 首次启用前 Gitee 上必须已有同名仓库，否则推送会失败。
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    if: ${{ vars.GITEE_MIRROR == 'on' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push branches and tags to Gitee
+        env:
+          GITEE_USER: ${{ secrets.GITEE_USER }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_REPO: ${{ vars.GITEE_REPO }}
+        run: |
+          set -euo pipefail
+          # checkout 默认只取当前 ref，推全量分支需要先显式取回所有分支
+          git fetch --prune origin "+refs/heads/*:refs/remotes/origin/*"
+          REMOTE="https://${GITEE_USER}:${GITEE_TOKEN}@gitee.com/${GITEE_REPO}.git"
+          git push --prune "$REMOTE" "+refs/remotes/origin/*:refs/heads/*"
+          git push --force "$REMOTE" --tags
+
+      # 同号重发（不 bump 版本）时 Release 已存在，先查再改，避免 400 让工作流报红
+      - name: Create or update Gitee release (notes only, no binaries)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_REPO: ${{ vars.GITEE_REPO }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          NOTES=$(awk -v v="$VERSION" '
+            $0 ~ "^## v" v " " || $0 ~ "^## [[]v" v "[]] " { found=1; next }
+            found && ($0 ~ "^## v" || $0 ~ "^## [[]v") { exit }
+            found { print }
+          ' CHANGELOG.md)
+          if [ -z "$NOTES" ]; then NOTES="Release ${TAG}"; fi
+
+          jq -n --arg t "$TAG" --arg n "$TAG" --arg b "$NOTES" \
+            '{tag_name:$t,name:$n,body:$b,target_commitish:"main",prerelease:false}' \
+            > /tmp/gitee-release.json
+
+          API="https://gitee.com/api/v5/repos/${GITEE_REPO}"
+          EXISTING_ID=$(curl -sS --fail-with-body \
+            "${API}/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" | jq -r '.id // empty' || true)
+
+          if [ -n "${EXISTING_ID}" ]; then
+            echo "Release ${TAG} 已存在，更新说明"
+            curl -sS --fail-with-body -X PATCH \
+              "${API}/releases/${EXISTING_ID}?access_token=${GITEE_TOKEN}" \
+              -H 'Content-Type: application/json' \
+              --data-binary @/tmp/gitee-release.json
+          else
+            echo "创建 Release ${TAG}"
+            curl -sS --fail-with-body -X POST \
+              "${API}/releases?access_token=${GITEE_TOKEN}" \
+              -H 'Content-Type: application/json' \
+              --data-binary @/tmp/gitee-release.json
+          fi
