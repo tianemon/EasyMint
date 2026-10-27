@@ -32,7 +32,7 @@
 
 EasyMint 内置 [Pi Coding Agent](https://github.com/earendil-works/pi) 编程引擎，支持 macOS、Windows 和 Linux：新手可以通过项目引导逐步推进，开发者可以把它作为日常的多 Agent 编程工作台。
 
-![EasyMint 工作台：左侧项目与会话，右侧是一次真实项目的交付结果](assets/screenshots/site-00-hero.webp)
+![EasyMint 启动后的首页：左侧项目与会话，中间是「开始创造」和输入框](assets/screenshots/site-00-hero.webp)
 
 *在项目会话中先阅读交付结论，需要时展开思考与工具过程。截图暂用中文界面，应用同时支持英文。*
 
@@ -108,10 +108,10 @@ Windows 若出现 SmartScreen 提示，点「更多信息」→「仍要运行�
 
 |  |  |
 |---|---|
-| <img src="assets/screenshots/site-01-guide.webp" width="420" alt="新建项目第一步：项目名称、项目目录、用途与目标平台"><br>**01 · 想法还模糊？从几个选择开始**<br>用途、功能、风格、交付方式按顺序理清，拿不准的地方继续和 Mint 商量。 | <img src="assets/screenshots/site-02-style.webp" width="420" alt="UI 风格选择：左侧风格列表，右侧完整页面预览"><br>**02 · 喜欢什么风格，看过再决定**<br>15 套风格都以完整页面呈现，网页与手机端都能先看。 |
-| <img src="assets/screenshots/site-03-prototype.webp" width="420" alt="照片墙项目在浏览器中打开的可交互原型"><br>**03 · 先点开试试，再让想法落地**<br>界面类项目先出可交互原型，本机预览，不合适就在对话里改。 | <img src="assets/screenshots/site-04-tasks.webp" width="420" alt="会话旁的任务面板，五条任务标记完成（绿色框标出）"><br>**04 · 做到哪了，不用一直追问**<br>任务拆到能逐项确认，进度就摆在会话旁边。 |
-| <img src="assets/screenshots/site-05-run.webp" width="420" alt="运行面板中的本地预览、打开页面与更新素材脚本（绿色框标出）"><br>**05 · 写完之后，亲手运行看看**<br>启动项目、读日志、打开页面都在运行面板里，不用另开终端。 | <img src="assets/screenshots/site-06-agents.webp" width="420" alt="Mint、Mint-D、Builder 与 Evaluator 四个内置 Agent 模板"><br>**06 · 有人动手，也有人检查**<br>实现与验收分开，谁负责哪一段、做到哪一步都看得见。 |
-| <img src="assets/screenshots/site-07-history.webp" width="420" alt="右侧历史输入抽屉，列出这个项目过去的指令与时间（绿色框标出）"><br>**07 · 之前怎么说的，随时找回来**<br>历史输入按时间排着所有指令与提问，翻到那条重发即可。 | <img src="assets/screenshots/site-08-notes.webp" width="420" alt="把重要结论钉成悬浮便签，固定在会话旁边"><br>**08 · 重要的结论，留在手边**<br>交付结论直接可读，重要内容可以钉成便签固定在旁边。 |
+| <img src="assets/screenshots/site-01-guide.webp" width="400" alt="新建项目第一步：项目名称、项目目录、用途与目标平台"><br>**01 · 想法还模糊？从几个选择开始**<br>用途、功能、风格、交付按顺序理清 | <img src="assets/screenshots/site-02-style.webp" width="400" alt="UI 风格选择：左侧风格列表，右侧完整页面预览"><br>**02 · 喜欢什么风格，看过再决定**<br>15 套风格都以完整页面呈现 |
+| <img src="assets/screenshots/site-03-prototype.webp" width="400" alt="照片墙项目在浏览器中打开的可交互原型"><br>**03 · 先点开试试，再让想法落地**<br>先出可交互原型，本机就能试 | <img src="assets/screenshots/site-04-tasks.webp" width="400" alt="会话旁的任务面板，五条任务标记完成（绿色框标出）"><br>**04 · 做到哪了，不用一直追问**<br>任务逐项确认，进度摆在旁边 |
+| <img src="assets/screenshots/site-05-run.webp" width="400" alt="运行面板中的本地预览、打开页面与更新素材脚本（绿色框标出）"><br>**05 · 写完之后，亲手运行看看**<br>启动、日志、打开页面都在这里 | <img src="assets/screenshots/site-06-agents.webp" width="400" alt="Mint、Mint-D、Builder 与 Evaluator 四个内置 Agent 模板"><br>**06 · 有人动手，也有人检查**<br>实现与验收分开，各司其职 |
+| <img src="assets/screenshots/site-07-history.webp" width="400" alt="右侧历史输入抽屉，列出这个项目过去的指令与时间（绿色框标出）"><br>**07 · 之前怎么说的，随时找回来**<br>按时间排着历次指令与提问 | <img src="assets/screenshots/site-08-notes.webp" width="400" alt="把重要结论钉成悬浮便签，固定在会话旁边"><br>**08 · 重要的结论，留在手边**<br>重要内容钉成便签固定在旁边 |
 
 ## 项目如何开始：四步定义，然后进入协作
 

@@ -1240,6 +1240,18 @@ h2 {
 .focus-shot[data-focus='history'] .focus-region {
   border-radius: 5px 0 0 0;
 }
+.focus-shot[data-focus='notes'] .focus-region {
+  border-radius: 6px;
+}
+.focus-shot[data-focus='notes'] .focus-label {
+  left: auto;
+  right: calc(100% - var(--focus-x) + var(--callout-gap));
+  top: 10%;
+}
+.focus-shot[data-focus='notes'] .focus-label::before {
+  left: 100%;
+  right: auto;
+}
 .focus-shot[data-focus='history'] .focus-label {
   left: auto;
   right: calc(100% - var(--focus-x) + var(--callout-gap));
