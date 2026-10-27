@@ -317,10 +317,14 @@ h2 {
 }
 
 .ticks li:before {
-  content: '↳';
+  content: '';
   position: absolute;
-  left: 0;
-  color: var(--accent);
+  left: 1px;
+  top: .7em;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--muted);
 }
 
 .tour-stage {
@@ -607,12 +611,6 @@ h2 {
   font-size: 11px;
   color: var(--muted);
   margin-top: 2px;
-}
-
-.download-arrow {
-  margin-left: auto;
-  font-size: 20px;
-  color: var(--accent);
 }
 
 .download-fallback {
@@ -1693,3 +1691,23 @@ main {
   }
 }
 .tour-controls { justify-content: flex-end; }
+
+/* Reserve icons for directional controls and playback, not decoration. */
+.arrow svg,.video-link svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.video-link {
+  align-items: center;
+  gap: 8px;
+}
+.video-link svg {
+  width: 15px;
+  height: 15px;
+}
