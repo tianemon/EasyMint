@@ -32,7 +32,7 @@
 
 EasyMint 内置 [Pi Coding Agent](https://github.com/earendil-works/pi) 编程引擎，支持 macOS、Windows 和 Linux：新手可以通过项目引导逐步推进，开发者可以把它作为日常的多 Agent 编程工作台。
 
-![Mint 展示项目交付结论，上方执行过程默认收起](assets/screenshots/main.png)
+![EasyMint 工作台：左侧项目与会话，右侧是一次真实项目的交付结果](assets/screenshots/site-00-hero.webp)
 
 *在项目会话中先阅读交付结论，需要时展开思考与工具过程。截图暂用中文界面，应用同时支持英文。*
 
@@ -51,7 +51,7 @@ EasyMint 不假设用户已经掌握这些。四步项目定义把“想做什�
 | 平台 | 下载格式 |
 |---|---|
 | macOS · Apple Silicon | `.dmg` |
-| Windows · x64 | `.exe` 安装版或便携版 |
+| Windows · x64 | `.exe` 安装版或 `.zip` 免安装版 |
 | Linux · x64 | `.AppImage`、`.deb` 或 `.tar.gz` |
 
 ### macOS 首次打开
@@ -102,6 +102,17 @@ Windows 若出现 SmartScreen 提示，点「更多信息」→「仍要运行�
 
 > 只需要编辑器内代码补全，或偏好不带项目引导的命令行工具时，其他形态可能更轻便。EasyMint 不提供多人共享的云端会话与文档。
 
+## 界面一览
+
+八张实拍，按一次真实项目的推进顺序排下来：先理清要做什么，再挑风格、看原型，最后是任务、运行与留存。绿色框标出的，是这一步真正要看的位置。
+
+|  |  |
+|---|---|
+| <img src="assets/screenshots/site-01-guide.webp" width="420" alt="新建项目第一步：项目名称、项目目录、用途与目标平台"><br>**01 · 想法还模糊？从几个选择开始**<br>用途、功能、风格、交付方式按顺序理清，拿不准的地方继续和 Mint 商量。 | <img src="assets/screenshots/site-02-style.webp" width="420" alt="UI 风格选择：左侧风格列表，右侧完整页面预览"><br>**02 · 喜欢什么风格，看过再决定**<br>15 套风格都以完整页面呈现，网页与手机端都能先看。 |
+| <img src="assets/screenshots/site-03-prototype.webp" width="420" alt="照片墙项目在浏览器中打开的可交互原型"><br>**03 · 先点开试试，再让想法落地**<br>界面类项目先出可交互原型，本机预览，不合适就在对话里改。 | <img src="assets/screenshots/site-04-tasks.webp" width="420" alt="会话旁的任务面板，五条任务标记完成（绿色框标出）"><br>**04 · 做到哪了，不用一直追问**<br>任务拆到能逐项确认，进度就摆在会话旁边。 |
+| <img src="assets/screenshots/site-05-run.webp" width="420" alt="运行面板中的本地预览、打开页面与更新素材脚本（绿色框标出）"><br>**05 · 写完之后，亲手运行看看**<br>启动项目、读日志、打开页面都在运行面板里，不用另开终端。 | <img src="assets/screenshots/site-06-agents.webp" width="420" alt="Mint、Mint-D、Builder 与 Evaluator 四个内置 Agent 模板"><br>**06 · 有人动手，也有人检查**<br>实现与验收分开，谁负责哪一段、做到哪一步都看得见。 |
+| <img src="assets/screenshots/site-07-history.webp" width="420" alt="右侧历史输入抽屉，列出这个项目过去的指令与时间（绿色框标出）"><br>**07 · 之前怎么说的，随时找回来**<br>历史输入按时间排着所有指令与提问，翻到那条重发即可。 | <img src="assets/screenshots/site-08-notes.webp" width="420" alt="把重要结论钉成悬浮便签，固定在会话旁边"><br>**08 · 重要的结论，留在手边**<br>交付结论直接可读，重要内容可以钉成便签固定在旁边。 |
+
 ## 项目如何开始：四步定义，然后进入协作
 
 四步流程不是一张必须一次填完的问卷，而是把几个容易含糊的决策按依赖关系展开。每一步都提供可比较的选项，也允许补充自己的描述；用户先做选择，Mint 再在会话里继续澄清。
@@ -117,13 +128,9 @@ Windows 若出现 SmartScreen 提示，点「更多信息」→「仍要运行�
 
 从名称、用途和平台开始，再把“想做的东西”拆成一组具体功能。即使还说不清完整需求，也可以先选择接近的场景，并让 Mint 根据方向推荐功能，再逐项增删。
 
-![新建项目向导中的名称、路径、用途与目标平台](assets/screenshots/project-create.png)
-
 ### Step 3：用页面而不是术语表达视觉偏好
 
 风格选择不是一组抽象标签。每一种方向都以完整页面呈现，可以切换网页与移动端预览，也可以直接描述想要的感觉。用户不必掌握设计术语，也能判断“像不像我想要的东西”。
-
-![新建项目向导中以完整页面呈现的赛博朋克风格](assets/screenshots/style-select.png)
 
 ### Step 4：确认完成度与交付边界
 
@@ -133,22 +140,10 @@ Windows 若出现 SmartScreen 提示，点「更多信息」→「仍要运行�
 
 完成四步确认后，Mint 会把项目范围转成后续任务。界面项目可以先通过本地链接试用原型，再确认实现；开发过程中，任务进度与运行脚本始终在会话旁边。反复使用的命令可以收进运行面板，启动、停止与日志查看都不需要离开工作台。
 
-| 任务进度 | 运行脚本 |
-|---|---|
-| ![项目会话旁的任务列表](assets/screenshots/task-panel.png) | ![运行面板中的本地预览与项目脚本](assets/screenshots/run-panel.png) |
-
 <details>
 <summary>更多工作台工具：Agent 模板、Skills、历史输入与内容便签</summary>
 
-在设置中选择 Agent 职责，复用已有 Skills 与 MCP 集成；对话过程中，可以查找之前的输入，也可以把重要输出钉成悬浮便签。
-
-| Agent 模板 | Skills 与工具集成 |
-|---|---|
-| ![Mint、Mint-D、Builder 与 Evaluator 内置 Agent 模板](assets/screenshots/agent-templates.png) | ![Skills 设置中的技能发现与启用控制](assets/screenshots/skills-mcp.png) |
-
-| 历史输入 | 内容便签 |
-|---|---|
-| ![右侧抽屉中可检索的历史输入](assets/screenshots/history-drawer.png) | ![钉在会话旁的重要输出内容](assets/screenshots/pin-notes.png) |
+在设置中选择 Agent 职责，复用已有 Skills 与 MCP 集成；对话过程中，可以查找之前的输入，也可以把重要输出钉成悬浮便签。对应的界面见上面的「界面一览」。
 
 </details>
 
