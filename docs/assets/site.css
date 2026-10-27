@@ -1420,6 +1420,8 @@ main {
   line-height: 1.24;
   font-weight: 600;
   letter-spacing: -.055em;
+  /* 紧字距会连带压窄空格，中英混排时把空格宽度补回来 */
+  word-spacing: .055em;
   margin: 0 0 18px;
   text-wrap: balance;
 }
