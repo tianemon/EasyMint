@@ -2521,6 +2521,9 @@ export class AgentService {
       this.cancelReclaim(chat.sessionId);
       if (chat.session) await disposePiSession(chat.session);
       clearPendingAsks(chat.sessionId);
+      // 会话已关，没人再读这份补看缓冲——留着等于把工具结果正文永久压在内存里
+      this.streamBuffer.delete(chat.sessionId);
+      this.streamBuffer.delete(chatId);
       broadcast("agent:chat-closed", { sessionId: chat.sessionId });
     })().finally(() => {
       this.closingChats.delete(chatId);
@@ -3085,6 +3088,7 @@ export class AgentService {
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeRuns.clear();
+    this.streamBuffer.clear();
     await Promise.all(closing);
     // 清理全部后台 shell 进程(杀进程树,防孤儿进程)
     backgroundShellRegistry.stopAll();

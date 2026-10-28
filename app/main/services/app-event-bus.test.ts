@@ -25,3 +25,46 @@ describe("appEventBus", () => {
       .toEqual([first]);
   });
 });
+
+describe("appEventBus 环形缓冲按字节限流", () => {
+  it("单条超大事件不入缓冲，游标早于它时拒绝补发", () => {
+    const cursor = appEventBus.currentSequence();
+    const huge = appEventBus.publish("agent:stream", { content: "x".repeat(5 * 1024 * 1024) });
+
+    expect(appEventBus.eventsAfter(cursor)).toBeNull();
+    expect(appEventBus.eventsAfter(huge.sequence)).toEqual([]);
+  });
+
+  it("总字节超上限时淘汰最旧事件，仍在预算内的游标可补发", () => {
+    const cursor = appEventBus.currentSequence();
+    for (let i = 0; i < 20; i += 1) {
+      appEventBus.publish("agent:stream", { content: "y".repeat(1024 * 1024) });
+    }
+
+    expect(appEventBus.eventsAfter(cursor)).toBeNull();
+    expect(appEventBus.eventsAfter(appEventBus.currentSequence() - 1)?.length).toBe(1);
+  });
+});
+
+describe("appEventBus 丢弃事件的补发范围", () => {
+  const pickSession = (sessionId: string) => (event: { channel: string; data: unknown }) => {
+    const data = event.data as { sessionId?: string } | undefined;
+    return event.channel === "agent:stream" && data?.sessionId === sessionId;
+  };
+
+  it("同一会话的超大事件只让该会话拒绝补发，其它会话照常补发", () => {
+    const cursor = appEventBus.currentSequence();
+    appEventBus.publish("agent:stream", { sessionId: "sess-a", content: "z".repeat(5 * 1024 * 1024) });
+    appEventBus.publish("agent:stream", { sessionId: "sess-b", content: "small" });
+
+    expect(appEventBus.eventsAfter(cursor, pickSession("sess-a"))).toBeNull();
+    expect(appEventBus.eventsAfter(cursor, pickSession("sess-b"))?.length).toBe(1);
+  });
+
+  it("不带筛选的补发仍按最严格口径处理（游标之后有丢弃即拒绝）", () => {
+    const cursor = appEventBus.currentSequence();
+    appEventBus.publish("agent:stream", { sessionId: "sess-c", content: "w".repeat(5 * 1024 * 1024) });
+
+    expect(appEventBus.eventsAfter(cursor)).toBeNull();
+  });
+});
