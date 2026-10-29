@@ -2117,7 +2117,7 @@
   "catalog.flatMotion": "Flat vector",
   "catalog.bauhausMotion": "Bauhaus",
   "catalog.motionCredit": "Vincentwei1021 / mg-styles-15 · MIT · adapted drawing code",
-  "ui.PlanUsage.title": "Plan",
+  "ui.PlanUsage.title": "Plan usage",
   "ui.PlanUsage.loading": "Loading plan info…",
   "ui.PlanUsage.unavailable": "Plan info is currently unavailable",
   "ui.PlanUsage.retry": "Retry",

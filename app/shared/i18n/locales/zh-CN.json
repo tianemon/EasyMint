@@ -2117,7 +2117,7 @@
   "catalog.flatMotion": "平面矢量",
   "catalog.bauhausMotion": "包豪斯几何",
   "catalog.motionCredit": "Vincentwei1021 / mg-styles-15 · MIT · 原作绘制代码适配",
-  "ui.PlanUsage.title": "套餐",
+  "ui.PlanUsage.title": "套餐用量",
   "ui.PlanUsage.loading": "正在获取套餐信息…",
   "ui.PlanUsage.unavailable": "暂时无法获取套餐信息",
   "ui.PlanUsage.retry": "重试",
