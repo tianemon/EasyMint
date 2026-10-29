@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
 import { answerPiExtensionPrompt, bindPiExtensionWindow, createPiExtensionUi } from "./pi-extension-ui";
 
 type Listener = (...args: unknown[]) => void;
@@ -178,5 +181,19 @@ describe("Pi extension UI bridge", () => {
     // 其它通知照旧送达
     ui.notify("插件已加载", "info");
     expect(sent.at(-1)).toMatchObject({ senderId: 7, channel: "pi-extension:notice", message: "插件已加载", type: "info" });
+  });
+
+  // isMcpAttentionNotice 是按文案特征静默的（pi 没有给这条通知结构化标识），所以升级 SDK 后
+  // 若 pi 改了措辞，静默会悄悄失效、提醒重新弹回聊天。这条锚定已安装 SDK 里 MCP 扩展的真实文案：
+  // 变红不是代码坏了，而是要求复核 isMcpAttentionNotice 的特征串。
+  it("still matches the wording the installed pi uses for MCP problems (upgrade check)", () => {
+    const require = createRequire(path.join(__dirname, "anchor.cjs"));
+    const file = (require.resolve.paths("@earendil-works/pi-coding-agent") ?? [])
+      .map((root) => path.join(root, "@earendil-works", "pi-coding-agent", "dist", "extensions", "mcp", "index.js"))
+      .find((candidate) => fs.existsSync(candidate));
+    if (!file) throw new Error("找不到已安装 pi 的 MCP 扩展文件，升级 SDK 后请复核本测试");
+    const source = fs.readFileSync(file, "utf8");
+    expect(source).toContain("MCP servers need attention");
+    expect(source).toContain("Run /mcp to fix.");
   });
 });
