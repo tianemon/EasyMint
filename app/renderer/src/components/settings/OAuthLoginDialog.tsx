@@ -61,8 +61,19 @@ export function CallbackBlockedNotice({ port, code }: { port: number; code: stri
       <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">
         {callbackBlockedHint(code)}
       </p>
+      {/* 命令块只放纯 ASCII 命令（标签走 i18n，文案里带中文会让「未翻译源码」检查报错，
+          而且用户要的是一行行能整段复制的东西） */}
       {code === "EACCES" && (
-        <pre className="mt-1.5 text-[length:var(--text-2xs)] text-text-secondary font-mono whitespace-pre-wrap select-all">{`net stop winnat\nnet start winnat`}</pre>
+        <>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-2">
+            {uiText("ui.OAuthLoginDialog.fixTemporary")}</p>
+          <pre className="mt-1 text-[length:var(--text-2xs)] text-text-secondary font-mono whitespace-pre-wrap select-all">{`net stop winnat
+net start winnat`}</pre>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-2">
+            {uiText("ui.OAuthLoginDialog.fixPermanent")}</p>
+          <pre className="mt-1 text-[length:var(--text-2xs)] text-text-secondary font-mono whitespace-pre-wrap select-all">{`netsh int ipv4 set dynamicport tcp start=49152 num=16384
+netsh int ipv6 set dynamicport tcp start=49152 num=16384`}</pre>
+        </>
       )}
     </div>
   );
@@ -270,6 +281,19 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
     [requestId],
   );
 
+  // 授权码步骤：用户从浏览器地址栏复制后，一键读进来比在窄输入框里粘贴省事。
+  // 只在点击时读一次（不做轮询），空剪贴板给一句提示、不覆盖已有输入。
+  const fillFromClipboard = useCallback(async () => {
+    try {
+      const text = (await window.electronAPI.provider.readClipboard()).trim();
+      if (!text) { toast(uiText("ui.OAuthLoginDialog.clipboardEmpty")); return; }
+      setInput(text);
+    } catch (e) {
+      console.error("[OAuthLoginDialog] 读取剪贴板失败:", e);
+      toast(uiText("ui.OAuthLoginDialog.clipboardUnavailable"));
+    }
+  }, []);
+
   const openUrl = useCallback((url: string) => {
     void window.electronAPI.provider.openAuthUrl(url).then((ok) => {
       if (!ok) toast(uiText("ui.OAuthLoginDialog.couldNotOpenBrowserCopyTheLink"));
@@ -325,6 +349,11 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") submit(input, step.promptType); }}
           />
+          {step.promptType === "manual_code" && (
+            <button type="button" onClick={() => void fillFromClipboard()}
+              className="shrink-0 h-8 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors"
+            >{uiText("ui.OAuthLoginDialog.readClipboard")}</button>
+          )}
           <button type="button" onClick={() => submit(input, step.promptType)} className="shrink-0 h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">{uiText("common.done")}</button>
         </div>
       )}

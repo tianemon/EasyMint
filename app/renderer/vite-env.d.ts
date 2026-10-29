@@ -638,6 +638,8 @@ interface ElectronAPI {
     authInput: (requestId: string, value: string) => Promise<boolean>;
     authCancel: (requestId: string) => Promise<boolean>;
     openAuthUrl: (url: string) => Promise<boolean>;
+    /** 授权码步骤用：读一次剪贴板（用户刚从浏览器地址栏复制了回调链接） */
+    readClipboard: () => Promise<string>;
     onAuthEvent: (callback: (data: import("@shared/provider-auth").ProviderAuthEventMessage) => void) => () => void;
   };
   agentTemplates: {

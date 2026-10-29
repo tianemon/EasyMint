@@ -154,6 +154,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     authCancel: (requestId: string) =>
       ipcRenderer.invoke("provider:authCancel", { requestId }) as Promise<boolean>,
     openAuthUrl: (url: string) => ipcRenderer.invoke("provider:authOpenUrl", { url }) as Promise<boolean>,
+    readClipboard: () => ipcRenderer.invoke("provider:authClipboard") as Promise<string>,
     onAuthEvent: (callback: (data: { requestId: string; providerId: string; event: unknown }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; providerId: string; event: unknown }) => callback(data);
       ipcRenderer.on("provider:authEvent", handler);

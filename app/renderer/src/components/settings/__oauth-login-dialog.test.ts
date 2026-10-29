@@ -117,17 +117,21 @@ describe("回调端口不可用的处置建议", () => {
  * 这块被抽成纯展示组件，正是为了能在这里断言"什么地方显示什么"。
  */
 describe("回调端口提示块", () => {
-  it("EACCES：给出端口号与两条命令（停/起 WinNAT）", () => {
+  it("EACCES：给出端口号、临时方案（停/起 WinNAT）与永久方案（挪动态端口段）", () => {
     const html = renderToStaticMarkup(createElement(CallbackBlockedNotice, { port: 1455, code: "EACCES" }));
     expect(html).toContain("1455");
     expect(html).toContain("WinNAT");
     expect(html).toContain("net stop winnat");
     expect(html).toContain("net start winnat");
+    // 永久方案：把动态端口段挪到 49152 之后，Windows 才不会再把 1455 圈进去
+    expect(html).toContain("netsh int ipv4 set dynamicport tcp start=49152");
+    expect(html).toContain("netsh int ipv6 set dynamicport tcp start=49152");
   });
 
   it("真被占用时不显示 WinNAT 命令（那是另一码事）", () => {
     const html = renderToStaticMarkup(createElement(CallbackBlockedNotice, { port: 1455, code: "EADDRINUSE" }));
     expect(html).toContain("占用");
     expect(html).not.toContain("net stop winnat");
+    expect(html).not.toContain("netsh");
   });
 });

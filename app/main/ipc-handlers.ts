@@ -4,7 +4,7 @@ import { saveProjectDesign } from "./services/project-design";
 import { parseNativeAiSettings } from "../shared/native-ai";
 import { saveUiLanguage, getUiLanguageState, t } from "./services/ui-language";
 import { isUiLanguage } from "../shared/i18n/locale";
-import { BrowserWindow, ipcMain, dialog, app, shell } from "electron";
+import { BrowserWindow, ipcMain, dialog, app, shell, clipboard } from "electron";
 import p from "path";
 import fs from "fs";
 import os from "os";
@@ -811,6 +811,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const data = expectPayload(z.object({ url: z.string().min(1) }).loose(), input);
     return openAuthUrl(data.url);
   });
+  // 授权码步骤的「读取剪贴板」：回调端口被系统占掉时（Windows 常见），用户只能从浏览器
+  // 地址栏复制那条 localhost:1455/... 链接；先复制再点按钮，比在窄输入框里手打/右键粘贴省事。
+  // 只在用户点按钮时读一次，不做轮询——不碰剪贴板里的其它内容。
+  ipcMain.handle("provider:authClipboard", () => clipboard.readText());
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();
     const providers = settings.apiProviders;
