@@ -12,6 +12,7 @@
 import { shell } from "electron";
 import type { AuthEvent, AuthInteraction, AuthPrompt } from "@earendil-works/pi-ai";
 import { broadcast } from "./ipc-broadcast";
+import { FIXED_LOOPBACK_PORTS, probeLoopbackPort } from "./oauth-loopback";
 import { getModelRuntime } from "./pi-init";
 import type { Store } from "./store";
 import type {
@@ -165,6 +166,31 @@ export function loginProvider(store: Store, providerId: string, requestId: strin
   return pending.result;
 }
 
+/**
+ * 登录前探一次「端口写死」的回调端口，绑不上就把原因推给界面。
+ *
+ * SDK 起回调服务失败时**静默退化**成「只能粘贴授权码」（`startOAuthCallbackServer(...).catch(() => undefined)`），
+ * 界面靠事件区分不出来——两种情况下 SDK 发的都是同一个 manual_code 步骤。Windows 上这很常见
+ * （WinNAT/Hyper-V 的端口保留让 1455 即使无人占用也绑不上，报 EACCES）。
+ *
+ * **探失败不阻断登录**：粘贴授权码是有效路径，这里只补一条解释给用户。放在 `getModelRuntime`
+ * 之前，让提示先于「首次动态加载 SDK」的几秒等待出现。
+ */
+async function notifyLoopbackBlocked(providerId: string, requestId: string, port: number): Promise<void> {
+  const blocked = await probeLoopbackPort(port);
+  if (!blocked) return;
+  console.warn(
+    `[provider-auth] ${providerId} 本地回调端口 ${port} 不可用（${blocked.code}）：`
+      + "浏览器授权后不会自动跳回，只能手动粘贴授权码",
+  );
+  const payload: ProviderAuthEventMessage = {
+    requestId,
+    providerId,
+    event: { kind: "callback_blocked", port: blocked.port, code: blocked.code },
+  };
+  broadcast("provider:authEvent", payload);
+}
+
 async function runLogin(
   store: Store,
   providerId: string,
@@ -172,6 +198,10 @@ async function runLogin(
   pending: PendingLogin,
 ): Promise<ProviderLoginResult> {
   try {
+    // 只有**端口写死**的供应商才探测（目前只有 openai-codex）。其余供应商保持原来的时序：
+    // 这里多一个 await 会改变 runLogin 的微任务节奏，已有用例按旧节奏核对调用次数。
+    const loopbackPort = FIXED_LOOPBACK_PORTS[providerId];
+    if (loopbackPort) await notifyLoopbackBlocked(providerId, requestId, loopbackPort);
     const runtime = await getModelRuntime(store);
     const provider = runtime.getProvider(providerId);
     if (!provider) return { ok: false, error: `未知供应商：${providerId}` };

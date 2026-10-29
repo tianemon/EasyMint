@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => {
   const listCredentials = vi.fn(async () => [] as Array<{ providerId: string; type: "api_key" | "oauth" }>);
   let checkAuthResult: { type: "api_key" | "oauth"; source?: string } | undefined;
   const checkAuth = vi.fn(async () => checkAuthResult);
+  // 回调端口预检：默认「端口可用」，用例里按需改成失败结论
+  let probeBlocked: { port: number; code: string } | null = null;
+  const probedPorts: number[] = [];
   const providers = [
     { id: "anthropic", name: "Anthropic", auth: { oauth: {}, apiKey: {} } },
     { id: "openai-codex", name: "OpenAI Codex", auth: { oauth: {} } },
@@ -36,6 +39,9 @@ const mocks = vi.hoisted(() => {
     listCredentials,
     checkAuth,
     providers,
+    probedPorts,
+    probeLoopbackPort: async (port: number) => { probedPorts.push(port); return probeBlocked; },
+    setProbeBlocked: (v: { port: number; code: string } | null) => { probeBlocked = v; },
     setCheckAuthResult: (v: { type: "api_key" | "oauth"; source?: string } | undefined) => { checkAuthResult = v; },
   };
 });
@@ -43,6 +49,10 @@ const mocks = vi.hoisted(() => {
 vi.mock("electron", () => ({ shell: { openExternal: mocks.openExternal } }));
 vi.mock("./ipc-broadcast", () => ({
   broadcast: (_channel: string, data: unknown) => { mocks.broadcasts.push(data as ProviderAuthEventMessage); },
+}));
+vi.mock("./oauth-loopback", () => ({
+  FIXED_LOOPBACK_PORTS: { "openai-codex": 1455 },
+  probeLoopbackPort: mocks.probeLoopbackPort,
 }));
 vi.mock("./pi-init", () => ({
   getModelRuntime: async () => ({
@@ -58,13 +68,15 @@ vi.mock("./pi-init", () => ({
 const store = {} as Store;
 const events = () => mocks.broadcasts.map((b) => b.event);
 /** 本文件用过的 requestId：跨用例清场用（在途登录会挡住同供应商的下一次登录） */
-const REQUEST_IDS = ["req-1", "req-2", "req-3", "req-4", "req-5", "req-6", "req-7a", "req-7b", "req-8", "req-9", "req-10"];
+const REQUEST_IDS = ["req-1", "req-2", "req-3", "req-4", "req-5", "req-6", "req-7a", "req-7b", "req-8", "req-9", "req-10", "req-11", "req-12", "req-13"];
 
 beforeEach(async () => {
   for (const id of REQUEST_IDS) cancelAuthLogin(id);
   // 中止后清理在下一个宏任务跑完；不等它会把上一条用例的在途登录带到下一条
   await new Promise((r) => setTimeout(r, 0));
   mocks.broadcasts.length = 0;
+  mocks.probedPorts.length = 0;
+  mocks.setProbeBlocked(null);
   mocks.login.mockReset();
   mocks.logout.mockReset();
   mocks.listCredentials.mockReset();
@@ -215,6 +227,37 @@ describe("loginProvider", () => {
     const r = await loginProvider(store, "nope", "req-9");
     expect(r).toMatchObject({ ok: false });
     expect(r.error).toContain("未知供应商");
+  });
+
+  /**
+   * 回调端口：SDK 起服务失败是**静默**的（`.catch(() => undefined)`），界面靠事件分不出来
+   * ——两种情况下 SDK 发的都是同一个 manual_code 步骤。所以主进程登录前先探一次，
+   * 绑不上就补一条 callback_blocked，让界面能解释「浏览器为什么没跳回来」。
+   * 探失败**不阻断**登录：粘贴授权码仍是有效路径。
+   */
+  it("回调端口绑不上时先推 callback_blocked，登录照常继续", async () => {
+    mocks.setProbeBlocked({ port: 1455, code: "EACCES" });
+    mocks.login.mockImplementation(async (_p: string, _t: string, interaction: AuthInteraction) => {
+      interaction.notify({ type: "auth_url", url: "https://example.com/auth" });
+      return { type: "oauth" };
+    });
+    const r = await loginProvider(store, "openai-codex", "req-11");
+    expect(r.ok).toBe(true);
+    expect(events()).toEqual([
+      { kind: "callback_blocked", port: 1455, code: "EACCES" },
+      { kind: "browser", url: "https://example.com/auth" },
+    ]);
+  });
+
+  it("端口可用时不推多余事件；没有写死端口的供应商根本不探测", async () => {
+    mocks.login.mockResolvedValue({ type: "oauth" });
+    await loginProvider(store, "openai-codex", "req-12");
+    expect(events()).toEqual([]);
+    expect(mocks.probedPorts).toEqual([1455]);
+    mocks.probedPorts.length = 0;
+    // anthropic 绑不上会退到随机端口（SDK 侧 startCallbackServer(0)），无需探测
+    await loginProvider(store, "anthropic", "req-13");
+    expect(mocks.probedPorts).toEqual([]);
   });
 });
 

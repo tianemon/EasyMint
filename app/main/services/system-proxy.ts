@@ -39,6 +39,11 @@ export interface ProxyDeps {
   target?: { fetch: typeof globalThis.fetch };
 }
 
+/** 已接管的标记挂在 target 上（而非模块级开关）：语义是「这份 fetch 已被包装过」，测试注入各自的 target 时互不干扰 */
+const WRAPPED = Symbol.for("easymint.systemProxyWrapped");
+
+type Marked = { [WRAPPED]?: string };
+
 const LOOPBACK = /^(localhost|.*\.localhost|127(\.\d{1,3}){3}|::1|0\.0\.0\.0|\[::1\])$/i;
 
 /**
@@ -126,6 +131,32 @@ function normalizeProxyUrl(raw: string): string | undefined {
   const value = raw.trim();
   if (!value) return undefined;
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `http://${value}`;
+}
+
+/**
+ * 代理串本身能不能被 `new URL` 解析。
+ *
+ * 为什么要在装接管时挡一道：undici 的 `ProxyAgent` 在**构造时**就把代理地址 `new URL()` 一遍
+ * （`lib/dispatcher/proxy-agent.js` 构造 → `#getUrl`），不合法即抛 `TypeError: Invalid URL`
+ * （本仓 undici 7.29.1 实测）。我们的 agent 是懒构造的，所以爆点落在首个请求那一刻，错误从
+ * `fetch()` 冒出来，与"目标地址不合法"同形——上游若按消息文本归类，就会把代理问题报成
+ * 「Base URL 格式不正确」（`provider-test.ts` 曾如此，已一并修）。这里提前放弃接管：
+ * 效果与"没检测到代理"相同（直连），而不是让**每个**请求都失败。
+ */
+function isParsableProxyUrl(value: string): boolean {
+  try { new URL(value); return true; } catch { return false; }
+}
+
+/**
+ * 当前生效的系统代理（`http://host:port`，未接管时为 undefined）。
+ *
+ * 只读接管时留下的标记，不重新探测——探测要跑 `scutil` / `reg query`，逐请求付不起这个成本。
+ * 用途：把网络失败归因到"代理"时要有据可依（见 `provider-test.ts` 的失败详情）。
+ * `target` 只为测试注入而暴露：接管标记挂在被包装的那份 fetch 上，默认就是 globalThis。
+ */
+export function currentSystemProxy(target: object = globalThis): string | undefined {
+  const marked = (target as Marked)[WRAPPED];
+  return typeof marked === "string" ? marked : undefined;
 }
 
 /**
@@ -279,11 +310,6 @@ export interface ProxyInstallResult {
   reason: string;
 }
 
-/** 已接管的标记挂在 target 上（而非模块级开关）：语义是「这份 fetch 已被包装过」，测试注入各自的 target 时互不干扰 */
-const WRAPPED = Symbol.for("easymint.systemProxyWrapped");
-
-type Marked = { [WRAPPED]?: string };
-
 /**
  * 写进 env 的 NO_PROXY 默认值：环回 + 内网后缀 + 私网网段。
  *
@@ -321,6 +347,10 @@ export function installSystemProxyFetch(deps: ProxyDeps = {}): ProxyInstallResul
   }
   const proxy = detectSystemProxy({ ...deps, env });
   if (!proxy) return { installed: false, reason: "未检测到系统代理" };
+  if (!isParsableProxyUrl(proxy)) {
+    console.warn(`[system-proxy] 系统代理地址无法解析，已忽略（按直连处理）：${redactProxyUrl(proxy)}`);
+    return { installed: false, reason: "系统代理地址无法解析" };
+  }
 
   // 局域网直连默认开启：代理（尤其 VPN 隧道）通常只管公网，把局域网目标交给它会超时。
   // 少数环境要求"连内网也走代理"时用 EASYMINT_PROXY_LAN=1 关掉——那是显式的用户选择，

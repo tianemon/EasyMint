@@ -51,7 +51,11 @@ export type ProviderAuthUiEvent =
   /** 需要用户输入/选择（文案由渲染层按 promptType 自写） */
   | { kind: "prompt"; promptType: "text" | "secret" | "select" | "manual_code"; placeholder?: string; options?: ProviderAuthPromptOption[] }
   /** 流程仍在进行（如换 token），界面展示等待态即可 */
-  | { kind: "progress" };
+  | { kind: "progress" }
+  /** 本地回调端口不可用（**登录前**探到）：浏览器授权后不会自动跳回，只能手动粘贴授权码。
+   *  `code` 是 Node errno（Windows 的 10013 归一成 `EACCES`）。为什么由我们先探：SDK 起回调
+   *  服务失败是**静默**的（见 `services/oauth-loopback.ts` 与 `provider-auth.ts` 的注释）。 */
+  | { kind: "callback_blocked"; port: number; code: string };
 
 /** IPC provider:authEvent 的载荷 */
 export interface ProviderAuthEventMessage {

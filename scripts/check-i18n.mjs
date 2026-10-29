@@ -10,12 +10,22 @@ const errors = [];
 const exceptions = JSON.parse(fs.readFileSync(path.join(root, "app/shared/i18n/source-exceptions.json"), "utf8"));
 const seenExceptions = new Set();
 const parameters = (text) => [...new Set([...text.matchAll(/{{\s*([\w.]+)\s*}}/g)].map((match) => match[1]))].sort().join(",");
+/**
+ * 单花括号占位符（`{v0}`）：i18next 认的是 `{{v0}}`，写成一个花括号**不会报错也不会插值**——
+ * 界面上就原样显示 `{v0}`。2026-10-29 真踩到一次（回调端口提示），而那时候的校验只看
+ * 「两种语言的 {{}} 参数是否一致」，单花括号在两边都解析成"没有参数"，照样通过。
+ */
+const singleBracePlaceholders = (text) => [...text.matchAll(/(?<!\{)\{\s*[\w.]+\s*\}(?!\})/g)].map((match) => match[0]);
 
 for (const key of new Set([...Object.keys(zh), ...Object.keys(en)])) {
   if (typeof zh[key] !== "string" || typeof en[key] !== "string" || !zh[key].trim() || !en[key].trim()) {
     errors.push(`${key}: both languages require a non-empty string`);
   } else if (parameters(zh[key]) !== parameters(en[key])) {
     errors.push(`${key}: interpolation parameters differ`);
+  }
+  for (const [language, table] of [["zh-CN", zh], ["en", en]]) {
+    const bad = typeof table[key] === "string" ? singleBracePlaceholders(table[key]) : [];
+    if (bad.length > 0) errors.push(`${key} (${language}): 占位符要写成双花括号，这里是 ${bad.join(" ")}`);
   }
 }
 

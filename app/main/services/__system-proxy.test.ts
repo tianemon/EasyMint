@@ -327,3 +327,43 @@ describe("代理地址脱敏（日志用）", () => {
     expect(redactProxyUrl("proxy.corp:8080")).toBe("proxy.corp:8080");
   });
 });
+
+/**
+ * 代理串本身不合法时**不要接管**。
+ *
+ * 起因：undici 的 ProxyAgent 在首次发请求时才 `new URL(代理地址)`，不合法就抛
+ * `TypeError: Invalid URL`——与"目标地址不合法"同形，上游容易把代理问题报成
+ * 「Base URL 格式不正确」（用户实测的那条看不懂的报错）。与其让**每个**请求都失败并
+ * 误导归因，不如放弃接管（与"没检测到代理"同效），并在启动日志里留下脱敏后的值。
+ */
+describe("代理地址无法解析时不接管", () => {
+  const makeTarget = () => {
+    const calls: Array<{ url: string; init?: Record<string, unknown> }> = [];
+    const fetchImpl = vi.fn(async (input: unknown, init?: Record<string, unknown>) => {
+      const url = typeof input === "string" ? input : (input as URL).href;
+      calls.push({ url, init });
+      return new Response("ok");
+    });
+    return { target: { fetch: fetchImpl as unknown as typeof fetch }, calls };
+  };
+
+  it("env 里是残缺的代理地址 → installed:false，fetch 保持原样", async () => {
+    const { target, calls } = makeTarget();
+    const original = target.fetch;
+    const env: NodeJS.ProcessEnv = { https_proxy: "http://" }; // 有 scheme 无主机
+    const r = installSystemProxyFetch({ platform: "darwin", env, run: () => "", target });
+    expect(r).toMatchObject({ installed: false, reason: "系统代理地址无法解析" });
+    expect(target.fetch).toBe(original);
+    await target.fetch("https://api.example.com/v1");
+    expect(calls[0].init?.dispatcher).toBeUndefined();
+    // 失败也不该把残缺值写进 env 交给子进程/SDK
+    expect(env.HTTPS_PROXY).toBeUndefined();
+  });
+
+  it("正常代理地址照旧接管（守住守卫本身不过度拒绝）", async () => {
+    const { target } = makeTarget();
+    const env: NodeJS.ProcessEnv = { https_proxy: "127.0.0.1:7890" }; // 缺 scheme 会被补成 http://
+    const r = installSystemProxyFetch({ platform: "darwin", env, run: () => "", createAgent: async () => ({}), target });
+    expect(r).toMatchObject({ installed: true, proxy: "http://127.0.0.1:7890" });
+  });
+});

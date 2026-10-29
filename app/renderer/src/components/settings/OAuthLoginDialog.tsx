@@ -32,6 +32,42 @@ const STEP_HINTS: Record<string, Partial<Record<PromptKind, string>>> = {
   "github-copilot": { get text() { return uiText("ui.OAuthLoginDialog.leaveEmptyUnlessYouUseGithubEnterprise"); } },
 };
 
+/**
+ * 回调端口绑不上时的处置建议（按 Node errno 区分）。
+ *
+ * 起因见 `app/main/services/oauth-loopback.ts`：SDK 起回调服务失败会静默退化成「粘贴授权码」，
+ * 主进程先探一次端口、把 errno 带上来，这里翻译成用户能照做的一句话。
+ * `EACCES` 在 Windows 上就是 Winsock 10013 —— 系统端口保留，**不是**被哪个程序占着，
+ * 所以给的是 `net stop winnat` 那条路，而不是"关掉别的程序"。
+ */
+export function callbackBlockedHint(code: string): string {
+  if (code === "EACCES") return uiText("ui.OAuthLoginDialog.callbackPortReserved");
+  if (code === "EADDRINUSE") return uiText("ui.OAuthLoginDialog.callbackPortInUse");
+  return uiText("ui.OAuthLoginDialog.callbackPortUnknown");
+}
+
+/**
+ * 「本地回调端口不可用」提示块。
+ *
+ * 独立成组件是为了能直接静态渲染断言（本仓没有 DOM 测试环境，弹窗本体带状态不可静态渲染，
+ * 但这一块是纯展示）。渲染位置见下方 browser / manual_code / select 三处。
+ */
+export function CallbackBlockedNotice({ port, code }: { port: number; code: string }): JSX.Element {
+  return (
+    <div className="mt-3 bg-surface-alt rounded-[var(--radius-lg)] p-3">
+      <p className="text-xs text-text-primary">
+        {uiText("ui.OAuthLoginDialog.callbackPortUnavailable", { v0: String(port) })}
+      </p>
+      <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">
+        {callbackBlockedHint(code)}
+      </p>
+      {code === "EACCES" && (
+        <pre className="mt-1.5 text-[length:var(--text-2xs)] text-text-secondary font-mono whitespace-pre-wrap select-all">{`net stop winnat\nnet start winnat`}</pre>
+      )}
+    </div>
+  );
+}
+
 interface PendingStep {
   promptType: PromptKind;
   placeholder?: string;
@@ -123,6 +159,8 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
   const [step, setStep] = useState<PendingStep | null>(null);
   const [input, setInput] = useState("");
   const [waiting, setWaiting] = useState(false);
+  // 本地回调端口不可用（主进程登录前探到的）：浏览器授权后不会自动跳回，得手动粘贴
+  const [callbackBlocked, setCallbackBlocked] = useState<{ port: number; code: string } | null>(null);
   // 流程是否在途：卸载时据此决定要不要中止主进程侧登录
   const runningRef = useRef(false);
   // effect 轮次：区分「StrictMode 挂载期重跑」与真正的卸载（见下面的延迟中止）
@@ -152,6 +190,9 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
       case "progress":
         setWaiting(true);
         break;
+      case "callback_blocked":
+        setCallbackBlocked({ port: ev.port, code: ev.code });
+        break;
     }
   }, []);
 
@@ -170,6 +211,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
     setStep(null);
     setInput("");
     setWaiting(false);
+    setCallbackBlocked(null);
     runningRef.current = true;
 
     window.electronAPI.provider
@@ -344,6 +386,12 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
               {phase.detail && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1 break-all">{phase.detail}</p>}
               {phase.hint && <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{appText(phase.hint)}</p>}
             </div>
+          )}
+
+          {/* 回调端口不可用：这条要赶在用户去浏览器授权**之前**看到，否则他会以为程序卡住了。
+              也覆盖「选择登录方式」那一步（该供应商的第一步）——那时正是改选设备码登录的时机。 */}
+          {callbackBlocked && (phase.kind === "browser" || step?.promptType === "manual_code" || step?.promptType === "select") && (
+            <CallbackBlockedNotice port={callbackBlocked.port} code={callbackBlocked.code} />
           )}
 
           {stepForm}

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "re
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset, normalizeExtraModels } from "@shared/platform-presets";
-import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
+import type { ApiProvidersData, ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
 import type { ProviderAuthType } from "@shared/provider-auth";
 import { Select } from "../Select";
 import { hasOpenModal } from "../ui/Modal";
@@ -478,19 +478,78 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
 
 // ── Provider 列表管理器 ──────────────────────────────────────────
 
+/**
+ * 「添加供应商」时该不该按重复拦下：**判据是"这里已经有一份用户配置"**，不是"configs 里有这条"。
+ *
+ * 分两种既有条目：
+ * 1. `createdAt > 0` —— 用户在 EM 里真正保存过（偏好记录就是那时写的）→ 重复，引导去编辑。
+ * 2. `createdAt === 0` —— 没有偏好记录。两种来源会产生这种条目：
+ *    · 账号登录（OAuth）刚把凭据写进 auth.json，主进程投影顺手把它列了进来（`native-config.ts` 的
+ *      `createdAt: pref.createdAt ?? 0`）。那说明"能登录"而不是"已配置"，**必须放行**，
+ *      否则这类供应商永远存不下来（用户实测：授权完点保存报"该供应商已存在"）。
+ *    · 从 pi 配置导入的供应商——导入只写 models.json，不写偏好记录，`createdAt` 同样是 0。
+ *      这种条目**带着连接信息或自添加模型**，放行会走 add 形态的 upsert：`saveProviders` 对
+ *      `baseUrl`/`apiType` 与 models 的回写都是「cfg 为空则删」，等于把原有配置抹掉。
+ *      所以只要它带了这些字段就仍然拦下，让用户去「编辑」改。
+ */
+export function isDuplicateProvider(existing: ProviderConfig | undefined): boolean {
+  if (!existing) return false;
+  if (existing.createdAt) return true;
+  if (existing.baseUrl || existing.apiType) return true;
+  return (existing.extraModels?.length ?? 0) > 0;
+}
+
+/** 保存/删除供应商要走的两件事（抽成参数以便直接测"拦/放"，见 __providers-tab.test.ts） */
+export interface ProviderSaveDeps {
+  /** 读主进程当前配置（以它为基底合并：渲染态可能是慢一步的快照） */
+  readSaved: () => Promise<ApiProvidersData | undefined>;
+  /** 落盘并重取（= store 的 setApiProviders，返回 false 表示失败） */
+  persist: (data: ApiProvidersData) => Promise<boolean>;
+}
+
+/**
+ * 保存一个供应商。`mode="add"` 时先判重（判据见 isDuplicateProvider），命中即抛给界面提示。
+ *
+ * 抽成独立函数的原因：这段是"用户点了保存之后到底存不存"的全部分支，只有把它从组件里拿出来
+ * 才能直接断言拦/放（组件内联的那个版本只能靠手点）。
+ */
+export async function saveProviderConfig(
+  mode: "add" | "edit",
+  cfg: ProviderConfig,
+  deps: ProviderSaveDeps,
+): Promise<boolean> {
+  const saved = await deps.readSaved();
+  if (mode === "add" && isDuplicateProvider(saved?.configs?.[cfg.id])) {
+    throw new Error(uiText("ui.ProviderSettings.thisProviderAlreadyExistsEditItsExisting"));
+  }
+  return deps.persist({
+    ...saved,
+    current: saved?.current ?? cfg.id,
+    configs: { ...(saved?.configs ?? {}), [cfg.id]: cfg },
+  });
+}
+
 export function ProvidersManager() {
   useUiLocale();
-  const { apiProviders, setApiProviders } = useSettingsStore();
+  const { apiProviders, setApiProviders, loadFromElectron } = useSettingsStore();
   // null = 未打开;{ mode: "add" } = 新增;{ mode: "edit", cfg } = 编辑
   const [dialog, setDialog] = useState<{ mode: "add" } | { mode: "edit"; cfg: ProviderConfig } | null>(null);
   const configs = Object.values(apiProviders?.configs ?? {});
 
+  // 关弹窗一律重取一次配置：账号登录（OAuth）会在**弹窗开着的时候**就往 auth.json 写凭据，
+  // 主进程的投影随之把该供应商列进来 —— 列表用的 store 快照还是旧的，不重取就要等下次
+  // 打开设置才看得见（用户实测的「保存完不刷新，得重开设置」）。
+  const closeDialog = () => {
+    setDialog(null);
+    void loadFromElectron();
+  };
+
   const handleSave = async (cfg: ProviderConfig) => {
-    // 以主进程配置为基底：渲染态在 loadFromElectron 未完成/失败时为空，用它重建会把其他供应商连 key 一起覆盖掉
-    const saved = (await window.electronAPI.settings.get()).apiProviders;
-    const updated = { ...(saved?.configs ?? {}), [cfg.id]: cfg };
-    if (dialog?.mode === "add" && saved?.configs?.[cfg.id]) throw new Error(uiText("ui.ProviderSettings.thisProviderAlreadyExistsEditItsExisting"));
-    const ok = await setApiProviders({ ...saved, current: saved?.current ?? cfg.id, configs: updated });
+    // setApiProviders 成功时内部已经重取过配置，这里不必再经 closeDialog 拉一遍
+    const ok = await saveProviderConfig(dialog?.mode ?? "edit", cfg, {
+      readSaved: async () => (await window.electronAPI.settings.get()).apiProviders,
+      persist: setApiProviders,
+    });
     if (ok) setDialog(null);
   };
 
@@ -554,7 +613,7 @@ export function ProvidersManager() {
         <ProviderFormDialog
           initial={dialog.mode === "edit" ? dialog.cfg : null}
           onSave={handleSave}
-          onClose={() => setDialog(null)}
+          onClose={closeDialog}
         />
       )}
     </div>
