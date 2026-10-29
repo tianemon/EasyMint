@@ -43,7 +43,8 @@ import { MintAvatar } from "./MintAvatar";
 import { ExecutionTimer } from "./ExecutionTimer";
 import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
-import { buildRunningProcessSlices, type RunningProcessSlice } from "./chat-running-process";
+import { buildRunningProcessSlices, liveProcessSlice, type RunningProcessSlice } from "./chat-running-process";
+import { ExecutionProcess } from "./ExecutionProcess";
 import { CompletedExecution } from "./CompletedExecution";
 import { RunningAssistantContent } from "./RunningAssistantContent";
 import { startsMessageIdentity } from "./chat-message-presentation";
@@ -813,6 +814,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const turnPresentations = useMemo(() => buildTurnPresentations(messages, executionBusy), [messages, executionBusy]);
   const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, executionBusy), [messages, executionBusy]);
   const runningSlices = useMemo(() => buildRunningProcessSlices(messages, turnPresentations), [messages, turnPresentations]);
+  // Supplemental cards retain their source row when its live disclosure moves to the tail.
+  const [delegations, setDelegations] = useState<Record<string, DelegationUiState>>({});
+  const delegationList = Object.values(delegations);
+  const anchorMsgId = delegationList.reduce<number | undefined>(
+    (latest, d) => (d.triggerMsgId !== undefined && (latest === undefined || d.triggerMsgId > latest) ? d.triggerMsgId : latest),
+    undefined,
+  );
+  const activeToolId = useStatusStore(state => {
+    let latest: {id:string;seq:number} | undefined;
+    for (const signal of state.bySession[sidRef.current]?.signals ?? []) {
+      if (signal.id.startsWith("tool:") && (!latest || signal.seq > latest.seq)) latest = signal;
+    }
+    return latest?.id.slice("tool:".length);
+  });
+  const liveProcess = useMemo(() => liveProcessSlice(runningSlices, activeToolId), [runningSlices, activeToolId]);
   const activeDisclosuresRef = useRef(new Set<string>());
   useEffect(() => {
     const active = new Set(Array.from(new Set(turnPresentations.values())).filter(turn => turn.active).map(turn => `${sid}:${turn.key}`));
@@ -821,12 +837,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }
     activeDisclosuresRef.current = active;
   }, [turnPresentations, sid, closeProcess]);
+  const hasSupplementalCard = (index: number): boolean => {
+    const message = messages[index];
+    return !!message && (errorsByAnchor.has(message.id) || delegationList.length > 0 &&
+      (anchorMsgId === message.id || anchorMsgId === undefined && index === messages.length - 1 && message.role === "ai"));
+  };
   const isProcessHidden = (index: number): boolean => {
     const turn = turnPresentations.get(index);
     if (!turn || turn.finalEntries.has(index)) return false;
     if (turn.active || turn.preserveSegments) {
       if (messages[index]?.customType === "system_message") return false;
-      return !(runningSlices.get(index) ?? []).length;
+      return !(runningSlices.get(index) ?? []).some(slice => slice.key !== liveProcess?.key || !slice.key);
     }
     return true;
   };
@@ -837,7 +858,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollEl,
-    estimateSize: (index) => isProcessHidden(index) && turnPresentations.get(index)?.first !== index ? 0 : 100,
+    estimateSize: (index) => isProcessHidden(index) && !hasSupplementalCard(index) && turnPresentations.get(index)?.first !== index ? 0 : 100,
     overscan: 8,
     // 正规手段(替代手写贴底链):anchorTo: "end" 是库原生聊天列表机制——
     // 用户在底部时内容测量变化(流式增长)自动保持贴底;用户滚动离开自动停止跟随。
@@ -854,11 +875,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const foldLayoutKey = Array.from(turnPresentations.entries()).map(([index, turn]) => {
     const segments = (runningSlices.get(index) ?? []).map(slice =>
       `${slice.key ?? "text"}:${slice.header}:${!!expandedTurns[`${sid}:${slice.key}`]}`).join("|");
-    return `${index}:${!!expandedTurns[`${sid}:${turn.key}`]}:${isProcessHidden(index)}:${segments}`;
+    return `${index}:${!!expandedTurns[`${sid}:${turn.key}`]}:${isProcessHidden(index)}:${hasSupplementalCard(index)}:${segments}`;
   }).join(",");
   const hiddenProcessRowsRef = useRef(new Set<number>());
   useLayoutEffect(() => {
-    const hidden = new Set(Array.from(turnPresentations.keys()).filter(index => isProcessHidden(index) && turnPresentations.get(index)?.first !== index));
+    const hidden = new Set(Array.from(turnPresentations.keys()).filter(index => isProcessHidden(index) && !hasSupplementalCard(index) && turnPresentations.get(index)?.first !== index));
     for (const index of hiddenProcessRowsRef.current) {
       if (hidden.has(index) || index >= messages.length) continue;
       const row = containerRef.current?.querySelector(`[data-index="${index}"]`);
@@ -1085,7 +1106,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // ── 子 Agent 委派进度卡片 ─────────────────────────
   // 多委派并存：按 delegationId 索引（此前是单对象 state——新委派直接覆盖旧卡片，
   // 且旧委派的进度事件到达时按「delegationId 变了=新委派」重置任务行，卡片来回跳）
-  const [delegations, setDelegations] = useState<Record<string, DelegationUiState>>({});
   // 事件回调内跟踪当前委派状态(副作用必须移出 useState updater——
   // updater 渲染期间执行,调用其他 store 会触发跨组件更新警告)
   const delegationsRef = useRef<Record<string, DelegationUiState>>({});
@@ -1099,11 +1119,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 聚合渲染锚点:任意时刻最多显示一张委派卡片(含所有委派任务行),
   // 挂在「最新的 triggerMsgId」对应消息下;全部委派缺 triggerMsgId(Mint 主动发起、
   // 消息未落盘捕获不到)时为 undefined,渲染层兜底挂最后一条 AI 消息
-  const delegationList = Object.values(delegations);
-  const anchorMsgId = delegationList.reduce<number | undefined>(
-    (latest, d) => (d.triggerMsgId !== undefined && (latest === undefined || d.triggerMsgId > latest) ? d.triggerMsgId : latest),
-    undefined,
-  );
+
   // 委派完成 3s 后收起:每委派一个计时器(delegationId → timer),存在即已开始倒计时,
   // 避免每次 delegations 更新都重建计时器把已完成的委派无限期留在卡上
   const collapseTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -3007,6 +3023,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     {!hidden && <MemoChatMessage
                       msg={msg}
                       runningSlices={turn?.active || turn?.preserveSegments ? runningSlices.get(vi.index) : undefined}
+                      omitProcessKey={liveProcess?.key}
                       processActive={!!turn?.active}
                       processInterrupted={!!turn?.interrupted}
                       onInspectProcess={inspectProcess}
@@ -3070,7 +3087,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             <AskUserCard key={pendingAsk.requestId} request={pendingAsk} />
           </div>
         )}
-        <StatusBar sessionId={sidRef.current} showCompletedOutcome={false} />
+        {liveProcess ? <div className="execution-live-process">
+          <ExecutionProcess key={liveProcess.key} id={`${sid}:${liveProcess.key}`} chunks={liveProcess.chunks!} active liveStatusSessionId={sidRef.current} onInspect={inspectProcess} onContextMenu={handleMsgContextMenu} />
+        </div> : <StatusBar sessionId={sidRef.current} showCompletedOutcome={false} />}
       </div>
 
       {/* Attach preview — above thinking when busy;左右边距与输入卡片(--chat-content-inset)一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
@@ -3285,6 +3304,7 @@ export function AssistantIdentity({ msg, live }: { msg: ChatMessage; live: boole
 interface MemoChatMessageProps {
   msg: ChatMessage;
   runningSlices?: RunningProcessSlice[];
+  omitProcessKey?: string;
   onInspectProcess?: () => void;
   processActive?: boolean;
   processInterrupted?: boolean;
@@ -3301,7 +3321,7 @@ interface MemoChatMessageProps {
   sid: string;
 }
 
-export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlices, onInspectProcess, processActive, processInterrupted, conclusions, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
+export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlices, omitProcessKey, onInspectProcess, processActive, processInterrupted, conclusions, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
   useUiLocale();
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
@@ -3508,7 +3528,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
     <div className={`msg-in msg-ai-flow${hasConclusion && (msg.durationMs !== undefined || msg.usage) ? " msg-with-output-meta" : ""}`} onContextMenu={(e) => onContextMenu((e.target as HTMLElement).closest(".msg-conclusion") ? conclusionMessage : msg, e)} aria-label={displayName}>
       <div className="msg-agent-row">
         <div className="msg-agent-content min-w-0 relative">
-          {runningSlices ? <RunningAssistantContent slices={runningSlices} sessionId={sid} messageId={String(msg.id)} toolInputs={toolInputs} streaming={streaming} active={processActive} interrupted={processInterrupted} onInspect={onInspectProcess} onContextMenu={onContextMenu} /> : <AssistantContent entries={visible} conclusions={conclusions ?? []} messageId={String(msg.id)} toolInputs={toolInputs}
+          {runningSlices ? <RunningAssistantContent slices={runningSlices} omitProcessKey={omitProcessKey} sessionId={sid} messageId={String(msg.id)} toolInputs={toolInputs} streaming={streaming} active={processActive} interrupted={processInterrupted} onInspect={onInspectProcess} onContextMenu={onContextMenu} /> : <AssistantContent entries={visible} conclusions={conclusions ?? []} messageId={String(msg.id)} toolInputs={toolInputs}
             streaming={streaming}
             actionEvents={{ ...actionFocusProps, onMouseEnter: showActions, onMouseLeave: scheduleHideActions }}
             actions={hasConclusion && <BubbleActions

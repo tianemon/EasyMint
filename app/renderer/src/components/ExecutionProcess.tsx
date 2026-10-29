@@ -3,6 +3,7 @@ import { uiText, useUiLocale } from "../lib/i18n";
 import { useProcessDisclosure } from "./chat-process-disclosure";
 import { AssistantContent } from "./AssistantContent";
 import { ToolIcon } from "./ChatBlocks";
+import { StatusBar } from "./StatusBar";
 import { ThinkingIcon } from "./ThinkingIcon";
 import { splitTailText, TAIL_FADE_CHARS } from "../lib/tail-fade";
 import { buildProcessRecords, type ProcessChunk, type ProcessRecord } from "./execution-process-model";
@@ -12,8 +13,9 @@ import type { ChatMessage } from "./chat-utils";
 const scrollPositions = new Map<string, number>();
 
 /** A segment may span many original messages, but owns one bounded scroll viewport. */
-export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, onContextMenu }: {
+export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, onContextMenu, liveStatusSessionId }: {
   id: string;
+  liveStatusSessionId?: string;
   chunks: ProcessChunk[];
   active: boolean;
   interrupted?: boolean;
@@ -23,6 +25,8 @@ export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, o
   const locale = useUiLocale();
   const open = useProcessDisclosure(state => !!state.expanded[id]);
   const toggle = useProcessDisclosure(state => state.toggle);
+  const section = useRef<HTMLElement>(null);
+  const revealOnOpen = useRef(false);
   const viewport = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const [faded, setFaded] = useState(false);
@@ -62,13 +66,28 @@ export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, o
   }, [updateFade]);
   useLayoutEffect(updateFade, [records, updateFade]);
 
-  return <section className="execution-process" data-process-id={id}>
-    <button type="button" className="execution-process-toggle" aria-expanded={open} data-state={single?.state} onClick={() => { rememberScroll(); onInspect?.(); toggle(id); }}>
+  useLayoutEffect(() => {
+    if (open && revealOnOpen.current) {
+      revealOnOpen.current = false;
+      section.current?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [open]);
+  const toggleProcess = () => {
+    rememberScroll();
+    revealOnOpen.current = !!liveStatusSessionId && !open;
+    onInspect?.();
+    toggle(id);
+  };
+  const latestRunning = records.slice().reverse().find(record => record.state === "running");
+  return <section ref={section} className="execution-process" data-process-id={id}>
+    {liveStatusSessionId ? <StatusBar sessionId={liveStatusSessionId} expanded={open} onToggle={toggleProcess} showCompletedOutcome={false}
+      fallback={latestRunning?.icon === "thinking" ? {text:uiText("ui.ChatPanel.thinking"),icon:"thinking"}
+        : latestRunning ? {text:latestRunning.text,fullText:latestRunning.fullText,icon:latestRunning.icon} : {text:uiText("ui.ChatPanel.processing")}} /> : <button type="button" className="execution-process-toggle" aria-expanded={open} data-state={single?.state} onClick={toggleProcess}>
       {summaryIcon === "thinking" ? <ThinkingIcon className="shrink-0" /> : <ToolIcon name={summaryIcon} />}
       <span className="min-w-0 truncate" title={single?.fullText || summary || undefined}>{summary || single?.text || uiText(records.some(record => record.icon === "thinking") ? "ui.ToolActivity.thinking" : "ui.ToolActivity.notice")}</span>
       {single?.state === "running" && <span className="process-record-running" aria-label={uiText("ui.ChatPanel.processing")} />}
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0" style={{ transform: open ? "rotate(90deg)" : undefined }}><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" /></svg>
-    </button>
+    </button>}
     <div ref={viewport} className="execution-process-viewport" data-faded={faded} hidden={!open} onScroll={() => { rememberScroll(); updateFade(); }} tabIndex={open ? 0 : -1} role="region" aria-label={uiText("ui.ChatPanel.executionProcess")}>
       <div ref={body}>
         {single ? <div className="execution-process-detail" data-state={single.state} onContextMenu={event => { if (onContextMenu) { event.stopPropagation(); onContextMenu(single.message, event); } }}>

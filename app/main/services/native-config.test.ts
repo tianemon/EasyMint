@@ -27,6 +27,21 @@ const custom = {
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
 
 describe("pi-native configuration", () => {
+  it("switches the real SDK default provider and endpoint even when model ids are identical", async () => {
+    const provider = (id: string, port: number) => ({ ...custom, id, name:id, model:"shared",models:["shared"],baseUrl:`http://127.0.0.1:${port}/v1`,extraModels:[{...custom.extraModels[0],id:"shared"}] });
+    const one=provider("custom-switch-a",11111),two=provider("custom-switch-b",22222);
+    const {store,file}=fixture({apiProviders:{current:one.id,configs:{[one.id]:one,[two.id]:two}}});
+    const repo=await NativeConfig.create(store);await repo.getRuntime();
+    expect(repo.getDefaultModel()?.provider).toBe(one.id);
+    expect(repo.getDefaultModel()?.baseUrl).toBe(one.baseUrl);
+    const providers=repo.view().apiProviders;providers.current=two.id;
+    await repo.saveProviders(providers);
+    expect(repo.view().apiProviders.current).toBe(two.id);
+    expect(repo.getDefaultModel()?.provider).toBe(two.id);
+    expect(repo.getDefaultModel()?.id).toBe("shared");
+    expect(repo.getDefaultModel()?.baseUrl).toBe(two.baseUrl);
+    expect(read(file("settings"))).toMatchObject({defaultProvider:two.id,defaultModel:"shared"});
+  },60000);
   it("migrates legacy official Kimi overrides transactionally and inherits the official protocol", async () => {
     const { dir, store, file } = fixture();
     // create() 不再预热运行时（2026-10-26 启动优化），先显式建一次，让 auth.json 的

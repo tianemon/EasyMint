@@ -155,3 +155,9 @@
 /* The elapsed-time transcript already owns the message inset. */
 .execution-transcript .msg-system-row { padding-inline: 0; }
 .execution-process-toggle[data-state="failed"] { color: var(--color-danger); }
+
+/* The current segment is one live status disclosure at the transcript tail. */
+.execution-live-process { margin-inline: calc(var(--s8) + var(--s4)); }
+.execution-process > .statusbar.execution-process-toggle {
+  width: 100%; margin: 0 0 6px; padding: 4px 0; border: 0;
+}

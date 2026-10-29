@@ -8,6 +8,9 @@ export interface RunningProcessSlice {
   /** Absent for visible prose/questions. Shared across rows in one process segment. */
   key?: string;
   header?: boolean;
+  /** Only the currently trailing process is represented by the live status control. */
+  live?: boolean;
+  active?: boolean;
   chunks?: ProcessChunk[];
 }
 
@@ -64,7 +67,7 @@ export function buildRunningProcessSlices(messages: readonly ChatMessage[], turn
         } else {
           processKey ??= `${turn.key}:process:${message.id}:${entryIndex}`;
           if (header) {
-            processSlice = { entries: [], key: processKey, header: true, chunks: [] };
+            processSlice = { entries: [], key: processKey, header: true, active: !!turn.active, chunks: [] };
             slices.push(processSlice);
           }
           // Continuations share the first slice's viewport rather than rendering another row.
@@ -74,6 +77,18 @@ export function buildRunningProcessSlices(messages: readonly ChatMessage[], turn
       }
       rows.set(i, slices);
     }
+    if (turn.active && processSlice) processSlice.live = true;
   }
   return rows;
+}
+
+export function liveProcessSlice(rows: ReadonlyMap<number, RunningProcessSlice[]>, activeToolId?: string): RunningProcessSlice | undefined {
+  let trailing: RunningProcessSlice | undefined;
+  for (const slices of rows.values()) for (const slice of slices) {
+    if (slice.live) trailing = slice;
+    // Real call identity also covers a tool still running while commentary has already arrived.
+    if (activeToolId && slice.active && slice.entries.some(entry => entry.kind === "tool_use" && entry.id
+      && (activeToolId === entry.id || activeToolId.startsWith(`${entry.id}/`)))) return slice;
+  }
+  return trailing;
 }

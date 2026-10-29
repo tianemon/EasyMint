@@ -46,6 +46,7 @@ const store = (current: string): Store => ({
 }) as unknown as Store;
 
 function chatOf(provider: string, currentModel: string) {
+  let boundModel = { provider, id: currentModel };
   return {
     chatId: "chat-1",
     sessionId: "session-1",
@@ -54,8 +55,8 @@ function chatOf(provider: string, currentModel: string) {
     thinkingLevel: "off",
     session: {
       // 会话实际绑定的模型对象——rebindToCurrentProvider 按它判断是否跨供应商
-      model: { provider, id: currentModel },
-      setModel: vi.fn(async () => {}),
+      get model() { return boundModel; },
+      setModel: vi.fn(async (model: typeof boundModel) => { boundModel = model; }),
       thinkingLevel: "off",
       getAvailableThinkingLevels: () => ["off"],
       getContextUsage: () => ({ contextWindow: 1000, percent: 0, tokens: 0 }),
@@ -131,5 +132,65 @@ describe("provider switch and per-session model", () => {
     const rebind = (service as unknown as { rebindToCurrentProvider(c: unknown): Promise<void> });
     await expect(rebind.rebindToCurrentProvider(chat)).rejects.toThrow(/没有可用模型/);
     expect(chat.currentModel).toBe("gpt");
+  });
+});
+
+describe("provider binding at the real sendMessage entry", () => {
+  const interceptPrompt = (service: AgentService) => vi.spyOn(service as unknown as { launchPrompt(session: {model:{provider:string;id:string}}, ...args: unknown[]): void }, "launchPrompt").mockImplementation(() => {});
+  const send = (service: AgentService, sessionId = "session-1") => service.sendMessage(process.cwd(), "next message", sessionId, undefined, {} as Parameters<AgentService["sendMessage"]>[4]);
+
+  it("actually starts the reused old session with the new provider's model",async()=>{
+    mocks.models.set("deepseek:deepseek-chat",DEEPSEEK);
+    const chat=chatOf("openai-codex","gpt"),service=serviceWith("deepseek",chat);
+    const start=interceptPrompt(service);
+    await send(service);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start.mock.calls[0]![0].model).toBe(DEEPSEEK);
+    expect(chat.session.setModel).toHaveBeenCalledWith(DEEPSEEK);
+  });
+
+  it("uses the current provider even when both providers have the same model id",async()=>{
+    const next={...DEEPSEEK,id:"shared"};
+    mocks.models.set("deepseek:shared",next);
+    mocks.models.set("openai-codex:shared",{...CODEX,id:"shared"});
+    const chat=chatOf("openai-codex","shared"),service=serviceWith("deepseek",chat);
+    const start=interceptPrompt(service);
+    await send(service);
+    expect(start.mock.calls[0]![0].model).toBe(next);
+  });
+
+  it("rebinds a session skipped during an active run before its next send",async()=>{
+    mocks.models.set("deepseek:deepseek-chat",DEEPSEEK);
+    const chat=chatOf("openai-codex","gpt"),service=serviceWith("deepseek",chat);
+    const active=(service as unknown as {activePromptSessions:Set<string>}).activePromptSessions;
+    active.add(chat.sessionId);
+    await service.refreshActiveSessionsModel();
+    expect(chat.session.model.provider).toBe("openai-codex");
+    active.delete(chat.sessionId);
+    const start=interceptPrompt(service);
+    await send(service);
+    expect(start.mock.calls[0]![0].model.provider).toBe("deepseek");
+  });
+
+  it("refreshes multiple old sessions without changing the global default on a per-session model choice",async()=>{
+    mocks.models.set("deepseek:deepseek-chat",DEEPSEEK);
+    const alternative={...DEEPSEEK,id:"deepseek-reasoner"};mocks.models.set("deepseek:deepseek-reasoner",alternative);
+    const one=chatOf("openai-codex","gpt"),two={...chatOf("openai-codex","gpt"),chatId:"chat-2",sessionId:"session-2"};
+    const service=serviceWith("deepseek",one);
+    (service as unknown as {activeChats:Map<string,unknown>}).activeChats.set(two.chatId,two);
+    await service.refreshActiveSessionsModel();
+    await service.setModel(one.sessionId,"deepseek-reasoner");
+    const start=interceptPrompt(service);
+    await send(service,one.sessionId);await send(service,two.sessionId);
+    expect(one.session.model).toBe(alternative);expect(two.session.model).toBe(DEEPSEEK);
+    expect(start.mock.calls.map(([session])=>session.model.provider)).toEqual(["deepseek","deepseek"]);
+    expect((service as unknown as {store:Store}).store.getSettings().apiProviders?.configs.deepseek?.model).toBe("deepseek-chat");
+  });
+
+  it("never starts an old provider request when the new provider cannot resolve a model",async()=>{
+    const chat=chatOf("openai-codex","gpt"),service=serviceWith("deepseek",chat);
+    const start=interceptPrompt(service);
+    await expect(send(service)).rejects.toThrow(/没有可用模型/);
+    expect(start).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,7 @@ import { useTabStore } from "../stores/tab-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
 import { useAskStore } from "../stores/ask-store";
+import { ThinkingIcon } from "./ThinkingIcon";
 import { ModelGlyph } from "./ModelGlyph";
 import { ToolIcon } from "./ChatBlocks";
 import { toolActivity } from "./tool-activity";
@@ -37,8 +38,9 @@ function buildShimmerStyle(durationSec: number): CSSProperties {
  * 常驻活跃动画已移至输入卡片流光(OrbitGlow/SlideGlow/BreatheGlow canvas 组件);
  * 符号动画与状态文本同现同消:运行或交互等待时显示状态，回合结束结果短暂保留到 outcome 信号过期。
  */
-export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome = true }: {
+export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome = true, fallback }: {
   sessionId: string;
+  fallback?: { text: string; fullText?: string; icon?: string };
   expanded?: boolean;
   onToggle?: () => void;
   showCompletedOutcome?: boolean;
@@ -56,7 +58,9 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
       signals.find(signal => signal.id !== "outcome")
       : signals.find(signal => signal.id === "error") ?? signals.find(signal => signal.id === "outcome"));
   const waiting = current?.id !== "stopping" && (asking || current?.id === "dialog");
-  const activity = current?.tool && !waiting ? toolActivity(current.tool.name, current.tool.args) : undefined;
+  const activity = current?.tool && !waiting ? toolActivity(current.tool.name, current.tool.args)
+    : !current && !waiting && busy ? fallback : undefined;
+  const icon = activity?.icon ?? (!waiting && current?.id === "request" ? fallback?.icon : undefined);
   const text = waiting ? uiText("pi.waitingUser") : activity?.text ?? current?.text ?? "";
   // 状态文本样式配置:单色(solid,独立颜色)/流光(shimmer,启用组色彩注入 --shimmer-1..5)
   const statusTextStyle = useSettingsStore((s) => s.statusTextStyle);
@@ -149,7 +153,7 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
         className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
         style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
       >
-        {activity ? <ToolIcon name={activity.icon} /> : <ModelGlyph animated={busy && !waiting} />}
+        {icon === "thinking" ? <ThinkingIcon /> : icon ? <ToolIcon name={icon} /> : <ModelGlyph animated={busy && !waiting} />}
       </span>
       {text
         ? <span className="min-w-0 truncate text-xs font-medium" style={textStyle} title={activity?.fullText ?? appText(text)} role="status">{activity ? text : appText(text)}</span>
