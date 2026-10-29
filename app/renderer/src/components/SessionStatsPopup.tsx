@@ -2,11 +2,20 @@ import { useChatStore } from "../stores/chat-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { CodexQuotaSection } from "./CodexQuotaSection";
 import { formatNumber } from "../lib/locale-format";
-import { uiText, useUiLocale, uiI18n } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect, useMemo } from "react";
 import { Modal } from "./ui/Modal";
 import { formatTokenWindow } from "../lib/token-format";
-import { costFormula, formatCostCny } from "@shared/usd-cny-rate";
+
+/**
+ * 会话统计弹窗。
+ *
+ * 两条硬约束（用户 2026-10-29）：
+ * 1. **空会话也要有完整骨架**：没有数字就只显示数据项名称，不写 0、也不退化成「暂无数据」；
+ * 2. **额度/余额不依赖会话**：它们是账号级信息，新会话一条消息都没有时也要照常拉到并显示。
+ *
+ * 费用估算已移除（那个数字既不是实付、也与账单对不上，摆在这里只会误导）。
+ */
 
 interface SessionStats {
   userMessages: number;
@@ -14,23 +23,22 @@ interface SessionStats {
   toolCalls: number;
   totalMessages: number;
   tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
-  cost: number;
-  /** 未折算的高峰价合计（仅当发生了空闲时段折算时给出） */
-  costPeak?: number;
-  /** 费用口径：分时段计价的会话（DeepSeek）才有值，供界面标注。
-   *  `mixed` = 只有一部分费用来自 DeepSeek（会话中途切过供应商），措辞按"其中 DeepSeek 部分" */
-  costBasis?: "deepseek-offpeak" | "deepseek-peak" | "mixed";
-  /** `mixed` 时给出：DeepSeek 轮次占全部费用的比例（0–1） */
-  timeBasedShare?: number;
-  /** 费用里属于委派子 Agent 的部分（同样已按时段折算） */
-  costSubagents?: number;
   contextUsage?: { percent: number; tokens: number; contextWindow: number };
+}
+
+/** 一行「名称 —— 数值」：没有值就只留名称（空会话的形态） */
+function Row({ label, value, title }: { label: string; value?: string; title?: string }): JSX.Element {
+  return (
+    <div className="flex justify-between" title={value ? title : undefined}>
+      <span className="text-text-secondary">{label}</span>
+      {value ? <span className="text-text-primary tabular-nums">{value}</span> : null}
+    </div>
+  );
 }
 
 export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress }: { sessionId: string; projectPath: string; onClose: () => void; onCompress?: () => void }) {
   useUiLocale();
   const [stats, setStats] = useState<SessionStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<string | null>(null);
   // 配过 Codex 订阅就显示额度块（额度是**账号级**的，与当前会话选哪个供应商无关：
   // 用户常把 DeepSeek 设为默认、Codex 只是偶尔用，但 Codex 的额度照样在往下走）
@@ -53,12 +61,9 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   useEffect(() => {
     let cancelled = false;
     window.electronAPI.agent.sessionStats(sessionId, projectPath).then((data) => {
-      if (cancelled) return;
-      if (data) {
-        setStats(data as unknown as SessionStats);
-      }
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      if (cancelled || !data) return;
+      setStats(data as unknown as SessionStats);
+    }).catch(() => {});
     // 账户余额（与统计并行获取，失败静默隐藏）
     window.electronAPI.settings.fetchBalance().then((data) => {
       if (cancelled) return;
@@ -68,15 +73,10 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   }, [sessionId, projectPath]);
 
   const fmtTokens = (n: number) => formatNumber(n, { notation: "compact", maximumFractionDigits: 1 });
-  // 费用显示（两位小数 + ≈）与 USD→CNY 估算换算统一在 @shared/usd-cny-rate——那里写了来源、报价日
-  // 与更新策略；这里不再自己拿汇率
-  const fmtCost = (cost: number) => formatCostCny(cost, uiI18n.resolvedLanguage);
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
-  // 费用口径说明：DeepSeek 分时段计价（法定节假日取国务院公告的放假日期）
-  const costBasisTitle = stats?.costBasis
-    ? `${stats.costBasis !== "deepseek-peak" && stats.costPeak ? uiText("ui.extra.costBeforeDiscount", { cost: fmtCost(stats.costPeak) }) : ""}`
-      + uiText("ui.SessionStatsPopup.deepseekPeakHoursAreWeekdays0900")
-    : "";
+  // 0 与「还没数据」在这里是同一种表达：留空，不写 0
+  const count = (n: number | undefined) => (n ? formatNumber(n) : undefined);
+  const tokens = (n: number | undefined) => (n ? fmtTokens(n) : undefined);
 
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
@@ -88,109 +88,75 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
           </button>
         </div>
 
-        {loading ? (
-          <div className="text-xs text-text-secondary py-4 text-center">{uiText("ui.AgentTemplateSettings.loading")}</div>
-        ) : stats ? (
-          <div className="space-y-3 text-xs">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
-                <div className="text-text-secondary mb-0.5">{uiText("ui.SessionStatsPopup.userMessages")}</div>
-                <div className="text-text-primary font-medium">{formatNumber(stats.userMessages)}</div>
+        <div className="space-y-3 text-xs">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: uiText("ui.SessionStatsPopup.userMessages"), value: count(stats?.userMessages) },
+              { label: uiText("ui.SessionStatsPopup.aiResponses"), value: count(stats?.assistantMessages) },
+              { label: uiText("ui.SessionStatsPopup.toolCalls"), value: count(stats?.toolCalls) },
+              { label: uiText("ui.SessionStatsPopup.totalMessages"), value: count(stats?.totalMessages) },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
+                <div className="text-text-secondary mb-0.5">{label}</div>
+                {value ? <div className="text-text-primary font-medium">{value}</div> : null}
               </div>
-              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
-                <div className="text-text-secondary mb-0.5">{uiText("ui.SessionStatsPopup.aiResponses")}</div>
-                <div className="text-text-primary font-medium">{formatNumber(stats.assistantMessages)}</div>
-              </div>
-              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
-                <div className="text-text-secondary mb-0.5">{uiText("ui.SessionStatsPopup.toolCalls")}</div>
-                <div className="text-text-primary font-medium">{formatNumber(stats.toolCalls)}</div>
-              </div>
-              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
-                <div className="text-text-secondary mb-0.5">{uiText("ui.SessionStatsPopup.totalMessages")}</div>
-                <div className="text-text-primary font-medium">{formatNumber(stats.totalMessages)}</div>
-              </div>
-            </div>
-
-            <div className="border-t border-border pt-3">
-              <div className="text-text-secondary mb-2">{uiText("ui.SessionStatsPopup.tokenUsage")}</div>
-              <div className="space-y-1">
-                <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.input")}</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.tokens.input)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.ChatPanel.output")}</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.tokens.output)}</span></div>
-                {stats.tokens.cacheRead > 0 && (
-                  <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.cacheRead")}</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.tokens.cacheRead)}</span></div>
-                )}
-                {stats.tokens.cacheWrite > 0 && (
-                  <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.cacheWrite")}</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.tokens.cacheWrite)}</span></div>
-                )}
-                <div className="flex justify-between border-t border-border/50 pt-1 mt-1">
-                  <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.total")}</span>
-                  <span className="text-text-primary font-medium tabular-nums">{fmtTokens(stats.tokens.total)}</span>
-                </div>
-              </div>
-            </div>
-
-            {stats.contextUsage && (
-              <div className="border-t border-border pt-3 space-y-1">
-                <div className="text-text-secondary mb-1">{uiText("ui.SessionStatsPopup.contextUsage")}</div>
-                <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.share")}</span><span className="text-text-primary tabular-nums">{fmtPct(stats.contextUsage.percent)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.used")}</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.contextUsage.tokens)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">{uiText("ui.SessionStatsPopup.limit")}</span><span className="text-text-primary tabular-nums">{formatTokenWindow(stats.contextUsage.contextWindow)}</span></div>
-              </div>
-            )}
-
-            {cacheRate !== null && (
-              <div className="border-t border-border pt-3 flex justify-between items-center" title={uiText("ui.ChatInput.includesColdStartTurnsProviderCachesMay")}>
-                <span className="text-text-secondary">{uiText("ui.ChatInput.averageCacheHitRate").trim()}</span>
-                <span className="text-text-primary tabular-nums">{cacheRate}%</span>
-              </div>
-            )}
-
-            <div className="border-t border-border pt-3 flex justify-between items-center">
-              <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.estimatedCost")}</span>
-              <span className="text-accent font-medium text-sm tabular-nums" title={costFormula(stats.cost, uiI18n.resolvedLanguage)}>{fmtCost(stats.cost)}</span>
-            </div>
-
-            {stats.costSubagents && stats.costSubagents > 0 ? (
-              <div className="mt-1 text-right text-[length:var(--text-2xs)] text-text-muted">
-                {uiText("ui.SessionStatsPopup.delegatedSubagents")}{fmtCost(stats.costSubagents)}
-              </div>
-            ) : null}
-
-            {stats.costBasis && (
-              <div className="mt-1 text-right text-[length:var(--text-2xs)] text-text-muted" title={costBasisTitle}>
-                {stats.costBasis === "deepseek-offpeak"
-                  ? uiText("ui.SessionStatsPopup.adjustedForDeepseekOffPeakHours")
-                  : stats.costBasis === "mixed"
-                    ? uiText("ui.SessionStatsPopup.partlyDeepseekOffPeakHours", {
-                        v0: String(Math.round((stats.timeBasedShare ?? 0) * 100)),
-                      })
-                    : uiText("ui.SessionStatsPopup.estimatedAtDeepseekPeakPricing")}
-              </div>
-            )}
-
-            {balance !== null && (
-              <div className="border-t border-border pt-3 flex justify-between items-center">
-                <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.accountBalance")}</span>
-                <span className="text-text-primary font-medium text-sm tabular-nums">{balance}</span>
-              </div>
-            )}
-
-            <CodexQuotaSection active={hasCodexProvider} />
-
-            {onCompress && (
-              <div className="border-t border-border pt-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={onCompress}
-                  className="update-install-btn"
-                >
-                  {uiText("ui.SessionStatsPopup.compactSession")}</button>
-              </div>
-            )}
+            ))}
           </div>
-        ) : (
-          <div className="text-xs text-text-secondary py-4 text-center">{uiText("ui.SessionStatsPopup.noData")}</div>
-        )}
+
+          <div className="border-t border-border pt-3">
+            <div className="text-text-secondary mb-2">{uiText("ui.SessionStatsPopup.tokenUsage")}</div>
+            <div className="space-y-1">
+              <Row label={uiText("ui.SessionStatsPopup.input")} value={tokens(stats?.tokens.input)} />
+              <Row label={uiText("ui.ChatPanel.output")} value={tokens(stats?.tokens.output)} />
+              {!!stats?.tokens.cacheRead && <Row label={uiText("ui.SessionStatsPopup.cacheRead")} value={tokens(stats.tokens.cacheRead)} />}
+              {!!stats?.tokens.cacheWrite && <Row label={uiText("ui.SessionStatsPopup.cacheWrite")} value={tokens(stats.tokens.cacheWrite)} />}
+              {/* 子分割线：比段落分割线更淡，表示「这是上面这一组的合计」 */}
+              <div className="flex justify-between border-t border-border/50 pt-1 mt-1">
+                <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.total")}</span>
+                {stats?.tokens.total ? (
+                  <span className="text-text-primary font-medium tabular-nums">{fmtTokens(stats.tokens.total)}</span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {stats?.contextUsage && (
+            <div className="border-t border-border pt-3 space-y-1">
+              <div className="text-text-secondary mb-1">{uiText("ui.SessionStatsPopup.contextUsage")}</div>
+              <Row label={uiText("ui.SessionStatsPopup.share")} value={fmtPct(stats.contextUsage.percent)} />
+              <Row label={uiText("ui.SessionStatsPopup.used")} value={tokens(stats.contextUsage.tokens)} />
+              <Row label={uiText("ui.SessionStatsPopup.limit")} value={formatTokenWindow(stats.contextUsage.contextWindow)} />
+            </div>
+          )}
+
+          <div className="border-t border-border pt-3">
+            <Row
+              label={uiText("ui.ChatInput.averageCacheHitRate").trim()}
+              value={cacheRate !== null ? `${cacheRate}%` : undefined}
+              title={uiText("ui.ChatInput.includesColdStartTurnsProviderCachesMay")}
+            />
+          </div>
+
+          {balance !== null && (
+            <div className="border-t border-border pt-3 flex justify-between items-center">
+              <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.accountBalance")}</span>
+              <span className="text-text-primary font-medium text-sm tabular-nums">{balance}</span>
+            </div>
+          )}
+
+          <CodexQuotaSection active={hasCodexProvider} />
+
+          {onCompress && (
+            <div className="border-t border-border pt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={onCompress}
+                className="update-install-btn"
+              >
+                {uiText("ui.SessionStatsPopup.compactSession")}</button>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );
