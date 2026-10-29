@@ -583,7 +583,7 @@ interface ElectronAPI {
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   sessionCache: {
-    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; thinkingLevel?: string; contextUsage: number | null; updatedAt: number } | null>;
+    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; thinkingLevel?: string; contextUsage: number | null; updatedAt: number } | null>;
     write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
   };
