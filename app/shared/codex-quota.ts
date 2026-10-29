@@ -49,3 +49,35 @@ export interface ConsumeResetResult {
   windowsReset?: number;
   error?: string;
 }
+
+/**
+ * 把后端的套餐标识翻成界面显示名：`plus` → `Plus`、`pro` → `Pro`、`pro_lite` → `Pro Lite`。
+ *
+ * `plan_type` 没有公开取值表（社区实现都按未知字段处理），所以这里**只对已知值做映射，
+ * 其余按分隔符切词后首字母大写原样展示**——后端哪天给出更细的档位（如 `pro_5x`），界面
+ * 自动显示成 "Pro 5x"，不需要跟着改代码。空值返回 undefined，调用方据此不显示括号。
+ */
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  plus: "Plus",
+  pro: "Pro",
+  prolite: "Pro Lite",
+  "pro_lite": "Pro Lite",
+  team: "Team",
+  business: "Business",
+  enterprise: "Enterprise",
+  edu: "Edu",
+  education: "Edu",
+};
+
+export function formatPlanLabel(plan?: string): string | undefined {
+  const raw = typeof plan === "string" ? plan.trim() : "";
+  if (!raw) return undefined;
+  const known = PLAN_LABELS[raw.toLowerCase().replace(/[\s-]+/g, "_")];
+  if (known) return known;
+  return raw
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}

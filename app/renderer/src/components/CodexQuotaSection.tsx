@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { uiText, useUiLocale } from "../lib/i18n";
 import type { CodexQuotaView, CodexResetCredit } from "@shared/codex-quota";
 import { toast } from "./ui/Toast";
@@ -24,6 +24,12 @@ function formatClock(at?: number, locale?: string): string {
     : { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
+/** 后端只给已用百分比；界面按「剩余」展示（100 - 已用，夹在 0~100，缺失显示破折号） */
+function remainingPercent(usedPercent?: number): string {
+  if (usedPercent === undefined || !Number.isFinite(usedPercent)) return "—";
+  return `${Math.round(100 - Math.min(100, Math.max(0, usedPercent)))}%`;
+}
+
 /** 最早到期的那张凭据（提示用户先用快到期的） */
 function soonestExpiry(items: CodexResetCredit[]): string | undefined {
   const times = items
@@ -33,44 +39,61 @@ function soonestExpiry(items: CodexResetCredit[]): string | undefined {
   return new Date(Math.min(...times)).toISOString();
 }
 
-/** 满额不换危险色：额度用满是常态而非错误，红色会让整块看起来像告警（用户 2026-10-29 反馈） */
-function Bar({ percent, reached }: { percent: number; reached: boolean }): JSX.Element {
-  return (
-    <div className="h-1.5 w-full rounded-full bg-surface-hover overflow-hidden">
-      <div
-        className={reached ? "h-full bg-text-primary" : "h-full bg-accent"}
-        style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
-      />
-    </div>
-  );
-}
-
-export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element | null {
-  useUiLocale();
+export function CodexQuotaSection({ active, onPlan }: { active: boolean; onPlan?: (plan: string | undefined) => void }): JSX.Element | null {
+  const locale = useUiLocale();
   const [quota, setQuota] = useState<CodexQuotaView | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 套餐等级要显示在弹窗标题里（父组件持有），每次渲染同步，避免为它多挂一个 effect
+  const onPlanRef = useRef(onPlan);
+  onPlanRef.current = onPlan;
 
-  const load = useCallback(async (force = false) => {
-    try {
-      const result = await window.electronAPI.provider.codexQuota(force);
-      if (result.ok) {
-        setQuota(result.quota);
-        setReason(null);
-      } else {
-        setQuota(null);
-        setReason(result.reason);
+  const [refreshing, setRefreshing] = useState(false);
+  const mounted = useRef(false);
+  const generation = useRef(0);
+  const pending = useRef<Promise<void> | null>(null);
+
+  const load = useCallback(async (force = false): Promise<void> => {
+    if (!mounted.current) return;
+    if (pending.current) return pending.current;
+    const version = generation.current;
+    setRefreshing(true);
+    const request = (async () => {
+      try {
+        const result = await window.electronAPI.provider.codexQuota(force);
+        if (!mounted.current || generation.current !== version) return;
+        if (result.ok) { setQuota(result.quota); setReason(null); onPlanRef.current?.(result.quota.plan); }
+        else setReason(result.reason);
+      } catch (e) {
+        console.error("[CodexQuota] 查询额度失败:", e);
+        if (mounted.current && generation.current === version) setReason("network");
+      } finally {
+        if (mounted.current && generation.current === version) setRefreshing(false);
       }
-    } catch (e) {
-      console.error("[CodexQuota] 查询额度失败:", e);
-      setQuota(null);
-      setReason("network");
-    }
+    })();
+    pending.current = request;
+    try { await request; }
+    finally { if (pending.current === request) pending.current = null; }
   }, []);
 
   useEffect(() => {
+    mounted.current = active;
+    generation.current++;
     if (!active) return;
-    void load();
+    void load(true);
+    const refresh = () => { if (document.visibilityState === "visible") void load(true); };
+    // Match the main service's one-minute cache cadence; only while this popup is mounted.
+    const timer = setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      mounted.current = false;
+      generation.current++;
+      pending.current = null;
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [active, load]);
 
   const consume = useCallback(async () => {
@@ -86,7 +109,7 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
         v1: String(quota.credits.available),
       }),
       confirmText: uiText("ui.CodexQuota.usageButton"),
-      danger: true,
+      // 额度重置不是「删除类」操作，不用危险红；不可逆性由确认文案承担
     });
     if (!ok) return;
     setBusy(true);
@@ -103,6 +126,8 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
         already_redeemed: uiText("ui.CodexQuota.resetAlready"),
       };
       toast(messages[result.code] ?? uiText("ui.CodexQuota.resetFailed", { v0: result.error ?? result.code }));
+      // A poll started during the confirmation must settle before the post-reset reload.
+      await pending.current;
       await load(true);
     } catch (e) {
       console.error("[CodexQuota] 消耗重置失败:", e);
@@ -113,66 +138,52 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
   }, [quota, load]);
 
   if (!active) return null;
-  if (!quota) {
-    return (
-      <div className="space-y-2" role="status">
-        <div className="text-text-secondary">{uiText(reason === "reauth" ? "ui.CodexQuota.reauth" : reason ? "ui.PlanUsage.unavailable" : "ui.PlanUsage.loading")}</div>
-        {reason && <button type="button" className="text-text-primary em-hover-control rounded px-2 py-1" onClick={() => { setReason(null); void load(true); }}>{uiText("ui.PlanUsage.retry")}</button>}
-      </div>
-    );
-  }
-
-  const soonest = soonestExpiry(quota.credits.items);
+  const soonest = quota ? soonestExpiry(quota.credits.items) : undefined;
   const rows = [
-    quota.primary ? { label: uiText("ui.CodexQuota.window5h"), w: quota.primary } : null,
-    quota.secondary ? { label: uiText("ui.CodexQuota.windowWeekly"), w: quota.secondary } : null,
-  ].filter((row): row is { label: string; w: NonNullable<CodexQuotaView["primary"]> } => row !== null);
+    { key: "primary", label: uiText("ui.CodexQuota.usage5h"), window: quota?.primary },
+    { key: "secondary", label: uiText("ui.CodexQuota.usageWeekly"), window: quota?.secondary },
+  ];
+  const errorText = reason === "reauth" ? uiText("ui.CodexQuota.reauth")
+    : reason ? uiText(quota ? "ui.CodexQuota.refreshFailed" : "ui.PlanUsage.unavailable") : "";
 
   return (
-    <div className="space-y-2">
-      <div className="text-text-secondary">{uiText("ui.CodexQuota.title")}</div>
-
-      {rows.map(({ label, w }) => (
-        <div key={label} className="space-y-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[length:var(--text-2xs)] text-text-secondary">{label}</span>
-            <span className="text-[length:var(--text-2xs)] text-text-primary tabular-nums">
-              {Math.round(w.usedPercent)}%
+    <div className="space-y-4" aria-busy={refreshing} data-quota-section="true">
+      {/* 每组两行：上行「额度名 + 剩余百分比」，下行小一号的重置时间——数值便于快速扫读，时间退到次要层级 */}
+      {rows.map(({ key, label, window: usage }) => (
+        <div key={key} data-quota-window={key} className="space-y-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm text-text-primary">{label}</span>
+            <span className="shrink-0 text-sm font-medium text-text-primary tabular-nums" data-quota-value="true">
+              {uiText("ui.CodexQuota.remainingAmount", { value: remainingPercent(usage?.usedPercent) })}
             </span>
           </div>
-          <Bar percent={w.usedPercent} reached={w.reached} />
-          {w.resetAt !== undefined && (
-            <div className="text-[length:var(--text-3xs)] text-text-muted tabular-nums">
-              {uiText("ui.CodexQuota.resetAt", { v0: formatClock(w.resetAt) })}
-            </div>
-          )}
+          <div className="text-xs text-text-muted tabular-nums">
+            {uiText("ui.CodexQuota.resetAt", { v0: formatClock(usage?.resetAt, locale) || "—" })}
+          </div>
         </div>
       ))}
-
-      {/* 次数 · 最早到期 · 重置按钮收成一行：三件事本来就是同一件事的三个面（还有几次、最急的什么时候过期、现在就用）
-          按钮用浅色（bg-surface + em-hover-control，与授权弹窗里的「重新打开 / 复制链接」同一语言），
-          危险感交给点击后的确认弹窗，而不是按钮本身 */}
-      <div className="flex items-center gap-3 flex-wrap pt-0.5">
-        {/* 次数：主文本色（暗色下即白）+ 比到期日期大一号，让"还剩几次"是第一眼的信息 */}
-        <span className="text-[length:var(--text-11)] text-text-primary tabular-nums">
-          {quota.credits.available > 0
-            ? uiText("ui.CodexQuota.creditsAvailable", { v0: String(quota.credits.available) })
-            : uiText("ui.CodexQuota.noCredits")}
-        </span>
-        {quota.credits.available > 0 && soonest && (
-          <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-            {uiText("ui.CodexQuota.expiresAt", { v0: formatClock(Date.parse(soonest) / 1000) })}
+      {/* 底部：次数与最早到期分两行（并排 + 按钮在 320px 内容宽里会挤到截断），按钮垂直居中 */}
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-sm text-text-primary tabular-nums">
+            {uiText("ui.CodexQuota.creditsAvailable", { v0: quota ? String(quota.credits.available) : "—" })}
           </span>
-        )}
-        {quota.credits.available > 0 && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void consume()}
-            className="ml-auto shrink-0 h-7 px-3 rounded-[var(--radius-lg)] bg-surface-alt text-text-primary text-[length:var(--text-2xs)] em-hover-control transition-colors disabled:opacity-40"
-          >{busy ? uiText("ui.CodexQuota.resetting") : uiText("ui.CodexQuota.usageButton")}</button>
-        )}
+          <span className="min-w-0 truncate text-xs text-text-muted tabular-nums">
+            {uiText("ui.CodexQuota.expiresAt", { v0: soonest ? formatClock(Date.parse(soonest) / 1000, locale) : "—" })}
+          </span>
+        </span>
+        <button type="button" disabled={busy || refreshing || !!reason || !quota?.credits.available} onClick={() => void consume()}
+          className="shrink-0 h-7 px-3 rounded-[var(--radius-lg)] bg-surface-alt text-text-primary text-xs em-hover-control transition-colors disabled:opacity-40">
+          {busy ? uiText("ui.CodexQuota.resetting") : uiText("ui.CodexQuota.usageButton")}
+        </button>
       </div>
+      {/* 无错误时整条不渲染：固定高度的空状态行曾在弹窗底部留下一条空白 */}
+      {reason && (
+        <div className="flex items-center gap-2 text-[length:var(--text-2xs)] text-text-secondary" role="status" aria-live="polite" data-quota-error="true">
+          <span className="min-w-0 flex-1">{errorText}</span>
+          <button type="button" disabled={refreshing} className="shrink-0 text-text-primary em-hover-control rounded px-2 py-1" onClick={() => void load(true)}>{uiText("ui.PlanUsage.retry")}</button>
+        </div>
+      )}
     </div>
   );
 }

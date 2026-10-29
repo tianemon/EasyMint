@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearCodexQuotaCache, consumeCodexResetCredit, consumeResetBody, fetchCodexQuota, parseCodexQuota } from "./codex-usage";
+import { clearCodexQuotaCache, consumeCodexResetCredit, consumeResetBody, fetchCodexQuota, parseCodexQuota, planFromAccessToken } from "./codex-usage";
 import type { Store } from "./store";
 
 /** 真实响应的节选（数值来自一次 plus 账号的查询） */
@@ -80,6 +80,24 @@ describe("parseCodexQuota", () => {
     expect(parseCodexQuota(null, null).primary).toBeUndefined();
     // 越界百分比收敛到 0–100
     expect(parseCodexQuota({ rate_limit: { primary_window: { used_percent: 137, limit_window_seconds: 18000 } } }, null).primary?.usedPercent).toBe(100);
+  });
+});
+
+/** 造一个只带 payload 的 JWT（签名/头不重要，解码方只读第二段） */
+function jwt(claims: Record<string, unknown>): string {
+  return `h.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.s`;
+}
+
+describe("planFromAccessToken", () => {
+  it("从 JWT 的 auth claims 读 chatgpt_plan_type（Pro 账号即 pro）", () => {
+    expect(planFromAccessToken(jwt({ "https://api.openai.com/auth": { chatgpt_plan_type: "pro" } }))).toBe("pro");
+  });
+
+  it("顶层也认；解不开或没有该字段就 undefined（界面只是不显示括号）", () => {
+    expect(planFromAccessToken(jwt({ chatgpt_plan_type: "plus" }))).toBe("plus");
+    expect(planFromAccessToken(jwt({ sub: "x" }))).toBeUndefined();
+    expect(planFromAccessToken("not-a-jwt")).toBeUndefined();
+    expect(planFromAccessToken("")).toBeUndefined();
   });
 });
 
@@ -163,6 +181,21 @@ describe("fetchCodexQuota", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.quota.credits.available).toBe(0);
+    expect(result.quota.secondary?.usedPercent).toBe(47);
+  });
+
+  it("usage 端点没带 plan_type 时，用凭据里的套餐声明兜底", async () => {
+    writeAuth({ type: "oauth", access: jwt({ "https://api.openai.com/auth": { chatgpt_plan_type: "pro" } }), accountId: "acct-1", expires: Date.now() + 86400000 });
+    vi.stubGlobal("fetch", (async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => (url.endsWith("/wham/usage") ? { rate_limit: USAGE.rate_limit } : CREDITS),
+    })) as unknown as typeof fetch);
+
+    const result = await fetchCodexQuota(STORE, { force: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.quota.plan).toBe("pro");
     expect(result.quota.secondary?.usedPercent).toBe(47);
   });
 

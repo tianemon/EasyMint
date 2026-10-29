@@ -121,6 +121,25 @@ export function parseCodexQuota(usage: unknown, credits: unknown): CodexQuotaVie
   };
 }
 
+/**
+ * 从 access token 的 JWT payload 里读套餐等级（`chatgpt_plan_type`）。
+ *
+ * 只在 `wham/usage` 没给 `plan_type` 时当回落用：凭据已在内存里，解码不额外发请求、
+ * 不落盘、不打印任何 token 内容。JWT 形状变了就返回 undefined，界面只是不显示括号。
+ */
+export function planFromAccessToken(access: string): string | undefined {
+  const payload = access.split(".")[1];
+  if (!payload) return undefined;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8")) as Record<string, unknown>;
+    const auth = claims["https://api.openai.com/auth"] as Record<string, unknown> | undefined;
+    const plan = auth?.chatgpt_plan_type ?? claims.chatgpt_plan_type;
+    return typeof plan === "string" && plan.trim() ? plan.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 let cached: { at: number; result: CodexQuotaResult } | null = null;
 
 /** 缓存只对"成功"和"网络失败"生效；凭据类失败每次重查（用户可能刚好重新登录） */
@@ -143,7 +162,10 @@ export async function fetchCodexQuota(store: Store, options: { force?: boolean }
     const usage = await usageRes.json().catch(() => null);
     // 明细端点失败不该让整块消失：拿到多少算多少（计数退化成"未知"）
     const credits = creditsRes.ok ? await creditsRes.json().catch(() => null) : null;
-    const result: CodexQuotaResult = { ok: true, quota: parseCodexQuota(usage, credits) };
+    const quota = parseCodexQuota(usage, credits);
+    // 端点偶尔不带 plan_type：退回凭据里的套餐声明（拿不到就留白，不猜）
+    quota.plan ??= planFromAccessToken(auth.access);
+    const result: CodexQuotaResult = { ok: true, quota };
     cached = { at: Date.now(), result };
     return result;
   } catch (e) {
