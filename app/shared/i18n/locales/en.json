@@ -417,6 +417,7 @@
   "ui.SessionHistory.thisSession": "this session",
   "ui.SessionHistory.sessionRecordsWillBePermanentlyDeletedThis": "”? Session records will be permanently deleted. This cannot be undone.",
   "ui.SessionHistory.message": "{{v0}}/{{v1}}",
+  "ui.SessionStatsPopup.partlyDeepseekOffPeakHours": "DeepSeek turns (~{{v0}}%) adjusted for off-peak hours",
   "ui.SessionStatsPopup.deepseekPeakHoursAreWeekdays0900": "DeepSeek peak hours are weekdays 09:00–12:00 and 14:00–18:00 (Beijing time). Other hours, weekends, and Chinese public holidays are billed at half price. Holidays follow official State Council announcements; unannounced years are approximated by weekdays and weekends. The provider’s bill is authoritative.",
   "ui.SessionStatsPopup.sessionStatistics": "Session statistics",
   "ui.SessionStatsPopup.userMessages": "User messages",

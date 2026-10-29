@@ -99,6 +99,38 @@ describe("summarizeTimePricing 逐轮折算", () => {
     expect(summary.adjustedUsd).toBe(2.5);
   });
 
+  /**
+   * 用户 2026-10-29 实测：会话先跑 DeepSeek（含空闲时段），中途切到 Codex 之后，
+   * 费用下方一直显示「按 DeepSeek 高峰价估算」——旧实现只要出现过一次 DeepSeek 轮次
+   * 就把**整笔**费用标成 DeepSeek 口径。现在按占比区分：只有全部费用都来自 DeepSeek
+   * 才用整笔口径，混用改成"其中 DeepSeek 部分"。
+   */
+  it("DeepSeek + Codex 混用：折算照做，但口径是 mixed（不是整笔 DeepSeek）", () => {
+    const entries = [
+      { type: "model_change", timestamp: "2026-09-22T10:00:00Z", provider: "deepseek" } as PricingEntry,
+      turn("2026-09-22T10:05:00Z", 4),                                    // DeepSeek 空闲时段 → 半价
+      { type: "model_change", timestamp: "2026-09-22T10:10:00Z", provider: "openai-codex" } as PricingEntry,
+      turn("2026-09-22T10:15:00Z", 6),                                    // Codex，系数 1
+    ];
+    const summary = summarizeTimePricing(entries)!;
+    expect(summary.peakUsd).toBe(10);
+    expect(summary.timeBasedUsd).toBe(4);
+    const adjusted = adjustCostForTimePricing(10, summary);
+    expect(adjusted).toMatchObject({ cost: 8, costPeak: 10, costBasis: "mixed" });
+    expect(adjusted.timeBasedShare).toBeCloseTo(0.4, 5);
+  });
+
+  it("混用但没有空闲时段 → 不需要任何口径标注（切到 Codex 后不该再提 DeepSeek）", () => {
+    const entries = [
+      { type: "model_change", timestamp: "2026-09-22T02:00:00Z", provider: "deepseek" } as PricingEntry,
+      turn("2026-09-22T02:05:00Z", 4),                                    // DeepSeek 高峰
+      { type: "model_change", timestamp: "2026-09-22T02:10:00Z", provider: "openai-codex" } as PricingEntry,
+      turn("2026-09-22T02:15:00Z", 6),
+    ];
+    const summary = summarizeTimePricing(entries)!;
+    expect(adjustCostForTimePricing(10, summary)).toEqual({ cost: 10, ratio: 1 });
+  });
+
   it("非 DeepSeek 供应商不折算、不标口径", () => {
     const entries = [
       { type: "model_change", timestamp: "2026-09-22T10:00:00Z", provider: "anthropic" } as PricingEntry,

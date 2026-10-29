@@ -417,6 +417,7 @@
   "ui.SessionHistory.thisSession": "该会话",
   "ui.SessionHistory.sessionRecordsWillBePermanentlyDeletedThis": "」吗？会话记录将永久删除，此操作不可恢复。",
   "ui.SessionHistory.message": "{{v0}}月{{v1}}日",
+  "ui.SessionStatsPopup.partlyDeepseekOffPeakHours": "其中 DeepSeek 轮次（约 {{v0}}%）已按空闲时段折算",
   "ui.SessionStatsPopup.deepseekPeakHoursAreWeekdays0900": "DeepSeek 高峰时段为工作日 09:00–12:00、14:00–18:00（北京时间），其余时段（含周末与中国法定节假日）按半价计费；节假日取国务院公告的放假日期，公告未发布的年份按工作日/周末近似。最终以官方账单为准。",
   "ui.SessionStatsPopup.sessionStatistics": "会话统计",
   "ui.SessionStatsPopup.userMessages": "用户消息",

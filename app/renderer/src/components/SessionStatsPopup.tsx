@@ -17,8 +17,11 @@ interface SessionStats {
   cost: number;
   /** 未折算的高峰价合计（仅当发生了空闲时段折算时给出） */
   costPeak?: number;
-  /** 费用口径：分时段计价的会话（DeepSeek）才有值，供界面标注 */
-  costBasis?: "deepseek-offpeak" | "deepseek-peak";
+  /** 费用口径：分时段计价的会话（DeepSeek）才有值，供界面标注。
+   *  `mixed` = 只有一部分费用来自 DeepSeek（会话中途切过供应商），措辞按"其中 DeepSeek 部分" */
+  costBasis?: "deepseek-offpeak" | "deepseek-peak" | "mixed";
+  /** `mixed` 时给出：DeepSeek 轮次占全部费用的比例（0–1） */
+  timeBasedShare?: number;
   /** 费用里属于委派子 Agent 的部分（同样已按时段折算） */
   costSubagents?: number;
   contextUsage?: { percent: number; tokens: number; contextWindow: number };
@@ -71,7 +74,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
   // 费用口径说明：DeepSeek 分时段计价（法定节假日取国务院公告的放假日期）
   const costBasisTitle = stats?.costBasis
-    ? `${stats.costBasis === "deepseek-offpeak" && stats.costPeak ? uiText("ui.extra.costBeforeDiscount", { cost: fmtCost(stats.costPeak) }) : ""}`
+    ? `${stats.costBasis !== "deepseek-peak" && stats.costPeak ? uiText("ui.extra.costBeforeDiscount", { cost: fmtCost(stats.costPeak) }) : ""}`
       + uiText("ui.SessionStatsPopup.deepseekPeakHoursAreWeekdays0900")
     : "";
 
@@ -155,7 +158,13 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
 
             {stats.costBasis && (
               <div className="mt-1 text-right text-[length:var(--text-2xs)] text-text-muted" title={costBasisTitle}>
-                {stats.costBasis === "deepseek-offpeak" ? uiText("ui.SessionStatsPopup.adjustedForDeepseekOffPeakHours") : uiText("ui.SessionStatsPopup.estimatedAtDeepseekPeakPricing")}
+                {stats.costBasis === "deepseek-offpeak"
+                  ? uiText("ui.SessionStatsPopup.adjustedForDeepseekOffPeakHours")
+                  : stats.costBasis === "mixed"
+                    ? uiText("ui.SessionStatsPopup.partlyDeepseekOffPeakHours", {
+                        v0: String(Math.round((stats.timeBasedShare ?? 0) * 100)),
+                      })
+                    : uiText("ui.SessionStatsPopup.estimatedAtDeepseekPeakPricing")}
               </div>
             )}
 

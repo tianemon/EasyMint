@@ -2604,6 +2604,7 @@ export class AgentService {
             total: stats.tokens.total + sub.input + sub.output + sub.cacheRead + sub.cacheWrite,
           },
           cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
+          timeBasedShare: adjusted.timeBasedShare,
           costSubagents: adjusted.ratio ? sub.costUsd * adjusted.ratio : sub.costUsd,
           contextUsage: stats.contextUsage,
         };
@@ -2656,6 +2657,7 @@ export class AgentService {
           total: usageTotals.input + usageTotals.output + usageTotals.cacheRead + usageTotals.cacheWrite,
         },
         cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
+          timeBasedShare: adjusted.timeBasedShare,
         costSubagents: adjusted.ratio ? sub.costUsd * adjusted.ratio : sub.costUsd,
       };
     } catch (e) {

@@ -39,6 +39,8 @@ export interface TimePricingSummary {
   peakUsd: number;
   /** 逐轮按各自时段折算后的费用 */
   adjustedUsd: number;
+  /** 按时段计价的轮次（即 DeepSeek）的**高峰价**合计：除以 peakUsd 就是"这笔费用里有多少属于 DeepSeek" */
+  timeBasedUsd: number;
   /** 是否存在按 DeepSeek 规则计价的轮次 */
   hasTimeBasedTurns: boolean;
   /** 是否真有轮次落在空闲时段（即发生了折算） */
@@ -109,6 +111,7 @@ export function summarizeTimePricing(entries: Iterable<PricingEntry>): TimePrici
   let provider: string | undefined;
   let peakUsd = 0;
   let adjustedUsd = 0;
+  let timeBasedUsd = 0;
   let hasTimeBasedTurns = false;
   let hasOffPeakTurns = false;
 
@@ -135,11 +138,11 @@ export function summarizeTimePricing(entries: Iterable<PricingEntry>): TimePrici
 
     peakUsd += cost;
     adjustedUsd += offPeak ? cost * factor : cost;
-    if (factor < 1) hasTimeBasedTurns = true;
+    if (factor < 1) { hasTimeBasedTurns = true; timeBasedUsd += cost; }
     if (offPeak) hasOffPeakTurns = true;
   }
 
-  return { peakUsd, adjustedUsd, hasTimeBasedTurns, hasOffPeakTurns };
+  return { peakUsd, adjustedUsd, timeBasedUsd, hasTimeBasedTurns, hasOffPeakTurns };
 }
 
 export interface AdjustedCost {
@@ -147,10 +150,14 @@ export interface AdjustedCost {
   cost: number;
   /** 未折算的高峰价合计；仅当发生折算时给出 */
   costPeak?: number;
-  /** 费用口径（供界面标注）；无时段定价的会话为 undefined */
-  costBasis?: "deepseek-offpeak" | "deepseek-peak";
+  /** 费用口径（供界面标注）；无时段定价的会话为 undefined。
+   *  `mixed` = 这笔费用里**只有一部分**来自 DeepSeek（同一会话先 DeepSeek 后切到别的供应商），
+   *  此时不能说"整笔按 DeepSeek 时段折算"，界面要按"其中 DeepSeek 部分"措辞。 */
+  costBasis?: "deepseek-offpeak" | "deepseek-peak" | "mixed";
   /** 实际用的时段系数（0.5~1）；供调用方把各部分拆开如实展示 */
   ratio?: number;
+  /** `mixed` 时给出：按时段计价的轮次占全部费用的比例（0–1） */
+  timeBasedShare?: number;
 }
 
 /**
@@ -160,7 +167,16 @@ export interface AdjustedCost {
  */
 export function adjustCostForTimePricing(costUsd: number, summary: TimePricingSummary | null): AdjustedCost {
   if (!summary || !summary.hasTimeBasedTurns || summary.peakUsd <= 0) return { cost: costUsd };
-  if (!summary.hasOffPeakTurns) return { cost: costUsd, costBasis: "deepseek-peak", ratio: 1 };
   const ratio = summary.adjustedUsd / summary.peakUsd;
-  return { cost: costUsd * ratio, costPeak: costUsd, costBasis: "deepseek-offpeak", ratio };
+  const share = summary.timeBasedUsd / summary.peakUsd;
+  // 全部费用都来自按时段计价的供应商（DeepSeek）→ 整笔按它的口径说明
+  if (share >= 0.999) {
+    if (!summary.hasOffPeakTurns) return { cost: costUsd, costBasis: "deepseek-peak", ratio: 1 };
+    return { cost: costUsd * ratio, costPeak: costUsd, costBasis: "deepseek-offpeak", ratio };
+  }
+  // 混用（例如同一会话先 DeepSeek 后切到 Codex）：折算照做（非 DeepSeek 轮次系数为 1，不受影响），
+  // **但口径不能再说成整笔**——旧实现只要出现过一次 DeepSeek 轮次就永远标「按 DeepSeek 高峰价估算」，
+  // 用户切到 Codex 后还在显示那句，等于把整笔费用说错了。
+  if (!summary.hasOffPeakTurns) return { cost: costUsd, ratio: 1 };
+  return { cost: costUsd * ratio, costPeak: costUsd, costBasis: "mixed", ratio, timeBasedShare: share };
 }
