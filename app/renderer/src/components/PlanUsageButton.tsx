@@ -67,7 +67,7 @@ export function PlanUsageButton(): JSX.Element | null {
   return (
     <div ref={wrapRef} className="relative inline-flex shrink-0">
       <button ref={triggerRef} type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? panelId : undefined} className="permission-mode-trigger text-text-secondary whitespace-nowrap" onClick={() => setOpenedFor(value => value === current!.id ? null : current!.id)}>
-        {uiText(codex ? "ui.PlanUsage.title" : "ui.ProviderAccount.balance")}
+        {uiText("ui.PlanUsage.title")}
       </button>
       {open && (
         <div ref={panelRef} id={panelId} role="dialog" aria-label={titleLabel} className="no-drag absolute bottom-full left-1/2 mb-2 z-dropdown bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[360px] max-w-[calc(100vw-16px)] overflow-y-auto p-5 text-xs" style={{ transform: `translateX(calc(-50% + ${placement.shift}px))`, maxHeight: placement.maxHeight }}>

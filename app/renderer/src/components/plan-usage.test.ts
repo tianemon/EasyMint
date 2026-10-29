@@ -157,7 +157,7 @@ it("uses the same account entry for DeepSeek balances and keeps all reported cur
   useSettingsStore.setState({apiProviders:{...providers,current:"deepseek"}});
   fetchBalance.mockResolvedValue({balance_infos:[{currency:"CNY",total_balance:"0.00"},{currency:"USD",total_balance:"12.34"}]});
   await act(async()=>root.render(createElement(PlanUsageButton)));
-  expect(container.querySelector("button")?.textContent).toBe("账户余额");
+  expect(container.querySelector("button")?.textContent).toBe("套餐用量");
   expect(fetchBalance).not.toHaveBeenCalled();
   await act(async()=>container.querySelector("button")!.click());
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain("DeepSeek 账户余额");
