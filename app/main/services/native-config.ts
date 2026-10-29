@@ -35,6 +35,24 @@ function ensureNativeProvider(provider: JsonObject): void {
 }
 export const nativeProviderId = (cfg: ProviderConfig) => cfg.presetId === "custom" ? cfg.id : cfg.presetId;
 
+/**
+ * 模型运行时首次就绪的回调（进程级、只发一次）。
+ *
+ * 用途：启动首屏那次 `settings:get` 拿到的是**按文件降级**的原生视图（runtime 还没建），
+ * 少的只是「运行时才发现的内置 provider / 动态模型」。运行时建好后广播一次，让渲染层重取，
+ * 把降级结果换成完整结果——否则用户会一直看到不完整的模型列表直到下次写设置。
+ */
+let runtimeReadyNotified = false;
+let runtimeReadyNotifier: (() => void) | null = null;
+export function setNativeRuntimeReadyNotifier(fn: (() => void) | null): void {
+  runtimeReadyNotifier = fn;
+}
+function notifyRuntimeReady(): void {
+  if (runtimeReadyNotified) return;
+  runtimeReadyNotified = true;
+  try { runtimeReadyNotifier?.(); } catch { /* 通知失败不影响配置读写 */ }
+}
+
 export function getNativeConfig(store: Store): Promise<NativeConfig> {
   const dir = store.getDataDir();
   let pending = repositories.get(dir);
@@ -48,7 +66,8 @@ export function getNativeConfig(store: Store): Promise<NativeConfig> {
 export class NativeConfig {
   readonly storage: NativeConfigStorage;
   readonly files: { models: string; auth: string; settings: string; em: string };
-  private runtime!: ModelRuntime;
+  private runtime?: ModelRuntime;
+  private runtimePending: Promise<ModelRuntime> | null = null;
   private fingerprint = "";
   private initialModel: Model<Api> | undefined;
   private queue: Promise<unknown> = Promise.resolve();
@@ -65,7 +84,11 @@ export class NativeConfig {
     const repo = new NativeConfig(store);
     await repo.storage.initialize();
     await repo.migrate();
-    await repo.refresh();
+    // **刻意不在这里 await refresh()**：refresh 会 `import("@earendil-works/pi-coding-agent")`
+    // （整包入口静态可达 994 个模块，Windows 冷启动实测 7~10 秒）。窗口创建后渲染层第一个
+    // settings:get 就等在这条链上，用户看到的是「界面出来了但没用」。
+    // 现在 create 只做「读文件 + 一次性迁移」（毫秒级），模型运行时由 prewarm / 首条消息 /
+    // 设置页按需触发（见 getRuntime）。视图在 runtime 未就绪时按文件降级，见 view()。
     registerNativeSettingsView(store.getDataDir(), () => repo.view());
     return repo;
   }
@@ -75,11 +98,29 @@ export class NativeConfig {
     return next;
   }
   private revision(): string {
+    // 归一化「空文件 / 空对象」与「文件不存在」为同一状态。
+    // 原因：Pi SDK 首次建立模型运行时会把 auth.json / models.json 落成 `{}`。启动首屏那次
+    // view() 在它之前算 revision，不归一化的话用户打开设置页第一次保存就会被误判成
+    // 「配置已被外部修改」（实测报错：供应商配置已更新，请重新打开设置后保存）。
+    const sameState = (value: unknown): unknown => {
+      if (value === null || value === undefined) return "";   // readText 缺文件返回 null
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return "";
+        try {
+          const parsed = JSON.parse(trimmed);
+          return parsed && typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length === 0
+            ? "" : trimmed;
+        } catch { return trimmed; }
+      }
+      return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0
+        ? "" : value;
+    };
     return createHash("sha256").update(JSON.stringify([
       readText(this.files.models), readText(this.files.auth), readText(this.files.settings),
       getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences),
       getPath(this.storage.read(this.files.em), EM_PATH.capabilityNativeAi),
-    ])).digest("hex");
+    ].map(sameState))).digest("hex");
   }
   private originals() { return new Map(Object.values(this.files).map(file => [file, readText(file)])); }
   async refresh(): Promise<ModelRuntime> {
@@ -105,15 +146,31 @@ export class NativeConfig {
       defaultThinkingLevel: settings.defaultThinkingLevel, modelThinkingLevels: settings.modelThinkingLevels, modelRuntime: runtime })).model;
     this.runtime = runtime;
     this.fingerprint = revision;
+    notifyRuntimeReady();
     return runtime;
   }
   getDefaultModel() { return this.initialModel ?? null; }
-  async getRuntime(): Promise<ModelRuntime> { return this.serial(() => this.refresh()); }
+  /**
+   * 取模型运行时（首次会加载 Pi SDK）。并发调用合并到同一个 promise：启动期 prewarm、
+   * 会话初始化、首条消息可能同时来，重复进 serial 队列只会重复跑 refresh。
+   */
+  async getRuntime(): Promise<ModelRuntime> {
+    if (this.runtime && this.fingerprint === this.revision()) return this.runtime;
+    if (!this.runtimePending) {
+      this.runtimePending = this.serial(() => this.refresh()).finally(() => { this.runtimePending = null; });
+    }
+    return this.runtimePending;
+  }
   view(): { apiProviders: ApiProvidersData; chatThinkingLevel: string; model?: string; availableModels: string[] } {
     const models = this.storage.read(this.files.models).providers ?? {};
     const auth = this.storage.read(this.files.auth);
     const settings = this.storage.read(this.files.settings);
     const preferences = (getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences) ?? {}) as JsonObject;
+    // 模型运行时可能还没建（启动首屏就不再等 SDK）。此时按「文件里的真源 + 内置静态目录」降级：
+    // 少的只是运行时才发现的那一层（凭环境变量注入凭据的内置 provider、运行时合并出的动态模型）。
+    // 这不是落盘数据：投影字段（apiProviders/model/availableModels）本来就不写盘，
+    // writeEmSettings 在有原生视图时还会主动删掉它们，所以降级结果不会污染配置文件。
+    const runtime = this.runtime;
     const ids = new Set<string>([...Object.keys(models), ...Object.keys(auth), ...Object.keys(preferences)]);
     // 默认供应商只在**真实存在**时才纳入列表：settings.json 被外部改过（或跨版本混用）时它可能
     // 是一个早就删掉的 id，无条件 add 会让界面上多出一个点不开的空壳条目（无凭据、无模型——
@@ -121,18 +178,18 @@ export class NativeConfig {
     // 它就判为悬空、不纳入；模型侧另有回落（findInitialModel 会挑一个可用的），不受影响。
     if (settings.defaultProvider
       && (models[settings.defaultProvider] || auth[settings.defaultProvider]
-        || preferences[settings.defaultProvider] || this.runtime.getProvider(settings.defaultProvider))) {
+        || preferences[settings.defaultProvider] || runtime?.getProvider(settings.defaultProvider))) {
       ids.add(settings.defaultProvider);
     }
-    for (const p of this.runtime.getProviders()) if (this.runtime.hasConfiguredAuth(p.id)) ids.add(p.id);
+    if (runtime) for (const p of runtime.getProviders()) if (runtime.hasConfiguredAuth(p.id)) ids.add(p.id);
     const configs: Record<string, ProviderConfig> = {};
     const revision = this.revision();
     const effectiveProvider = this.initialModel?.provider ?? settings.defaultProvider;
     for (const id of ids) {
-      const provider = this.runtime.getProvider(id);
-      const list = this.runtime.getModels(id);
+      const provider = runtime?.getProvider(id);
       const raw = models[id] ?? {};
       const pref = preferences[id] ?? {};
+      const list: ReadonlyArray<{ id: string }> = runtime?.getModels(id) ?? this.staticModels(id, raw);
       const isBuiltin = getProviderStaticModels(id).size > 0;
       configs[id] = {
         id, nativeRevision: revision, presetId: isBuiltin ? id : "custom",
@@ -150,12 +207,30 @@ export class NativeConfig {
         modelOverrides: raw.modelOverrides,
       };
     }
-    const current = effectiveProvider && configs[effectiveProvider] ? effectiveProvider : null;
+    // 运行时未就绪时没有 findInitialModel 的「挑一个真实可用供应商」结论，这里按
+    // 「第一个有模型的供应商」顶上——否则首屏会显示「无可用供应商」，比实际状态更糟。
+    // 运行时建好后该结论会被 findInitialModel 覆盖（见 refresh + nativeReady 重取）。
+    const current = effectiveProvider && configs[effectiveProvider]
+      ? effectiveProvider
+      : Object.keys(configs).find(id => (configs[id]?.models.length ?? 0) > 0) ?? null;
     return {
       apiProviders: { current, configs, revision },
       chatThinkingLevel: settings.defaultThinkingLevel ?? "medium",
       model: current ? configs[current]?.model : settings.defaultModel, availableModels: current ? configs[current]!.models : [],
     };
+  }
+
+  /** runtime 未就绪时的模型列表降级：内置静态目录 ∪ 用户手写在 models.json 里的模型。 */
+  private staticModels(id: string, raw: JsonObject): Array<{ id: string }> {
+    const seen = new Set<string>();
+    const out: Array<{ id: string }> = [];
+    const extra = Array.isArray(raw.models) ? raw.models : [];
+    for (const candidate of [...getProviderStaticModels(id).keys(), ...extra.map(m => (m as JsonObject | undefined)?.id)]) {
+      if (typeof candidate !== "string" || !candidate || seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push({ id: candidate });
+    }
+    return out;
   }
 
   /**
@@ -431,23 +506,23 @@ export class NativeConfig {
     const config = parseNativeAiSettings(value);
     return this.serial(async () => {
       await this.refresh();
-      if (config.imageModel && !this.runtime.getModelOfType("image", config.imageModel.provider, config.imageModel.model)) throw new Error("Image model is unavailable");
+      if (config.imageModel && !this.runtime!.getModelOfType("image", config.imageModel.provider, config.imageModel.model)) throw new Error("Image model is unavailable");
       if (config.autoRouting) for (const ref of [config.autoRouting.planning, config.autoRouting.execution]) {
-        if (!this.runtime.getPhysicalModel(ref.provider, ref.model)) throw new Error("Routing model is unavailable");
+        if (!this.runtime!.getPhysicalModel(ref.provider, ref.model)) throw new Error("Routing model is unavailable");
       }
-      if (config.autoRouting && this.runtime.getPhysicalModel(config.autoRouting.planning.provider, AUTO_MODEL_ID)) throw new Error("The automatic model ID conflicts with a physical model");
+      if (config.autoRouting && this.runtime!.getPhysicalModel(config.autoRouting.planning.provider, AUTO_MODEL_ID)) throw new Error("The automatic model ID conflicts with a physical model");
       const originals = this.originals();
       const em = this.storage.read(this.files.em);
       const previous = parseNativeAiSettings(getPath(em, EM_PATH.capabilityNativeAi));
       if (!same(previous.autoRouting, config.autoRouting)) {
         assertIdle?.();
-        if (hasBusyRoutingSession(this.runtime)) throw new Error("Wait until the automatic-model run finishes before changing routing");
+        if (hasBusyRoutingSession(this.runtime!)) throw new Error("Wait until the automatic-model run finishes before changing routing");
       }
       setPath(em, EM_PATH.capabilityNativeAi, config);
       try {
-        await this.storage.commit(new Map([[this.files.em, em]]), "native-ai", originals, undefined, () => configureAutoModelRouting(this.runtime, config));
+        await this.storage.commit(new Map([[this.files.em, em]]), "native-ai", originals, undefined, () => configureAutoModelRouting(this.runtime!, config));
       } catch (error) {
-        configureAutoModelRouting(this.runtime, previous);
+        configureAutoModelRouting(this.runtime!, previous);
         throw error;
       }
       await this.refresh();
@@ -471,7 +546,7 @@ export class NativeConfig {
       const before = this.originals();
       const settings = this.storage.read(this.files.settings);
       const providerId = settings.defaultProvider ?? this.initialModel?.provider;
-      if (!providerId || !this.runtime.getModel(providerId, modelId)) {
+      if (!providerId || !this.runtime!.getModel(providerId, modelId)) {
         throw new Error(`默认供应商中不存在模型：${modelId}`);
       }
       settings.defaultProvider = providerId;

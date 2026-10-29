@@ -589,6 +589,8 @@ interface ElectronAPI {
   settings: {
     getUiLanguage: () => Promise<import("../shared/i18n/locale").UiLanguageState>;
     onUiLanguageChanged: (callback: (state: import("../shared/i18n/locale").UiLanguageState) => void) => () => void;
+    /** 原生设置首次投影完整（模型运行时已就绪）后触发一次：首屏 settings:get 拿到的是降级视图。 */
+    onNativeReady: (callback: () => void) => () => void;
     piImport: (input?: { sourceDir?: string; apply?: boolean; probe?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;
     get: () => Promise<{
       uiLanguage?: import("../shared/i18n/locale").UiLanguage;

@@ -31,9 +31,12 @@ process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "agent");
 // 都会失效 _CodeSignature/CodeResources，下次启动被 Gatekeeper 判为"已损坏"。
 // 因此只在值不符时告警，由 build 流程保证正确，不在用户机器上补救。
 try {
-  let sdkPkgPath = path.join(app.getAppPath(), "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
-  if (sdkPkgPath.includes(".asar")) sdkPkgPath = sdkPkgPath.replace(".asar", ".asar.unpacked");
-  if (fs.existsSync(sdkPkgPath)) {
+  const sdkRoot = path.join(app.getAppPath(), "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
+  // node_modules 可能在 asar 内，也可能被 asarUnpack 到 *.asar.unpacked（native 模块必须解包）。
+  // 两个前缀都试一遍，别假设某一种形态——否则打包形态一变，这段校验就静默失效了。
+  const sdkPkgPath = [sdkRoot, sdkRoot.replace(".asar", ".asar.unpacked")]
+    .find((candidate) => fs.existsSync(candidate));
+  if (sdkPkgPath) {
     const sdkPkg = JSON.parse(fs.readFileSync(sdkPkgPath, "utf-8")) as { piConfig?: { configDir?: string } };
     if (sdkPkg.piConfig?.configDir !== ".easymint") {
       console.warn(
@@ -141,6 +144,25 @@ function loadApp(window: BrowserWindow, hash = ""): void {
   if (isDev) window.webContents.openDevTools({ mode: "detach" });
 }
 
+/**
+ * 启动期重活一律在**首屏渲染之后**再跑。
+ *
+ * 这些活（Pi SDK 冷导入 ≈ 近千个模块、会话目录迁移）与首屏争同一块磁盘和 CPU，跑在前面
+ * 会让首帧直接变慢——用户看到的就是「窗口出来了但空白/点不动」。窗口出现不等于页面已渲染，
+ * 所以判据用 did-finish-load，并兜一个超时：页面加载失败也不能让会话与模型永远不初始化。
+ */
+function runAfterFirstPaint(window: BrowserWindow, task: () => void): void {
+  let started = false;
+  const start = (): void => {
+    if (started) return;
+    started = true;
+    try { task(); } catch (e) { console.warn("[startup] 首屏后任务启动失败:", (e as Error).message); }
+  };
+  if (!window.webContents.isLoading()) { setImmediate(start); return; }
+  window.webContents.once("did-finish-load", () => setImmediate(start));
+  setTimeout(start, 8000);
+}
+
 // Tab 状态备份（macOS 合盖崩溃恢复），新建窗口时需清空防止跨窗口污染
 let tabBackup: { tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null = null;
 
@@ -242,10 +264,10 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     // Seed default MCP configs (~/.easymint/mcp.json, EM 独立配置)
     const { seedDefaultMcp } = require("./services/mcp-service");
     seedDefaultMcp();
-    // 冷启动预热(后台,不阻塞窗口):预加载 Pi SDK/model runtime/MCP 工具,
-    // 让首条消息发送不现场初始化(仅首次进程执行一次)
+    // 冷启动预热(后台,首屏之后):预加载 Pi SDK/model runtime,让首条消息发送不现场初始化
+    // (仅首次进程执行一次)。**必须晚于首屏**：它要 import 近千个模块，跑在前面会把首帧吃掉。
     const { prewarm } = require("./services/prewarm");
-    prewarm(store).catch(() => {});
+    runAfterFirstPaint(window, () => { prewarm(store).catch(() => {}); });
     // NOTE: Orphan session cleanup — Pi SDK manages sessions via its own SessionManager
     // No automatic cleanup needed; old Claude SDK cache cleanup removed
     // Auto-cleanup old uploads (60 days / 10GB)
@@ -376,14 +398,17 @@ app.whenReady().then(async () => {
   // 会话目录对齐 Pi：① 预热 SessionManager 类（getPiSessionDir 经它向 SDK 取默认路径）
   // ② 把 EM 旧编码目录迁到 Pi 默认编码——必须早于任何会话读写，否则历史会话落在旧目录、
   //    在新编码路径下不可见，故启动时改名并合并。
-  // **不能在 createWindow 之前 await**：首次 dynamic import SDK 冷启实测 7~10 秒（包体大，几乎全是文件 IO），会把窗口
-  // 出现推迟同样久。改为后台任务 + 注册「会话目录就绪门」：pi-session-dir 的异步会话入口
-  // （create/resume/list）会先 await 这道门，保证读写发生在迁移之后，窗口则照旧立即出现。
+  // **不能在 createWindow 之前 await**，也别在首屏前就跑：预热要 import SDK（包体大，几乎全是文件 IO），
+  // 会把窗口出现与首帧一起推迟。改为「首屏后启动 + 注册会话目录就绪门」：pi-session-dir 的异步会话入口
+  // （create/resume/list）先 await 这道门，保证读写发生在迁移之后；门本身在首屏后才放行。
   // 注意：NEW_SESSIONS_DIR 必须与顶部 PI_CODING_AGENT_DIR 推导出的 agentDir/sessions 一致，
   // 否则迁移扫的目录 ≠ 会话实际落盘目录（迁了个寂寞）；改任一处都要同时改另一处。
   // ⚠️ 一次性迁移（待移除）：清理清单见 session-dir-migration.ts 顶部
+  let openSessionBootGate: () => void = () => {};
+  const sessionBootGate = new Promise<void>((resolve) => { openSessionBootGate = resolve; });
   armSessionDirReady(
     (async () => {
+      await sessionBootGate;
       try {
         await primeSessionManagerClass();
         const r = migrateLegacySessionDirs(NEW_SESSIONS_DIR);
@@ -403,7 +428,12 @@ app.whenReady().then(async () => {
     const lastId = tempStore.getLastProjectId();
     if (lastId) startHash = `/project/${lastId}`;
   }
-  createWindow(startHash, true);
+  const mainWindow = await createWindow(startHash, true);
+  // 首屏渲染完成后再放行「SDK 预热 + 旧会话目录迁移」——两者都要读大量文件，
+  // 排在建窗口前面只会把首帧推后（见 runAfterFirstPaint 注释）。
+  runAfterFirstPaint(mainWindow, openSessionBootGate);
+  // 兜底：即使窗口创建/加载环节出意外，也不能让会话目录门永远不开（否则会话列表恒空）。
+  setTimeout(openSessionBootGate, 15000).unref?.();
 
   const updateApplicationMenu = () => {
     if (process.platform === "darwin") {

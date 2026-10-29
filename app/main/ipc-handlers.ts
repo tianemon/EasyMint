@@ -14,7 +14,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, getDesignSessionIds, respondAsk } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
-import { getNativeConfig } from "./services/native-config";
+import { getNativeConfig, setNativeRuntimeReadyNotifier } from "./services/native-config";
 import { setSandboxDisabledProvider, resetSandboxState } from "./services/sandbox/manager";
 import { probeEnvironment } from "./services/provisioning/probe";
 import { installDependencies, fixUserns } from "./services/provisioning/run";
@@ -713,6 +713,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("settings:piImport", async (_e, input: unknown) => {
     const data = expectPayload(z.object({ sourceDir: z.string().optional(), apply: z.boolean().optional(), probe: z.boolean().optional() }), input);
     const config = await getNativeConfig(store);
+    // 真导入要读原生视图做 provider 冲突判定，必须等运行时（否则只看到文件里的 provider）；
+    // probe 是零 IO 的目录存在性检查，别为它付一次 SDK 加载。
+    if (data.probe !== true) await config.getRuntime();
     const result = await config.importPi(data.sourceDir ?? p.join(os.homedir(), ".pi", "agent"), data.apply === true, data.probe === true);
     if (data.apply && !data.probe && result.mcpServers > 0) reloadMcpTools();
     return result;
@@ -729,9 +732,15 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     };
   });
   ipcMain.handle("settings:get", async () => {
-    await (await getNativeConfig(store)).getRuntime();
+    // 只等「配置就绪」（读文件 + 一次性迁移），**不等模型运行时**：后者要加载整个 Pi SDK，
+    // Windows 冷启动实测 7~10 秒，曾把首屏设置读取整条卡在这里。运行时未就绪时
+    // NativeConfig.view() 按文件降级，运行时建好后由 settings:nativeReady 广播让界面重取。
+    await getNativeConfig(store);
     return store.getSettings();
   });
+  // 原生设置（供应商/模型/思考等级）首次投影完整后广播一次：首屏那次 settings:get 用的是
+  // 按文件降级的视图（运行时还没建），这里让渲染层重取一次，把降级结果换成完整结果。
+  setNativeRuntimeReadyNotifier(() => broadcast("settings:nativeReady", true));
   ipcMain.handle("settings:set", async (_e, { key, value }) => {
     if (key === "uiLanguage") {
       if (!isUiLanguage(value)) throw new Error("Invalid UI language");

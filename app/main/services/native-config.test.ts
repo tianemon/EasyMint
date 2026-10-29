@@ -29,7 +29,9 @@ afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) fs.rmS
 describe("pi-native configuration", () => {
   it("migrates legacy official Kimi overrides transactionally and inherits the official protocol", async () => {
     const { dir, store, file } = fixture();
-    await NativeConfig.create(store);
+    // create() 不再预热运行时（2026-10-26 启动优化），先显式建一次，让 auth.json 的
+    // 「迁移前基线」与后续状态同源——本用例断言的是迁移不碰凭据，不是运行时初始化时机。
+    await (await NativeConfig.create(store)).getRuntime();
     const original = encode({ providers: { "kimi-coding": { api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding/",
       headers: { "X-Custom": "keep" }, apiKey: "fixture",
       models: [{ id: "k3", api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding", contextWindow: 123456, maxTokens: 8192 }],

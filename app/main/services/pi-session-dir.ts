@@ -14,7 +14,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { SessionManager } from "./pi-sdk";
-import { getSessionManagerClass } from "./pi-sdk";
+import { getSessionManagerClassLite } from "./pi-sdk";
 
 /**
  * SessionManager 类缓存。
@@ -40,6 +40,10 @@ let _readyGate: Promise<void> | null = null;
  * 注意：同步调用点（ProjectService.update / cleanupProjectSessions / restoreSession）不经此门，
  * 在启动后数秒的窗口内可能读到迁移前的状态（后果轻：会话目录残留/空壳，非数据丢失）。
  *
+ * 2026-10-26：预热只加载 `dist/core/session-manager.js`（整包入口 599ms vs 单文件 92ms），
+ * 见 pi-sdk.ts 的 getSessionManagerClassLite。整包仍会在模型运行时/首条消息时加载一次，
+ * 但「会话列表可见」不再等整包。
+ *
  * 传 `null` = **复位为「无门」**（门是模块级单例状态，测试用完必须复位，否则污染同文件后续用例；
  * 生产侧只有 index.ts 的启动接入会调用本函数、不会传 null）。
  */
@@ -56,7 +60,7 @@ export function armSessionDirReady(gate: Promise<void> | null): void {
  */
 export function primeSessionManagerClass(): Promise<void> {
   if (!_priming) {
-    _priming = getSessionManagerClass()
+    _priming = getSessionManagerClassLite()
       .then((SM) => {
         _sessionManagerClass = SM;
       })

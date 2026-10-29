@@ -127,6 +127,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
     piImport: (input: { sourceDir?: string; apply?: boolean; probe?: boolean } = {}) => ipcRenderer.invoke("settings:piImport", input),
     get: () => ipcRenderer.invoke("settings:get"),
+    /** 原生设置（供应商/模型/思考等级）首次投影完整后触发一次：首屏那次 settings:get 是降级视图。 */
+    onNativeReady: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on("settings:nativeReady", handler);
+      return () => ipcRenderer.removeListener("settings:nativeReady", handler);
+    },
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
     testProvider: (input: { baseUrl: string; apiKey: string; model?: string; apiType?: string; verifyKey?: boolean }) => ipcRenderer.invoke("settings:testProvider", input),

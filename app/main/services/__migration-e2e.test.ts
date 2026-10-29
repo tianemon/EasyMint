@@ -192,6 +192,8 @@ describe("完整升级路径（v0.28.0 → 当前）", () => {
     expect(ids.sort()).toEqual(["custom-1787796375140", "deepseek", "github-copilot", "openai-codex"]);
     // 模型侧回落到一个真实可用的供应商（不是 null、也不卡住）
     expect(repo.view().apiProviders.current).toBeTruthy();
+    // 「回落到可用模型」由 findInitialModel 决定，属于运行时能力（create() 已不再预热运行时）
+    await repo.getRuntime();
     expect(repo.getDefaultModel()).toBeTruthy();
   }, 90000);
 

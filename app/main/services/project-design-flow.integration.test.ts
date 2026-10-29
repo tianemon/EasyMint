@@ -55,4 +55,4 @@ it('hands the saved contract to the session and refreshes an already-open sessio
     await expect(session.prompt('generate')).rejects.toThrow('asset missing');
     await expect(session.sendCustomMessage({ customType: 'test', content: 'generate', display: false }, { triggerTurn: true })).rejects.toThrow('asset missing');
     expect(session.agent.state.messages).toHaveLength(messagesBefore);
-});
+}, 30000);  // 真 SDK 会话 + 11 次模板落盘：全量并行跑时曾因磁盘竞争越过默认 5s（单跑 ~1.5s）

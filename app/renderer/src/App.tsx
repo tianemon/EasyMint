@@ -39,6 +39,13 @@ export function App(): JSX.Element {
   const [settingsLoaded, setSettingsLoaded] = useState(
     () => localStorage.getItem("easymint_setup_complete") === "true"
   );
+  // 原生设置（供应商/模型/思考等级）首次投影完整后重取一次：启动首屏那次读取走的是
+  // 「文件降级视图」（模型运行时尚未建立），缺的是运行时才发现的内置 provider 与动态模型。
+  // 必须排在下面那次 loadFromElectron **之前**建立订阅，否则广播可能早于订阅而漏收。
+  useEffect(() => window.electronAPI.settings.onNativeReady?.(() => {
+    void useSettingsStore.getState().loadFromElectron().catch(() => { /* 重取失败保留降级结果 */ });
+  }), []);
+
   useEffect(() => {
     useSettingsStore.getState().loadFromElectron()
       .then(() => {
