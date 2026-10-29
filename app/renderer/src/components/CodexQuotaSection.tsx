@@ -153,15 +153,16 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
       {/* 次数 · 最早到期 · 重置按钮收成一行：三件事本来就是同一件事的三个面（还有几次、最急的什么时候过期、现在就用）
           按钮用浅色（bg-surface + em-hover-control，与授权弹窗里的「重新打开 / 复制链接」同一语言），
           危险感交给点击后的确认弹窗，而不是按钮本身 */}
-      <div className="flex items-center gap-2 flex-wrap pt-0.5">
-        <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
+      <div className="flex items-center gap-3 flex-wrap pt-0.5">
+        {/* 次数：主文本色（暗色下即白）+ 比到期日期大一号，让"还剩几次"是第一眼的信息 */}
+        <span className="text-[length:var(--text-11)] text-text-primary tabular-nums">
           {quota.credits.available > 0
             ? uiText("ui.CodexQuota.creditsAvailable", { v0: String(quota.credits.available) })
             : uiText("ui.CodexQuota.noCredits")}
         </span>
         {quota.credits.available > 0 && soonest && (
           <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-            · {uiText("ui.CodexQuota.expiresAt", { v0: formatClock(Date.parse(soonest) / 1000) })}
+            {uiText("ui.CodexQuota.expiresAt", { v0: formatClock(Date.parse(soonest) / 1000) })}
           </span>
         )}
         {quota.credits.available > 0 && (
@@ -169,7 +170,7 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
             type="button"
             disabled={busy}
             onClick={() => void consume()}
-            className="ml-auto shrink-0 h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-[length:var(--text-2xs)] em-hover-control transition-colors disabled:opacity-40"
+            className="ml-auto shrink-0 h-7 px-3 rounded-[var(--radius-lg)] bg-surface-alt text-text-primary text-[length:var(--text-2xs)] em-hover-control transition-colors disabled:opacity-40"
           >{busy ? uiText("ui.CodexQuota.resetting") : uiText("ui.CodexQuota.usageButton")}</button>
         )}
       </div>
