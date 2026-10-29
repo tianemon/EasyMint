@@ -10,8 +10,8 @@ import { Modal } from "./Modal";
  * 样式复用项目弹窗 token（对齐 CompactionDialog / PermissionPrompt 的遮罩与卡片）。
  * 并发调用（如权限确认卡还开着时点编辑发送）**排队**，前一个关掉后依次弹出——曾经的「直接
  * resolve(false)」在调用方看来与「用户取消」完全一样，表现为「点了没反应」（编辑那条链路就踩过）。
- * 确认按钮三种观感：
- *  - 危险操作（删除/关闭应用等）→ `danger`，危险色线框（低强调，避免误点）
+ * 确认按钮三种观感（按钮一律不描边——本项目弹窗基调是无边框，层级靠底色与文字色）：
+ *  - 危险操作（删除/关闭应用等）→ `danger`，danger-soft 淡红实底 + 红字（低强调，避免误点）
  *  - 放开权限（进入「完全访问」）→ `permissionConfirm`，权限色实心（与输入卡权限盾形图标同色，
  *    颜色/图标都在表达「危险」，故用实心强调；刻意不用危险红——那是删除类语义）
  *  - 其余 → `btn-accent`
@@ -85,7 +85,7 @@ export function ConfirmHost(): JSX.Element | null {
         <div className="flex gap-2 justify-end">
           <button
             type="button"
-            className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] bg-surface-alt border border-border text-text-secondary hover:text-text-primary transition-colors"
+            className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] bg-surface-alt text-text-secondary hover:text-text-primary transition-colors"
             onClick={() => close(false)}
           >
             {pending.cancelText ? appText(pending.cancelText) : t("common.cancel")}
@@ -99,7 +99,7 @@ export function ConfirmHost(): JSX.Element | null {
                   // ——后者亮色是白、暗色是深，与固定填充不匹配，且白字落在玫红上仅 2.8:1 读不清
                   "bg-[var(--color-permission-on)] text-[#3f1017] font-medium hover:opacity-90 transition-opacity"
                 : pending.danger
-                  ? "bg-danger-soft border border-danger-border text-danger hover:bg-danger hover:text-text-inverse transition-colors"
+                  ? "bg-danger-soft text-danger hover:bg-danger hover:text-text-inverse transition-colors"
                   : "btn-accent transition-colors"
             }`}
             onClick={() => close(true)}
