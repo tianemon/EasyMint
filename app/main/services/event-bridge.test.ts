@@ -83,3 +83,13 @@ describe("message entry tracking", () => {
 function trackerFor(entries: unknown[], emit: (event: import("./event-bridge").PiChatEvent) => void) {
   return createMessageEntryTracker({ getSession: () => ({ sessionManager: { getEntries: () => entries } as unknown as import("./pi-sdk").SessionManager }), emit });
 }
+
+describe("current streaming activity", () => {
+  it.each([['thinking_delta', 'thinking'], ['text_delta', 'text'], ['toolcall_delta', 'tool']])("preserves %s despite earlier content of another kind", (deltaType, activity) => {
+    const onEvent = vi.fn();
+    const message = { role: "assistant", content: [{type:"text",text:"earlier progress"}, {type:"thinking",thinking:"current reasoning"}] };
+    bridgeSessionEvents({ type:"message_update", message, assistantMessageEvent:{type:deltaType, contentIndex:1, delta:"more", partial:message} } as AgentSessionEvent,
+      {onEvent,setPendingResult:vi.fn(),getSession:()=>null});
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ activity, partial:true }));
+  });
+});

@@ -17,6 +17,8 @@ export interface PiChatEvent {
   chatId?: string;
   blocks?: ChatBlock[];
   partial?: boolean;
+  /** Actual SDK delta kind; cumulative content cannot identify the current activity. */
+  activity?: "thinking" | "text" | "tool";
   imagePath?: string;
   stopReason?: string;
   durationMs?: number;
@@ -326,6 +328,10 @@ export function bridgeSessionEvents(
       if (blocks.length > 0) {
         callbacks.onEvent({
           type: "message" as const, sessionId: "", blocks, partial: true,
+          // Pi 1.4.0 AssistantMessageEvent discriminant (pi-ai/dist/types.d.ts).
+          activity: event.assistantMessageEvent.type.startsWith("thinking_") ? "thinking"
+            : event.assistantMessageEvent.type.startsWith("text_") ? "text"
+              : event.assistantMessageEvent.type.startsWith("toolcall_") ? "tool" : undefined,
           // Pi 落盘时间戳——前端按此拆分/排序回合输出块(与磁盘逐条 assistant 对齐)
           timestamp: (msg as { timestamp?: number }).timestamp,
         });

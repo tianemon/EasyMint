@@ -1,5 +1,5 @@
 import { useProcessDisclosure } from "./chat-process-disclosure";
-import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runningTurnPosition, type TurnPresentation } from "./chat-turn-presentation";
+import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runningTurnPosition, executionLabel } from "./chat-turn-presentation";
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
 import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
@@ -39,10 +39,12 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
-import { ExecutionTimer, IdentityTime } from "./ExecutionTimer";
+import { ExecutionTimer } from "./ExecutionTimer";
 import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
 import { buildRunningProcessSlices, type RunningProcessSlice } from "./chat-running-process";
+import { CompletedExecution } from "./CompletedExecution";
+import { completedProcessChunks } from "./execution-process-model";
 import { RunningAssistantContent } from "./RunningAssistantContent";
 import { startsMessageIdentity } from "./chat-message-presentation";
 import { UserMessageText } from "./UserMessageText";
@@ -751,7 +753,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // 按住指针期间暂停贴底（理由见下方 anchorTo）：必须用 state 而非 ref——库在每次渲染时
   // 应用 options，ref 变化不会触发重渲染，anchorTo 就换不过来
-  const processAnchorRef = useRef<number | null>(null);
   const [holdPointer, setHoldPointer] = useState(false);
   const handlePointerDown = useCallback(() => {
     setHoldPointer(true);
@@ -804,36 +805,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const turnTimings = useMemo(() => buildTurnTimings(messages, executionBusy), [messages, executionBusy]);
   // A cancelled/failed run stops its identity clock before the busy flag settles.
   const activeTurnFirst = busy ? Array.from(turnTimings.values()).find(timing => timing.active)?.first : undefined;
-  const runningTurn = useMemo(() => executionBusy ? runningTurnPosition(messages) : undefined, [messages, executionBusy]);
   const turnPresentations = useMemo(() => buildTurnPresentations(messages, executionBusy), [messages, executionBusy]);
   const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, executionBusy), [messages, executionBusy]);
   const runningSlices = useMemo(() => buildRunningProcessSlices(messages, turnPresentations), [messages, turnPresentations]);
+  const replaySlicesByMessage = useMemo(() => new Map(Array.from(buildRunningProcessSlices(messages, turnPresentations, true), ([index, slices]) => [messages[index]!.id, slices])), [messages, turnPresentations]);
+  const completedProcesses = useMemo(() => completedProcessChunks(messages, turnPresentations), [messages, turnPresentations]);
   const activeDisclosuresRef = useRef(new Set<string>());
   useEffect(() => {
     const active = new Set(Array.from(new Set(turnPresentations.values())).filter(turn => turn.active).map(turn => `${sid}:${turn.key}`));
-    for (const slices of runningSlices.values()) for (const slice of slices) if (slice.key) active.add(`${sid}:${slice.key}`);
     for (const key of activeDisclosuresRef.current) {
       if (!active.has(key)) closeProcess(key);
     }
     activeDisclosuresRef.current = active;
-  }, [turnPresentations, runningSlices, sid, closeProcess]);
+  }, [turnPresentations, sid, closeProcess]);
   const isProcessHidden = (index: number): boolean => {
     const turn = turnPresentations.get(index);
-    if (!turn || expandedTurns[`${sid}:${turn.key}`] || turn.finalEntries.has(index)) return false;
-    if (turn.active) {
-      return !(runningSlices.get(index) ?? []).some(slice => !slice.key || slice.header || expandedTurns[`${sid}:${slice.key}`]);
+    if (!turn || turn.finalEntries.has(index)) return false;
+    if (turn.active || turn.preserveSegments) {
+      return !(runningSlices.get(index) ?? []).length;
     }
     return true;
   };
-  const inspectTurn = (turn: TurnPresentation): void => {
+  const inspectProcess = (): void => {
     autoScrollRef.current = false;
-    awayFromBottomRef.current = true;
-    setAwayFromBottom(true);
-    pendingJumpRef.current = turn.first;
-    jumpStartedAtRef.current = Date.now();
-    processAnchorRef.current = turn.first;
     setInspectingProcess(true);
-    toggleProcess(`${sid}:${turn.key}`);
   };
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -869,11 +864,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (!hiddenProcessRowsRef.current.has(index)) virtualizer.resizeItem(index, 0);
     }
     hiddenProcessRowsRef.current = hidden;
-    if (processAnchorRef.current === null) return;
-    const index = processAnchorRef.current;
-    processAnchorRef.current = null;
-    // Inspect from the process heading rather than anchoring to the final answer below it.
-    virtualizer.scrollToIndex(index, { align: "start" });
     // foldLayoutKey tracks visibility; streamed content is measured by ResizeObserver.
   }, [foldLayoutKey, virtualizer]);
   // 贴底(发送消息/气泡点击):virtualizer.scrollToIndex 官方 API。
@@ -911,12 +901,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const pendingJumpRef = useRef<number | null>(null);
   const jumpStartedAtRef = useRef(0);
   const jumpToMessage = useCallback((msgId: number) => {
-    const idx = messages.findIndex((m) => m.id === msgId);
+    let idx = messages.findIndex((m) => m.id === msgId);
     if (idx < 0) return;
     autoScrollRef.current = false;
     setInspectingProcess(true);
     const turn = turnPresentations.get(idx);
-    if (turn && !expandedTurns[`${sid}:${turn.key}`] && !turn.finalEntries.has(idx)) toggleProcess(`${sid}:${turn.key}`);
+    if (turn && !turn.active && !turn.finalEntries.has(idx)) {
+      if (!expandedTurns[`${sid}:${turn.key}`]) toggleProcess(`${sid}:${turn.key}`);
+      idx = turn.first;
+    }
     if (idx < messages.length - 1) {
       // 非末尾:显示回底按钮(用户可从历史位置一键回底);目标即末尾则保持贴底态
       awayFromBottomRef.current = true;
@@ -1610,14 +1603,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const handleBlocks = (blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string; phase?: "commentary" | "final_answer" }>, frameTs: number) => {
         const rawEntries = piBlocksToEntries(blocks);
         if (rawEntries.length === 0) return;
-        const hasText = rawEntries.some((e) => e.kind === "text");
-        const hasThinking = rawEntries.some((e) => e.kind === "thinking");
+        const tail = rawEntries.at(-1);
+        const activity = event.activity ?? (tail?.kind === "thinking" ? "thinking" : tail?.kind === "text" ? "text" : undefined);
         // 仅实际文本输出时结束「思考中」;thinking 流式帧保持「思考中」活跃——
         // 思考块还在增长说明 Mint 仍在思考,若信号曾被 tool 等路径 pop,这里恢复
-        if (hasText) {
+        if (activity === "text") {
           if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("pi.responding"));
-        } else if (hasThinking && busyRef.current) {
+        } else if (activity === "thinking" && busyRef.current) {
           useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.thinking"));
+        } else if (activity === "tool" && busyRef.current) {
+          useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.processing"));
         }
         const entries = mergeConsecutiveText(rawEntries);
         if (latestAiIdRef.current) {
@@ -1683,7 +1678,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」);
         // 按 toolCallId 区分信号——连续工具互不干扰(前一个 tool_done 不误 pop 后一个)
         useStatusStore.getState().popSignal(sidRef.current, "request");
-        useStatusStore.getState().pushSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`, label);
+        useStatusStore.getState().pushSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`, label, undefined, { name: event.toolName, args: event.toolArgs });
         // 命令实时输出(bash 增量):按 toolCallId 累积成 tool_output 条目,展开区显示
         if (event.toolCallId && event.deltaText) {
           const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
@@ -1712,7 +1707,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (event.type === "nested_tool" && event.parentToolCallId) {
         const signalId = `tool:${event.parentToolCallId}/${event.toolCallId ?? "?"}`;
         if (event.nestedPhase === "end") useStatusStore.getState().popSignal(sidRef.current, signalId);
-        else if (event.toolName) useStatusStore.getState().pushSignal(sidRef.current, signalId, displayToolAction(event.toolName, event.toolArgs));
+        else if (event.toolName) useStatusStore.getState().pushSignal(sidRef.current, signalId, displayToolAction(event.toolName, event.toolArgs), undefined, { name: event.toolName, args: event.toolArgs });
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         for (const msg of msgs) {
           if (msg.role !== "ai" || !msg.entries) continue;
@@ -2968,9 +2963,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               {virtualizer.getVirtualItems().map((vi) => {
                 const originalMsg = messages[vi.index]!;
                 const turn = turnPresentations.get(vi.index);
-                const expanded = !!turn && !!expandedTurns[`${sid}:${turn.key}`];
                 const hidden = isProcessHidden(vi.index);
-                const msg = turn && !expanded ? { ...originalMsg, entries: turn.active ? originalMsg.entries : turn.finalEntries.get(vi.index) ?? [] } : originalMsg;
+                const msg = turn ? { ...originalMsg, entries: turn.active || turn.preserveSegments ? originalMsg.entries : turn.finalEntries.get(vi.index) ?? [] } : originalMsg;
                 const header = turn?.first === vi.index;
                 return (
                   <div
@@ -2988,17 +2982,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[var(--radius-lg)] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
                     />
                     {originalMsg.role === "ai" && (header || !turn && !hidden && !!originalMsg.entries?.length && startsMessageIdentity(messages, vi.index)) && (
-                      <AssistantIdentity msg={originalMsg} live={vi.index === activeTurnFirst} durationMs={turnTimings.get(vi.index)?.durationMs} startedAt={vi.index === activeTurnFirst ? turnTimings.get(vi.index)?.startedAt : undefined} />
+                      <AssistantIdentity msg={originalMsg} live={vi.index === activeTurnFirst} />
                     )}
-                    {header && turn && !turn.active && (
-                      <button type="button" className="execution-process-toggle" aria-expanded={expanded} onClick={() => inspectTurn(turn)}>
-                        <span>{uiText(turn.interrupted ? "ui.ChatPanel.interruptedProcess" : "ui.ChatPanel.executionProcess")}</span>
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ transform: expanded ? "rotate(90deg)" : undefined }}><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" /></svg>
-                      </button>
+                    {vi.index === activeTurnFirst && (
+                      <div className="execution-time-heading"><ExecutionTimer startedAt={turnTimings.get(vi.index)!.startedAt} /></div>
+                    )}
+                    {header && turn?.preserveSegments && !turn.active && (
+                      <div className="execution-time-heading">{turn.durationMs !== undefined ? executionLabel(turn.durationMs, locale.startsWith("en"), true) : uiText("ui.ChatPanel.elapsedUnknown")}</div>
+                    )}
+                    {header && turn && !turn.active && !turn.preserveSegments && (
+                      <div className="execution-process-completed">
+                        <CompletedExecution id={`${sid}:${turn.key}`} sessionId={sid} durationMs={turn.durationMs} interrupted={turn.interrupted} chunks={completedProcesses.get(vi.index) ?? []} slicesByMessage={replaySlicesByMessage} onInspect={inspectProcess} onContextMenu={handleMsgContextMenu} />
+                      </div>
+                    )}
+                    {!turn && !executionBusy && turnTimings.get(vi.index)?.first === vi.index && (
+                      <div className="execution-process-completed"><CompletedExecution id={`${sid}:plain:${originalMsg.id}`} sessionId={sid} durationMs={turnTimings.get(vi.index)?.durationMs} chunks={[]} slicesByMessage={replaySlicesByMessage} /></div>
                     )}
                     {!hidden && <MemoChatMessage
                       msg={msg}
-                      runningSlices={turn?.active && !expanded ? runningSlices.get(vi.index) : undefined}
+                      runningSlices={turn?.active || turn?.preserveSegments ? runningSlices.get(vi.index) : undefined}
+                      processActive={!!turn?.active}
+                      processInterrupted={!!turn?.interrupted}
+                      onInspectProcess={inspectProcess}
                       conclusions={finalAnswerEntries.get(vi.index)}
                       streaming={busy && vi.index === streamIndex}
                       userBubble={userBubble}
@@ -3059,7 +3064,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             <AskUserCard key={pendingAsk.requestId} request={pendingAsk} />
           </div>
         )}
-        <StatusBar sessionId={sidRef.current} startedAt={runningTurn?.startedAt} showCompletedOutcome={false} />
+        <StatusBar sessionId={sidRef.current} showCompletedOutcome={false} />
       </div>
 
       {/* Attach preview — above thinking when busy;左右边距与输入卡片(--chat-content-inset)一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
@@ -3256,18 +3261,13 @@ function ImagePathOnlyTag(): JSX.Element {
   return <span className="inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle">{uiText("ui.ChatPanel.imagesSentAsPathsOnly")}</span>;
 }
 
-export function AssistantIdentity({ msg, live, durationMs, startedAt }: { msg: ChatMessage; live: boolean; durationMs?: number; startedAt?: number }): JSX.Element {
+export function AssistantIdentity({ msg, live }: { msg: ChatMessage; live: boolean }): JSX.Element {
   useUiLocale();
   const role = msg.agentRole;
   return <div className={`msg-in msg-assistant-identity${live ? " mint-live" : ""}`}>
     {role ? <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
       : <MintAvatar size={28} className="mint-avatar" />}
     <span>{role ?? "Mint"}</span>
-    {!role && <span className="text-xs font-normal text-text-muted whitespace-nowrap">
-      {live && startedAt !== undefined
-        ? <ExecutionTimer startedAt={startedAt} processed />
-        : <IdentityTime durationMs={durationMs} />}
-    </span>}
     {msg.outOfContext && <OutOfContextTag />}
     {msg.imageStripped && !msg.outOfContext && <ImageStrippedTag />}
     {role && msg.forwarded && <span className="text-text-secondary">{msg.forwardedFrom ? uiText("ui.ChatPanel.from", { v0: msg.forwardedFrom }) : uiText("ui.ChatPanel.forwarded")}</span>}
@@ -3279,6 +3279,9 @@ export function AssistantIdentity({ msg, live, durationMs, startedAt }: { msg: C
 interface MemoChatMessageProps {
   msg: ChatMessage;
   runningSlices?: RunningProcessSlice[];
+  onInspectProcess?: () => void;
+  processActive?: boolean;
+  processInterrupted?: boolean;
   conclusions?: StreamEntry[];
   /** 本条消息是否正在增长（只有末尾那条为真）——驱动流式 markdown 与思考块的流式态 */
   streaming: boolean;
@@ -3292,7 +3295,7 @@ interface MemoChatMessageProps {
   sid: string;
 }
 
-export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlices, conclusions, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
+export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlices, onInspectProcess, processActive, processInterrupted, conclusions, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
   useUiLocale();
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
@@ -3497,7 +3500,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
     <div className={`msg-in msg-ai-flow${hasConclusion && (msg.durationMs !== undefined || msg.usage) ? " msg-with-output-meta" : ""}`} onContextMenu={(e) => onContextMenu((e.target as HTMLElement).closest(".msg-conclusion") ? conclusionMessage : msg, e)} aria-label={displayName}>
       <div className="msg-agent-row">
         <div className="msg-agent-content min-w-0 relative">
-          {runningSlices ? <RunningAssistantContent slices={runningSlices} sessionId={sid} messageId={String(msg.id)} toolInputs={toolInputs} streaming={streaming} /> : <AssistantContent entries={visible} conclusions={conclusions ?? []} messageId={String(msg.id)} toolInputs={toolInputs}
+          {runningSlices ? <RunningAssistantContent slices={runningSlices} sessionId={sid} messageId={String(msg.id)} toolInputs={toolInputs} streaming={streaming} active={processActive} interrupted={processInterrupted} onInspect={onInspectProcess} onContextMenu={onContextMenu} /> : <AssistantContent entries={visible} conclusions={conclusions ?? []} messageId={String(msg.id)} toolInputs={toolInputs}
             streaming={streaming}
             actionEvents={{ ...actionFocusProps, onMouseEnter: showActions, onMouseLeave: scheduleHideActions }}
             actions={hasConclusion && <BubbleActions

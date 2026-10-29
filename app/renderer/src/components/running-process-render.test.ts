@@ -43,11 +43,12 @@ it("renders each conclusion between separate process controls and retains expans
   const controls = () => [...container.querySelectorAll<HTMLButtonElement>(".execution-process-toggle")];
   expect(controls()).toHaveLength(2);
   expect(controls().every(control => control.getAttribute("aria-expanded") === "false")).toBe(true);
-  expect(container.textContent).toMatch(/执行过程.*First conclusion.*执行过程.*Second conclusion/s);
+  expect(container.textContent).toMatch(/思考过程.*First conclusion.*思考过程.*Second conclusion/s);
   expect(container.textContent).not.toContain("reasoning");
   await act(async () => controls()[0]!.click());
   expect(controls()[0]!.getAttribute("aria-expanded")).toBe("true");
-  expect(container.querySelectorAll(".msg-process-stack").length).toBe(3);
+  expect(container.querySelector<HTMLDivElement>(".execution-process-viewport")?.hidden).toBe(false);
+  expect(container.querySelector(".execution-process-record summary")?.textContent).toContain("思考过程");
   await render([...entries.slice(0, -1), { ...entries.at(-1)!, text: "Second conclusion grows" } as StreamEntry]);
   expect(controls()[0]!.getAttribute("aria-expanded")).toBe("true");
   expect(controls()[1]!.getAttribute("aria-expanded")).toBe("false");

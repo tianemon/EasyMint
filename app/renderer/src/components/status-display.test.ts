@@ -41,12 +41,10 @@ describe("observable run status", () => {
     useStatusStore.getState().pushSignal("session", "outcome", uiText("pi.cancelled"), 4000);
     expect(renderToStaticMarkup(createElement(StatusBar, { sessionId: "session", showCompletedOutcome: false }))).toContain(uiText("pi.cancelled"));
   });
-  it("renders the live execution status as an expandable control with a timer fallback", () => {
+  it("keeps the live status separate from the execution timer", () => {
     useTabStore.getState().setSessionRunning("session", true);
-    const html = renderToStaticMarkup(createElement(StatusBar, { sessionId: "session", startedAt: Date.now(), expanded: false, onToggle: () => {} }));
-    expect(html).toContain("<button");
-    expect(html).toContain("aria-expanded=\"false\"");
-    expect(html).toContain("role=\"timer\"");
+    const html = renderToStaticMarkup(createElement(StatusBar, { sessionId: "session", expanded: false, onToggle: () => {} }));
+    expect(html).toBe("");
   });
   it("shows the remaining parallel tool after another tool finishes", () => {
     const status = useStatusStore.getState();
@@ -75,6 +73,18 @@ describe("observable run status", () => {
     useStatusStore.getState().pushSignal("session", "stopping", "stopping now");
     expect(render()).toContain("stopping now");
     expect(render()).not.toContain(uiText("pi.waitingUser"));
+  });
+  it("follows updated parallel tools and keeps full command arguments across argument-less updates", () => {
+    const status = useStatusStore.getState();
+    useTabStore.getState().setSessionRunning("session", true);
+    status.pushSignal("session", "tool:a", "read", undefined, {name:"read",args:{path:"/project/ChatBlocks.tsx"}});
+    status.pushSignal("session", "tool:b", "search", undefined, {name:"grep",args:{pattern:"target",path:"src"}});
+    expect(render()).toContain("target");
+    status.pushSignal("session", "tool:a", "read updated", undefined, {name:"read"});
+    expect(render()).toContain("正在读取 ChatBlocks.tsx");
+    expect(render()).toContain("正在读取 /project/ChatBlocks.tsx");
+    status.popSignal("session", "tool:a");
+    expect(render()).toContain("target");
   });
   it("keeps retry and compaction ahead of tool progress and hides idle tool residue", () => {
     const status = useStatusStore.getState();

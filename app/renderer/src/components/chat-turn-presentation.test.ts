@@ -37,9 +37,11 @@ describe("completed turn presentation", () => {
     expect(buildFinalAnswerEntries([ai(1, [text("checking")]), ai(2, [{ kind: "thinking", text: "reasoning", timestamp: 0 }])], false).size).toBe(0);
     expect(buildFinalAnswerEntries([ai(1, [text("checking")]), ai(2, [text("checking", "commentary")])], false).size).toBe(0);
   });
-  it("keeps unanswered tool requests visible", () => {
+  it("retains unanswered tool requests in the replay when a final conclusion exists", () => {
     const call: StreamEntry = { kind: "tool_use", id: "ask", name: "ask_user", input: {}, collapsed: true, timestamp: 0 };
-    expect(buildTurnPresentations([ai(1, [call]), ai(2, [text("answer")])], false).size).toBe(0);
+    const turn = buildTurnPresentations([ai(1, [call]), ai(2, [text("answer")])], false).get(0)!;
+    expect(turn.finalEntries.has(1)).toBe(true);
+    expect(turn.preserveSegments).toBe(false);
   });
   it("allows completed tool history to fold without changing inner collapse state", () => {
     const entries: StreamEntry[] = [{ kind: "tool_use", id: "read", name: "read", input: {}, collapsed: true, timestamp: 0 }, { kind: "tool_result", toolUseId: "read", content: "file", isError: false, timestamp: 0 }];
@@ -187,13 +189,14 @@ describe("phase and terminal metadata", () => {
     expect(messages[0]?.entries?.[0]).toHaveProperty("phase", "final_answer");
     expect(messages[0]?.stopReason).toBe("stop");
   });
-  it("keeps an aborted turn folded after reopening history", () => {
+  it("preserves an aborted turn after reopening history", () => {
     const messages = mapSessionMessages([
       { type: "user", message: { content: "question", timestamp: 1 } },
       { type: "assistant", message: { content: [{ type: "text", text: "working" }], stopReason: "aborted", timestamp: 5000 } },
     ]);
     const turn = buildTurnPresentations(messages, false).get(1)!;
     expect(turn.interrupted).toBe(true);
+    expect(turn.preserveSegments).toBe(true);
     expect(turn.finalEntries.size).toBe(0);
   });
   it("does not lose an empty error ending when loading history", () => {

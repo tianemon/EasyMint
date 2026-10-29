@@ -10,10 +10,13 @@ import { create } from "zustand";
  *  - 会话隔离:多 tab 各 ChatPanel 的信号互不穿透(跨会话状态展示不污染)
  */
 
+export interface ToolStatus { name: string; args?: Record<string, unknown> }
+
 interface StatusSignal {
   id: string;
   text: string;
   seq: number;
+  tool?: ToolStatus;
 }
 
 interface SessionStatus {
@@ -29,7 +32,7 @@ interface SessionStatus {
 interface StatusState {
   /** 会话 → 状态 */
   bySession: Record<string, SessionStatus>;
-  pushSignal: (sessionId: string, id: string, text: string, ttlMs?: number) => void;
+  pushSignal: (sessionId: string, id: string, text: string, ttlMs?: number, tool?: ToolStatus) => void;
   popSignal: (sessionId: string, id: string) => void;
   /** 按 id 前缀清理(回合结束时清除全部 tool:* 信号) */
   popSignalsByPrefix: (sessionId: string, prefix: string) => void;
@@ -52,14 +55,14 @@ function timerKey(sessionId: string, id: string): string {
 export const useStatusStore = create<StatusState>((set, get) => ({
   bySession: {},
 
-  pushSignal: (sessionId, id, text, ttlMs) => {
+  pushSignal: (sessionId, id, text, ttlMs, tool) => {
     const cur = get().bySession[sessionId] ?? emptyStatus();
     let signals: StatusSignal[];
+    const seq = ++seqCounter;
     if (cur.signals.some((s) => s.id === id)) {
-      signals = cur.signals.map((s) => (s.id === id ? { ...s, text } : s));
+      signals = cur.signals.map((s) => (s.id === id ? { ...s, text, seq, tool: tool ? { name: tool.name, args: tool.args ?? s.tool?.args } : s.tool } : s));
     } else {
-      seqCounter++;
-      signals = [...cur.signals, { id, text, seq: seqCounter }];
+      signals = [...cur.signals, { id, text, seq, tool }];
     }
     const key = timerKey(sessionId, id);
     const old = timers.get(key);

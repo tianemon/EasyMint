@@ -7,7 +7,8 @@ import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
 import { useAskStore } from "../stores/ask-store";
 import { ModelGlyph } from "./ModelGlyph";
-import { ExecutionTimer } from "./ExecutionTimer";
+import { ToolIcon } from "./ChatBlocks";
+import { toolActivity } from "./tool-activity";
 
 /** 旧的状态栏符号动画：字符序列顺序播放 → 端点停顿 → 倒序播放 → 停顿，循环。
  *  已由动态模型图标（ModelGlyph）替代，按要求保留代码备查——恢复旧动画时把下面注释解开。
@@ -36,9 +37,8 @@ function buildShimmerStyle(durationSec: number): CSSProperties {
  * 常驻活跃动画已移至输入卡片流光(OrbitGlow/SlideGlow/BreatheGlow canvas 组件);
  * 符号动画与状态文本同现同消:运行或交互等待时显示状态，回合结束结果短暂保留到 outcome 信号过期。
  */
-export function StatusBar({ sessionId, startedAt, expanded, onToggle, showCompletedOutcome = true }: {
+export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome = true }: {
   sessionId: string;
-  startedAt?: number;
   expanded?: boolean;
   onToggle?: () => void;
   showCompletedOutcome?: boolean;
@@ -56,7 +56,8 @@ export function StatusBar({ sessionId, startedAt, expanded, onToggle, showComple
       signals.find(signal => signal.id !== "outcome")
       : signals.find(signal => signal.id === "error") ?? signals.find(signal => signal.id === "outcome"));
   const waiting = current?.id !== "stopping" && (asking || current?.id === "dialog");
-  const text = waiting ? uiText("pi.waitingUser") : current?.text ?? "";
+  const activity = current?.tool && !waiting ? toolActivity(current.tool.name, current.tool.args) : undefined;
+  const text = waiting ? uiText("pi.waitingUser") : activity?.text ?? current?.text ?? "";
   // 状态文本样式配置:单色(solid,独立颜色)/流光(shimmer,启用组色彩注入 --shimmer-1..5)
   const statusTextStyle = useSettingsStore((s) => s.statusTextStyle);
   const statusTextGroupsLight = useSettingsStore((s) => s.statusTextGroupsLight);
@@ -123,7 +124,7 @@ export function StatusBar({ sessionId, startedAt, expanded, onToggle, showComple
   const symbol = SYMBOLS[symIdx];
   */
 
-  const showStatus = showSymbols || (busy && startedAt !== undefined);
+  const showStatus = showSymbols;
   if (!showStatus && !summarizing) return null;
 
   // 流光时长:一圈 = 颜色数 × 4s(shimmerSweep 位移 600% = 2 圈,总时长 = 颜色数 × 8s)
@@ -148,11 +149,11 @@ export function StatusBar({ sessionId, startedAt, expanded, onToggle, showComple
         className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
         style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
       >
-        <ModelGlyph animated={busy && !waiting} />
+        {activity ? <ToolIcon name={activity.icon} /> : <ModelGlyph animated={busy && !waiting} />}
       </span>
       {text
-        ? <span className="min-w-0 truncate text-xs font-medium" style={textStyle} title={appText(text)} role="status">{appText(text)}</span>
-        : startedAt !== undefined ? <ExecutionTimer startedAt={startedAt} /> : null}
+        ? <span className="min-w-0 truncate text-xs font-medium" style={textStyle} title={activity?.fullText ?? appText(text)} role="status">{activity ? text : appText(text)}</span>
+        : null}
       {onToggle && (
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0" style={{ transform: expanded ? "rotate(90deg)" : undefined }}>
           <path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.5" />

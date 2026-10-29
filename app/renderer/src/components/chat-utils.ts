@@ -1,3 +1,4 @@
+import { toolActivity } from "./tool-activity";
 import { responsePhase, type ResponsePhase } from "@shared/response-phase";
 import { compactionSummaryBody } from "@shared/prompts";
 import { toolPresentation } from "@shared/tool-presentation";
@@ -114,32 +115,7 @@ export function piEventToEntries(ev: { type: string; blocks?: Array<{ type: stri
 
 /** Status shows the concrete command/tool; CSS owns single-line truncation. */
 export function displayToolAction(name: string, args?: Record<string, unknown>): string {
-  const action = toolActionLabel(name, args);
-  const detail = args?.command ?? args?.cmd ?? args?.file_path ?? args?.path ?? args?.toolName ?? args?.tool_name ?? args?.skill ?? args?.url ?? args?.query;
-  const target = typeof detail === "string" ? detail.replace(/\s+/g, " ").trim() : "";
-  return `${action} · ${name}${target ? ` · ${target}` : ""}`;
-}
-
-function toolActionLabel(name: string, args?: Record<string, unknown>): string {
-  const n = name.toLowerCase();
-  if (n === "use_skill" || n.startsWith("skill__") || args?.skill) return uiText("ui.chat-utils.loadingSkill");
-  if (n === "learn") return uiText("ui.chat-utils.savingExperience");
-  if (n === "manage_skill") return uiText("ui.chat-utils.managingSkills");
-  if (n === "search_experiences") return uiText("ui.chat-utils.searchingExperiences");
-  if (n === "retire_experiences") return uiText("ui.chat-utils.retiringExperience");
-  if (n.startsWith("mcp__")) return uiText("ui.chat-utils.callingExternalTool");
-  if (n === "search_mcp_tools") return uiText("ui.chat-utils.findingExternalTools");
-  if (n === "call_mcp_tool") return uiText("ui.chat-utils.callingExternalTool");
-  if (n === "generate_image") return uiText("pi.generatingImage");
-  if (n === "read" || n === "glob") return uiText("ui.chat-utils.readingFile");
-  if (n === "write") return uiText("ui.chat-utils.writingFile");
-  if (n === "edit") return uiText("ui.chat-utils.editingFile");
-  if (n === "grep") return uiText("ui.chat-utils.searchingContent");
-  if (n === "bash") return uiText("ui.chat-utils.runningCommand");
-  if (n === "task") return uiText("ui.chat-utils.delegatingAgent");
-  if (n === "webfetch") return uiText("ui.chat-utils.fetchingPage");
-  if (n === "websearch") return uiText("ui.chat-utils.searchingWeb");
-  return uiText("ui.chat-utils.processing");
+  return toolActivity(name, args).text;
 }
 
 /** 解析消息文本中的附件标记 [Image #1: path] / [File #1: path] */

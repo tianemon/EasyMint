@@ -1,3 +1,4 @@
+import type { ProcessChunk } from "./execution-process-model";
 import type { ChatMessage } from "./chat-utils";
 import type { StreamEntry } from "./StreamPanel";
 import type { TurnPresentation } from "./chat-turn-presentation";
@@ -7,13 +8,14 @@ export interface RunningProcessSlice {
   /** Absent for visible prose/questions. Shared across rows in one process segment. */
   key?: string;
   header?: boolean;
+  chunks?: ProcessChunk[];
 }
 
 /** Keep original records/entry references: folding never changes the model's context. */
-export function buildRunningProcessSlices(messages: readonly ChatMessage[], turns: ReadonlyMap<number, TurnPresentation>): Map<number, RunningProcessSlice[]> {
+export function buildRunningProcessSlices(messages: readonly ChatMessage[], turns: ReadonlyMap<number, TurnPresentation>, includeCompleted = false): Map<number, RunningProcessSlice[]> {
   const rows = new Map<number, RunningProcessSlice[]>();
   for (const turn of new Set(turns.values())) {
-    if (!turn.active) continue;
+    if (!turn.active && !turn.preserveSegments && !includeCompleted) continue;
     const questionIds = new Set<string>();
     const answeredIds = new Set<string>();
     for (let i = turn.first; i <= turn.last; i++) {
@@ -22,27 +24,53 @@ export function buildRunningProcessSlices(messages: readonly ChatMessage[], turn
         if (entry.kind === "tool_result") answeredIds.add(entry.toolUseId);
       }
     }
+    const callSlices = new Map<string, RunningProcessSlice>();
+    const append = (slice: RunningProcessSlice, message: ChatMessage, entry: StreamEntry) => {
+      slice.entries.push(entry);
+      const chunk = slice.chunks!.at(-1);
+      if (chunk?.message === message) chunk.entries.push(entry);
+      else slice.chunks!.push({ message, entries: [entry] });
+    };
     let processKey: string | undefined;
+    let processSlice: RunningProcessSlice | undefined;
     for (let i = turn.first; i <= turn.last; i++) {
       const message = messages[i]!;
-      if (message.role !== "ai") { processKey = undefined; continue; }
+      if (message.role !== "ai") { processKey = undefined; processSlice = undefined; continue; }
       const slices: RunningProcessSlice[] = [];
+      const finalEntries = !turn.active && !turn.preserveSegments ? new Set(turn.finalEntries.get(i)) : undefined;
       for (const [entryIndex, entry] of (message.entries ?? []).entries()) {
+        if (finalEntries?.has(entry)) continue;
         // Pending questions already have an interactive AskUserCard at the live tail.
         // After answering, the original call/result becomes the in-order question history.
-        if (entry.kind === "tool_use" && entry.name === "ask_user" && entry.id && !answeredIds.has(entry.id)) {
+        if (entry.kind === "tool_use" && entry.name === "ask_user" && entry.id && !answeredIds.has(entry.id) && turn.active) {
           processKey = undefined;
+          processSlice = undefined;
           continue;
+        }
+        if ((entry.kind === "tool_result" || entry.kind === "tool_output") && entry.toolUseId) {
+          const owner = callSlices.get(entry.toolUseId);
+          if (owner) { append(owner, message, entry); continue; }
         }
         const question = entry.kind === "tool_use" && entry.name === "ask_user"
           || (entry.kind === "tool_result" || entry.kind === "tool_output") && !!entry.toolUseId && questionIds.has(entry.toolUseId);
         const visible = question || entry.kind === "text" || entry.kind === "error" || entry.kind === "user_message";
         const header = !visible && !processKey;
-        if (visible) processKey = undefined;
-        else processKey ??= `${turn.key}:process:${message.id}:${entryIndex}`;
-        const last = slices.at(-1);
-        if (last && last.key === processKey) last.entries.push(entry);
-        else slices.push({ entries: [entry], key: processKey, header });
+        if (visible) {
+          processKey = undefined;
+          processSlice = undefined;
+          const last = slices.at(-1);
+          if (last && !last.key) last.entries.push(entry);
+          else slices.push({ entries: [entry] });
+        } else {
+          processKey ??= `${turn.key}:process:${message.id}:${entryIndex}`;
+          if (header) {
+            processSlice = { entries: [], key: processKey, header: true, chunks: [] };
+            slices.push(processSlice);
+          }
+          // Continuations share the first slice's viewport rather than rendering another row.
+          append(processSlice!, message, entry);
+          if (entry.kind === "tool_use" && entry.id) callSlices.set(entry.id, processSlice!);
+        }
       }
       rows.set(i, slices);
     }

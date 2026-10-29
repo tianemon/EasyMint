@@ -493,10 +493,10 @@ export function TextBlockView({ block, streaming, tail }: { block: TextBlock; st
   );
 }
 
-function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: boolean }): JSX.Element {
+function ThinkingBlockView({ block, active, initiallyExpanded = false }: { block: ThinkingBlock; active?: boolean; initiallyExpanded?: boolean }): JSX.Element {
   useUiLocale();
   // Thinking never opens by itself: execution status is the live indicator; readers opt in per block.
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyExpanded);
   const { bodyMounted, toggle: toggleFold } = useFoldBody(open, setOpen);
   const boxRef = useRef<HTMLDivElement>(null);
   // 自动贴底跟随:用户滚离底部(dist>8)暂停,回底恢复(对齐 OutputWindow 交互)
@@ -601,14 +601,14 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
 }
 
 
-function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?: boolean }): JSX.Element {
+function ToolGroupView({ block, streaming, initiallyExpanded = false }: { block: ToolGroupBlock; streaming?: boolean; initiallyExpanded?: boolean }): JSX.Element {
   const items = block.items;
   // 默认折叠(含 diff 组——用户要求不自动展开,点击才展开)
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyExpanded);
   // 展开区内容挂载控制:折叠时 body 不渲染,宽度不被隐藏内容撑开(见 useFoldBody)
   const fold = useFoldBody(open, setOpen);
   if (items.length === 1) {
-    return <SingleToolCard item={items[0]!} streaming={streaming} />;
+    return <SingleToolCard item={items[0]!} streaming={streaming} initiallyExpanded={initiallyExpanded} />;
   }
   // Group by family for summary
   const families = new Map<string, number>();
@@ -648,7 +648,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
               容器 padding 只做微调,2px→1px 后视觉仍均匀);折叠时高度 0 背景自然不可见 */}
           <div className="msg-process-detail mt-[2px] rounded-[var(--radius-lg)] space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
             {items.map((item, i) => (
-              <SingleToolCard key={i} item={item} streaming={streaming} />
+              <SingleToolCard key={i} item={item} streaming={streaming} initiallyExpanded={initiallyExpanded} />
             ))}
           </div>
         </div>
@@ -939,11 +939,11 @@ function toolDetailLabel(item: ToolItem): string | null {
   return null;
 }
 
-function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boolean }): JSX.Element {
+function SingleToolCard({ item, streaming, initiallyExpanded = false }: { item: ToolItem; streaming?: boolean; initiallyExpanded?: boolean }): JSX.Element {
   useUiLocale();
   const isDiffResult = (item.presentation ?? toolPresentation(item.result))?.kind === "edit_diff";
   // 默认折叠(含 diff——用户要求不自动展开,点击才展开);例外:提问卡默认展开(问题内容需要可见)
-  const [showInput, setShowInput] = useState(item.name === "ask_user");
+  const [showInput, setShowInput] = useState(initiallyExpanded || item.name === "ask_user");
   // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时隐藏内容不再撑开气泡宽度(仅高度隐藏时
   // 不可断行长行/diff 仍把宽度撑到展开态);展开时先挂载下一帧再播 grid 动画(见 useFoldBody)
   const fold = useFoldBody(showInput, setShowInput);
@@ -1170,11 +1170,11 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block, streaming, isStreamingTail }: { block: Block; streaming?: boolean; isStreamingTail?: boolean }): JSX.Element | null {
+export function ChatBlockView({ block, streaming, isStreamingTail, initiallyExpanded }: { block: Block; streaming?: boolean; isStreamingTail?: boolean; initiallyExpanded?: boolean }): JSX.Element | null {
   switch (block.kind) {
     case "text": return <TextBlockView block={block} streaming={streaming} tail={isStreamingTail} />;
-    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} />;
-    case "tool-group": return <ToolGroupView block={block} streaming={streaming} />;
+    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} initiallyExpanded={initiallyExpanded} />;
+    case "tool-group": return <ToolGroupView block={block} streaming={streaming} initiallyExpanded={initiallyExpanded} />;
     case "system": return null;
     case "tool-result-only": return <ToolResultOnlyView block={block} />;
   }

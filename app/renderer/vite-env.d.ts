@@ -180,6 +180,7 @@ interface StreamEvent {
   stopReason?: string;
   blocks?: Array<{ type: string; text?: string; phase?: "commentary" | "final_answer"; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
+  activity?: "thinking" | "text" | "tool";
   imagePath?: string;
   durationMs?: number;
   provider?: string;

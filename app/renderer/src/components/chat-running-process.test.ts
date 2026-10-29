@@ -26,8 +26,9 @@ describe("ordered running process", () => {
   it("shares one disclosure across message rows and keeps its key during stream growth", () => {
     const messages = [ai(1, [thought]), ai(2, [call("a"), result("a")]), ai(3, [text("progress")])];
     const rows = slices(messages);
-    expect(rows.get(0)?.[0]?.key).toBe(rows.get(1)?.[0]?.key);
-    expect(rows.get(1)?.[0]?.header).toBe(false);
+    expect(rows.get(1)).toEqual([]);
+    expect(rows.get(0)?.[0]?.entries).toHaveLength(3);
+    expect(rows.get(0)?.[0]?.chunks?.map(chunk => chunk.message.id)).toEqual([1, 2]);
     messages[0] = ai(1, [{ ...thought, text: "more reasoning" }]);
     expect(slices(messages).get(0)?.[0]?.key).toBe(rows.get(0)?.[0]?.key);
     expect(rows.get(2)?.[0]?.key).toBeUndefined();
@@ -39,8 +40,8 @@ describe("ordered running process", () => {
     const final = { ...text("final conclusion"), phase: "final_answer" as const };
     const messages = [ai(1, [thought, ask]), ai(2, [answer, thought, text("intermediate"), call("a"), result("a"), final])];
     const rows = slices(messages);
-    expect(rows.get(0)?.[1]).toMatchObject({ entries: [ask], key: undefined });
-    expect(rows.get(1)?.[0]).toMatchObject({ entries: [answer], key: undefined });
+    expect(rows.get(0)?.[1]).toMatchObject({ entries: [ask] });
+    expect(rows.get(1)?.[0]).toMatchObject({ entries: [answer] });
     messages[1] = { ...messages[1]!, streaming: false, stopReason: "stop", turnOutcome: "completed" };
     const completed = buildTurnPresentations(messages, false);
     expect(buildRunningProcessSlices(messages, completed).size).toBe(0);
@@ -70,7 +71,7 @@ describe("ordered running process", () => {
 });
 
 it("shows concrete commands and external tool names without embedded newlines", () => {
-  expect(displayToolAction("bash", { command: "npm test\n-- --run" })).toContain("bash · npm test -- --run");
+  expect(displayToolAction("bash", { command: "npm test\n-- --run" })).toContain("npm test -- --run");
   expect(displayToolAction("mcp__github__search")).toContain("mcp__github__search");
-  expect(displayToolAction("read", { path: "/project/readme.md" })).toContain("/project/readme.md");
+  expect(displayToolAction("read", { path: "/project/readme.md" })).toContain("readme.md");
 });

@@ -10,6 +10,8 @@ export interface TurnPresentation {
   durationMs?: number;
   active?: boolean;
   interrupted?: boolean;
+  /** Interrupted/no-final executions retain their original interleaved presentation. */
+  preserveSegments?: boolean;
 }
 
 /** Explicit markers survive reloads. Legacy notifications split only after a terminal reply. */
@@ -159,17 +161,13 @@ export function buildTurnPresentations(messages: readonly ChatMessage[], busy: b
     const terminal = (!last.stopReason || last.stopReason === "stop") && (last.turnOutcome === "completed" || (!last.streaming && last.stopReason === "stop"));
     if (!interrupted && ((last.turnOutcome && last.turnOutcome !== "completed") || !terminal)) return;
     if (group.some(m => m.agentRole || m.forwarded || m.outOfContext || m.imageStripped)) return;
-    if (!interrupted && group.some(m => m.entries?.some(e => e.kind === "error"))) return;
     const finalEntries = selectFinalEntries(messages, indices, active);
     const hasProcess = indices.some(i => messages[i]!.customType || (messages[i]!.entries ?? []).some(e => !finalEntries.get(i)?.includes(e)));
     if (!hasProcess) return;
-    // Completed turns leave unanswered tools visible; interrupted tools belong to the folded process.
-    const entries = group.flatMap(m => m.entries ?? []);
-    const completed = new Set(entries.filter(e => e.kind === "tool_result").map(e => e.kind === "tool_result" ? e.toolUseId : ""));
-    if (!interrupted && entries.some(e => e.kind === "tool_use" && (!e.id || !completed.has(e.id)))) return;
+    // Missing tool results stay explicit as unfinished records inside the replay.
     const first = indices[0]!;
     const durationMs = turnDuration(messages, first, lastAi, userStart);
-    const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries, durationMs, interrupted };
+    const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries, durationMs, interrupted, preserveSegments: finalEntries.size === 0 };
     for (const i of indices) result.set(i, turn);
   };
   for (const group of presentationGroups(messages, busy)) finish(group.indices, group.start, group.active);

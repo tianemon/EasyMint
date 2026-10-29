@@ -24,11 +24,11 @@ afterEach(async () => {
   await uiI18n.changeLanguage("zh-CN");
 });
 
-it("updates the identity clock and freezes at the measured final duration", async () => {
-  await act(async () => root.render(createElement(ExecutionTimer, { startedAt: 0, processed: true })));
-  expect(container.textContent).toBe("已处理 1分1秒");
+it("updates the execution clock and freezes at the measured final duration", async () => {
+  await act(async () => root.render(createElement(ExecutionTimer, { startedAt: 0 })));
+  expect(container.textContent).toBe("已执行 1分钟 1秒");
   await act(async () => { vi.advanceTimersByTime(2000); });
-  expect(container.textContent).toBe("已处理 1分3秒");
+  expect(container.textContent).toBe("已执行 1分钟 3秒");
   await act(async () => root.render(createElement(IdentityTime, { durationMs: 62500 })));
   expect(container.textContent).toBe("用时 1分钟 2秒");
   expect(vi.getTimerCount()).toBe(0);
