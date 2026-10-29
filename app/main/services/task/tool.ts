@@ -101,9 +101,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
     label: "委派子 Agent",
     description:
       "创建一个独立的子 Agent 来完成指定任务。子 Agent 拥有独立的会话上下文和工具集，"
-      + "执行完毕后返回结果。"
-      + "适用于两类任务：**长任务**——需要独立上下文，避免中间过程占满主会话；"
-      + "**并行任务**——多个互不依赖的子任务，用 tasks 数组同时推进。"
+      + "发起后立即返回启动信息，子任务在后台执行，完成结果异步送回主会话，由 Mint 核实并汇总。"
+      + "主要用途是**长任务的上下文隔离**：大量阅读、探索或实验的中间过程留在独立会话，返回有边界的结论与证据。"
+      + "也可用 tasks 数组**异步并行**搜集不同资料或探索互不依赖的方向，或对指定范围做**独立复核**。"
       + agentDesc,
     promptSnippet: "委派子 Agent 执行任务（默认无模板白板，可指定 builder/evaluator 等模板）",
     // 注意：promptGuidelines 只在 Pi 的默认提示词模式下被拼进 Guidelines 段；EM 走 systemPromptOverride
@@ -111,9 +111,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
     // 的 15-35 行不消费该字段）→ 本数组**当前不进模型上下文**。保持只写「工具自身怎么用」：
     // 别把流程判断标准塞进来（写了既不生效、又会误导后来人）。需要模型读到的一律写进上面的 description。
     promptGuidelines: [
-      "用于长任务与并行任务：需要独立上下文的长任务，或用 tasks 数组并行推进的多个独立子任务",
+      "用途：长任务上下文隔离（主要）、独立方向异步并行、指定范围独立复核；是否采用由主会话的任务执行规则决定",
       "通用任务（查资料、读代码、分析）省略 agent 参数，用默认白板子 Agent；特定角色（写代码→builder、验收→evaluator、UI 设计→mint-designer 等）才指定 agent",
-      "开发类任务用 taskId 关联 task.json 任务，完成/失败自动回写状态，不要手动标记",
+      "已有正式 task.json 任务时传 taskId 关联，完成/失败自动回写状态；临时研究或复核不要求创建 task.json",
     ],
     parameters: {
       type: "object" as const,

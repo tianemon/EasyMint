@@ -107,7 +107,7 @@ const DEFAULTS: AgentTemplate[] = [
   {
     id: "mint",
     name: "Mint",
-    description: "总调度 Agent(PM)。统筹分析需求、规划任务、协调 Builder/Evaluator 完成开发。",
+    description: "主会话助手。理解需求、直接推进实现与验证，并按任务需要协调子 Agent、整合结果。",
     prompt: MINT_SYSTEM_PROMPT,
     agentType: "mint",
   },
@@ -125,14 +125,14 @@ const DEFAULTS: AgentTemplate[] = [
   {
     id: "default-builder",
     name: "Builder",
-    description: "实现代码任务。当需要实现开发任务时使用此 Agent。",
+    description: "承担主会话已决定委派的独立代码实现任务，返回改动与验证证据。",
     prompt: BUILDER_AGENT_PROMPT,
     agentType: "builder",
   },
   {
     id: "default-evaluator",
     name: "Evaluator",
-    description: "验收代码变更。当需要验证 Builder 的工作成果时使用此 Agent。",
+    description: "对指定范围独立复核实现、验证证据与风险，返回发现和验收结论。",
     prompt: EVALUATOR_AGENT_PROMPT,
     agentType: "evaluator",
   },
@@ -172,8 +172,9 @@ export function seedDefaults(): void {
   for (const d of DEFAULTS) {
     const existing = current.find((t) => t.id === d.id);
     if (existing) {
-      // 内置模板只读，提示词必须跟随版本更新；名称等展示数据仍保留。
-      synced.push(d.id === MINT_TEMPLATE_ID
+      // Read-only policy roles must refresh descriptions too: task exposes these to Mint.
+      // Keep names and user-created templates; designer-specific migration remains unchanged.
+      synced.push([MINT_TEMPLATE_ID, "default-builder", "default-evaluator"].includes(d.id)
         ? { ...existing, prompt: d.prompt, description: d.description }
         : { ...existing, prompt: d.prompt });
     } else {
