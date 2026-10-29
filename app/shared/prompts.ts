@@ -583,6 +583,7 @@ export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发�
 export type SystemMessageKind =
   | "delegation"   // 子 Agent 委派完成/中止/失败
   | "shell"        // 后台 shell 退出通知
+  | "human-action" // 命令输出里出现需要用户操作的内容(授权链接/输入提示)
   | "project-created" // 项目已创建完毕(初始化触发)
   | "direct-create" // 用户点直接创建,触发 Mint 对话引导补全信息
   | "flow"         // 流程指令(翻译/功能清单/技术方案等)
@@ -604,6 +605,7 @@ export interface SystemMessagePayload {
 export const SYSTEM_MESSAGE_LABELS: Record<SystemMessageKind, string> = {
   delegation: "Agent执行结果",
   shell: "后台命令",
+  "human-action": "命令交互",
   "project-created": "项目初始化",
   "direct-create": "直接创建",
   flow: "流程指令",

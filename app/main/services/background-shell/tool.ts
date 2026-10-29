@@ -13,6 +13,7 @@ import { getCreateBashToolDefinition } from "../pi-sdk";
 import { backgroundShellRegistry, type BackgroundShell, resolveSpawn, findBashOnWindows } from "./registry";
 import { spawn } from "node:child_process";
 import { createCodingAwareDecoder, createAnsiStripper, stripAnsi } from "./encoding";
+import { HumanActionDetector, type HumanAction } from "./human-action";
 import { ensureSandbox, wrapForSandbox, annotateSandboxFailures, isSandboxBypassedForMode } from "../sandbox/manager";
 import { EXECUTION_POLICY } from "../permission/wrap-tool";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
@@ -87,6 +88,8 @@ export async function executeForeground(
   ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string } },
   /** SDK 增量回调:执行中把输出片段推给 UI(无则跳过,后台/无 UI 场景不受影响) */
   onUpdate?: (partial: { content: Array<{ type: string; text: string }> }) => void,
+  /** 输出里出现「需要人操作」信号时的回调(前台阻塞时同样要能交接,否则 npm login 只能挂到超时) */
+  onHumanAction?: (action: HumanAction) => void,
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   return new Promise((resolve, reject) => {
     const spawnPlan = "argv" in command
@@ -147,8 +150,17 @@ export async function executeForeground(
       pendingDelta += chunk;
       if (!deltaTimer) deltaTimer = setTimeout(flushDelta, 150);
     };
-    child.stdout?.on("data", (c: Buffer) => { if (finished) return; const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); });
-    child.stderr?.on("data", (c: Buffer) => { if (finished) return; const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); });
+    // 人工操作信号(前台)：与后台共用同一识别器——前台会一直阻塞到退出，
+    // 若"默认前台"却不交接触发点，npm login 就只能挂到超时，用户依然看不到链接
+    const humanDetector = onHumanAction ? new HumanActionDetector() : null;
+    const scanHuman = (s: string): void => {
+      if (!humanDetector || !onHumanAction) return;
+      for (const action of humanDetector.feed(s)) {
+        try { onHumanAction(action); } catch { /* 交接失败不影响命令本身 */ }
+      }
+    };
+    child.stdout?.on("data", (c: Buffer) => { if (finished) return; const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); scanHuman(s); });
+    child.stderr?.on("data", (c: Buffer) => { if (finished) return; const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); scanHuman(s); });
     child.on("error", (err) => {
       if (finished) return;
       finished = true;
@@ -196,6 +208,12 @@ export async function executeForeground(
 export interface EnhancedBashOptions {
   /** 进程退出回调(agent-service 注入结果到主会话;缺省仅后台跑不通知) */
   onExit?: (shell: BackgroundShell) => void;
+  /**
+   * 输出里出现「需要人操作」信号时的回调(授权链接 / 按键提示)。
+   * 由 agent-service 注入为其所属会话的系统消息；缺省则仅不提示。
+   * 参数是**展示用命令文本**（前台/后台统一），注入点据此生成卡片。
+   */
+  onHumanAction?: (command: string, action: HumanAction) => void;
 }
 
 /** 输出尾部预览行数(通知精简:完整输出落盘,会话内只带尾部几行) */
@@ -218,6 +236,24 @@ export function formatShellResult(shell: BackgroundShell): string {
   return `${summary}\n${head}\n${output}\n${logHint}`;
 }
 
+/**
+ * 后台命令输出出现「需要人操作」信号 → 注入所属会话的卡片文本。
+ *
+ * 形制与 formatShellResult 一致（⏺ 首行 + 分行正文），前端系统卡片用同一套解析；
+ * 状态固定「等待你操作」，**不冒充完成**——点开链接不等于授权成功，进程是否还在跑才是事实。
+ * link 只带 URL 不带原文（同行可能夹着临时凭据，没必要整行进会话）。
+ */
+export function formatHumanAction(command: string, action: HumanAction): string {
+  const lines = ["⏺ 命令交互 - 等待你操作", `命令: ${command}`];
+  if (action.kind === "link" && action.url) {
+    lines.push(`${action.confidence === "explicit" ? "授权链接" : "可能相关的链接"}: ${action.url}`);
+  } else {
+    lines.push(`提示: ${action.hint}`);
+  }
+  lines.push("说明: 命令仍在运行；出现该内容只代表输出里在等人，不代表已完成。");
+  return lines.join("\n");
+}
+
 export async function createEnhancedBashTool(
   cwd: string,
   options?: EnhancedBashOptions,
@@ -230,19 +266,24 @@ export async function createEnhancedBashTool(
     label: "bash",
     description:
       "Execute a bash command in the current working directory. Returns stdout and stderr. "
-      + "For long-running or service commands (dev server, watchers, background jobs), "
-      + "pass background: true to run in the background without blocking the conversation — "
-      + "the result will be injected back when the command exits. "
+      + "默认前台同步执行：命令跑完直接返回结果，输出实时可见。"
+      + "只有「必须持续运行、且期间还要推进别的事」才传 background: true（开发服务器、文件监听器、长轮询等待）；"
+      + "登录、发布、安装、测试、构建、查询这类需要看结果、或可能中途要求用户操作的命令，一律前台执行——"
+      + "按预计耗时长就转后台是错的：耗时长的命令往往正是会弹授权链接或输入提示的那一类。"
       + "后台命令的 stdout/stderr 会被自动收集:输出面板实时显示、完整输出落盘日志文件、退出后结果自动注入会话。"
+      + "命令输出里出现授权链接或输入提示时，系统会直接在当前会话弹出「等待你操作」卡片，不需要你转述。"
       + "禁止在命令中手动重定向输出(如 `> file 2>&1`、`| tee`、`nohup ... &`)——重定向会绕过自动收集,"
       + "输出面板和退出通知将无内容;需要读完整输出时,用 read 工具读系统返回的日志文件路径。"
       + `每次调用都要填 description：${TOOL_DISPLAY_DESCRIPTION}。`,
-    promptSnippet: "执行 bash 命令(前台同步/后台长驻;后台输出自动收集,勿手动重定向)",
+    promptSnippet: "执行 bash 命令(默认前台同步;仅长驻服务/监听器用后台)",
     promptGuidelines: [
       ...(Array.isArray(native.promptGuidelines) ? native.promptGuidelines : []),
+      "默认前台执行：查询、安装、测试、构建、登录、发布直接跑，等结果即可，不要成习惯地转后台",
+      "只有「必须持续运行、期间还要推进别的事」才用 background: true(开发服务器、监听器、长轮询等待)；不要因为可能慢就转后台，也不要按时长自动决定",
+      "登录/发布等可能出现授权链接、验证码提示的命令必须前台执行；即使系统会把输出里的授权提示直接弹给用户，也不要自己把链接抄进正文或要求用户去翻日志面板",
       "后台命令(background: true)的输出会被系统自动收集并落盘——不要在命令里手动重定向 `> file 2>&1` 或 `| tee`(会绕过自动收集,面板和退出通知无输出)",
       "后台命令返回的输出文件路径(logPath)可直接用 read 工具读取完整输出",
-      "事件等待：需要等某事件/任务完成才能继续(CI 构建、服务就绪、下载、长任务收尾等)时，命令里必须实际等待——用 sleep 轮询/条件循环/gh run watch 等，前后台均可、优先前台(配足 timeout，命令返回即拿到结果继续)；长时间等待(约 >60s)用后台 watch/sleep，退出自动注入通知。禁止只承诺「等完成再汇报」却不挂任何等待命令——没有命令退出事件就没有主动唤醒，承诺无法兑现",
+      "事件等待：需要等某事件/任务完成才能继续(CI 构建、服务就绪、下载、长任务收尾等)时，命令里必须实际等待——用 sleep 轮询/条件循环/gh run watch 等，前后台均可、优先前台(配足 timeout，命令返回即拿到结果继续)；只剩「等一个较久的外部信号、期间还想推进别的事」才用后台。禁止只承诺「等完成再汇报」却不挂任何等待命令——没有命令退出事件就没有主动唤醒，承诺无法兑现",
     ],
     parameters: {
       type: "object" as const,
@@ -255,7 +296,7 @@ export async function createEnhancedBashTool(
         timeout: { type: "number" as const, description: "超时秒数(前台模式)" },
         background: {
           type: "boolean" as const,
-          description: "true 时后台执行:立即返回,命令在后台运行,退出后结果注入会话",
+          description: "仅用于必须持续运行且期间还要推进别的事的命令(开发服务器、监听器、长轮询)。默认不要传：登录/发布/安装/测试/构建等一律前台",
         },
       },
       required: ["command"],
@@ -312,7 +353,15 @@ export async function createEnhancedBashTool(
       // 前台:EM 自己 spawn + 编码容错解码(Windows 下 Pi 的 OutputAccumulator 固定 UTF-8,
       // 解 GBK 字节必乱码;EM 侧按 UTF-8/GBK 自动判定)。行为对齐 Pi:同步 + 超时 + 截断 + PI_* 注入。
       if (params.background !== true) {
-        const result = await executeForeground(execTarget, context.workspaceRealPath, signal, typeof params.timeout === "number" ? params.timeout : undefined, ctx, onUpdate);
+        const result = await executeForeground(
+          execTarget,
+          context.workspaceRealPath,
+          signal,
+          typeof params.timeout === "number" ? params.timeout : undefined,
+          ctx,
+          onUpdate,
+          options?.onHumanAction ? (action) => options.onHumanAction!(command, action) : undefined,
+        );
         return execTarget.exemptReason ? appendExemptNote(result, execTarget.exemptReason) : result;
       }
 
@@ -329,6 +378,9 @@ export async function createEnhancedBashTool(
         options?.onExit,
         shellSessionId,
         execTarget.violationKey ? command : undefined,
+        options?.onHumanAction
+          ? (shell, action) => options.onHumanAction!(shell.command, action)
+          : undefined,
       );
       const exemptNote = execTarget.exemptReason ? `\n[沙盒豁免] ${execTarget.exemptReason}` : "";
       return {

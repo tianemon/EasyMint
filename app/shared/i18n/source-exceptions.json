@@ -75,6 +75,11 @@
     "reason": "Stable context-edit action identifier or legacy status discriminator"
   },
   {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "等待你操作",
+    "reason": "Status word carried by the injected command-interaction system message (main process text, not UI copy)"
+  },
+  {
     "file": "app/renderer/src/components/LogOverlay.tsx",
     "text": "「{{v0}}」运行失败，请帮我修复。\n运行命令: {{v1}}\n最近输出:\n{{v2}}",
     "reason": "Internal repair instruction for Mint"

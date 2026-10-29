@@ -21,6 +21,7 @@ import { decodeSeg, finalDecode } from "./encoding";
 import { readManagedEnvironment } from "../tools/environment-tool";
 import { annotateSandboxFailures } from "../sandbox/manager";
 import { trackChild, untrackChild } from "../process-registry";
+import { HumanActionDetector, type HumanAction } from "./human-action";
 // 纯类型导入（编译后擦除，不产生运行时循环：tool.ts 运行时依赖本文件）
 import type { ExecutionTarget } from "./tool";
 
@@ -63,6 +64,16 @@ export interface BackgroundShell {
   flushTimer: ReturnType<typeof setTimeout> | null;
   /** 进程退出回调(自然结束或被停止),exitCode 已写入 */
   onExit?: (shell: BackgroundShell) => void;
+  /**
+   * 输出出现「需要人操作」信号时的回调（授权链接 / 按键提示）。
+   *
+   * 为什么挂在 shell 上而不是只回工具返回值：后台命令**启动那一刻工具就已经返回了**，
+   * 事后才出现的链接再塞进返回值没有任何通道能送到用户眼前
+   * （2026-10-29 npm 两次授权：第一次链接进了后台日志，用户完全没看见）。
+   */
+  onHumanAction?: (shell: BackgroundShell, action: HumanAction) => void;
+  /** 人工操作识别器（每进程独立去重，避免同一提示反复唤醒用户） */
+  detector?: HumanActionDetector;
   /** Windows 沙盒 ACL worker 的命令租约；进程退出后才可安全撤销。 */
   releaseSandboxLease?: () => Promise<void>;
 }
@@ -167,6 +178,18 @@ class BackgroundShellRegistry {
     }
   }
 
+  /** 在原始输出上识别人工操作信号并回调（识别失败不能影响命令本身） */
+  private notifyHumanActions(shell: BackgroundShell, text: string): void {
+    if (!shell.onHumanAction || !shell.detector || !text) return;
+    for (const action of shell.detector.feed(text)) {
+      try {
+        shell.onHumanAction(shell, action);
+      } catch (e) {
+        console.warn(`[bg-shell] human-action handler failed ${shell.id}:`, (e as Error).message);
+      }
+    }
+  }
+
   /** 启动后台命令,立即返回 id + 输出文件路径;进程退出时自动注销并回调 onExit。
    *  command = 实际执行内容（shell 字符串，或沙盒 argv 规格）；displayCommand = 面板/通知展示用（缺省 = 原命令） */
   start(
@@ -175,6 +198,7 @@ class BackgroundShellRegistry {
     onExit?: (shell: BackgroundShell) => void,
     sessionId?: string,
     displayCommand?: string,
+    onHumanAction?: (shell: BackgroundShell, action: HumanAction) => void,
   ): { id: string; logPath: string } {
     const display = displayCommand ?? (typeof command === "string" ? command : "command" in command ? command.command : "(沙盒命令)");
     const id = `shell-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -211,6 +235,7 @@ class BackgroundShellRegistry {
         id, command: display, startedAt: Date.now(), child: null as unknown as ChildProcess, output: error, logPath,
         exitCode: -1, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
         sessionId, releaseSandboxLease: typeof command === "string" ? undefined : command.release,
+        onHumanAction,
       };
       this.shells.set(id, shell);
       this.broadcastCount();
@@ -234,6 +259,8 @@ class BackgroundShellRegistry {
       id, command: display, startedAt: Date.now(), child, output: "", logPath,
       exitCode: null, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
       sessionId, releaseSandboxLease: typeof command === "string" ? undefined : command.release,
+      onHumanAction,
+      detector: onHumanAction ? new HumanActionDetector() : undefined,
     };
     this.shells.set(id, shell);
     this.broadcastCount();
@@ -265,6 +292,9 @@ class BackgroundShellRegistry {
       if (text) {
         shell.output = (shell.output + text).slice(-MAX_OUTPUT_BYTES);
         shell.streamBuf += text;
+        // 人工操作信号：在**原始解码文本**上识别（脱敏前，链接要能点开），
+        // 命中即回调 → 直接注入所属会话，不等进程退出、不依赖 Mint 转述。
+        this.notifyHumanActions(shell, text);
       }
       if (shell.streamBuf && !shell.flushTimer) {
         shell.flushTimer = setTimeout(() => this.flushStream(shell), STREAM_THROTTLE_MS);
@@ -291,6 +321,8 @@ class BackgroundShellRegistry {
       if (tail) {
         shell.output = (shell.output + tail).slice(-MAX_OUTPUT_BYTES);
         shell.streamBuf += tail;
+        // 退出前的尾部残留同样可能是授权提示（进程打印完链接就等输入，随后被杀）
+        this.notifyHumanActions(shell, tail);
       }
       // 强制刷出剩余缓冲(防尾部丢失)
       this.flushStream(shell);

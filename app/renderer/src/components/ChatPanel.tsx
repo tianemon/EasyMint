@@ -85,6 +85,7 @@ const MSG_ACTION_HINTS: Record<MsgAction, string> = {
 const SYSTEM_KIND_LABELS: Record<string, string> = {
   delegation: "SubAgent",
   get shell() { return uiText("ui.ChatPanel.backgroundCommand"); },
+  get "human-action"() { return uiText("ui.ChatPanel.commandInteraction"); },
   get "project-created"() { return uiText("ui.ChatPanel.projectInitialization"); },
   get "direct-create"() { return uiText("ui.ChatPanel.directCreation"); },
   get flow() { return uiText("ui.ChatPanel.workflowInstruction"); },
@@ -3375,19 +3376,19 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
         .replace(/^\[系统消息\](-\[[^\]]*\])?\s*/, "");
       // 委派/后台 shell 结果:状态/时长上标题栏,默认折叠,展开看完整内容(6 行封顶滚动);
       // 摘要:内容是 markdown,展开时走 prose 渲染 + 限高滚动;其他 kind:纯文本
-      const isResult = kind === "delegation" || kind === "shell";
+      const isResult = kind === "delegation" || kind === "shell" || kind === "human-action";
       const isSummary = kind === "summary";
       const lines = isResult ? body.split("\n") : [];
       const rows = lines.filter((l) => l.startsWith("⏺ "));
       // 标题栏状态取首个 ⏺ 行(多子任务时各任务状态在展开区看全貌)
-      const first = rows[0]?.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户中止|已中止|已随权限切换中止)(?: · (\d+)s)?$/);
+      const first = rows[0]?.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户中止|已中止|已随权限切换中止|等待你操作)(?: · (\d+)s)?$/);
       const headStatus = first?.[2];
       const headDur = first?.[3];
       // 首个 ⏺ 行的状态/时长已上标题栏,展开内容里跳过该行避免重复
       const firstDotIdx = lines.findIndex((l) => l.startsWith("⏺ "));
-      // 主动中止=黄,失败=意外中断(红),完成=绿
+      // 主动中止=黄,失败=意外中断(红),完成=绿;「等待你操作」同为黄——它不是结果,只是等人
       const statusColor = (s?: string): string =>
-        (s === "中止" || s === "已由用户中断" || s === "已由用户中止" || s === "已中止" || s === "已随权限切换中止") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
+        (s === "中止" || s === "已由用户中断" || s === "已由用户中止" || s === "已中止" || s === "已随权限切换中止" || s === "等待你操作") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
       // 结果型(委派/后台命令)与指令型一样默认折叠——完整内容展开看
       // Every system type is collapsed, including handoff and future/legacy kinds.
       const collapsible = true;
@@ -3470,12 +3471,35 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
                             </button>
                           );
                         }
+                        // 「等待你操作」卡片里的授权链接 → 与正文链接同一形制（蓝链 + 新窗口），
+                        // 点击由主进程 setWindowOpenHandler 转系统浏览器。不另开 IPC：
+                        // 外链通道只该有一条（markdown.ts 的 safeHref 白名单 + 窗口拦截）。
+                        // 只认这一种行，不把卡片里所有 URL 都变成链接。
+                        const authLink = /^(授权链接|可能相关的链接):\s*(https?:\/\/\S+)$/.exec(row);
+                        if (authLink) {
+                          const url = authLink[2]!;
+                          return (
+                            <div key={i} className="flex items-start gap-1 py-0.5">
+                              <span className="text-text-secondary shrink-0">{authLink[1]}: </span>
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={url}
+                                className="flex items-center gap-1 min-w-0 text-[var(--color-link)] hover:underline transition-colors"
+                              >
+                                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></svg>
+                                <span className="truncate">{url}</span>
+                              </a>
+                            </div>
+                          );
+                        }
                         return row.trim() === "" ? null : (
                           <div key={i} className="text-text-secondary whitespace-pre-wrap [overflow-wrap:anywhere]">{row}</div>
                         );
                       }
                       // 兼容新旧分隔符:新数据用连字符 `-`,存量/旧版主进程仍发 em-dash `—`——两者都解析
-                      const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户中止|已中止)(?: · (\d+)s)?$/);
+                      const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户中止|已中止|等待你操作)(?: · (\d+)s)?$/);
                       const dotColor = statusColor(m?.[2]);
                       return (
                         // 普通文本流而非 flex:flex 项间的源码换行在选择复制时会作为真实换行保留

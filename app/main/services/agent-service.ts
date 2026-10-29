@@ -37,7 +37,8 @@ import { searchExperiences, buildExperienceInjection, shortId } from "./experien
 import { createImportTools } from "./import-tools";
 import { registerSessionIdMapping, abortDelegations, abortTask, getRunningSummary, getRunningDelegations, getOwnedSessionIds, resolveParentSessionId } from "./task/registry";
 import type { TaskStatus } from "./task/types";
-import { formatShellResult } from "./background-shell/tool";
+import { formatShellResult, formatHumanAction } from "./background-shell/tool";
+import type { HumanAction } from "./background-shell/human-action";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
 import { systemMessage, SYSTEM_MESSAGE_LABELS, compactionCardFields, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
 import { classifyApiError, normalizeApiError } from "../../shared/api-errors";
@@ -2003,6 +2004,16 @@ export class AgentService {
         this.injectSystemMessage(sid, formatShellResult(shell), "shell", { triggerTurn: true });
       };
 
+      // 命令输出出现「需要人操作」信号(授权链接/输入提示) → 立即注入所属会话。
+      //
+      // triggerTurn 必须为 false：这条只是给用户看的交接，不是命令结果。
+      // 开回合会让 Mint 在用户还没点链接时就抢答一轮，且后台命令此刻**仍在运行**，
+      // 结果以退出通知为准。用户点完链接命令自己往下走，不需要模型介入。
+      const shellHumanActionInject = (command: string, action: HumanAction): void => {
+        const sid = resolveParentSessionId(resumeSessionId ?? newSessionId);
+        this.injectSystemMessage(sid, formatHumanAction(command, action), "human-action");
+      };
+
       // 会话创建+登记与权限提交共用一把互斥锁（session-permission-gate.withSessionCreationLock）：
       // await loader.reload() 内部「模块 import → 工厂执行」没有可插入检查的同步点，主防线是把
       // 「创建+登记」与「切档提交」串行化——创建期间到达的提交排队到登记之后，
@@ -2032,6 +2043,7 @@ export class AgentService {
                 getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
                 onExtensionError: (error) => broadcast("pi-extension:error", error),
                 onShellExit: shellExitInject,
+                onShellHumanAction: shellHumanActionInject,
               });
             }
             console.warn(`[agent] resume NOT found: ${resumeSessionId} (共 ${sessions.length} 个会话)——将新建会话`);
@@ -2050,6 +2062,7 @@ export class AgentService {
             getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,
             onExtensionError: (error) => broadcast("pi-extension:error", error),
             onShellExit: shellExitInject,
+            onShellHumanAction: shellHumanActionInject,
           });
         };
         // 创建期间权限收紧的纵深防御（正常时序下提交已被锁推迟到登记之后）：

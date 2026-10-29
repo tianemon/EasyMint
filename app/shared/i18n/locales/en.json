@@ -226,6 +226,7 @@
   "ui.ChatPanel.thisMessageIsStillInContextNo2": "This message is still in context. No changes were made.",
   "ui.ChatPanel.thisMessageHasNotBeenRestoredTo": "This message has not been restored to context.",
   "ui.ChatPanel.backgroundCommand": "Background command",
+  "ui.ChatPanel.commandInteraction": "Command interaction",
   "ui.ChatPanel.projectInitialization": "Project initialization",
   "ui.ChatPanel.directCreation": "Direct creation",
   "ui.ChatPanel.workflowInstruction": "Workflow instruction",

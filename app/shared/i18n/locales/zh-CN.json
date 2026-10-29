@@ -226,6 +226,7 @@
   "ui.ChatPanel.thisMessageIsStillInContextNo2": "这条消息仍在上下文里，未做改动。",
   "ui.ChatPanel.thisMessageHasNotBeenRestoredTo": "这条消息仍未回到上下文里。",
   "ui.ChatPanel.backgroundCommand": "后台命令",
+  "ui.ChatPanel.commandInteraction": "命令交互",
   "ui.ChatPanel.projectInitialization": "项目初始化",
   "ui.ChatPanel.directCreation": "直接创建",
   "ui.ChatPanel.workflowInstruction": "流程指令",

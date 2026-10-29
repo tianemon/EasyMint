@@ -26,6 +26,7 @@ import { createEnhancedPowerShellTool } from "./background-shell/powershell-tool
 import { createEnhancedEditTool } from "./enhanced-edit";
 import { createEnhancedReadTool } from "./enhanced-read";
 import type { BackgroundShell } from "./background-shell/registry";
+import type { HumanAction } from "./background-shell/human-action";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { getSettingsManager, getModelRuntime } from "./pi-init";
@@ -67,6 +68,8 @@ export interface PiSessionOptions {
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
   /** 后台 shell 进程退出回调（主会话传入,结果注入主会话；缺省不通知） */
   onShellExit?: (shell: BackgroundShell) => void;
+  /** 命令输出出现「需要人操作」信号（授权链接/输入提示）的回调（主会话传入,注入其会话；缺省不提示） */
+  onShellHumanAction?: (command: string, action: HumanAction) => void;
   onExtensionError?: (error: ExtensionError) => void;
   onUiPrompt?: (waiting: boolean, manager: SessionManager) => void;
   /** Executable Pi extensions require a full-access session. */
@@ -107,7 +110,10 @@ async function buildSession(
   const codingTools = createTools(opts.cwd);
   // bash 用增强版替换(原生 + background 参数):同名工具后者覆盖前者(agent-session Map.set)
   // 放在最后,确保覆盖 codingTools 中的原生 bash
-  const enhancedBash = await createEnhancedBashTool(opts.cwd, { onExit: opts.onShellExit });
+  const enhancedBash = await createEnhancedBashTool(opts.cwd, {
+    onExit: opts.onShellExit,
+    onHumanAction: opts.onShellHumanAction,
+  });
   // edit 用增强版替换(原生 + diff 注入返回文本):Mint 可见变更内容
   const enhancedEdit = await createEnhancedEditTool(opts.cwd);
   // read 用增强版替换(原生 + 二进制文档 pdf/docx/xlsx/pptx 抽取文本):非文档完全委托原生

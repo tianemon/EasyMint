@@ -23,6 +23,7 @@ import { PERMISSION_RULES_PROMPT } from "./prompt-sections";
 const ALL_KINDS: SystemMessageKind[] = [
   "delegation",
   "shell",
+  "human-action",
   "project-created",
   "direct-create",
   "flow",
