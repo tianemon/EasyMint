@@ -70,3 +70,22 @@ it("formats natural actions, search terms, aliases and full paths", () => {
   expect(toolActivity("powershell", {command:"Get-ChildItem\n-Force"}).text).toBe("正在运行命令 Get-ChildItem -Force");
   expect(toolActivity("mcp__github__search", {}).text).toContain("mcp__github__search");
 });
+
+it("preserves nested records directly, without fabricating ordinary pending tool calls", () => {
+  const nested = {id:"child",name:"bash",arguments:{command:"npm test"},status:"error" as const,durationMs:7,error:"child-specific-error"};
+  const parent: StreamEntry={...call,name:"codemode",durationMs:900,imagePath:"/parent.png",nestedCalls:{complete:true,calls:[nested]}};
+  const message=ai(1,[parent]);
+  const child=buildProcessRecords([{message,entries:[parent]}],false)[1]!;
+  expect(child.state).toBe("failed");
+  expect(child.entries).toEqual([]);
+  expect(child.nested).toBe(nested);
+  expect(child.nested?.durationMs).toBe(7);
+  expect(child.nested?.error).toBe("child-specific-error");
+  expect(child.message).toBe(message);
+});
+it("keeps original multiline commands in full tooltips while rendering a single-line summary",()=>{
+  const command="printf 'a\nb'";
+  const activity=toolActivity("bash",{command});
+  expect(activity.text).not.toContain("\n");
+  expect(activity.fullText).toContain(command);
+});

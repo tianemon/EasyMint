@@ -1,7 +1,8 @@
+import type { NestedToolCalls } from "@shared/nested-calls";
 import type { ChatMessage } from "./chat-utils";
 import type { StreamEntry } from "./StreamPanel";
 import type { TurnPresentation } from "./chat-turn-presentation";
-import { toolActivity, toolArguments, type ActivityState } from "./tool-activity";
+import { toolActivity, type ActivityState } from "./tool-activity";
 import { uiText } from "../lib/i18n";
 
 export interface ProcessChunk { message: ChatMessage; entries: StreamEntry[] }
@@ -16,6 +17,7 @@ export interface ProcessRecord {
   action?: string;
   label?: string;
   depth?: number;
+  nested?: NestedToolCalls["calls"][number];
 }
 
 /** One view at the first row; final conclusions keep their original rows and action targets. */
@@ -59,7 +61,7 @@ export function buildProcessRecords(chunks: readonly ProcessChunk[], active: boo
         for (const nested of (result?.nestedCalls ?? entry.nestedCalls)?.calls ?? []) {
           const state: ActivityState = nested.status === "ok" ? "done" : nested.status === "error" ? "failed" : result ? "unfinished" : unfinished;
           const activity = toolActivity(nested.name, nested.arguments, state);
-          records.push({ key: `${key}:${nested.id}`, message: chunk.message, entries: [{ ...entry, id: nested.id, name: nested.name, input: toolArguments(nested.arguments), nestedCalls: undefined }], ...activity, state, depth: 1 });
+          records.push({ key: `${key}:${nested.id}`, message: chunk.message, entries: [], nested, ...activity, state, depth: 1 });
         }
       } else if (entry.kind === "tool_result") {
         if (calls.has(entry.toolUseId)) continue;

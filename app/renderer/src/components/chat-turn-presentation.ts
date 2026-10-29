@@ -6,6 +6,7 @@ export interface TurnPresentation {
   key: string;
   first: number;
   last: number;
+  indices: readonly number[];
   finalEntries: Map<number, StreamEntry[]>;
   durationMs?: number;
   active?: boolean;
@@ -152,7 +153,7 @@ export function buildTurnPresentations(messages: readonly ChatMessage[], busy: b
     const last = messages[lastAi]!;
     if (active) {
       const first = indices[0]!;
-      const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries: new Map<number, StreamEntry[]>(), active: true };
+      const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, indices, finalEntries: new Map<number, StreamEntry[]>(), active: true };
       for (const i of indices) result.set(i, turn);
       return;
     }
@@ -166,7 +167,7 @@ export function buildTurnPresentations(messages: readonly ChatMessage[], busy: b
     // Missing tool results stay explicit as unfinished records inside the replay.
     const first = indices[0]!;
     const durationMs = turnDuration(messages, first, lastAi, userStart);
-    const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, finalEntries, durationMs, interrupted, preserveSegments: finalEntries.size === 0 };
+    const turn = { key: String(messages[first]!.id), first, last: indices.at(-1)!, indices, finalEntries, durationMs, interrupted, preserveSegments: finalEntries.size === 0 };
     for (const i of indices) result.set(i, turn);
   };
   for (const group of presentationGroups(messages, busy)) finish(group.indices, group.start, group.active);

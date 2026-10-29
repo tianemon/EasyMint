@@ -44,7 +44,6 @@ import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
 import { buildRunningProcessSlices, type RunningProcessSlice } from "./chat-running-process";
 import { CompletedExecution } from "./CompletedExecution";
-import { completedProcessChunks } from "./execution-process-model";
 import { RunningAssistantContent } from "./RunningAssistantContent";
 import { startsMessageIdentity } from "./chat-message-presentation";
 import { UserMessageText } from "./UserMessageText";
@@ -805,8 +804,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const turnPresentations = useMemo(() => buildTurnPresentations(messages, executionBusy), [messages, executionBusy]);
   const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, executionBusy), [messages, executionBusy]);
   const runningSlices = useMemo(() => buildRunningProcessSlices(messages, turnPresentations), [messages, turnPresentations]);
-  const replaySlicesByMessage = useMemo(() => new Map(Array.from(buildRunningProcessSlices(messages, turnPresentations, true), ([index, slices]) => [messages[index]!.id, slices])), [messages, turnPresentations]);
-  const completedProcesses = useMemo(() => completedProcessChunks(messages, turnPresentations), [messages, turnPresentations]);
   const activeDisclosuresRef = useRef(new Set<string>());
   useEffect(() => {
     const active = new Set(Array.from(new Set(turnPresentations.values())).filter(turn => turn.active).map(turn => `${sid}:${turn.key}`));
@@ -2995,11 +2992,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     )}
                     {header && turn && !turn.active && !turn.preserveSegments && (
                       <div className="execution-process-completed">
-                        <CompletedExecution id={`${sid}:${turn.key}`} sessionId={sid} durationMs={turn.durationMs} interrupted={turn.interrupted} chunks={completedProcesses.get(vi.index) ?? []} slicesByMessage={replaySlicesByMessage} renderSystemMessage={renderSystemMessage} onInspect={inspectProcess} onContextMenu={handleMsgContextMenu} />
+                        <CompletedExecution id={`${sid}:${turn.key}`} sessionId={sid} durationMs={turn.durationMs} interrupted={turn.interrupted} messages={messages} turn={turn} renderSystemMessage={renderSystemMessage} onInspect={inspectProcess} onContextMenu={handleMsgContextMenu} />
                       </div>
                     )}
                     {!turn && !executionBusy && turnTimings.get(vi.index)?.first === vi.index && (
-                      <div className="execution-process-completed"><CompletedExecution id={`${sid}:plain:${originalMsg.id}`} sessionId={sid} durationMs={turnTimings.get(vi.index)?.durationMs} chunks={[]} slicesByMessage={replaySlicesByMessage} renderSystemMessage={renderSystemMessage} /></div>
+                      <div className="execution-process-completed"><CompletedExecution id={`${sid}:plain:${originalMsg.id}`} sessionId={sid} durationMs={turnTimings.get(vi.index)?.durationMs} messages={messages} renderSystemMessage={renderSystemMessage} /></div>
                     )}
                     {!hidden && <MemoChatMessage
                       msg={msg}

@@ -2,6 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { uiI18n } from "../lib/i18n";
 import { RunningAssistantContent } from "./RunningAssistantContent";
 import { buildRunningProcessSlices } from "./chat-running-process";
 import { buildTurnPresentations } from "./chat-turn-presentation";
@@ -72,4 +73,28 @@ it("summarizes thoughts and tools between prose, without putting another thinkin
   expect(container.querySelector<HTMLDetailsElement>(".execution-process-record")?.open).toBe(true);
   expect(container.textContent).toContain("mixed reasoning");
   expect(container.querySelector(".execution-process-detail button")).toBeNull();
+});
+
+it("renders a nested failure's own arguments, error and duration instead of a pending parent card",async()=>{
+  const entry: StreamEntry={kind:"tool_use",id:"outer",name:"codemode",input:{},timestamp:0,collapsed:true,durationMs:900,nestedCalls:{complete:true,calls:[{id:"child",name:"bash",arguments:{command:"npm test"},status:"error",durationMs:7,error:"child-specific-error"}]}};
+  await render([entry]);
+  await act(async()=>container.querySelector<HTMLButtonElement>(".execution-process-toggle")!.click());
+  const child=container.querySelector<HTMLDetailsElement>('[data-depth="1"]')!;
+  await act(async()=>{child.open=true;child.dispatchEvent(new Event("toggle"));});
+  const detail=child.querySelector('[data-nested-tool-details]')!;
+  expect(detail.getAttribute("data-state")).toBe("failed");
+  expect(detail.textContent).toContain("child-specific-error");
+  expect(detail.textContent).toContain("7 ms");
+  expect(detail.textContent).toContain("npm test");
+  expect(detail.textContent).not.toContain("900");
+  expect(detail.querySelector(".msg-process-stack")).toBeNull();
+});
+
+it("updates cached process labels when the UI language changes",async()=>{
+  await render([{kind:"tool_use",id:"read",name:"read",input:{path:"/file.ts"},timestamp:0,collapsed:true}]);
+  expect(container.querySelector(".execution-process-toggle")?.textContent).toContain("读取文件");
+  try {
+    await act(async()=>{await uiI18n.changeLanguage("en");});
+    expect(container.querySelector(".execution-process-toggle")?.textContent).toContain("read files");
+  } finally { await act(async()=>{await uiI18n.changeLanguage("zh-CN");}); }
 });
