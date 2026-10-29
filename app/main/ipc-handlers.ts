@@ -815,6 +815,18 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // 地址栏复制那条 localhost:1455/... 链接；先复制再点按钮，比在窄输入框里手打/右键粘贴省事。
   // 只在用户点按钮时读一次，不做轮询——不碰剪贴板里的其它内容。
   ipcMain.handle("provider:authClipboard", () => clipboard.readText());
+  // Codex（ChatGPT 订阅）额度与「手动重置」：走 ChatGPT 后端内部端点（无公开文档，失败即降级）。
+  // 消耗重置**不可逆**，界面必须先二次确认；凭据沿用 auth.json 里已有的 Codex 登录。
+  ipcMain.handle("provider:codexQuota", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ force: z.boolean().optional() }).loose(), input ?? {});
+    const { fetchCodexQuota } = await import("./services/codex-usage");
+    return fetchCodexQuota(store, { force: data.force === true });
+  });
+  ipcMain.handle("provider:codexConsumeReset", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ creditId: z.string().min(1).optional() }).loose(), input ?? {});
+    const { consumeCodexResetCredit } = await import("./services/codex-usage");
+    return consumeCodexResetCredit(store, data.creditId);
+  });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();
     const providers = settings.apiProviders;

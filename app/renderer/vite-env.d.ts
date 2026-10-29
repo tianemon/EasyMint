@@ -640,6 +640,13 @@ interface ElectronAPI {
     openAuthUrl: (url: string) => Promise<boolean>;
     /** 授权码步骤用：读一次剪贴板（用户刚从浏览器地址栏复制了回调链接） */
     readClipboard: () => Promise<string>;
+    /** Codex（ChatGPT 订阅）额度 + 可用手动重置次数；失败时给 reason（界面据此决定是否显示） */
+    codexQuota: (force?: boolean) => Promise<
+      | { ok: true; quota: import("@shared/codex-quota").CodexQuotaView }
+      | { ok: false; reason: "no-credential" | "reauth" | "network" | "unsupported" }
+    >;
+    /** 消耗一次手动重置（不可逆；调用前界面必须先二次确认） */
+    codexConsumeReset: (creditId?: string) => Promise<import("@shared/codex-quota").ConsumeResetResult>;
     onAuthEvent: (callback: (data: import("@shared/provider-auth").ProviderAuthEventMessage) => void) => () => void;
   };
   agentTemplates: {

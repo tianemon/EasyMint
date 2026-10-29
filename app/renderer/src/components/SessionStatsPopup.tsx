@@ -1,4 +1,6 @@
 import { useChatStore } from "../stores/chat-store";
+import { useSettingsStore } from "../stores/settings-store";
+import { CodexQuotaSection } from "./CodexQuotaSection";
 import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale, uiI18n } from "../lib/i18n";
 import { useState, useEffect, useMemo } from "react";
@@ -27,6 +29,10 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<string | null>(null);
+  // 配过 Codex 订阅就显示额度块（额度是**账号级**的，与当前会话选哪个供应商无关：
+  // 用户常把 DeepSeek 设为默认、Codex 只是偶尔用，但 Codex 的额度照样在往下走）
+  const apiProviders = useSettingsStore((state) => state.apiProviders);
+  const hasCodexProvider = Object.values(apiProviders?.configs ?? {}).some((cfg) => cfg.presetId === "openai-codex");
   const sessionMessages = useChatStore(state => state.messagesBySession[sessionId]);
   // Keep the original main-session metric: cache reads / all input, including cold starts.
   const cacheRate = useMemo(() => {
@@ -159,6 +165,8 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
                 <span className="text-text-primary font-medium text-sm tabular-nums">{balance}</span>
               </div>
             )}
+
+            <CodexQuotaSection active={hasCodexProvider} />
 
             {onCompress && (
               <div className="border-t border-border pt-3 flex justify-end">

@@ -155,6 +155,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("provider:authCancel", { requestId }) as Promise<boolean>,
     openAuthUrl: (url: string) => ipcRenderer.invoke("provider:authOpenUrl", { url }) as Promise<boolean>,
     readClipboard: () => ipcRenderer.invoke("provider:authClipboard") as Promise<string>,
+    codexQuota: (force = false) =>
+      ipcRenderer.invoke("provider:codexQuota", { force }) as Promise<
+        | { ok: true; quota: unknown }
+        | { ok: false; reason: "no-credential" | "reauth" | "network" | "unsupported" }
+      >,
+    codexConsumeReset: (creditId?: string) =>
+      ipcRenderer.invoke("provider:codexConsumeReset", { creditId }) as Promise<
+        { code: "reset" | "nothing_to_reset" | "no_credit" | "already_redeemed" | "error"; windowsReset?: number; error?: string }
+      >,
     onAuthEvent: (callback: (data: { requestId: string; providerId: string; event: unknown }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; providerId: string; event: unknown }) => callback(data);
       ipcRenderer.on("provider:authEvent", handler);
