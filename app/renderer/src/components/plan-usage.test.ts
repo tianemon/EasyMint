@@ -37,6 +37,10 @@ it("loads subscription windows from its own entry without a session and dismisse
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain("25%");
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain("60%");
   expect(codexQuota).toHaveBeenCalledTimes(1);
+  const popup = document.querySelector('[role="dialog"]')!;
+  expect(popup.parentElement).toBe(container.firstElementChild);
+  expect(popup.hasAttribute("aria-modal")).toBe(false);
+  expect(container.querySelector("button")?.getAttribute("aria-expanded")).toBe("true");
   await act(async () => useSettingsStore.setState({ apiProviders: { ...providers, current: "api" } }));
   expect(container.textContent).toBe("");
   expect(document.querySelector('[role="dialog"]')).toBeNull();
@@ -57,4 +61,10 @@ it("shows a loading state, then allows retry after an unavailable quota response
   await act(async () => retry!.click());
   expect(codexQuota).toHaveBeenLastCalledWith(true);
   expect(document.querySelector('[role="status"]')).toBeNull();
+  await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.activeElement).toBe(container.querySelector("button"));
+  await act(async () => container.querySelector("button")!.click());
+  await act(async () => document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
 });
