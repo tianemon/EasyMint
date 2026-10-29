@@ -2,9 +2,29 @@
  * 聊天区 diff 语法高亮
  * 用 monaco 的 Monarch tokenizer 给 diff 变更行做 token 级着色(零新依赖)。
  * 同步 tokenize 前需先异步触发语言加载(warmup),见 warmupLanguage()。
+ *
+ * monaco 本体是懒加载的:它是 4.4MB 的编辑器内核,而本模块只用到 tokenizer。
+ * 以前这里顶层 `import * as monaco`,让入口 chunk 静态依赖 monaco chunk → index.html 里
+ * 多一条 modulepreload,首屏先付一次 4.4MB 解析费,即便用户从不打开代码编辑器。
+ * 现在改为首次 warmup 时才 import,调用方本来就是 async 的,行为不变(只是着色晚一步到)。
  */
 
-import * as monaco from "monaco-editor";
+import type * as monaco from "monaco-editor";
+
+type MonacoModule = typeof import("monaco-editor");
+
+let monacoModule: MonacoModule | null = null;
+let monacoLoad: Promise<MonacoModule> | null = null;
+
+/** 懒加载 monaco 内核(幂等)。与 warmupLanguage 共用同一 promise,语言注册不会重复触发下载。 */
+function loadMonaco(): Promise<MonacoModule> {
+  if (monacoModule) return Promise.resolve(monacoModule);
+  monacoLoad ??= import("monaco-editor").then((mod) => {
+    monacoModule = mod;
+    return mod;
+  });
+  return monacoLoad;
+}
 
 // 按需注册语言(monaco 懒加载,需手动 import register 模块)
 // 路径走 monaco exports "./*" → "./esm/vs/*.js",故省略 esm/vs 前缀
@@ -88,12 +108,13 @@ export function warmupLanguage(lang: string): Promise<void> {
   const existing = warmupPromises.get(lang);
   if (existing) return existing;
   const p = (async () => {
+    const monacoMod = await loadMonaco();
     if (loadedLanguages.has(lang)) return;
     const mod = LANGUAGE_MODULES[lang];
     if (mod) {
       await mod();
       // 语言注册后,colorize 内部 await getOrCreate 触发 tokenizer 加载
-      await monaco.editor.colorize("", lang, {});
+      await monacoMod.editor.colorize("", lang, {});
     }
     loadedLanguages.add(lang);
   })();
@@ -107,8 +128,9 @@ export function warmupLanguage(lang: string): Promise<void> {
  */
 export async function tokenizeLine(code: string, lang: string): Promise<Array<{ text: string; color?: string }> | null> {
   try {
+    const monacoMod = await loadMonaco();
     await warmupLanguage(lang);
-    const tokens = tokenizeCode(code, lang);
+    const tokens = tokenizeCode(monacoMod, code, lang);
     return tokensToSegments(code, tokens);
   } catch {
     return null;
@@ -124,17 +146,18 @@ export async function tokenizeLines(
   lang: string,
 ): Promise<Array<Array<{ text: string; color?: string }> | null>> {
   try {
+    const monacoMod = await loadMonaco();
     await warmupLanguage(lang);
-    return codes.map((c) => tokensToSegments(c, tokenizeCode(c, lang)));
+    return codes.map((c) => tokensToSegments(c, tokenizeCode(monacoMod, c, lang)));
   } catch {
     return codes.map(() => null);
   }
 }
 
 /** 单行 tokenize:diff 每行就是一行代码,防止 comment/string token 跨行吞后续内容 */
-function tokenizeCode(code: string, lang: string): monaco.Token[] {
+function tokenizeCode(monacoMod: MonacoModule, code: string, lang: string): monaco.Token[] {
   const codeLine = code.replace(/\n/g, " ");
-  const lines = monaco.editor.tokenize(codeLine, lang);
+  const lines = monacoMod.editor.tokenize(codeLine, lang);
   return lines[0] ?? [];
 }
 

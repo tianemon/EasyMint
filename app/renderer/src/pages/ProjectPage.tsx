@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
 import { TabBar } from "../components/TabBar";
-import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { ImageViewer } from "../components/ImageViewer";
 import { isImagePath } from "@shared/image-files";
@@ -19,6 +18,15 @@ import { useViewerStore, baseName } from "../stores/viewer-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
+
+/**
+ * 编辑器按需加载：EditorPanel 静态依赖 monaco 内核（4.4MB chunk）。以前它挂在 ProjectPage
+ * 的静态图上，入口 chunk 因此 modulepreload 整个 monaco——用户即使从不打开文件编辑，
+ * 首屏也要先解析这 4.4MB。改成 React.lazy 后该 chunk 只在首次打开文件 tab 时加载。
+ */
+const EditorPanel = React.lazy(() =>
+  import("../components/EditorPanel").then((mod) => ({ default: mod.EditorPanel })),
+);
 
 export function ProjectPage(): JSX.Element {
   const locale = useUiLocale();
@@ -399,7 +407,10 @@ export function ProjectPage(): JSX.Element {
           if (tab.type === "file") {
             return (
               <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
-                <EditorPanel filePath={tab.filePath} fileName={tab.title} />
+                {/* 编辑器 chunk 加载期间留白（不是空态提示）：首次打开文件才有一次几十 ms 的空白 */}
+                <React.Suspense fallback={<div className="absolute inset-0" />}>
+                  <EditorPanel filePath={tab.filePath} fileName={tab.title} />
+                </React.Suspense>
               </div>
             );
           }

@@ -53,13 +53,10 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 10000,
-    rollupOptions: {
-      output: {
-        manualChunks(id: string) {
-          if (id.includes("monaco")) return "monaco";
-        },
-      },
-    },
+    // 不做 manualChunks。原先按 "monaco" 子串分组，实际把 @monaco-editor/react 及其依赖
+    // （React 本体、Vite 的 preload 辅助）一起卷进那个 4.4MB 的 chunk，入口为了拿 React 静态
+    // import 它 → index.html 依然 modulepreload monaco，懒加载等于没做。
+    // 现在 monaco 只被动态 import，让打包器按引用关系自动切分即可。
   },
   resolve: {
     alias: {
