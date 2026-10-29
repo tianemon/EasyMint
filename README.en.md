@@ -46,7 +46,7 @@ Download an installer from [Releases](https://github.com/tianemon/EasyMint/relea
 | Platform | Download |
 |---|---|
 | macOS · Apple Silicon | `.dmg` |
-| Windows · x64 | `.exe` installer or portable edition |
+| Windows · x64 | `.exe` installer or `.zip` portable (no install) |
 | Linux · x64 | `.AppImage`, `.deb`, or `.tar.gz` |
 
 ### First launch on macOS

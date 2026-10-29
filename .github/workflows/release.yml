@@ -98,6 +98,7 @@ jobs:
           body: ${{ needs.prepare-notes.outputs.notes }}
           files: |
             dist-electron/*.exe
+            dist-electron/*-windows-*.zip
             dist-electron/*.blockmap
             dist-electron/latest.yml
 

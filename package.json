@@ -40,40 +40,30 @@
     "@earendil-works/pi-codemode": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-mcp": "1.4.0",
-    "@monaco-editor/react": "^4.7.0",
-    "@tanstack/react-virtual": "^3.14.13",
     "archiver": "^8.0.0",
     "bonjour-service": "^1.4.4",
-    "dompurify": "^3.4.15",
     "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "i18next": "26.4.2",
     "jszip": "^3.10.2",
     "mammoth": "^1.12.3",
-    "marked": "^18.0.13",
     "parse5": "8.0.1",
     "pdf-parse": "^2.4.5",
     "proper-lockfile": "4.1.2",
-    "qrcode": "^1.5.4",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-i18next": "17.0.16",
-    "react-router-dom": "^7.18.4",
     "semver": "7.8.5",
     "shell-quote": "^1.10.0",
     "undici": "^7.29.1",
     "unzipper": "^0.12.5",
     "ws": "^8.21.3",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0",
-    "zod": "^4.6.5",
-    "zustand": "^5.0.14"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@dvaji/vite-plugin-monaco-editor": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-virtual": "^3.14.13",
     "@types/archiver": "^8.0.0",
     "@types/node": "^26.6.2",
     "@types/qrcode": "^1.5.6",
@@ -84,19 +74,29 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^10.0.4",
+    "dompurify": "^3.4.15",
     "electron": "^43.7.3",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1",
     "eslint": "^10.11.0",
     "happy-dom": "21.0.4",
+    "marked": "^18.0.13",
     "monaco-editor": "^0.56.0",
     "postcss": "^8.5.28",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-i18next": "17.0.16",
+    "react-router-dom": "^7.18.4",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.70.0",
     "vite": "^8.3.0",
     "vitest": "^4.1.10",
-    "yaml": "2.9.0"
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "yaml": "2.9.0",
+    "zustand": "^5.0.14"
   },
   "build": {
     "appId": "com.easymint.app",
@@ -118,12 +118,18 @@
       "node_modules/@oh-my-pi/**/*",
       "node_modules/electron-updater/**/*",
       "node_modules/archiver/**/*",
-      "node_modules/unzipper/**/*"
+      "node_modules/unzipper/**/*",
+      "!**/*.map",
+      "!**/*.d.ts",
+      "!**/*.md",
+      "!node_modules/openai/src/**",
+      "!node_modules/@anthropic-ai/sdk/src/**",
+      "!node_modules/@earendil-works/pi-coding-agent/{docs,examples}/**"
     ],
     "asarUnpack": [
       "app/main/dist/windows-sandbox-worker.cjs",
-      "node_modules/@anthropic-ai/**",
-      "node_modules/@earendil-works/**",
+      "node_modules/@anthropic-ai/sandbox-runtime/vendor/**",
+      "node_modules/@earendil-works/pi-tui/native/**",
       "node_modules/@oh-my-pi/**",
       "node_modules/quickjs-wasi/**"
     ],
@@ -177,7 +183,7 @@
     "win": {
       "target": [
         "nsis",
-        "portable"
+        "zip"
       ],
       "icon": "assets/icon.ico",
       "signAndEditExecutable": true,
@@ -187,9 +193,6 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "include": "scripts/installer.nsh"
-    },
-    "portable": {
-      "artifactName": "${productName}-windows-${arch}-portable.${ext}"
     },
     "afterPack": "scripts/after-pack.cjs",
     "linux": {
