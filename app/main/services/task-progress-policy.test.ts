@@ -31,7 +31,7 @@ describe("delegation and progress policy consistency",()=>{
   expect(MINT_SYSTEM_PROMPT).toContain("阶段内每次读文件、工具调用或命令输出不触发更新");
  });
  it("removes contradictory legacy obligations from all active decision surfaces",()=>{
-  const sources=[MINT_SYSTEM_PROMPT,CONFIRM_DEVELOPMENT_PROMPT,read("resources/skills/creation-guide/SKILL.md"),read("resources/skills/ui-sync/SKILL.md")];
+  const sources=[MINT_SYSTEM_PROMPT,BUILDER_AGENT_PROMPT,CONFIRM_DEVELOPMENT_PROMPT,read("resources/skills/creation-guide/SKILL.md"),read("resources/skills/ui-sync/SKILL.md")];
   for(const source of sources){
    expect(source).not.toMatch(/中等及以上(?:项目)?委派 Builder/);
    expect(source).not.toContain("必须委派（上下文保护");
@@ -42,11 +42,26 @@ describe("delegation and progress policy consistency",()=>{
    expect(source).not.toContain("委派实现的交 Evaluator 验收");
    expect(source).not.toContain("model/provider 可随时按需覆盖");
    expect(source).not.toContain("默认继承全局模型");
+   expect(source).not.toContain("Mint 会调 Evaluator 验收你的产出");
+   expect(source).not.toContain("验收是 Evaluator 的工作");
   }
   expect(MINT_SYSTEM_PROMPT).toContain("模型与思考级别跟随主会话");
   expect(MINT_SYSTEM_PROMPT).toContain("task 没有单独的 model/provider 覆盖参数");
   expect(BUILDER_AGENT_PROMPT).not.toContain("Evaluator 会用浏览器/截图验收渲染，你无需");
   expect(BUILDER_AGENT_PROMPT).toContain("未明确此安排时，不预设之后一定有 Evaluator");
+ });
+ it("does not require exhaustive rereads, line-count task creation or redundant approval",()=>{
+  expect(MINT_SYSTEM_PROMPT).not.toContain("把所有相关文件完整读一遍");
+  expect(MINT_SYSTEM_PROMPT).not.toContain("每轮自行核实真实进度");
+  expect(MINT_SYSTEM_PROMPT).not.toContain("拆完呈现确认");
+  const sync=read("resources/skills/ui-sync/SKILL.md");
+  expect(sync).not.toContain("≤20 行");
+  expect(sync).not.toContain("超出小微范围");
+  expect(sync).toContain("无对应正式任务时不调用");
+  expect(sync).toContain("不为调用状态工具补建任务");
+  const docs=read("resources/skills/dev-docs/SKILL.md");
+  expect(docs).not.toContain("修改或删除已有内容，先向用户列出要改的部分确认");
+  expect(docs).toContain("已获同一对象与范围授权的文档更新直接执行");
  });
  it("preserves terminal status ownership when independent review follows a finished delegation",()=>{
   expect(MINT_SYSTEM_PROMPT).toContain("委派结果已自动进入终态时，做临时独立复核");
