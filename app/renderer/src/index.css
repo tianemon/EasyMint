@@ -2129,7 +2129,7 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
 .msg-conclusion .prose > :first-child,
 .msg-conclusion .prose > :first-child > :first-child { margin-top: 0; }
 .msg-process-stack { margin-block: 2px; min-width: 0; }
-.msg-process-stack .prose { font-size: var(--text-detail); color: var(--color-text-secondary); }
+.msg-process-stack .prose { font-size: var(--text-body); color: var(--color-text-secondary); }
 .msg-process-stack .prose > :first-child { margin-top: 0; }
 .msg-process-stack .prose > :last-child { margin-bottom: 0; }
 .msg-process-stack .msg-process-detail { background: transparent !important; border-radius: 0; }

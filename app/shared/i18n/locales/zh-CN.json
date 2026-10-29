@@ -448,7 +448,6 @@
   "ui.CodexQuota.resetAlready": "这次重置已经生效过了",
   "ui.CodexQuota.resetFailed": "重置失败：{{v0}}",
   "ui.CodexQuota.reauth": "Codex 登录已失效，请到设置里重新登录",
-  "ui.SessionStatsPopup.accountBalance": "账户余额",
   "ui.SessionStatsPopup.compactSession": "压缩会话",
   "ui.ShellBar.runningShells": "运行中的 Shell(",
   "ui.ShellBar.stopping": "停止中…",
@@ -2181,5 +2180,8 @@
   "ui.CodexQuota.usage5h": "5 小时额度",
   "ui.CodexQuota.usageWeekly": "每周额度",
   "ui.CodexQuota.remainingAmount": "剩余 {{value}}",
-  "ui.CodexQuota.refreshFailed": "刷新失败，当前显示上次用量"
+  "ui.CodexQuota.refreshFailed": "刷新失败，当前显示上次用量",
+  "ui.ProviderAccount.balance": "账户余额",
+  "ui.ProviderAccount.deepseekTitle": "DeepSeek 账户余额",
+  "ui.ProviderAccount.balanceUnavailable": "暂时无法刷新余额"
 }

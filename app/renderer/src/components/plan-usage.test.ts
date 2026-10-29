@@ -10,15 +10,18 @@ import type { ApiProvidersData } from "@shared/platform-presets";
 let container: HTMLDivElement;
 let root: Root;
 const codexQuota = vi.fn();
+const fetchBalance = vi.fn();
 const providers: ApiProvidersData = { current: "codex", configs: {
   codex: { id: "codex", name: "Codex", presetId: "openai-codex", authType: "oauth", apiKey: "", model: "gpt", models: ["gpt"], createdAt: 0 },
+  deepseek: { id:"deepseek",name:"DeepSeek",presetId:"deepseek",apiKey:"",model:"deepseek-chat",models:["deepseek-chat"],createdAt:0 },
   api: { id: "api", name: "API", presetId: "openai", apiKey: "", model: "gpt", models: ["gpt"], createdAt: 0 },
 } };
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  Object.assign(window, { electronAPI: { provider: { codexQuota } } });
+  Object.assign(window, { electronAPI: { provider: { codexQuota }, settings:{fetchBalance} } });
   codexQuota.mockReset();
+  fetchBalance.mockReset();
   useSettingsStore.setState({ apiProviders: providers });
   container = document.createElement("div");
   document.body.append(container);
@@ -148,4 +151,63 @@ it("reloads fresh usage after reset even if an earlier poll is still running",as
   await act(async()=>finishPoll(initial));
   expect(codexQuota).toHaveBeenCalledTimes(3);
   expect(document.querySelector('[data-quota-window="primary"]')?.textContent).toContain("剩余 100%");
+});
+
+it("uses the same account entry for DeepSeek balances and keeps all reported currencies",async()=>{
+  useSettingsStore.setState({apiProviders:{...providers,current:"deepseek"}});
+  fetchBalance.mockResolvedValue({balance_infos:[{currency:"CNY",total_balance:"0.00"},{currency:"USD",total_balance:"12.34"}]});
+  await act(async()=>root.render(createElement(PlanUsageButton)));
+  expect(container.querySelector("button")?.textContent).toBe("账户余额");
+  expect(fetchBalance).not.toHaveBeenCalled();
+  await act(async()=>container.querySelector("button")!.click());
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("DeepSeek 账户余额");
+  expect(document.querySelector('[data-account-balance]')?.textContent).toContain("CNY 0.00");
+  expect(document.querySelector('[data-account-balance]')?.textContent).toContain("USD 12.34");
+  expect(codexQuota).not.toHaveBeenCalled();
+  await act(async()=>useSettingsStore.setState({apiProviders:providers}));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(codexQuota).not.toHaveBeenCalled();
+  expect(container.querySelector("button")?.textContent).toBe("套餐用量");
+});
+it("does not let a delayed previous-account balance leak into the Codex popup",async()=>{
+  let resolveOld!:(value:unknown)=>void;
+  useSettingsStore.setState({apiProviders:{...providers,current:"deepseek"}});
+  fetchBalance.mockImplementationOnce(()=>new Promise(resolve=>{resolveOld=resolve;}));
+  await act(async()=>root.render(createElement(PlanUsageButton)));
+  await act(async()=>container.querySelector("button")!.click());
+  await act(async()=>useSettingsStore.setState({apiProviders:providers}));
+  codexQuota.mockResolvedValue(quotaResponse(25));
+  await act(async()=>container.querySelector("button")!.click());
+  await act(async()=>resolveOld({balance_infos:[{currency:"CNY",total_balance:"999.00"}]}));
+  expect(document.querySelector('[data-account-balance]')).toBeNull();
+  expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("999.00");
+  expect(document.querySelector('[data-quota-section]')).not.toBeNull();
+});
+it("keeps the balance row visible on unavailable data and supports retry",async()=>{
+  useSettingsStore.setState({apiProviders:{...providers,current:"deepseek"}});
+  fetchBalance.mockResolvedValueOnce(null);
+  await act(async()=>root.render(createElement(PlanUsageButton)));
+  await act(async()=>container.querySelector("button")!.click());
+  expect(document.querySelector('[data-account-balance]')?.textContent).toContain("账户余额");
+  expect(document.querySelector('[role="status"]')?.textContent).toContain("无法刷新余额");
+  fetchBalance.mockResolvedValueOnce({balance_infos:[{currency:"CNY",total_balance:"110.00"}]});
+  await act(async()=>document.querySelector<HTMLButtonElement>('[role="status"] button')!.click());
+  expect(document.querySelector('[data-account-balance]')?.textContent).toContain("CNY 110.00");
+  expect(document.querySelector('[role="status"]')).toBeNull();
+});
+
+it("coalesces DeepSeek refreshes and clears its timer when the account popup closes",async()=>{
+  vi.useFakeTimers();
+  Object.defineProperty(document,"visibilityState",{configurable:true,value:"visible"});
+  useSettingsStore.setState({apiProviders:{...providers,current:"deepseek"}});
+  let finish!:(value:unknown)=>void;
+  fetchBalance.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  await act(async()=>root.render(createElement(PlanUsageButton)));
+  await act(async()=>container.querySelector("button")!.click());
+  await act(async()=>{vi.advanceTimersByTime(120_000);});
+  expect(fetchBalance).toHaveBeenCalledTimes(1);
+  await act(async()=>container.querySelector("button")!.click());
+  await act(async()=>{vi.advanceTimersByTime(120_000);finish({balance_infos:[{currency:"CNY",total_balance:"42.00"}]});});
+  expect(fetchBalance).toHaveBeenCalledTimes(1);
+  expect(document.querySelector('[data-account-balance]')).toBeNull();
 });

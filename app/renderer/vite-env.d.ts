@@ -629,7 +629,7 @@ interface ElectronAPI {
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
     testProvider: (input: { baseUrl: string }) => Promise<import("@shared/provider-test").ProviderTestResult>;
-    fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
+    fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] } | null>;
   };
   /** 供应商账号登录（OAuth）：凭据落盘与刷新在 SDK，这里只驱动流程与查状态 */
   provider: {

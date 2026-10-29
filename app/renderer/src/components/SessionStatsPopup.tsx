@@ -10,7 +10,7 @@ import { formatTokenWindow } from "../lib/token-format";
  *
  * 两条硬约束（用户 2026-10-29）：
  * 1. **空会话也要有完整骨架**：没有数字就只显示数据项名称，不写 0、也不退化成「暂无数据」；
- * 2. **余额不依赖会话**：它是账号级信息；套餐额度由输入卡片的独立入口展示。
+ * 2. **账户信息与会话分离**：余额与套餐额度统一由输入卡片的供应商账户入口展示。
  *
  * 费用估算已移除（那个数字既不是实付、也与账单对不上，摆在这里只会误导）。
  */
@@ -37,7 +37,6 @@ function Row({ label, value, title }: { label: string; value?: string; title?: s
 export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress }: { sessionId: string; projectPath: string; onClose: () => void; onCompress?: () => void }) {
   useUiLocale();
   const [stats, setStats] = useState<SessionStats | null>(null);
-  const [balance, setBalance] = useState<string | null>(null);
   const sessionMessages = useChatStore(state => state.messagesBySession[sessionId]);
   // Keep the original main-session metric: cache reads / all input, including cold starts.
   const cacheRate = useMemo(() => {
@@ -57,11 +56,6 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
     window.electronAPI.agent.sessionStats(sessionId, projectPath).then((data) => {
       if (cancelled || !data) return;
       setStats(data as unknown as SessionStats);
-    }).catch(() => {});
-    // 账户余额（与统计并行获取，失败静默隐藏）
-    window.electronAPI.settings.fetchBalance().then((data) => {
-      if (cancelled) return;
-      if (data?.balance_infos?.length) setBalance(data.balance_infos[0]!.total_balance);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId, projectPath]);
@@ -130,14 +124,6 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
               title={uiText("ui.ChatInput.includesColdStartTurnsProviderCachesMay")}
             />
           </div>
-
-          {balance !== null && (
-            <div className="border-t border-border pt-3 flex justify-between items-center">
-              <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.accountBalance")}</span>
-              <span className="text-text-primary font-medium text-sm tabular-nums">{balance}</span>
-            </div>
-          )}
-
 
           {onCompress && (
             <div className="border-t border-border pt-3 flex justify-end">

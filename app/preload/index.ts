@@ -136,7 +136,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
     testProvider: (input: { baseUrl: string; apiKey: string; model?: string; apiType?: string; verifyKey?: boolean }) => ipcRenderer.invoke("settings:testProvider", input),
-    fetchBalance: () => ipcRenderer.invoke("settings:fetchBalance") as Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>,
+    fetchBalance: () => ipcRenderer.invoke("settings:fetchBalance") as Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] } | null>,
   },
   // 供应商账号登录（OAuth）：凭据落盘与刷新在 SDK，这里只驱动流程与查状态
   provider: {

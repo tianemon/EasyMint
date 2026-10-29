@@ -448,7 +448,6 @@
   "ui.CodexQuota.resetAlready": "This reset had already been applied",
   "ui.CodexQuota.resetFailed": "Reset failed: {{v0}}",
   "ui.CodexQuota.reauth": "Codex sign-in expired — sign in again in settings",
-  "ui.SessionStatsPopup.accountBalance": "Account balance",
   "ui.SessionStatsPopup.compactSession": "Compact session",
   "ui.ShellBar.runningShells": "Running shells (",
   "ui.ShellBar.stopping": "Stopping…",
@@ -2181,5 +2180,8 @@
   "ui.CodexQuota.usage5h": "5-hour limit",
   "ui.CodexQuota.usageWeekly": "Weekly limit",
   "ui.CodexQuota.remainingAmount": "{{value}} left",
-  "ui.CodexQuota.refreshFailed": "Refresh failed; showing previous usage"
+  "ui.CodexQuota.refreshFailed": "Refresh failed; showing previous usage",
+  "ui.ProviderAccount.balance": "Account balance",
+  "ui.ProviderAccount.deepseekTitle": "DeepSeek account balance",
+  "ui.ProviderAccount.balanceUnavailable": "Could not refresh the account balance"
 }
