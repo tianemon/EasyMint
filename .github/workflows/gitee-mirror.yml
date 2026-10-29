@@ -18,6 +18,16 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# 发版时 main 与 tag 是**两次推送**，会同时触发两次本工作流（v1.4.3 实测：main@06:16:22、
+# tag@06:16:24），两个 run 并发往 Gitee 推同一批 ref，后到的那次报
+# `! [remote rejected] origin/main -> main (incorrect old value provided)` 变红——
+# 内容其实已经被先到的 run 推完了（重跑只剩 "Everything up-to-date"）。
+# 串行化到同一组：后来的排队等前一个结束，此时它只会是幂等的空推送。
+# 不用 cancel-in-progress：被取消的 run 同样是灰/红，且取消时机不确定会不会打断一次真实推送。
+concurrency:
+  group: gitee-mirror
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
