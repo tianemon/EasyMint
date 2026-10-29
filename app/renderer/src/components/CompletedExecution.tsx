@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useUiLocale, uiText } from "../lib/i18n";
 import { useProcessDisclosure } from "./chat-process-disclosure";
 import { IdentityTime } from "./ExecutionTimer";
@@ -9,12 +9,13 @@ import { toolArguments } from "./tool-activity";
 import type { ChatMessage } from "./chat-utils";
 
 /** A completed turn reveals the same interleaved transcript, with independently folded segments. */
-export function CompletedExecution({ id, sessionId, durationMs, chunks, slicesByMessage, interrupted, onInspect, onContextMenu }: {
+export function CompletedExecution({ id, sessionId, durationMs, chunks, slicesByMessage, interrupted, renderSystemMessage, onInspect, onContextMenu }: {
   id: string;
   sessionId: string;
   durationMs?: number;
   interrupted?: boolean;
   chunks: ProcessChunk[];
+  renderSystemMessage: (message: ChatMessage) => ReactNode;
   slicesByMessage: ReadonlyMap<number, RunningProcessSlice[]>;
   onInspect?: () => void;
   onContextMenu?: (message: ChatMessage, event: MouseEvent) => void;
@@ -32,7 +33,7 @@ export function CompletedExecution({ id, sessionId, durationMs, chunks, slicesBy
       {chunks.filter(chunk => chunk.message.role !== "ai" || slicesByMessage.get(chunk.message.id)?.length).map(chunk => <div key={chunk.message.id} className="execution-transcript-message" onContextMenu={event => { if (onContextMenu) { event.stopPropagation(); onContextMenu(chunk.message, event); } }}>
         {chunk.message.role === "ai" ? <RunningAssistantContent sessionId={sessionId} messageId={String(chunk.message.id)}
           slices={slicesByMessage.get(chunk.message.id) ?? []} toolInputs={toolInputs(chunk.message)} streaming={false} active={false} interrupted={interrupted} onInspect={onInspect} onContextMenu={onContextMenu} />
-          : <div className="whitespace-pre-wrap text-text-secondary">{chunk.message.text}</div>}
+          : renderSystemMessage(chunk.message)}
       </div>)}
     </div>
   </section>;

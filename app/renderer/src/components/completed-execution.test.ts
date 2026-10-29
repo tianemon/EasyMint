@@ -31,7 +31,7 @@ it("uses only the elapsed heading after completion and restores the interleaved 
   const messages=fixture(false),turns=buildTurnPresentations(messages,false),turn=turns.get(0)!;
   const replay=new Map([...buildRunningProcessSlices(messages,turns,true)].map(([i,slices])=>[messages[i]!.id,slices]));
   const chunks=completedProcessChunks(messages,turns).get(0)!;
-  await act(async()=>root.render(createElement(CompletedExecution,{id:"s:1",sessionId:"s",durationMs:turn.durationMs,chunks,slicesByMessage:replay})));
+  await act(async()=>root.render(createElement(CompletedExecution,{id:"s:1",sessionId:"s",durationMs:turn.durationMs,chunks,slicesByMessage:replay,renderSystemMessage:()=>null})));
   const heading=container.querySelector<HTMLButtonElement>(".execution-turn-time")!;
   expect(heading.textContent).toBe("用时 1分钟 2秒");
   expect(heading.textContent).not.toContain("读取");

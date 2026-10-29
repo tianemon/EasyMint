@@ -46,8 +46,7 @@ function executionGroups(messages: readonly ChatMessage[]): Array<{ start?: Chat
       }
       group.indices.push(index);
       previousAi = message;
-    } else if (group.indices.length && message.customType === "system_message"
-      && ["summary", "delegation", "shell", "learn", "flow"].includes(String(message.details?.kind))) group.indices.push(index);
+    } else if (group.indices.length && message.customType === "system_message") group.indices.push(index);
   }
   groups.push(group);
   return groups;

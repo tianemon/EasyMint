@@ -92,9 +92,6 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   get learn() { return uiText("ui.ChatPanel.experienceRetention"); },
 };
 
-/** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
-const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
-
 /** 结果卡（委派/后台命令）正文展开时的限高：约 6 行，超出内部滚动。
  *  与摘要卡同口径（lh 随行高/字号变化自动跟随）。原来写死 calc(var(--text-detail) * 9.75 + 12px)：
  *  既按 13px 算（行文字实际是 14px 的 --text-body），又把行高 1.55 与行内边距 4px 焊进常量，
@@ -822,6 +819,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const turn = turnPresentations.get(index);
     if (!turn || turn.finalEntries.has(index)) return false;
     if (turn.active || turn.preserveSegments) {
+      if (messages[index]?.customType === "system_message") return false;
       return !(runningSlices.get(index) ?? []).length;
     }
     return true;
@@ -2931,6 +2929,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     setCompactDialog(null);
   }, [doCompact]);
 
+  const renderSystemMessage = (message: ChatMessage) => (
+    <MemoChatMessage msg={message} streaming={false} busy={busy} userBubble={userBubble}
+      onPin={handlePin} onRegenerate={handleRegenerate} onContextMenu={handleMsgContextMenu} sid={sid} />
+  );
+
   return (
     <div className="absolute inset-0 flex flex-col" onDragOver={handleDragOver} onDrop={handleDrop}>
       <div
@@ -2992,11 +2995,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     )}
                     {header && turn && !turn.active && !turn.preserveSegments && (
                       <div className="execution-process-completed">
-                        <CompletedExecution id={`${sid}:${turn.key}`} sessionId={sid} durationMs={turn.durationMs} interrupted={turn.interrupted} chunks={completedProcesses.get(vi.index) ?? []} slicesByMessage={replaySlicesByMessage} onInspect={inspectProcess} onContextMenu={handleMsgContextMenu} />
+                        <CompletedExecution id={`${sid}:${turn.key}`} sessionId={sid} durationMs={turn.durationMs} interrupted={turn.interrupted} chunks={completedProcesses.get(vi.index) ?? []} slicesByMessage={replaySlicesByMessage} renderSystemMessage={renderSystemMessage} onInspect={inspectProcess} onContextMenu={handleMsgContextMenu} />
                       </div>
                     )}
                     {!turn && !executionBusy && turnTimings.get(vi.index)?.first === vi.index && (
-                      <div className="execution-process-completed"><CompletedExecution id={`${sid}:plain:${originalMsg.id}`} sessionId={sid} durationMs={turnTimings.get(vi.index)?.durationMs} chunks={[]} slicesByMessage={replaySlicesByMessage} /></div>
+                      <div className="execution-process-completed"><CompletedExecution id={`${sid}:plain:${originalMsg.id}`} sessionId={sid} durationMs={turnTimings.get(vi.index)?.durationMs} chunks={[]} slicesByMessage={replaySlicesByMessage} renderSystemMessage={renderSystemMessage} /></div>
                     )}
                     {!hidden && <MemoChatMessage
                       msg={msg}
@@ -3343,7 +3346,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
     // 系统消息:统一左侧系统卡片(系统图标 + kind 标签 + 内容),
     // 区别于 assistant(Mint 头像气泡)与 user(右侧气泡)
     const text = typeof msg.text === "string" ? msg.text : "";
-    const kind = msg.customType === "system_message" ? (msg.details as { kind?: string } | undefined)?.kind : undefined;
+    const kind = msg.customType === "system_message" ? String(msg.details?.kind || "unknown") : undefined;
     if (kind) {
       const body = text
         .replace(/^\[系统消息\](-\[[^\]]*\])?\s*/, "");
@@ -3363,7 +3366,8 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
       const statusColor = (s?: string): string =>
         (s === "中止" || s === "已由用户中断" || s === "已由用户中止" || s === "已中止" || s === "已随权限切换中止") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
       // 结果型(委派/后台命令)与指令型一样默认折叠——完整内容展开看
-      const collapsible = COLLAPSIBLE_SYSTEM_KINDS.has(kind) || isResult;
+      // Every system type is collapsed, including handoff and future/legacy kinds.
+      const collapsible = true;
       const collapsed = collapsible && !sysExpanded;
       return (
         <div
@@ -3378,6 +3382,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
                 type="button"
                 className={`flex items-center gap-1.5 px-[14px] pt-1.5 pb-2 w-full text-left text-[length:var(--text-11)] text-text-secondary transition-colors ${collapsible ? "group cursor-pointer select-none hover:text-text-primary" : ""}`}
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
+                aria-expanded={!collapsed}
                 
               >
                 {/* 头部图标按 kind:委派=bot、后台命令=终端,其余保持感叹号;颜色对齐工具标题(中性灰,不用蓝) */}
