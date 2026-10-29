@@ -89,11 +89,13 @@ function selectFinalEntries(messages: readonly ChatMessage[], indices: number[],
   const terminal = (!last.stopReason || last.stopReason === 'stop') &&
     (last.turnOutcome === 'completed' || (!last.streaming && last.stopReason === 'stop'));
   if (!interrupted && (!terminal || (last.turnOutcome && last.turnOutcome !== 'completed'))) return result;
-  const tagged = indices.some(i => messages[i]!.entries?.some(e => e.kind === 'text' && e.phase === 'final_answer'));
+  const taggedIndex = [...indices].reverse().find(i => messages[i]!.entries?.some(e => e.kind === 'text' && e.phase === 'final_answer'));
+  // Only the latest conclusion stays outside the unified completed process.
+  const finalIndex = taggedIndex ?? lastAi;
   for (const index of indices) {
-    if (messages[index]!.role !== 'ai') continue;
+    if (messages[index]!.role !== 'ai' || index !== finalIndex) continue;
     const selected = (messages[index]!.entries ?? []).filter(e => e.kind === 'text' &&
-      (interrupted ? e.phase === 'final_answer' : tagged ? e.phase === 'final_answer' : index === lastAi && e.phase !== 'commentary'));
+      (taggedIndex !== undefined ? e.phase === 'final_answer' : !interrupted && e.phase !== 'commentary'));
     if (selected.length) result.set(index, selected);
   }
   return result;

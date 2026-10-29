@@ -8,6 +8,7 @@ import { useDelegationStore } from "../stores/delegation-store";
 import { useThemeStore } from "../stores/theme-store";
 import { Select } from "./Select";
 import { Tooltip } from "./ui/Tooltip";
+import { PlanUsageButton } from "./PlanUsageButton";
 import { TodoButton } from "./TodoButton";
 import { AgentBar } from "./AgentBar";
 import { ShellBar } from "./ShellBar";
@@ -483,6 +484,7 @@ export const ChatInput = memo(function ChatInput({
           {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" sessionId={sessionId} /> : <ShellBar key="shell" sessionId={sessionId} />))}
         </div>
         <span className="inp-gap" />
+        <PlanUsageButton />
         <PermissionModePicker value={permissionMode} onChange={onPermissionModeChange} />
         {/* 模型标签:神经网络节点图标(三点互联,带三点聚拢动效)——组件见 ModelGlyph;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip={uiText("settings.providers")} className="shrink-0">

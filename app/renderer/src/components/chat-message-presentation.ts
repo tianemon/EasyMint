@@ -25,11 +25,6 @@ export function startsMessageIdentity(messages: readonly ChatMessage[], index: n
 }
 
 /** Keep entry order and tool associations while separating actionable conclusions from process. */
-/** Running rows show textual progress and errors; thoughts and tools stay behind the execution status. */
-export function executionPreviewEntries(entries: readonly StreamEntry[]): StreamEntry[] {
-  return entries.filter(entry => entry.kind === "text" || entry.kind === "error");
-}
-
 export function assistantSegments(entries: readonly StreamEntry[], conclusions: readonly StreamEntry[]) {
   const selected = new Set(conclusions);
   const segments: Array<{ conclusion: boolean; entries: StreamEntry[] }> = [];

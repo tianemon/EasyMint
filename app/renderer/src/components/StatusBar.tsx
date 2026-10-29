@@ -151,7 +151,7 @@ export function StatusBar({ sessionId, startedAt, expanded, onToggle, showComple
         <ModelGlyph animated={busy && !waiting} />
       </span>
       {text
-        ? <span className="min-w-0 break-words text-xs font-medium" style={textStyle} role="status">{appText(text)}</span>
+        ? <span className="min-w-0 truncate text-xs font-medium" style={textStyle} title={appText(text)} role="status">{appText(text)}</span>
         : startedAt !== undefined ? <ExecutionTimer startedAt={startedAt} /> : null}
       {onToggle && (
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0" style={{ transform: expanded ? "rotate(90deg)" : undefined }}>

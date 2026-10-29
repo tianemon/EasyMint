@@ -2117,5 +2117,9 @@
   "catalog.styleMotion": "Style study",
   "catalog.flatMotion": "Flat vector",
   "catalog.bauhausMotion": "Bauhaus",
-  "catalog.motionCredit": "Vincentwei1021 / mg-styles-15 · MIT · adapted drawing code"
+  "catalog.motionCredit": "Vincentwei1021 / mg-styles-15 · MIT · adapted drawing code",
+  "ui.PlanUsage.title": "Plan usage",
+  "ui.PlanUsage.loading": "Loading plan usage…",
+  "ui.PlanUsage.unavailable": "Plan usage is currently unavailable",
+  "ui.PlanUsage.retry": "Retry"
 }

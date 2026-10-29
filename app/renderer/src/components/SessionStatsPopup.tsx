@@ -1,6 +1,4 @@
 import { useChatStore } from "../stores/chat-store";
-import { useSettingsStore } from "../stores/settings-store";
-import { CodexQuotaSection } from "./CodexQuotaSection";
 import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect, useMemo } from "react";
@@ -12,7 +10,7 @@ import { formatTokenWindow } from "../lib/token-format";
  *
  * 两条硬约束（用户 2026-10-29）：
  * 1. **空会话也要有完整骨架**：没有数字就只显示数据项名称，不写 0、也不退化成「暂无数据」；
- * 2. **额度/余额不依赖会话**：它们是账号级信息，新会话一条消息都没有时也要照常拉到并显示。
+ * 2. **余额不依赖会话**：它是账号级信息；套餐额度由输入卡片的独立入口展示。
  *
  * 费用估算已移除（那个数字既不是实付、也与账单对不上，摆在这里只会误导）。
  */
@@ -40,10 +38,6 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   useUiLocale();
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
-  // 配过 Codex 订阅就显示额度块（额度是**账号级**的，与当前会话选哪个供应商无关：
-  // 用户常把 DeepSeek 设为默认、Codex 只是偶尔用，但 Codex 的额度照样在往下走）
-  const apiProviders = useSettingsStore((state) => state.apiProviders);
-  const hasCodexProvider = Object.values(apiProviders?.configs ?? {}).some((cfg) => cfg.presetId === "openai-codex");
   const sessionMessages = useChatStore(state => state.messagesBySession[sessionId]);
   // Keep the original main-session metric: cache reads / all input, including cold starts.
   const cacheRate = useMemo(() => {
@@ -144,7 +138,6 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
             </div>
           )}
 
-          <CodexQuotaSection active={hasCodexProvider} />
 
           {onCompress && (
             <div className="border-t border-border pt-3 flex justify-end">

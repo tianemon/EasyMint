@@ -8,7 +8,7 @@ import { confirmDialog } from "./ui/ConfirmDialog";
  * Codex（ChatGPT 订阅）额度块：5 小时 / 7 天两个窗口 + 可用的「手动重置」次数。
  *
  * 数据来自 ChatGPT 后端给官方客户端用的内部端点（无公开文档，见 `services/codex-usage.ts`），
- * 所以整块按旁路处理：拿不到就**整块不渲染**，不占位、不报错。
+ * 查询失败在独立套餐弹窗里显示重试入口。
  *
  * 「使用一次重置」是**不可逆**操作（会立即清空当前两个窗口的已用额度），因此：
  * 必须经 confirmDialog 二次确认（danger 样式、默认取消），并把将被清空的窗口与剩余次数
@@ -114,11 +114,10 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
 
   if (!active) return null;
   if (!quota) {
-    // 拿不到就不占地方（只有"登录失效"值得说一句，否则用户会以为功能没做）
-    if (reason !== "reauth") return null;
     return (
-      <div className="border-t border-border pt-3">
-        <div className="text-[length:var(--text-2xs)] text-danger">{uiText("ui.CodexQuota.reauth")}</div>
+      <div className="space-y-2" role="status">
+        <div className="text-text-secondary">{uiText(reason === "reauth" ? "ui.CodexQuota.reauth" : reason ? "ui.PlanUsage.unavailable" : "ui.PlanUsage.loading")}</div>
+        {reason && <button type="button" className="text-text-primary em-hover-control rounded px-2 py-1" onClick={() => { setReason(null); void load(true); }}>{uiText("ui.PlanUsage.retry")}</button>}
       </div>
     );
   }
@@ -130,7 +129,7 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
   ].filter((row): row is { label: string; w: NonNullable<CodexQuotaView["primary"]> } => row !== null);
 
   return (
-    <div className="border-t border-border pt-3 space-y-2">
+    <div className="space-y-2">
       <div className="text-text-secondary">{uiText("ui.CodexQuota.title")}</div>
 
       {rows.map(({ label, w }) => (

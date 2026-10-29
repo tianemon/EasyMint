@@ -112,13 +112,15 @@ export function piEventToEntries(ev: { type: string; blocks?: Array<{ type: stri
 }
 
 
-/**
- * 工具名 → 状态栏精简动作文案（只显示「在做什么」,不显示具体文件名/命令/URL——
- * 状态栏是实时提示,用户只需知道动作类别;细节在消息内工具卡可见）。
- * 统一带「正在」前缀(与「正在思考/正在处理」等状态文案风格一致)。
- * 详细版工具标签在 ChatBlocks 的 TOOL_LABELS（弹层/卡片用），本函数只服务状态栏。
- */
+/** Status shows the concrete command/tool; CSS owns single-line truncation. */
 export function displayToolAction(name: string, args?: Record<string, unknown>): string {
+  const action = toolActionLabel(name, args);
+  const detail = args?.command ?? args?.cmd ?? args?.file_path ?? args?.path ?? args?.toolName ?? args?.tool_name ?? args?.skill ?? args?.url ?? args?.query;
+  const target = typeof detail === "string" ? detail.replace(/\s+/g, " ").trim() : "";
+  return `${action} · ${name}${target ? ` · ${target}` : ""}`;
+}
+
+function toolActionLabel(name: string, args?: Record<string, unknown>): string {
   const n = name.toLowerCase();
   if (n === "use_skill" || n.startsWith("skill__") || args?.skill) return uiText("ui.chat-utils.loadingSkill");
   if (n === "learn") return uiText("ui.chat-utils.savingExperience");
