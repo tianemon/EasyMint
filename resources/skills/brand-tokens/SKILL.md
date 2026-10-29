@@ -1,13 +1,17 @@
 ---
 name: brand-tokens
 description: >-
-  EasyMint 内置品牌设计库（Airbnb、Stripe、Apple、Linear、Notion、Figma 等几十个主流品牌）：
-  每个品牌的设计 token（配色 / 字体 / 圆角）与视觉语言说明。用户指定或提到某个品牌的风格、
-  需要按其配色与排版做界面时使用。品牌清单见 ./brands.md，单个品牌规范见
-  ./brands/<品牌>/DESIGN.md。
+  按指定品牌查找配色、字体、圆角与视觉语言参考。用户明确提出品牌风格或确需品牌资料时使用；
+  不为普通 UI 修改重新选品牌。品牌清单见 brands.md，单品牌规范位于 brands 下对应品牌目录。
+license: MIT
+metadata:
+  upstream: https://github.com/VoltAgent/awesome-design-md
+  upstream-reviewed: "2026-10-29"
 ---
 
 # 品牌库
+
+资料来源为 [VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md)，许可见 [LICENSE](LICENSE)。这是品牌视觉分析参考，不替代项目已有的 VisualSpec、scene-contract 或用户已确认的设计。
 
 品牌规范按品牌名分目录存放。以下路径**相对本 SKILL.md 所在目录**（= `available_skills` 里
 本条目 `<location>` 去掉末尾 `/SKILL.md`），使用时解析成绝对路径：

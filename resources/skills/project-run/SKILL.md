@@ -15,26 +15,26 @@ description: >-
 ```json
 {
   "commands": [
-    { "platform": "react", "label": "前端", "cwd": "./client", "run_command": "npm run dev", "url": "http://localhost:5173" },
-    { "platform": "spring", "label": "后端", "cwd": "./server", "run_command": "mvn spring-boot:run", "url": "http://localhost:8080" }
+    { "platform": "nodejs", "label": "前端", "cwd": "./client", "run_command": "npm run dev", "url": "http://localhost:5173" },
+    { "platform": "java", "label": "后端", "cwd": "./server", "run_command": "mvn spring-boot:run", "url": "http://localhost:8080" }
   ]
 }
 ```
 
 ## 字段
 
-- **platform**：**按 run_command 判断（解释器+文件扩展名或首个命令词），不要按项目技术栈硬标**。合法值：react/vue/nextjs/nuxt/angular/svelte/spring/django/flask/fastapi/nodejs/rails/laravel/go/rust/dotnet/react-native/expo/flutter/electron/tauri/python/shell/git/java。对应关系：flutter 开头→flutter、git 开头→git、npm/pnpm/yarn/node→nodejs、python→python、bash/sh/./xx.sh→shell、mvn/gradle/java→java、cargo→rust、go→go、dotnet→dotnet、docker→shell；脚本文件按扩展名（.py→python、.sh→shell、.js/.ts→nodejs、.java→java、.rb→rails、.go→go、.rs→rust、.dart→flutter）。mac 桌面脚本用 shell，桌面应用用 electron。（面板显示时也会按此规则推断，写对避免跳变）
+- **platform**：显示分类，**按 run_command 的解释器、脚本扩展名或首个命令词判断，不按项目技术栈硬标**。常见分类如 nodejs/java/python/shell/git/flutter/rust/go/dotnet；npm/pnpm/yarn/node→nodejs、mvn/gradle/java→java、python→python、bash/sh/zsh→shell、git→git。面板会按命令推断，未知命令回退到首词，不把分类当作严格枚举或执行环境配置。
 - **label**：显示名，如"前端"、"后端"、"Android"（命名规则见下方「脚本标题命名」）
 - **cwd**：工作目录（相对项目根），默认 "."
 - **run_command**：运行命令，如 npm run dev、python main.py、flutter run、flutter build apk、bash deploy.sh
-- **install_command**（可选）：依赖安装命令，如 flutter pub get、npm install。保留记录用，面板当前仅展示不提供安装按钮
+- **install_command**（可选）：依赖安装命令，如 flutter pub get、npm install。读写时保留，当前面板没有该字段的独立展示、编辑或执行入口；需要一键安装时将真实安装命令作为单独的 commands 项
 - **url**（可选）：启动后访问地址，如 http://localhost:3000（仅运行类脚本需要，构建/打包/安装类不填）
 
 ## 规则
 
 - 多入口（前后端分离、跨平台）写多条
 - **静态 HTML 页面（纯 HTML/CSS/JS，无构建工具、无 npm 依赖）**：交付预览用 show_prototype 指定真实页面（例如 `{ "path": "app/index.html" }），将返回的本地 HTTP 地址写成可点击链接；EasyMint 自带静态托管，无需用户安装 Python 或手动起服务。该地址随应用退出失效，不把临时端口写入 run.json。仅当用户需要独立于 EasyMint 的长期运行脚本时，按实际可用环境配置静态服务器与对应 url；不要为静态页面引入框架构建。
-- 用户提出相关需求时，直接读现有 run.json 追加/更新——不必等任务全部完成，项目可运行即可生成；项目完成时生成（每次回到 done 更新）
+- 用户提出相关需求、项目交付确需可复用入口或已有运行方式变化时，读现有 run.json 追加/更新；已有正确配置不重写，不因某条任务进入 done 重复生成
 
 ## 脚本管理（不只限于启动项目）
 
@@ -50,14 +50,16 @@ run.json 不只放「启动项目」命令——**用户日常反复使用的脚
 - 用户没有明确要求写脚本但场景需要（如「我要打包发给朋友」）时，主动写对应脚本并加入面板
 - 面板内脚本可被用户编辑（点击标题）或删除（删除需确认）——不要擅自删除用户面板里的脚本
 
-### 预设脚本（项目完成时生成）
+### 预设脚本（项目交付需要时）
 
-项目开发完成回到 done 时，按项目技术栈生成常用预设脚本（已有则跳过）：
+按项目实际能力与交付需要选择预设脚本，已有正确项则跳过，不为凑齐类别生成不存在的命令：
 
 - **运行**：本地开发启动（如 flutter run / npm run dev）
 - **构建/打包**：对应平台的构建产物命令（如 flutter build apk / flutter build macos / npm run build）
 - **安装**：产物安装命令（如 mac 的 open/安装到 Applications）
-- **发版部署**（如项目有 git 发版流程时）：版本号更新 + 打包 + 提交 + tag + 推送的命令链
+- **发版部署**：仅项目已有适用发布流程且需要复用入口时配置，按实际流程组织命令；项目使用 Git 本身不构成生成发版命令链的理由
+
+配置运行入口不等于执行授权；安装、覆盖产物、打 tag、推送或部署仍按用户要求和项目规则执行，不在生成配置时顺带执行。
 
 ### 脚本标题命名
 

@@ -1,6 +1,11 @@
 ---
 name: ui-ux-pro-max
-description: "UI/UX design intelligence for web, mobile, and desktop. This skill should be used when designing, building, reviewing, or fixing interfaces, including pages, components, design systems, accessibility, interaction, responsive layout, typography, color, charts, and stack-specific UI implementation. Searchable local data: 79 searchable styles (50 active), 192 product palettes and reasoning profiles, 74 font pairings, 119 UX guidelines, 105 icons, 17 GSAP presets, 25 chart types, and 22 stacks."
+description: "Search local UI/UX references for a specific design, accessibility, interaction, chart, typography, or implementation-stack question. Use when the task needs reference lookup or a new visual direction; routine copy/spacing changes with sufficient project guidance do not require a search."
+license: MIT
+metadata:
+  upstream: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+  upstream-reviewed: "2026-10-29"
+  upstream-template-blob: 1f4dca9036982a28607c906b67673e5610e38543
 ---
 
 # UI/UX Pro Max - Design Intelligence
@@ -9,7 +14,7 @@ Searchable local UI/UX guidance: 79 searchable styles (50 active), 192 product p
 
 ## When to Apply
 
-Use this Skill when the task involves **UI structure, visual design decisions, interaction patterns, or user experience quality control**: designing new pages, creating/refactoring UI components, choosing color/typography/spacing/layout systems, reviewing UI for UX/accessibility/consistency, implementing navigation/animation/responsive behavior, or improving perceived quality and usability.
+Use this skill when a specific UI decision needs a searchable reference, or when a new visual direction needs supporting material. Start with the existing project contract and use the smallest applicable query; a UI task alone does not require loading this workflow or regenerating a design system.
 
 Skip it for pure backend logic, API/database design, non-visual performance work, infrastructure/DevOps, or non-visual scripts — unless the task changes how something **looks, feels, moves, or is interacted with**.
 
@@ -42,7 +47,7 @@ The search script lives inside this skill's own directory, not the project direc
 python3 "./scripts/search.py" "<query>" --domain <domain>
 ```
 
-If `python` is not found, try `python3`, then `py -3`. Requires Python 3.x, no external dependencies (see README for install instructions if Python is missing).
+Use an available Python 3 interpreter (`python3`, `python`, or Windows `py -3`); verify the version only if it is not already known. The bundled scripts use the standard library. If Python 3 is unavailable, do not install it as a side effect of a UI lookup: report that search was not run and use applicable existing references. Installing a runtime is separate work requiring authorization.
 
 ## Workflow
 
