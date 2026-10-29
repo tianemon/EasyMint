@@ -33,11 +33,12 @@ function soonestExpiry(items: CodexResetCredit[]): string | undefined {
   return new Date(Math.min(...times)).toISOString();
 }
 
+/** 满额不换危险色：额度用满是常态而非错误，红色会让整块看起来像告警（用户 2026-10-29 反馈） */
 function Bar({ percent, reached }: { percent: number; reached: boolean }): JSX.Element {
   return (
     <div className="h-1.5 w-full rounded-full bg-surface-hover overflow-hidden">
       <div
-        className={reached ? "h-full bg-danger" : "h-full bg-accent"}
+        className={reached ? "h-full bg-text-primary" : "h-full bg-accent"}
         style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
       />
     </div>
@@ -130,20 +131,13 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
 
   return (
     <div className="border-t border-border pt-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-text-secondary">{uiText("ui.CodexQuota.title")}</span>
-        <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-          {quota.credits.available > 0
-            ? uiText("ui.CodexQuota.creditsAvailable", { v0: String(quota.credits.available) })
-            : uiText("ui.CodexQuota.noCredits")}
-        </span>
-      </div>
+      <div className="text-text-secondary">{uiText("ui.CodexQuota.title")}</div>
 
       {rows.map(({ label, w }) => (
         <div key={label} className="space-y-1">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[length:var(--text-2xs)] text-text-secondary">{label}</span>
-            <span className={`text-[length:var(--text-2xs)] tabular-nums ${w.reached ? "text-danger" : "text-text-primary"}`}>
+            <span className="text-[length:var(--text-2xs)] text-text-primary tabular-nums">
               {Math.round(w.usedPercent)}%
             </span>
           </div>
@@ -156,21 +150,29 @@ export function CodexQuotaSection({ active }: { active: boolean }): JSX.Element 
         </div>
       ))}
 
-      {quota.credits.available > 0 && (
-        <div className="flex items-center justify-between gap-2">
-          {soonest && (
-            <span className="text-[length:var(--text-3xs)] text-text-muted tabular-nums">
-              {uiText("ui.CodexQuota.expiresAt", { v0: formatClock(Date.parse(soonest) / 1000) })}
-            </span>
-          )}
+      {/* 次数 · 最早到期 · 重置按钮收成一行：三件事本来就是同一件事的三个面（还有几次、最急的什么时候过期、现在就用）
+          按钮用浅色（bg-surface + em-hover-control，与授权弹窗里的「重新打开 / 复制链接」同一语言），
+          危险感交给点击后的确认弹窗，而不是按钮本身 */}
+      <div className="flex items-center gap-2 flex-wrap pt-0.5">
+        <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
+          {quota.credits.available > 0
+            ? uiText("ui.CodexQuota.creditsAvailable", { v0: String(quota.credits.available) })
+            : uiText("ui.CodexQuota.noCredits")}
+        </span>
+        {quota.credits.available > 0 && soonest && (
+          <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
+            · {uiText("ui.CodexQuota.expiresAt", { v0: formatClock(Date.parse(soonest) / 1000) })}
+          </span>
+        )}
+        {quota.credits.available > 0 && (
           <button
             type="button"
             disabled={busy}
             onClick={() => void consume()}
-            className="ml-auto h-7 px-3 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-danger hover:bg-surface-hover transition-colors disabled:opacity-40"
+            className="ml-auto shrink-0 h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-[length:var(--text-2xs)] em-hover-control transition-colors disabled:opacity-40"
           >{busy ? uiText("ui.CodexQuota.resetting") : uiText("ui.CodexQuota.usageButton")}</button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
