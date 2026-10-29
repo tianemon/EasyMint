@@ -37,7 +37,8 @@ export const DESIGNER_TEMPLATES: DesignerTemplateInfo[] = [
 /** 项目内种子模板目录（相对项目根） */
 export const DESIGNER_TEMPLATE_DIR = ".easymint/templates";
 
-/** 委派时写起点的两种形态（prompt 里照抄这个格式，子 Agent 按它分流） */
+/** Scene contracts are the normal start; explicit templates also support legacy projects. */
+export const START_POINT_SHOWCASE = "showcase";
 export const START_POINT_TEMPLATE_PREFIX = "模板：";
 export const START_POINT_FREE = "自由设计";
 

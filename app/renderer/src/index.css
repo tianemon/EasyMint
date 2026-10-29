@@ -996,8 +996,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 /* ── StatusBar ──────────────────────────────── */
 .statusbar {
   display: flex; align-items: center; gap: var(--s2);
-  padding: var(--s1) var(--s4); font-size: var(--text-xs);
-  color: var(--color-text-muted); min-height: 26px; flex-shrink: 0;
+  padding: 0 var(--s4); font-size: var(--text-xs);
+  color: var(--color-text-muted); min-height: 26px; min-width: 0; flex-shrink: 0;
   margin: 0 var(--chat-content-inset);
 }
 /* 状态栏模型图标参与流光：颜色按 --shimmer-1..5 依次循环（与流光同色系、同节奏）。
@@ -2118,7 +2118,7 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
   padding-inline: calc(var(--s8) + var(--s4));
 }
 .msg-assistant-identity {
-  display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2);
+  display: flex; align-items: center; gap: var(--s2); margin-bottom: 0;
   font-size: var(--text-sm); font-weight: 600; color: var(--color-text-primary);
 }
 .msg-assistant-identity .msg-avatar { width: 28px; height: 28px; }
@@ -2128,7 +2128,7 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
 }
 .msg-conclusion .prose > :first-child,
 .msg-conclusion .prose > :first-child > :first-child { margin-top: 0; }
-.msg-process-stack { margin-block: 2px; min-width: 0; }
+.msg-process-stack { margin-block: 0; min-width: 0; }
 .msg-process-stack .prose { font-size: var(--text-body); color: var(--color-text-secondary); }
 .msg-process-stack .prose > :first-child { margin-top: 0; }
 .msg-process-stack .prose > :last-child { margin-bottom: 0; }

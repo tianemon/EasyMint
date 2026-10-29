@@ -14,6 +14,7 @@ interface CompletedExecutionProps {
   sessionId: string;
   durationMs?: number;
   interrupted?: boolean;
+  readOnlyQuestions?: boolean;
   messages: readonly ChatMessage[];
   turn?: TurnPresentation;
   renderSystemMessage: (message: ChatMessage) => ReactNode;
@@ -37,7 +38,7 @@ export function CompletedExecution(props: CompletedExecutionProps): JSX.Element 
   </section>;
 }
 
-function ExecutionTranscript({ messages, turn, sessionId, interrupted, renderSystemMessage, onInspect, onContextMenu }: CompletedExecutionProps & { turn: TurnPresentation }): JSX.Element {
+function ExecutionTranscript({ messages, turn, sessionId, interrupted, renderSystemMessage, onInspect, onContextMenu, readOnlyQuestions }: CompletedExecutionProps & { turn: TurnPresentation }): JSX.Element {
   const { chunks, rows } = useMemo(() => {
     // Preserve exact turn membership: ordinary prompts and separate triggers stay outside.
     const turns = new Map(turn.indices.map(index => [index, turn]));
@@ -48,7 +49,7 @@ function ExecutionTranscript({ messages, turn, sessionId, interrupted, renderSys
   return <div className="execution-transcript">
     {chunks.filter(chunk => chunk.message.role !== "ai" || rows.get(chunk.message.id)?.length).map(chunk => <div key={chunk.message.id} className="execution-transcript-message" onContextMenu={event => { if (onContextMenu) { event.stopPropagation(); onContextMenu(chunk.message, event); } }}>
       {chunk.message.role === "ai" ? <RunningAssistantContent sessionId={sessionId} messageId={String(chunk.message.id)}
-        slices={rows.get(chunk.message.id) ?? []} toolInputs={toolInputs(chunk.message)} streaming={false} active={false} interrupted={interrupted} onInspect={onInspect} onContextMenu={onContextMenu} />
+        slices={rows.get(chunk.message.id) ?? []} toolInputs={toolInputs(chunk.message)} streaming={false} active={false} interrupted={interrupted} onInspect={onInspect} onContextMenu={onContextMenu} readOnlyQuestions={readOnlyQuestions} />
         : renderSystemMessage(chunk.message)}
     </div>)}
   </div>;

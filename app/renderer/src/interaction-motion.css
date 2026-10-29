@@ -47,21 +47,17 @@
   align-items: center;
   justify-content: flex-start;
   gap: 6px;
-  width: calc(100% - 2 * (var(--s8) + var(--s4)));
-  margin: 0 0 8px calc(var(--s8) + var(--s4));
-  padding: 4px 0 9px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 26px;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 88%, #000);
   background: transparent;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
   transition: color 140ms ease;
-}
-.statusbar.execution-process-toggle {
-  margin: 0 0 8px calc(var(--s8) + var(--s4));
-  padding: 4px 0 9px;
 }
 .execution-process-toggle:hover { color: var(--color-text-primary); }
 .execution-process-toggle svg { transition: transform 180ms ease; }
@@ -73,8 +69,12 @@
 .msg-in.msg-in-user { padding-right: max(0px, calc(var(--s8) - var(--chat-scrollbar-width, 0px))); }
 
 /* Keep matching horizontal insets for the message area and composer. */
-.chat-message-content { padding-inline: calc(var(--chat-content-inset) - var(--s8)); }
-[data-theme="dark"] .execution-process-toggle { border-bottom-color: #2c2c2c; }
+:root { --chat-block-gap: 12px; }
+.chat-message-content { padding-inline: calc(var(--chat-content-inset) - var(--s8)); padding-block: var(--chat-block-gap) 0; }
+.chat-flow-row { display: flex; flex-direction: column; gap: var(--chat-block-gap); padding-bottom: var(--chat-block-gap); }
+.assistant-flow, .assistant-content-flow, .completed-execution, .execution-transcript { display: flex; flex-direction: column; gap: var(--chat-block-gap); min-width: 0; }
+.assistant-flow:empty, .assistant-content-flow:empty { display: none; }
+.msg-conclusion .prose > :last-child { margin-bottom: 0; }
 
 /* Stats share the action row's visibility and stay outside the message surface. */
 .bubble-actions-with-meta {
@@ -115,8 +115,9 @@
 
 /* Process segments share one compact, bounded viewport across original message rows. */
 .execution-process > .execution-process-toggle {
-  width: 100%; margin: 0 0 6px; padding: 4px 0; border-bottom: 0;
+  width: 100%; margin: 0; padding: 0; min-height: 26px; border-bottom: 0;
 }
+.execution-process-viewport:not([hidden]) { margin-top: var(--chat-block-gap); }
 .execution-process-viewport {
   max-height: 240px; overflow-y: auto; overflow-x: hidden;
   overscroll-behavior: contain; scrollbar-gutter: stable;
@@ -143,21 +144,27 @@
 .execution-process-completed { margin-inline: calc(var(--s8) + var(--s4)); }
 .execution-time-heading, .execution-turn-time {
   display: flex; align-items: center; gap: 6px; width: 100%;
-  padding: 4px 0 9px; margin-bottom: 8px;
+  padding: 0; margin-bottom: 0; min-height: 26px;
   border: 0; border-bottom: 1px solid var(--color-border); background: transparent;
   color: var(--color-text-muted); font-size: var(--text-xs); text-align: left;
 }
 .execution-time-heading { margin-inline: calc(var(--s8) + var(--s4)); width: calc(100% - 2 * (var(--s8) + var(--s4))); }
 .execution-turn-time:enabled { cursor: pointer; }
 .execution-turn-time:enabled:hover { color: var(--color-text-primary); }
-.execution-transcript-message { margin-bottom: 8px; }
+.execution-transcript-message { margin-bottom: 0; }
 
 /* The elapsed-time transcript already owns the message inset. */
 .execution-transcript .msg-system-row { padding-inline: 0; }
 .execution-process-toggle[data-state="failed"] { color: var(--color-danger); }
 
 /* The current segment is one live status disclosure at the transcript tail. */
-.execution-live-process { margin-inline: calc(var(--s8) + var(--s4)); }
+.execution-live-process { margin-inline: var(--chat-content-inset); padding-inline: var(--s4); min-width: 0; }
 .execution-process > .statusbar.execution-process-toggle {
-  width: 100%; margin: 0 0 6px; padding: 4px 0; border: 0;
+  width: 100%; margin: 0; padding: 0; border: 0;
 }
+.subagent-flow-row, .subagent-ai-content { display: flex; flex-direction: column; gap: var(--chat-block-gap); }
+.subagent-output { display: flex; flex-direction: column; gap: var(--chat-block-gap); }
+.subagent-output > * { flex-shrink: 0; }
+.subagent-ai-content { margin-left: 44px; min-width: 0; }
+.subagent-ai-content .execution-time-heading { margin-inline: 0; width: 100%; }
+.subagent-ai-content > .statusbar { margin-inline: 0; padding-inline: 0; }

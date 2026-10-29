@@ -82,6 +82,20 @@ describe("seedDefaults 的模板字段卫生", () => {
     expect(byId("custom-1")!.agentType).toBe("custom");
   });
 
+  it("updates an installed designer's scene start contract while preserving custom roles and names", () => {
+    writeStore([
+      { id:"mint-designer",name:"我的设计师",description:"旧模板起点",prompt:"旧规则",agentType:"designer" },
+      { id:"custom-designer",name:"Custom",description:"用户说明",prompt:"用户设计规则",agentType:"custom" },
+    ]);
+    mod.seedDefaults();
+    expect(byId("mint-designer")!.name).toBe("我的设计师");
+    expect(byId("mint-designer")!.description).toContain("showcase");
+    expect(byId("mint-designer")!.description).toContain("有 VisualSpec 时默认");
+    expect(byId("mint-designer")!.prompt).toContain("showcase");
+    expect(byId("custom-designer")!.description).toBe("用户说明");
+    expect(byId("custom-designer")!.prompt).toBe("用户设计规则");
+  });
+
   it("Mint 的提示词/描述始终强制内置", () => {
     writeStore([
       { id: "mint", name: "Mint", description: "旧描述", prompt: "旧提示词", agentType: "mint" },

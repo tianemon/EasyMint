@@ -38,8 +38,12 @@ function buildShimmerStyle(durationSec: number): CSSProperties {
  * 常驻活跃动画已移至输入卡片流光(OrbitGlow/SlideGlow/BreatheGlow canvas 组件);
  * 符号动画与状态文本同现同消:运行或交互等待时显示状态，回合结束结果短暂保留到 outcome 信号过期。
  */
-export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome = true, fallback }: {
+export interface StatusPresentation { busy: boolean; text: string; fullText?: string; icon?: string }
+
+export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome = true, fallback, presentation }: {
   sessionId: string;
+  /** Read-only child viewers supply their own activity, never their parent's signals. */
+  presentation?: StatusPresentation;
   fallback?: { text: string; fullText?: string; icon?: string };
   expanded?: boolean;
   onToggle?: () => void;
@@ -48,18 +52,20 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
   useUiLocale();
   // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
   const session = useStatusStore((s) => s.bySession[sessionId]);
-  const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
-  const busy = useTabStore((s) => s.runningSessions.has(sessionId));
+  const sessionSummarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
+  const summarizing = !presentation && sessionSummarizing;
+  const sessionBusy = useTabStore((s) => s.runningSessions.has(sessionId));
+  const busy = presentation?.busy ?? sessionBusy;
   const asking = useAskStore(s => Object.values(s.asks).some(ask => ask.sessionId === sessionId));
   const signals = [...(session?.signals ?? [])].sort((a, b) => b.seq - a.seq);
-  const current = signals.find(signal => signal.id === "stopping") ?? signals.find(signal => signal.id === "dialog") ??
+  const current = presentation ? undefined : signals.find(signal => signal.id === "stopping") ?? signals.find(signal => signal.id === "dialog") ??
     (busy ? signals.find(signal => signal.id === "compact" || signal.id === "summary") ??
       signals.find(signal => signal.id === "retry") ?? signals.find(signal => signal.id.startsWith("tool:")) ??
       signals.find(signal => signal.id !== "outcome")
       : signals.find(signal => signal.id === "error") ?? signals.find(signal => signal.id === "outcome"));
-  const waiting = current?.id !== "stopping" && (asking || current?.id === "dialog");
-  const activity = current?.tool && !waiting ? toolActivity(current.tool.name, current.tool.args)
-    : !current && !waiting && busy ? fallback : undefined;
+  const waiting = !presentation && current?.id !== "stopping" && (asking || current?.id === "dialog");
+  const activity = presentation ?? (current?.tool && !waiting ? toolActivity(current.tool.name, current.tool.args)
+    : !current && !waiting && busy ? fallback : undefined);
   const icon = activity?.icon ?? (!waiting && current?.id === "request" ? fallback?.icon : undefined);
   const text = waiting ? uiText("pi.waitingUser") : activity?.text ?? current?.text ?? "";
   // 状态文本样式配置:单色(solid,独立颜色)/流光(shimmer,启用组色彩注入 --shimmer-1..5)
@@ -139,9 +145,10 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
   const shimmerStyle = buildShimmerStyle(shimmerDuration);
 
   // 文本样式:solid 单色(statusColor,独立配置)/shimmer 流光(shimmerStyle 变量驱动)
-  const textStyle: CSSProperties = statusTextStyle === "solid" || !busy || waiting
-    ? { color: statusColor }
-    : shimmerStyle;
+  const animatedShimmer = statusTextStyle === "shimmer" && busy && !waiting;
+  // Terminal/waiting states keep the selected palette instead of the hidden solid fallback.
+  const restingColor = statusTextStyle === "shimmer" ? shimmerColors[0] ?? statusColor : statusColor;
+  const textStyle: CSSProperties = animatedShimmer ? shimmerStyle : { color: restingColor };
 
   // 图标颜色循环时长：用户反馈比文字流光慢，缩 1/3（= 原值 × 2/3）。
   // 参考：文字流光一轮（shimmerSweep 一轮）实际是 shimmerDuration 的一半，要完全同步就改成分母 2。
@@ -150,8 +157,8 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
   const statusContent = (
     <>
       <span
-        className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
-        style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
+        className={`w-[1.25em] inline-flex items-center justify-center shrink-0${animatedShimmer ? " status-glyph-shimmer" : ""}`}
+        style={animatedShimmer ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: restingColor }}
       >
         {icon === "thinking" ? <ThinkingIcon /> : icon ? <ToolIcon name={icon} /> : <ModelGlyph animated={busy && !waiting} />}
       </span>

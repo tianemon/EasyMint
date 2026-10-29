@@ -1,10 +1,10 @@
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { ChatMessage, mapSessionMessages, applyNestedToolEvent, piBlocksToEntries, mergeConsecutiveText, followDecision, USER_INPUT_WINDOW_MS } from "./chat-utils";
+import { ChatMessage, mapSessionMessages, followDecision, USER_INPUT_WINDOW_MS } from "./chat-utils";
 import { useDelegationStore } from "../stores/delegation-store";
 import { Modal } from "./ui/Modal";
-import { UserMessageText } from "./UserMessageText";
+import { SubagentTranscript } from "./SubagentTranscript";
+import { applySubagentEvent, mergeSubagentHistory, updateSubagentActivity, type SubagentActivity } from "./subagent-transcript";
 
 /**
  * 子 Agent 过程查看弹层 — 精简只读聊天视图。
@@ -30,6 +30,8 @@ export function SubagentProcessView({
   const sessionFile = useDelegationStore((s) => s.sessionFiles[`${delegationId}:${index}`]);
   const [msgs, setMsgs] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
+  const [activity, setActivity] = useState<SubagentActivity>({ tools: [] });
   const nextIdRef = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true); // 流式输出是否自动贴底(用户滚动时停止)
@@ -64,102 +66,44 @@ export function SubagentProcessView({
     setAwayFromBottom(false);
   };
 
-  /** 消息全部内容(重载合并判断用)——不能只取 text:流式块可能只有思考/工具,
-   *  此时文本比对为空会误判为「磁盘没有」而重复追加同一条消息 */
-  const textOf = (m: ChatMessage): string =>
-    (m.entries ?? []).map((e) => {
-      if (e.kind === "text" || e.kind === "thinking") return e.text;
-      if (e.kind === "tool_use") return e.name;
-      if (e.kind === "tool_result") return e.content;
-      return "";
-    }).join("\n");
+  const displayMessages = useMemo(() => running ? msgs : msgs.map(message => ({ ...message, streaming: false })), [msgs, running]);
+  const childId = `subagent:${delegationId}:${index}`;
 
-  // 打开/切换任务:加载历史 + 定稿 streaming 标记
   useEffect(() => {
-    let cancelled = false;
-    setMsgs([]);
-    setLoaded(false);
+    setMsgs([]); setLoaded(false); setLoadError(undefined); setActivity({ tools: [] });
     nextIdRef.current = 1;
-    (async () => {
-      if (!sessionFile) return;
-      const raw = await window.electronAPI.task.getSubagentMessages(sessionFile);
-      if (cancelled) return;
-      setMsgs(mapSessionMessages(raw as Array<{ type: string; message: unknown }>));
-      setLoaded(true);
-    })();
-    return () => { cancelled = true; };
-  }, [sessionFile, delegationId, index]);
-
-  // 实时流订阅(按 delegationId+index 过滤;消息帧为累计快照 → 替换末尾 streaming 块)
-  useEffect(() => {
-    const unsub = window.electronAPI.agent.onSubagentStream((data) => {
-      if (data.delegationId !== delegationId || data.index !== index) return;
-      const ev = data.ev;
-      if (ev.type === "nested_tool") {
-        setMsgs(prev => prev.map(msg => msg.entries ? { ...msg, entries: applyNestedToolEvent(msg.entries, ev) } : msg));
-        return;
-      }
-      if (ev.type === "tool_result" && ev.toolCallId) {
-        setMsgs(prev => prev.map(msg => msg.entries?.some(entry => entry.kind === "tool_use" && entry.id === ev.toolCallId)
-          ? { ...msg, entries: [...msg.entries, { kind: "tool_result", toolUseId: ev.toolCallId!, name: ev.toolName, content: ev.content ?? "", isError: !!ev.isError, nestedCalls: ev.nestedCalls, presentation: ev.presentation, timestamp: Date.now() }] }
-          : msg));
-        return;
-      }
-      // message_start = 新输出段消息(磁盘逐条 assistant)开始:终态化当前 streaming 块,
-      // 下个内容帧创建新气泡——与主聊天 ChatPanel 一致(每条 assistant 消息独立气泡)
-      if (ev.type === "message_start") {
-        if (Array.isArray(ev.blocks) && ev.blocks.length > 0) {
-          // 非流式消息(message_start 携带完整内容)直接渲染为新气泡
-          const entries = mergeConsecutiveText(piBlocksToEntries(ev.blocks));
-          if (entries.length > 0) {
-            setMsgs((prev) => [
-              ...prev.map((m) => (m.role === "ai" && m.streaming ? { ...m, streaming: false } : m)),
-              { id: -nextIdRef.current++, role: "ai", entries, timestamp: Date.now(), streaming: true },
-            ]);
-          }
-        } else {
-          // 流式消息开始:仅终态化当前块(内容帧随后到达)
-          setMsgs((prev) => prev.map((m) => (m.role === "ai" && m.streaming ? { ...m, streaming: false } : m)));
-        }
-        return;
-      }
-      if (ev.type !== "message" || !Array.isArray(ev.blocks) || ev.blocks.length === 0) return;
-      const entries = mergeConsecutiveText(piBlocksToEntries(ev.blocks));
-      if (entries.length === 0) return;
-      setMsgs((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "ai" && last.streaming) {
-          return [...prev.slice(0, -1), { ...last, entries }];
-        }
-        // 实时流块用负数 id(mapSessionMessages 历史消息为正数 id,负数命名空间永不相交)
-        return [...prev, { id: -nextIdRef.current++, role: "ai", entries, timestamp: Date.now(), streaming: true }];
-      });
-    });
-    return unsub;
+    autoScrollRef.current = true;
+    setAwayFromBottom(false);
   }, [delegationId, index]);
 
-  // 3s 定时重载兜底(有 streaming 块时合并保留;终态停止)
+  // Subscribe before the asynchronous disk read settles; reconcile by SDK timestamp instead of replacing live output.
+  useEffect(() => window.electronAPI.agent.onSubagentStream(data => {
+    if (data.delegationId !== delegationId || data.index !== index) return;
+    setActivity(previous => updateSubagentActivity(previous, data.ev));
+    setMsgs(previous => applySubagentEvent(previous, data.ev, () => -nextIdRef.current++));
+    if (data.ev.blocks?.length || data.ev.type === "custom_event" || data.ev.type === "error") setLoaded(true);
+  }), [delegationId, index]);
+
+  // Reads are serialized and cancelled on identity/terminal changes. A terminal reload captures the final SDK record.
   useEffect(() => {
-    if (!running || !sessionFile) return;
-    const timer = setInterval(async () => {
-      const raw = await window.electronAPI.task.getSubagentMessages(sessionFile);
-      const mapped = mapSessionMessages(raw as Array<{ type: string; message: unknown }>);
-      setMsgs((prev) => {
-        // 只认实时产生的流式块(keyId undefined=负数 id 命名空间)——磁盘消息即使带
-        // streaming 标记也不作为流式块保留,否则新旧两批次磁盘消息共存导致 React key 冲突
-        const streamBlock = prev.find((m) => m.streaming && m.keyId === undefined);
-        if (!streamBlock) return mapped;
-        const lastDiskAi = [...mapped].reverse().find((m) => m.role === "ai");
-        if (!lastDiskAi) return [...mapped, streamBlock];
-        const d = textOf(lastDiskAi);
-        const s = textOf(streamBlock);
-        if (s && d.startsWith(s)) return mapped; // 磁盘已含流式内容(更全)→ 磁盘为准,流式块弃用(该段已落盘,无后续帧)
-        if (s && s.startsWith(d)) return [...mapped.slice(0, -1), streamBlock]; // 流式比磁盘新 → 替换磁盘最后
-        return [...mapped, streamBlock];
-      });
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [running, sessionFile]);
+    let cancelled = false, pending = false;
+    const load = async () => {
+      if (!sessionFile || pending) return;
+      pending = true;
+      try {
+        const raw = await window.electronAPI.task.getSubagentMessages(sessionFile);
+        if (cancelled) return;
+        const disk = mapSessionMessages(raw as Array<{ type: string; message: unknown }>);
+        setMsgs(previous => mergeSubagentHistory(disk, previous));
+        setLoaded(true); setLoadError(undefined);
+      } catch (error) {
+        if (!cancelled) { setLoadError(error instanceof Error ? error.message : String(error)); setLoaded(true); }
+      } finally { pending = false; }
+    };
+    void load();
+    const timer = running ? setInterval(() => { void load(); }, 3000) : undefined;
+    return () => { cancelled = true; if (timer) clearInterval(timer); };
+  }, [sessionFile, delegationId, index, running]);
 
   // 滚动贴底(仅用户没滚离底部时跟随——流式输出时用户可自由滚动查看历史)。
   // 除内容变更外还挂 ResizeObserver 观察各消息行：思考块/文本块的展开过渡(200ms)、
@@ -180,13 +124,13 @@ export function SubagentProcessView({
     const ro = roRef.current;
     ro.disconnect();
     for (const child of Array.from(el.children)) ro.observe(child);
-  }, [msgs]);
+  }, [msgs, running]);
   useEffect(() => () => { roRef.current?.disconnect(); }, []);
 
   useEffect(() => {
     if (!autoScrollRef.current) return;
     pinToBottom();
-  }, [msgs]);
+  }, [msgs, running]);
 
   // Modal 经 createPortal 挂 body:弹窗渲染在输入卡片内,空态时气泡锚点容器有 transform
   // (translateY(-200px)) 会劫持 fixed 定位——弹窗被推到窗口底部被遮挡(对齐 LogOverlay 的处理)
@@ -197,13 +141,13 @@ export function SubagentProcessView({
       >
         {/* 头部:spinner + 标题 + 状态 + 关闭（与内容/底部同为面板面，不设色块分区——对齐输出窗口与其他弹窗） */}
         <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--color-surface-alt)]">
-          <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none">
+          <svg className={`${running ? "animate-spin " : ""}text-text-muted shrink-0`} width="13" height="13" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
             <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <span className="text-sm font-medium text-text-primary truncate flex-1">{title || uiText("ui.SubagentProcessView.aiAssistant")}</span>
-          <span className={`text-[length:var(--text-11)] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
-            {running && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
+          <span className={`text-[length:var(--text-11)] shrink-0 flex items-center gap-1 text-text-muted`}>
+            {running && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
             {running ? uiText("ui.OutputWindow.running") : uiText("ui.OutputWindow.finished")}
           </span>
           <button
@@ -215,9 +159,9 @@ export function SubagentProcessView({
           </button>
         </div>
 
-        {/* 消息区(思考/工具与主聊天一致常显;可选中复制) */}
+        {/* 消息区：复用主会话的分段、实时状态与完成折叠 */}
         {/* 阅读型内容区:字号随「阅读字体」缩放(与聊天区 .chat-messages 同思路) */}
-        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ fontSize: "var(--text-body)" }}>
+        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3" style={{ fontSize: "var(--text-body)" }}>
           {!loaded && !sessionFile && (
             <div className="text-center text-text-secondary py-8">{uiText("ui.SubagentProcessView.preparingTask")}</div>
           )}
@@ -227,15 +171,8 @@ export function SubagentProcessView({
           {loaded && msgs.length === 0 && (
             <div className="text-center text-text-secondary py-8">{uiText("ui.SubagentProcessView.noMessages")}</div>
           )}
-          {msgs.map((m) => {
-            // 正在增长的那条 = 尾块且带实时流标记(实时块由 message_start/磁盘重载终态化,
-            // 磁盘历史消息不带此标记)。一个判据同时驱动文本流式渲染、工具转圈、思考自动展开——
-            // 不再借任务级 running 冒充流式:否则任务运行期间,历史消息正文也走流式渲染器、
-            // 且结果已落到别处的 pending 工具会一直转到任务结束(误导)
-            const streamRow = running && m.role === "ai" && !!m.streaming && m === msgs[msgs.length - 1];
-            return <SubagentMessage key={m.keyId ?? m.id} msg={m} streaming={streamRow} />;
-          })}
-          {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">{uiText("ui.SubagentProcessView.running")}</span></div>}
+          {loadError && <div role="alert" className="text-danger">{loadError}</div>}
+          <SubagentTranscript messages={displayMessages} running={running} sessionId={childId} title={title || uiText("ui.SubagentProcessView.aiAssistant")} activity={activity} />
         </div>
 
         {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}
@@ -250,59 +187,5 @@ export function SubagentProcessView({
         )}
       </div>
     </Modal>
-  );
-}
-
-/** 只读消息气泡(user 右 / ai 左,Mint 气泡复用主聊天外观)。
- *  ai 内容走与 ChatPanel 相同的块渲染:buildBlocks 分组 → ChatBlockView,
- *  思考「流式中展开、完成后自动折叠」、工具卡折叠/展开、文本 Markdown、diff DiffView 全部一致。
- *  streaming = 任务运行中正在增长的那条消息(仅尾块)——同时驱动文本流式渲染、工具转圈,
- *  isStreamingTail 仅它的末块为 true:思考增长中展开,末块变为文本/工具、或任务结束 running
- *  转 false 时自动收起 */
-function SubagentMessage({ msg, streaming }: { msg: ChatMessage; streaming?: boolean }): JSX.Element {
-  const entries = msg.entries ?? [];
-  // 工具 input 查找表(toolUseId → input):工具结果被拆到独立块(同批无 tool_use)时,
-  // tool-result-only 块仍能取 file_path 做语言高亮/摘要显示(对齐 ChatPanel 同款构建)
-  const toolInputs = useMemo(() => {
-    const m = new Map<string, Record<string, unknown>>();
-    for (const e of entries) {
-      if (e.kind === "tool_use" && e.id) {
-        const input = typeof e.input === "object" && e.input !== null ? (e.input as Record<string, unknown>) : undefined;
-        if (input) m.set(e.id, input);
-      }
-    }
-    return m;
-  }, [entries]);
-
-  const blocks = useMemo(
-    () => (entries.length > 0 ? buildBlocks(entries, String(msg.id), toolInputs) : []),
-    [entries, msg.id, toolInputs],
-  );
-
-  if (msg.role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] max-w-[60%]">{msg.text && <UserMessageText text={msg.text} />}</div>
-      </div>
-    );
-  }
-  // 无任何块时不渲染气泡(避免空容器留白)
-  if (blocks.length === 0) return <></>;
-  return (
-    <div className="flex gap-3 items-start">
-      <div className="msg-avatar agent shrink-0">M</div>
-      <div className="min-w-0 flex-1">
-        <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
-          {blocks.map((block, i) => (
-            <ChatBlockView
-              key={`blk-${msg.id}-${i}`}
-              block={block}
-              streaming={streaming}
-              isStreamingTail={streaming && i === blocks.length - 1}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }

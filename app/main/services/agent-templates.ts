@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT, MINT_SYSTEM_PROMPT } from "../../shared/prompts";
-import { DESIGNER_TEMPLATE_FILES, START_POINT_FREE, START_POINT_TEMPLATE_PREFIX } from "../../shared/designer-templates";
+import { DESIGNER_TEMPLATE_FILES, START_POINT_FREE, START_POINT_TEMPLATE_PREFIX, START_POINT_SHOWCASE } from "../../shared/designer-templates";
 import { emHome } from "../utils/paths";
 
 // ── Types ──────────────────────────────────────────
@@ -118,7 +118,7 @@ const DEFAULTS: AgentTemplate[] = [
       // 调用契约写在该模板自己身上：task 工具的模板清单由 id+名称+描述拼成，
       // 这段因此会随清单带出、委派方（Mint）可见。task 工具**不特判任何业务角色**——
       // 谁有特殊调用要求，谁在自己的描述里声明。
-      + `委派时必须写明起点：\`${START_POINT_TEMPLATE_PREFIX}<文件名>\`（可用 ${DESIGNER_TEMPLATE_FILES.join(" / ")}）或 \`${START_POINT_FREE}\`（附方向）——子 Agent 不自选版式，也不会去翻目录。`,
+      + `有 VisualSpec 时默认从 \`${START_POINT_SHOWCASE}\` 双端场景起步，沿用用户已选视觉契约；仅明确需要版式骨架时指定 \`${START_POINT_TEMPLATE_PREFIX}<文件名>\`（可用 ${DESIGNER_TEMPLATE_FILES.join(" / ")}）。无视觉契约时指定旧模板或 \`${START_POINT_FREE}\`（附方向）；子 Agent 不翻目录重新选型。`,
     prompt: DESIGNER_AGENT_PROMPT,
     agentType: "designer",
   },
@@ -172,11 +172,9 @@ export function seedDefaults(): void {
   for (const d of DEFAULTS) {
     const existing = current.find((t) => t.id === d.id);
     if (existing) {
-      // Read-only policy roles must refresh descriptions too: task exposes these to Mint.
-      // Keep names and user-created templates; designer-specific migration remains unchanged.
-      synced.push([MINT_TEMPLATE_ID, "default-builder", "default-evaluator"].includes(d.id)
-        ? { ...existing, prompt: d.prompt, description: d.description }
-        : { ...existing, prompt: d.prompt });
+      // All built-in roles are read-only; task exposes their descriptions to Mint.
+      // Refresh the contract while preserving names and separate user-created templates.
+      synced.push({ ...existing, prompt: d.prompt, description: d.description });
     } else {
       synced.push({ ...d });
     }

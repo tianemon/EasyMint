@@ -237,7 +237,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const schemaHint = typeof opts.outputSchema === "object"
       ? `\n\n完成工作后，必须调 yield 工具返回结果。data 对象需包含以下字段: ${JSON.stringify(opts.outputSchema)}`
       : "";
-    const fullPrompt = (tpl?.prompt ? tpl.prompt + "\n\n" : "") + opts.task + projectDesignSection(resolvedPath) + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
+    const fullPrompt = (tpl?.prompt ? tpl.prompt + "\n\n" : "") + projectDesignSection(resolvedPath) + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
     const session2 = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model,
       // 思考等级跟随主会话，再按模型能力自适应
@@ -261,7 +261,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   // 模板 prompt:委派指定 agent → 用模板 prompt 作为子 agent system prompt
   // （tpl 与思考等级基础值已在函数早期解析，两个分支共用）
   const tplPrompt = tpl?.prompt;
-  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + opts.task + projectDesignSection(resolvedPath) + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
+  // The task belongs to the first user message below, not the stable role instructions.
+  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + projectDesignSection(resolvedPath) + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
 
   try {
     const session = await createPiSession({

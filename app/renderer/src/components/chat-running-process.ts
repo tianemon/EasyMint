@@ -15,7 +15,7 @@ export interface RunningProcessSlice {
 }
 
 /** Keep original records/entry references: folding never changes the model's context. */
-export function buildRunningProcessSlices(messages: readonly ChatMessage[], turns: ReadonlyMap<number, TurnPresentation>, includeCompleted = false): Map<number, RunningProcessSlice[]> {
+export function buildRunningProcessSlices(messages: readonly ChatMessage[], turns: ReadonlyMap<number, TurnPresentation>, includeCompleted = false, includePendingQuestions = false): Map<number, RunningProcessSlice[]> {
   const rows = new Map<number, RunningProcessSlice[]>();
   for (const turn of new Set(turns.values())) {
     if (!turn.active && !turn.preserveSegments && !includeCompleted) continue;
@@ -45,7 +45,7 @@ export function buildRunningProcessSlices(messages: readonly ChatMessage[], turn
         if (finalEntries?.has(entry)) continue;
         // Pending questions already have an interactive AskUserCard at the live tail.
         // After answering, the original call/result becomes the in-order question history.
-        if (entry.kind === "tool_use" && entry.name === "ask_user" && entry.id && !answeredIds.has(entry.id) && turn.active) {
+        if (!includePendingQuestions && entry.kind === "tool_use" && entry.name === "ask_user" && entry.id && !answeredIds.has(entry.id) && turn.active) {
           processKey = undefined;
           processSlice = undefined;
           continue;

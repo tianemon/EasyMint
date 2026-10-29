@@ -3,7 +3,7 @@ import { uiText, useUiLocale } from "../lib/i18n";
 import { useProcessDisclosure } from "./chat-process-disclosure";
 import { AssistantContent } from "./AssistantContent";
 import { ToolIcon } from "./ChatBlocks";
-import { StatusBar } from "./StatusBar";
+import { StatusBar, type StatusPresentation } from "./StatusBar";
 import { ThinkingIcon } from "./ThinkingIcon";
 import { splitTailText, TAIL_FADE_CHARS } from "../lib/tail-fade";
 import { buildProcessRecords, type ProcessChunk, type ProcessRecord } from "./execution-process-model";
@@ -13,9 +13,10 @@ import type { ChatMessage } from "./chat-utils";
 const scrollPositions = new Map<string, number>();
 
 /** A segment may span many original messages, but owns one bounded scroll viewport. */
-export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, onContextMenu, liveStatusSessionId }: {
+export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, onContextMenu, liveStatusSessionId, liveStatus }: {
   id: string;
   liveStatusSessionId?: string;
+  liveStatus?: StatusPresentation;
   chunks: ProcessChunk[];
   active: boolean;
   interrupted?: boolean;
@@ -80,7 +81,7 @@ export function ExecutionProcess({ id, chunks, active, interrupted, onInspect, o
   };
   const latestRunning = records.slice().reverse().find(record => record.state === "running");
   return <section ref={section} className="execution-process" data-process-id={id}>
-    {liveStatusSessionId ? <StatusBar sessionId={liveStatusSessionId} expanded={open} onToggle={toggleProcess} showCompletedOutcome={false}
+    {liveStatusSessionId || liveStatus ? <StatusBar sessionId={liveStatusSessionId ?? id} presentation={liveStatus} expanded={open} onToggle={toggleProcess} showCompletedOutcome={false}
       fallback={latestRunning?.icon === "thinking" ? {text:uiText("ui.ChatPanel.thinking"),icon:"thinking"}
         : latestRunning ? {text:latestRunning.text,fullText:latestRunning.fullText,icon:latestRunning.icon} : {text:uiText("ui.ChatPanel.processing")}} /> : <button type="button" className="execution-process-toggle" aria-expanded={open} data-state={single?.state} onClick={toggleProcess}>
       {summaryIcon === "thinking" ? <ThinkingIcon className="shrink-0" /> : <ToolIcon name={summaryIcon} />}

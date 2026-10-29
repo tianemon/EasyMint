@@ -2979,7 +2979,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             <div />
           )
         ) : (
-          <div className="chat-message-content py-4">
+          <div className="chat-message-content">
             {/* 虚拟化消息列表：absolute 定位 + translateY，测量高度撑起滚动空间 */}
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((vi) => {
@@ -2995,7 +2995,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
                     // Identity owns animation lifetime independently of this virtual row.
-                    className={`${hidden ? (header ? "pb-2" : "") : (originalMsg.role === "ai" && !finalAnswerEntries.has(vi.index) || originalMsg.customType) ? "pb-1" : "pb-8"}`}
+                    className={!hidden || header ? "chat-flow-row" : undefined}
                   >
                     {/* 跳转高亮层:常驻 absolute 不占布局(虚拟滚动测量零干扰)、opacity 过渡
                         (圆角始终存在,消失只是淡出,无「圆角变直角」)、仅上边外扩 5px——

@@ -22,13 +22,19 @@ describe("subagent lifecycle integration", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-child-visual-"));
     try {
       saveProjectDesign(root, { styleId: "glass" }, "technical", path.resolve("resources"));
-      for (const outputSchema of [undefined, {}]) {
-        const session = { sessionId: "child", model: { id: "fixture" }, subscribe: () => () => {}, abort: vi.fn(async () => {}), prompt: vi.fn(async () => {}) };
+      const task = "UNIQUE_CHILD_TASK_CONTEXT_20261029";
+      vi.spyOn(agentTemplates, "getTemplate").mockReturnValue({ id:"role", name:"Role", description:"fixture", agentType:"builder", prompt:"ROLE_INSTRUCTIONS" });
+      for (const agent of [undefined, "role"]) for (const outputSchema of [undefined, {}]) {
+        const session = { sessionId: "child", model: { id: "fixture" }, subscribe: () => () => {}, abort: vi.fn(async () => {}), prompt: vi.fn(async (_task: string, _options?: unknown) => {}) };
         mocks.create.mockResolvedValueOnce(session);
-        const record = createDelegation("parent", [{ task: "design", outputSchema, readOnly: true }]);
+        const record = createDelegation("parent", [{ task, agent, outputSchema, readOnly: true }]);
         await runSubagents(record, { cwd: root, agentDir: root, store: {} as Store });
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("glass; palette");
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(".easymint/design/visual-spec.json");
+        expect(mocks.create.mock.lastCall?.[0].systemPrompt).not.toContain(task);
+        if (agent) expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("ROLE_INSTRUCTIONS");
+        expect(session.prompt).toHaveBeenCalledTimes(1);
+        expect(session.prompt.mock.calls[0]?.[0]).toBe(task);
       }
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
@@ -72,7 +78,7 @@ describe("subagent lifecycle integration", () => {
       prompt: vi.fn(() => new Promise<void>(resolve => { releasePrompt = resolve; })),
       abort: vi.fn(async () => { releasePrompt(); }),
     };
-    mocks.create.mockImplementation(options => options.systemPrompt.startsWith("first") ? first : Promise.resolve(session));
+    mocks.create.mockImplementationOnce(() => first).mockResolvedValueOnce(session);
     mocks.dispose.mockImplementationOnce(async () => { await cleanup; });
     const record = createDelegation("parent", [{ task: "first", outputSchema: {}, readOnly: true }, { task: "second", outputSchema: {}, readOnly: true }]);
     let settled = false;

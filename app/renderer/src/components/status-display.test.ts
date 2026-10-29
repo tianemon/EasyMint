@@ -6,6 +6,7 @@ import { useStatusStore } from "../stores/status-store";
 import { useTabStore } from "../stores/tab-store";
 import { useAskStore } from "../stores/ask-store";
 import { uiText } from "../lib/i18n";
+import { useSettingsStore } from "../stores/settings-store";
 
 vi.hoisted(() => { vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {} }); });
 vi.mock("../stores/theme-store", () => ({ useThemeStore: (select: (state: { effective: string }) => unknown) => select({ effective: "light" }) }));
@@ -22,15 +23,31 @@ vi.mock("../stores/ask-store", async importOriginal => {
   const actual = await importOriginal<typeof import("../stores/ask-store")>();
   return { useAskStore: Object.assign((select: (state: ReturnType<typeof actual.useAskStore.getState>) => unknown) => select(actual.useAskStore.getState()), actual.useAskStore) };
 });
+vi.mock("../stores/settings-store", async importOriginal => {
+  const actual = await importOriginal<typeof import("../stores/settings-store")>();
+  return { useSettingsStore: Object.assign((select: (state: ReturnType<typeof actual.useSettingsStore.getState>) => unknown) => select(actual.useSettingsStore.getState()), actual.useSettingsStore) };
+});
+const initialSettings = useSettingsStore.getState();
 
 afterEach(() => {
   useStatusStore.getState().reset();
   useTabStore.getState().setSessionRunning("session", false);
   useAskStore.setState({ asks: {} });
+  useSettingsStore.setState(initialSettings);
 });
 const render = () => renderToStaticMarkup(createElement(StatusBar, { sessionId: "session" }));
 
 describe("observable run status", () => {
+  it.each(["solid", "shimmer"] as const)("keeps terminal text and glyph in the selected %s colors", style => {
+    useSettingsStore.setState({ statusTextStyle: style, statusColorLight: "#c05020", statusTextGroupsLight: [{id:"selected",name:"Selected",colors:["#8540c0","#3050b0"]}], activeStatusGroupLight:"selected" });
+    for (const label of [uiText("pi.completed"), uiText("pi.cancelled")]) {
+      useStatusStore.getState().pushSignal("session", "outcome", label, 4000);
+      const html=render();
+      expect(html).toContain(label);
+      expect(html.match(new RegExp(`color:${style === "solid" ? "#c05020" : "#8540c0"}`,"g"))).toHaveLength(2);
+      expect(html).not.toContain("status-glyph-shimmer");
+    }
+  });
   it("keeps a startup failure visible after the run is idle", () => {
     useStatusStore.getState().pushSignal("session", "error", "authentication failed", 8000);
     expect(render()).toContain("authentication failed");
