@@ -88,7 +88,7 @@ describe("provider switch and per-session model", () => {
     // gpt 在 deepseek 下不存在 → 用 deepseek 的默认模型，而不是继续 requests 到 codex
     expect(chat.provider).toBe("deepseek");
     expect(chat.currentModel).toBe("deepseek-chat");
-    expect(mocks.writeCache).toHaveBeenCalledWith("session-1", { provider: "deepseek", model: "deepseek-chat" });
+    expect(mocks.writeCache).toHaveBeenCalledWith("session-1", { model: "deepseek-chat" });
     expect(mocks.broadcast).toHaveBeenCalledWith("agent:model-changed", { sessionId: "session-1", provider: "deepseek", model: "deepseek-chat" });
   });
 
@@ -99,10 +99,10 @@ describe("provider switch and per-session model", () => {
     const service = serviceWith("deepseek", chat);
 
     // 仍按旧会话供应商传入 codex 的 gpt：必须按全局 deepseek 解析 → 不可用 → 抛错且不改会话
-    await expect(service.setModel("session-1", "gpt", "openai-codex")).rejects.toThrow(/模型不可用/);
+    await expect(service.setModel("session-1", "gpt")).rejects.toThrow(/模型不可用/);
     expect(chat.currentModel).toBe("deepseek-chat");
 
-    await service.setModel("session-1", "deepseek-chat", "openai-codex");
+    await service.setModel("session-1", "deepseek-chat");
     expect(chat.currentModel).toBe("deepseek-chat");
     expect(chat.provider).toBe("deepseek");
   });
@@ -112,7 +112,7 @@ describe("provider switch and per-session model", () => {
     const service = new AgentService(store("deepseek"));
     // 会话还没激活（重启后、尚未建 session）
     await service.setModel("session-2", "deepseek-chat");
-    expect(mocks.writeCache).toHaveBeenCalledWith("session-2", { model: "deepseek-chat", provider: "deepseek" });
+    expect(mocks.writeCache).toHaveBeenCalledWith("session-2", { model: "deepseek-chat" });
   });
 
   it("re-binds a chat still bound to the previous provider right before sending", async () => {

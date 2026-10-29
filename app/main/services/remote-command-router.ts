@@ -140,7 +140,6 @@ export class RemoteCommandRouter {
       attached.images.length ? attached.images : undefined,
       typeof data.thinkingLevel === "string" ? data.thinkingLevel : undefined,
       undefined,
-      typeof data.provider === "string" ? data.provider : undefined,
       undefined,
     );
     broadcast("agent:stream", {
@@ -189,11 +188,11 @@ export class RemoteCommandRouter {
     const { project } = await this.coordinator.requireSession(projectId, sessionId);
     const data = dataObject(command);
     const model = z.string().min(1).max(200).parse(data.model);
-    const provider = typeof data.provider === "string" ? data.provider : undefined;
     await this.agentService.activateSession(sessionId, project.path);
-    await this.agentService.setModel(sessionId, model, provider);
-    writeCache(sessionId, { model, provider });
-    broadcast("agent:remote-settings-changed", { sessionId, model, provider, revision: readCache(sessionId)?.updatedAt });
+    // 供应商已恒为全局 current（2026-10-29）：远端命令里的 provider 字段不再参与，也不落盘
+    await this.agentService.setModel(sessionId, model);
+    writeCache(sessionId, { model });
+    broadcast("agent:remote-settings-changed", { sessionId, model, revision: readCache(sessionId)?.updatedAt });
     return { ok: true };
   }
 

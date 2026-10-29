@@ -570,16 +570,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, []);
 
   const [chatModel, setChatModel] = useState("");
-  // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
-  const [chatProvider, setChatProvider] = useState<string>("");
   // 恢复会话只有在缓存明确记录过选择时才向主进程传覆盖值；否则让 SDK 从 JSONL 恢复。
   const sessionModelOwnedRef = useRef(false);
   const sessionThinkingOwnedRef = useRef(false);
   // 最新值 ref：onChatSession 订阅闭包拿不到最新 state，补写缓存/判断时用 ref
   const chatModelRef = useRef("");
-  const chatProviderRef = useRef("");
   useEffect(() => { chatModelRef.current = chatModel; }, [chatModel]);
-  useEffect(() => { chatProviderRef.current = chatProvider; }, [chatProvider]);
   // 全局默认模型只初始化新会话；已有会话保持自己的 transcript/cache 状态。
   useEffect(() => {
     if (!existingSid && storeModel) setChatModel(storeModel);
@@ -1909,13 +1905,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 权限模式同样补写真实 sid（临时 sid 阶段切换只进了 state/临时缓存，主进程 canUseTool
         // 按真实 sid 读——不补写则重启后恢复不到、会话内切换也读不到）
         window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
-        // 会话级模型/供应商补写（同类缺口）：首条消息前选的模型只写进了 __new_xxx 临时 key，
+        // 会话级模型补写（同类缺口）：首条消息前选的模型只写进了 __new_xxx 临时 key，
         // 不补写则重启恢复会话时缓存读不到 → 回落全局默认模型，会话级模型绑定丢失
-        if (chatModelRef.current || chatProviderRef.current) {
-          const m: Record<string, unknown> = {};
-          if (chatModelRef.current) m.model = chatModelRef.current;
-          if (chatProviderRef.current) m.provider = chatProviderRef.current;
-          window.electronAPI.sessionCache.write(realSid, m).catch(() => {});
+        if (chatModelRef.current) {
+          window.electronAPI.sessionCache.write(realSid, { model: chatModelRef.current }).catch(() => {});
         }
         // 新会话重新跟随全局默认思考等级:"手动切过不再跟随"只限本会话生命周期,
         // 否则长驻 tab 实例一旦手动改过,设置里更新全局默认永远不生效。
@@ -1934,13 +1927,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           window.electronAPI.sessionCache.write(realSid, { thinkingLevel: pendingThinkingLevelRef.current }).catch(() => {});
           pendingThinkingLevelRef.current = null;
         }
-        // 补写权限模式与会话级模型/供应商（与分支 1 对齐，防 sidRef 为空路径的同类缺口）
+        // 补写权限模式与会话级模型（与分支 1 对齐，防 sidRef 为空路径的同类缺口）
         window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
-        if (chatModelRef.current || chatProviderRef.current) {
-          const m2: Record<string, unknown> = {};
-          if (chatModelRef.current) m2.model = chatModelRef.current;
-          if (chatProviderRef.current) m2.provider = chatProviderRef.current;
-          window.electronAPI.sessionCache.write(realSid, m2).catch(() => {});
+        if (chatModelRef.current) {
+          window.electronAPI.sessionCache.write(realSid, { model: chatModelRef.current }).catch(() => {});
         }
         if (userChangedThinkingRef.current && manualThinkingSidRef.current !== null && manualThinkingSidRef.current !== realSid) {
           userChangedThinkingRef.current = false;
@@ -1954,10 +1944,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
     // 主进程侧模型切换（skill frontmatter model 字段触发）→ 会话级显示跟随；
     // 只更新本会话 chatModel（触发既有 effect 写 session-cache 持久化），不动全局默认模型
-    const unsubModel = window.electronAPI.agent.onModelChanged(({ sessionId: modelSid, model, provider }) => {
+    const unsubModel = window.electronAPI.agent.onModelChanged(({ sessionId: modelSid, model }) => {
       if (sidRef.current && sidRef.current !== modelSid) return;
       if (!sidRef.current && existingSid && modelSid !== existingSid) return;
-      if (provider) { chatProviderRef.current = provider; setChatProvider(provider); }
       if (model) { chatModelRef.current = model; setChatModel((prev) => (model !== prev ? model : prev)); }
     });
     // 主进程回传实际生效的思考等级（切模型后 SDK 会按模型能力推导/clamp）→
@@ -2158,14 +2147,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           );
         }
         if (cache.model) setChatModel(cache.model);
-        if (cache.provider) setChatProvider(cache.provider);
-        // 历史缓存曾只写 model、不写 provider；半截身份不能安全覆盖 transcript。
-        if (cache.model && cache.provider) sessionModelOwnedRef.current = true;
+        // 缓存里记过模型 = 用户在本会话显式选过，允许覆盖 transcript 恢复出来的值
+        if (cache.model) sessionModelOwnedRef.current = true;
         if (cache.contextUsage !== null && cache.contextUsage > 0) pendingCtxRef.current = cache.contextUsage; // 暂存,消息加载完成后再应用
-        // 会话绑定的供应商(设置中切供应商时写入)→ 活跃会话热切应用;
-        // 未活跃时会话由重建分支用 preferredProvider 恢复,无需在此处理
-        if (cache.model && cache.provider) {
-          window.electronAPI.agent.setModel(existingSid, cache.model, cache.provider).catch(() => {});
+        // 会话的模型绑定在活跃会话上热切应用；供应商不再按会话区分（恒为全局 current，2026-10-29）
+        if (cache.model) {
+          window.electronAPI.agent.setModel(existingSid, cache.model).catch(() => {});
         }
         // 恢复本会话持久化的思考等级:标为"已选过",全局设置不再覆盖;并按模型能力自适应显示
         if (cache.thinkingLevel) {
@@ -2228,12 +2215,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   useEffect(() => {
     if (existingSid && (!permissionHydratedRef.current || !sessionModelOwnedRef.current)) return;
     if (sidRef.current && !sidRef.current.startsWith("__new_") && chatModel) {
-      // provider 一并持久化——读取端按 model+provider 恢复会话绑定供应商,此前 provider 从未写入导致恢复热切永不执行
-      const data: Record<string, unknown> = { model: chatModel };
-      if (chatProvider) data.provider = chatProvider;
-      window.electronAPI.sessionCache.write(sidRef.current, data).catch(() => {});
+      // 只持久化会话级模型：供应商恒为全局 current（2026-10-29），不再随会话记录
+      window.electronAPI.sessionCache.write(sidRef.current, { model: chatModel }).catch(() => {});
     }
-  }, [chatModel, chatProvider]);
+  }, [chatModel]);
 
   // ── Send ───────────────────────────────────────────
 
@@ -2408,10 +2393,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         modelOwned: sessionModelOwnedRef.current,
         thinkingOwned: sessionThinkingOwnedRef.current,
         model: chatModel || undefined,
-        provider: chatProvider || undefined,
         thinkingLevel: thinkingLevel ?? "medium",
       });
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, preferredProvider: overrides.provider, tabId });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
       pendingSend.resolvedSessionId = result.sessionId;
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
       if (needsDeferredStop(pendingSend)) {
@@ -2444,7 +2428,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 不说这一句的话用户只看到「发送失败」，不知道上下文已经被截断了
       if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: uiText("ui.ChatPanel.thisMessageHasLeftTheContextSelect"), afterRewind: true } : {}) });
     }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId, applyStopRewind]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatRole, tabId, applyStopRewind]);
 
   // ── 消息流错误卡片操作(3.5) ──────────────────────────
   const handleDismissError = useCallback((card: FlowErrorCard) => {

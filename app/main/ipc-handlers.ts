@@ -323,13 +323,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     if (!model) return null;
     return { name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens };
   });
-  ipcMain.handle("agent:setModel", (_e, { sessionId, model, provider }) => {
-    return agentService.setModel(sessionId, model, provider);
+  ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
+    return agentService.setModel(sessionId, model);
   });
-  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId }) => {
+  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId }) => {
     bindPiExtensionWindow(projectPath, event.sender.id);
     try {
-      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId);
+      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId);
       broadcast("agent:stream", {
         type: "user_message",
         sessionId: result.sessionId,

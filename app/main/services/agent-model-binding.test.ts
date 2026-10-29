@@ -20,9 +20,9 @@ describe("selected model identity binding", () => {
       setModel: vi.fn(async () => {}), thinkingLevel: "off", getAvailableThinkingLevels: () => ["off"], getContextUsage: () => ({ contextWindow: 10000, percent: 0, tokens: 0 }),
     } };
     (service as unknown as { activeChats: Map<string, typeof chat> }).activeChats.set("chat", chat);
-    await service.setModel("session", "new-model", "new-provider");
+    await service.setModel("session", "new-model");
     expect(chat.provider).toBe("new-provider"); expect(chat.currentModel).toBe("new-model");
-    expect(mocks.writeCache).toHaveBeenCalledWith("session", { provider: "new-provider", model: "new-model" });
+    expect(mocks.writeCache).toHaveBeenCalledWith("session", { model: "new-model" });
     expect(mocks.broadcast).toHaveBeenCalledWith("agent:model-changed", { sessionId: "session", provider: "new-provider", model: "new-model" });
   });
 });

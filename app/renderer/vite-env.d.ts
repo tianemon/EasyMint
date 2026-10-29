@@ -304,7 +304,7 @@ interface ElectronAPI {
     cancelFormAssist: (requestId: string) => Promise<void>;
     nativeAiModels: () => Promise<{ chat: Array<import("@shared/native-ai").ModelReference & { name: string }>; image: Array<import("@shared/native-ai").ModelReference & { name: string }> }>;
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     getDelegations: (sessionId: string) => Promise<DelegationSnapshotItem[]>;
@@ -336,7 +336,7 @@ interface ElectronAPI {
     contextImageStats: (sessionId: string, projectPath?: string) => Promise<{ ok: boolean; error?: string; candidates?: Array<{ entryId: string; imageCount: number; encodedBytes: number; preview: string; timestamp: number }>; encodedBytes?: number; maxRequestBytes?: number }>;
     removeContextImages: (sessionId: string, selectedEntryIds: string[], projectPath?: string) => Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>;
     prepareImageRetry: (sessionId: string, failedEntryId: string, selectedEntryIds: string[], omitCurrentImages: boolean, projectPath?: string) => Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>;
-    setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
+    setModel: (sessionId: string, model: string) => Promise<void>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
     busyState: (sessionId: string) => Promise<import("../shared/agent-status").AgentBusyState>;

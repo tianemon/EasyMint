@@ -1885,8 +1885,6 @@ export class AgentService {
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     thinkingLevel?: string,
     systemPayload?: SystemMessagePayload,
-    /** 兼容保留：供应商已统一为全局当前供应商（2026-10-29），此参数不再参与模型解析 */
-    _preferredProvider?: string,
     /** 前端发起发送的 tab id(透传回 chat-session 广播,前端精确绑定 tab,防多新 tab 错配) */
     tabId?: string,
   ): Promise<{ chatId: string; sessionId: string }> {
@@ -2127,7 +2125,7 @@ export class AgentService {
       // 显示并显式传递会话选择；首次恢复绝不能先用全局默认覆盖这两个值。
       if (resumeSessionId) {
         writeCache(resumeSessionId, {
-          ...(session.model ? { provider: session.model.provider, model: session.model.id } : {}),
+          ...(session.model ? { model: session.model.id } : {}),
           thinkingLevel: session.thinkingLevel,
         });
         if (session.model) {
@@ -2258,7 +2256,7 @@ export class AgentService {
     await chat.session!.setModel(model as any);
     chat.currentModel = modelName;
     chat.provider = model.provider;
-    writeCache(chat.sessionId, { provider: model.provider, model: modelName });
+    writeCache(chat.sessionId, { model: modelName });
     broadcast("agent:model-changed", { sessionId: chat.sessionId, model: modelName, provider: model.provider });
     // SDK 切模型时已按全局默认推导过等级(可能把 max 压成 off)。
     // 用本会话用户选过的等级恢复,并回传实际生效值
@@ -2469,16 +2467,15 @@ export class AgentService {
 
   /**
    * 切换会话模型——**只影响该会话**，不动全局默认模型（用户 2026-10-29 定）。
-   * 供应商恒为全局 current（`_providerId` 仅兼容旧调用）；模型在当前供应商下不存在时抛错，
-   * 由渲染层提示并回滚显示，不再静默失败。
+   * 供应商恒为全局 current；模型在当前供应商下不存在时抛错，由渲染层提示并回滚显示，不再静默失败。
    */
-  async setModel(sessionId: string, modelName: string, _providerId?: string): Promise<void> {
+  async setModel(sessionId: string, modelName: string): Promise<void> {
     const current = this.store.getSettings().apiProviders?.current ?? undefined;
     const model = await this.resolveModelByName(modelName, current);
     if (!model) throw new Error(`模型不可用：${modelName}，请检查供应商配置`);
     const chat = this.findActiveChat(sessionId);
     // 会话未激活（应用重启后还没建立 session）：写进缓存，下一次发送/恢复时按它解析
-    if (!chat?.session) { writeCache(sessionId, { model: modelName, ...(current ? { provider: current } : {}) }); return; }
+    if (!chat?.session) { writeCache(sessionId, { model: modelName }); return; }
     await this.applySessionModel(chat, model, modelName);
   }
 
@@ -2924,7 +2921,6 @@ export class AgentService {
       abortController: new AbortController(),
       projectPath,
       currentModel: cached?.model,
-      provider: cached?.provider,
       firstUserMessage: "",
       assistantUuid: randomUUID(),
       eventBuffer: [],

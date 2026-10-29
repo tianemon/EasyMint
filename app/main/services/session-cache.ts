@@ -18,9 +18,8 @@ const CACHE_DIR = path.join(emHome(), "session-cache");
 
 export interface SessionCache {
   permissionMode: string;
+  /** 会话级模型名（供应商恒为全局当前供应商，2026-10-29 起不再记录 provider） */
   model?: string;
-  /** 会话绑定的供应商 piId(需求 5:不同会话不同供应商) */
-  provider?: string;
   /** 本会话用户选过的思考等级——持久化后重开会话不再被全局设置覆盖 */
   thinkingLevel?: string;
   contextUsage: number | null;

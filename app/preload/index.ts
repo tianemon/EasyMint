@@ -330,7 +330,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     nativeAiModels: () => ipcRenderer.invoke("agent:nativeAiModels"),
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) =>
       ipcRenderer.invoke("agent:steer", { sessionId, text, images, tabId }),
@@ -378,7 +378,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     contextImageStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:contextImageStats", { sessionId, projectPath }) as Promise<{ ok: boolean; error?: string; candidates?: Array<{ entryId: string; imageCount: number; encodedBytes: number; preview: string; timestamp: number }>; encodedBytes?: number; maxRequestBytes?: number }>,
     removeContextImages: (sessionId: string, selectedEntryIds: string[], projectPath?: string) => ipcRenderer.invoke("agent:removeContextImages", { sessionId, selectedEntryIds, projectPath }) as Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>,
     prepareImageRetry: (sessionId: string, failedEntryId: string, selectedEntryIds: string[], omitCurrentImages: boolean, projectPath?: string) => ipcRenderer.invoke("agent:prepareImageRetry", { sessionId, failedEntryId, selectedEntryIds, omitCurrentImages, projectPath }) as Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>,
-    setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
+    setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
     busyState: (sessionId: string) => ipcRenderer.invoke("agent:busyState", { sessionId }) as Promise<import("../shared/agent-status").AgentBusyState>,
