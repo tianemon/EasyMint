@@ -165,6 +165,10 @@
 .subagent-flow-row, .subagent-ai-content { display: flex; flex-direction: column; gap: var(--chat-block-gap); }
 .subagent-output { display: flex; flex-direction: column; gap: var(--chat-block-gap); }
 .subagent-output > * { flex-shrink: 0; }
-.subagent-ai-content { margin-left: 44px; min-width: 0; }
+/* 正文与标题文字同起点：header 是「.msg-avatar(34px) + gap-3(0.75rem)」= 46px。
+   原来写死 44px（按 32+12 算的），实际头像基础尺寸是 34px（`.msg-assistant-identity`
+   里的 28px 只作用于主会话身份行，弹层 header 不含该类），正文比标题左偏 2px。
+   间距用 0.75rem 与 header 的 `gap-3` 同源，不引入第二套变量。 */
+.subagent-ai-content { margin-left: calc(34px + 0.75rem); min-width: 0; }
 .subagent-ai-content .execution-time-heading { margin-inline: 0; width: 100%; }
 .subagent-ai-content > .statusbar { margin-inline: 0; padding-inline: 0; }
