@@ -1061,11 +1061,13 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                       <Toggle checked={s.enabled} onChange={(v) => handleToggle(s.name, v)} />
                     </div>
                   </div>
-                  {statuses[s.name]?.error && (
-                    <p className="text-[length:var(--text-3xs)] text-danger mt-1 break-all">
-                      {appText(statuses[s.name]?.error)}
-                    </p>
-                  )}
+                  {(() => {
+                    // 名称下方红字：异常态给原因/下一步（错误为空也要给一句，否则用户只看到右上角红点）
+                    const detail = mcpIssueDetail(statuses[s.name], s.enabled, s.pendingApproval);
+                    return detail ? (
+                      <p className="text-[length:var(--text-3xs)] text-danger mt-1 break-all">{detail}</p>
+                    ) : null;
+                  })()}
                   {Object.keys(requiredKeys[s.name] ?? {}).length > 0 && (
                     <p className="text-[length:var(--text-3xs)] text-text-muted mt-1">
                       {uiText("ui.PluginsTab.requiredKeys")}{Object.keys(requiredKeys[s.name] ?? {}).join("、")}
@@ -1143,6 +1145,27 @@ function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
 }
 
 /** 插件设置:Skills / MCP / Pi 扩展（projectPath = 窗口内当前打开的项目路径） */
+/**
+ * MCP 服务器名称下方那行红字：只在「用户需要处理」的异常态给出，正常/禁用/待批准返回空。
+ *
+ * 设计口径（2026-10-29 用户定）：MCP 出问题不在聊天里打扰用户，全部收敛到 MCP 配置页——
+ * 名称右侧是状态徽章，名称下方这行给原因/下一步。主进程给了脱敏原因就直接显示，
+ * 没给就按状态说一句可执行的话（去右侧点重试 / 去登录）。
+ * 抽成纯函数便于单测，组件里只是把它塞进一行 <p>。
+ */
+export function mcpIssueDetail(
+  status: { state: string; error?: string } | undefined,
+  enabled: boolean,
+  pendingApproval = false,
+): string {
+  if (!enabled || pendingApproval || !status) return "";
+  if (status.error) return appText(status.error);
+  if (status.state === "failed") return uiText("ui.PluginsTab.mcpFailedNoDetail");
+  if (status.state === "needs-auth") return uiText("ui.PluginsTab.mcpNeedsAuthDetail");
+  if (status.state === "disconnected") return uiText("ui.PluginsTab.mcpDisconnectedDetail");
+  return "";
+}
+
 export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   useUiLocale();
   const [tab, setTab] = useState<"skills" | "mcp" | "extensions">("skills");
