@@ -346,8 +346,8 @@ interface ElectronAPI {
     getPiProviderInfo: (providerName: string) => Promise<{ name: string; baseUrl?: string; apis: string[] } | null>;
     getThinkingLevels: (sessionId: string) => Promise<{ level?: string; available?: string[] } | null>;
     getModelThinkingSupport: (modelId: string) => Promise<string[] | null>;
-    /** 按模型 id（含自添加/官方）查模型定义：providerId 缺省用激活供应商 */
-    getModelInfo: (modelId: string, providerId?: string) => Promise<{ name: string; contextWindow: number; maxTokens: number } | null>;
+    /** 按模型 id（含自添加/官方）查模型定义：恒用全局当前供应商 */
+    getModelInfo: (modelId: string) => Promise<{ name: string; contextWindow: number; maxTokens: number } | null>;
     sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     killChat: (chatId: string) => Promise<void>;
