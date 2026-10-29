@@ -48,9 +48,28 @@ it("renders each conclusion between separate process controls and retains expans
   await act(async () => controls()[0]!.click());
   expect(controls()[0]!.getAttribute("aria-expanded")).toBe("true");
   expect(container.querySelector<HTMLDivElement>(".execution-process-viewport")?.hidden).toBe(false);
-  expect(container.querySelector(".execution-process-record summary")?.textContent).toContain("思考过程");
+  expect(container.textContent).toContain("first reasoning");
+  expect(container.querySelector(".execution-process-record")).toBeNull();
+  expect(container.querySelector(".execution-process-toggle svg path")?.getAttribute("d")).toBe("M12 18V5");
   await render([...entries.slice(0, -1), { ...entries.at(-1)!, text: "Second conclusion grows" } as StreamEntry]);
   expect(controls()[0]!.getAttribute("aria-expanded")).toBe("true");
   expect(controls()[1]!.getAttribute("aria-expanded")).toBe("false");
   expect(container.textContent).toContain("Second conclusion grows");
+});
+
+it("summarizes thoughts and tools between prose, without putting another thinking toggle inside its details", async () => {
+  const thought: StreamEntry = {kind:"thinking",text:"mixed reasoning",timestamp:0};
+  const call: StreamEntry = {kind:"tool_use",id:"read",name:"read",input:{path:"/project/file.ts"},timestamp:1,collapsed:true};
+  const result: StreamEntry = {kind:"tool_result",toolUseId:"read",content:"file",isError:false,timestamp:2};
+  await render([thought]);
+  await act(async()=>container.querySelector<HTMLButtonElement>(".execution-process-toggle")!.click());
+  expect(container.textContent).toContain("mixed reasoning");
+  // New tool activity grows the same segment; an opened thought remains readable.
+  await render([thought,call,result]);
+  expect(container.querySelector(".execution-process-toggle")?.textContent).toContain("思考过程、读取文件");
+  expect(container.querySelectorAll(".execution-process-toggle")).toHaveLength(1);
+  expect(container.querySelectorAll(".execution-process-record")).toHaveLength(2);
+  expect(container.querySelector<HTMLDetailsElement>(".execution-process-record")?.open).toBe(true);
+  expect(container.textContent).toContain("mixed reasoning");
+  expect(container.querySelector(".execution-process-detail button")).toBeNull();
 });

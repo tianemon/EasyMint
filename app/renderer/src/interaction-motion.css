@@ -154,3 +154,4 @@
 
 /* The elapsed-time transcript already owns the message inset. */
 .execution-transcript .msg-system-row { padding-inline: 0; }
+.execution-process-toggle[data-state="failed"] { color: var(--color-danger); }
