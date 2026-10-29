@@ -134,6 +134,17 @@ export function answerPiExtensionPrompt(senderId: number, id: string, value: str
   item.done(value);
 }
 
+/**
+ * MCP 连不上时的「MCP servers need attention … Run /mcp to fix.」不进聊天界面。
+ *
+ * 这条来自 pi 的 reportProblems()，走 `ui.notify(..., "warning")`；EM 的 notify 会把它翻成
+ * 一条 toast。MCP 起不来属于配置/依赖问题，但每次新会话首次发消息都弹一次会直接打断对话
+ * （用户 2026-10-29 要求去掉，只在环境/设置里排查）。这里吞掉、保留主进程日志；
+ * 两个文案特征任一命中即算，pi 只改其中一半也漏不掉。
+ */
+const isMcpAttentionNotice = (message: string): boolean =>
+  /MCP servers need attention/i.test(message) || /Run \/mcp to fix\./i.test(message);
+
 export function createPiExtensionUi(projectPath?: string): ExtensionUIContext {
   const ui = {
     select: async (title: string, options: string[]) => {
@@ -146,6 +157,10 @@ export function createPiExtensionUi(projectPath?: string): ExtensionUIContext {
       return typeof value === "string" ? value : undefined;
     },
     notify: (message: string, type: "info" | "warning" | "error" = "info") => {
+      if (isMcpAttentionNotice(message)) {
+        console.warn("[pi-extension] MCP 状态提醒已静默（设置 → 插件里可查/重试）：", message.replace(/\s+/g, " ").slice(0, 240));
+        return;
+      }
       const win = targetWindow(projectPath);
       if (win && !win.webContents.isDestroyed()) win.webContents.send("pi-extension:notice", { message, type });
     },

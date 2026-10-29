@@ -11,7 +11,7 @@ interface MockWindow {
 }
 
 const windows: MockWindow[] = [];
-const sent: Array<{ senderId: number; channel: string; id?: string; kind?: string; title?: string }> = [];
+const sent: Array<{ senderId: number; channel: string; id?: string; kind?: string; title?: string; message?: string; type?: string }> = [];
 
 function makeWindow(senderId: number, url: string): MockWindow {
   const win: MockWindow = { senderId, url, destroyed: false, listeners: new Map() };
@@ -28,7 +28,7 @@ function electronWindow(win: MockWindow) {
     id: win.senderId,
     isDestroyed: () => win.destroyed,
     getURL: () => win.url,
-    send: (channel: string, payload: { id?: string; kind?: string; title?: string }) =>
+    send: (channel: string, payload: { id?: string; kind?: string; title?: string; message?: string; type?: string }) =>
       sent.push({ senderId: win.senderId, channel, ...payload }),
     on: (channel: string, listener: Listener) => {
       win.listeners.set(channel, [...(win.listeners.get(channel) ?? []), listener]);
@@ -163,5 +163,20 @@ describe("Pi extension UI bridge", () => {
     win.url = projectUrl("proj-b");
     await expect(createPiExtensionUi("/tmp/pi-project-a").confirm("Approve?", "msg")).resolves.toBe(false);
     expect(sent.some((item) => item.channel === "pi-extension:prompt")).toBe(false);
+  });
+
+  it("silences MCP attention notices so they never become chat toasts", () => {
+    makeWindow(7, projectUrl("proj-mcp"));
+    bindPiExtensionWindow("/tmp/pi-project-mcp", 7);
+    const ui = createPiExtensionUi("/tmp/pi-project-mcp");
+    const warning = "MCP servers need attention:\n  codegraph: failed: MCP connection closed\nRun /mcp to fix.";
+    ui.notify(warning, "warning");
+    expect(sent).toHaveLength(0);
+    // pi 只改其中一半文案时同样静默（两个特征任一命中）
+    ui.notify("note\nRun /mcp to fix.", "warning");
+    expect(sent).toHaveLength(0);
+    // 其它通知照旧送达
+    ui.notify("插件已加载", "info");
+    expect(sent.at(-1)).toMatchObject({ senderId: 7, channel: "pi-extension:notice", message: "插件已加载", type: "info" });
   });
 });
