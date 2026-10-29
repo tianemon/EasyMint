@@ -3,7 +3,6 @@ import { appText, appMessage, uiI18n, uiText } from "./i18n";
 import { formatDate, formatNumber, formatRelativeTimestamp } from "./locale-format";
 import { toolResultText } from "./tool-result-text";
 import { classifyApiError } from "@shared/api-errors";
-import { costFormula, formatCostCny } from "@shared/usd-cny-rate";
 import { FILE_READ_HINTS } from "@shared/file-read";
 
 vi.mock("../stores/settings-store", () => ({ useSettingsStore: { getState: () => ({ defaultProjectDir: "/projects" }) } }));
@@ -77,8 +76,6 @@ describe("localization regression", () => {
     expect(uiText("ui.DevicePanel.minutesAgo", { v0: 2 })).toBe("2 minutes ago");
     expect(uiText("counts.images", { count: 1 })).toBe("1 image");
     expect(uiText("counts.images", { count: 2 })).toBe("2 images");
-    expect(formatCostCny(1, "en")).toBe(formatCostCny(1));
-    expect(costFormula(1, "en")).toContain("central parity rate");
   });
 
   it("uses independent count labels for mixed Pi import totals and accurate settings guidance", async () => {

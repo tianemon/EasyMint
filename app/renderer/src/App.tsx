@@ -12,12 +12,16 @@ import { ConfirmHost } from "./components/ui/ConfirmDialog";
 import { ToastHost, toast } from "./components/ui/Toast";
 import { PiExtensionPromptHost } from "./components/settings/PiExtensionPromptHost";
 import { useSettingsStore } from "./stores/settings-store";
+import { shouldToastExtensionError } from "./lib/pi-extension-error";
 import { useTabStore, type Tab } from "./stores/tab-store";
 import { useDelegationStore } from "./stores/delegation-store";
 
 export function App(): JSX.Element {
   useUiLocale();
   useEffect(() => window.electronAPI.piExtension.onError((error) => {
+    // 初始化阶段的扩展失败（加载/注册）每个会话都会重报一次，属于后台状态：只进「设置 → 插件 → 扩展」
+    // 的红字，不在聊天里弹（MCP 提醒同一口径）。运行期钩子的失败仍然照弹。
+    if (!shouldToastExtensionError(error.event)) return;
     toast(uiText("ui.App.piExtensionError", { v0: error.event, v1: appMessage(error.error) }));
   }), []);
   useEffect(() => window.electronAPI.piExtension.onNotice((notice) => toast(notice.message)), []);
