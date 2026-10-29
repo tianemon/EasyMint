@@ -116,14 +116,14 @@ const SystemMarkdown = memo(function SystemMarkdown({ content }: { content: stri
 });
 
 /** 档位 → 语义色。类名必须是完整字面量(Tailwind 扫描不到拼接类名)。 */
-const ERROR_TONE_STYLE: Record<ErrorTone, { border: string; icon: string }> = {
-  warn: { border: "border-warning-border", icon: "text-warning" },
-  error: { border: "border-danger-border", icon: "text-danger" },
+const ERROR_TONE_STYLE: Record<ErrorTone, { icon: string }> = {
+  warn: { icon: "text-warning" },
+  error: { icon: "text-danger" },
 };
 
-/** 消息流内持久错误卡片(3.5):中性底 + 语义色描边与图标 + 重试(可重试时)/关闭。
- *  底色不带语义色、按钮不给语义色——整块红底与红按钮是「扎眼」的来源;错误条保留
- *  danger 描边是 UI 元素库的既有约定(语义辨识),故只收掉底色与按钮两处。
+/** 消息流内持久错误卡片(3.5):灰白底 + 语义色图标 + 重试(可重试时)/关闭。
+ *  2026-10-29 用户定：卡片不描边、底色用灰白（surface-alt）而不是语义色；重试/清理按钮是
+ *  深灰无边框按钮（surface 底 + 主文字色，与工具栏按钮同款），只有图标保留语义色。
  *  悬停显完整文案(长错误信息不撑破气泡)。 */
 function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
   card: FlowErrorCard;
@@ -136,7 +136,7 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
   const tone = ERROR_TONE_STYLE[card.tone ?? "error"];
   return (
     <div
-      className={`flex items-start gap-2 rounded-[var(--radius-lg)] border ${tone.border} bg-surface-elevated px-3 py-1.5 w-fit max-w-full`}
+      className={`flex items-start gap-2 rounded-[var(--radius-lg)] bg-surface-alt px-3 py-1.5 w-fit max-w-full`}
       title={card.hint ? `${appText(card.message)}\n${appText(card.hint)}` : appText(card.message)}
     >
       {/* 警示三角(三角形路径,16 网格) */}
@@ -155,12 +155,12 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
         <button
           type="button"
           onClick={() => onRetry(card)}
-          className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
+          className="shrink-0 rounded-[var(--radius-lg)] bg-surface px-2 py-0.5 font-medium text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
           style={{ fontSize: "var(--text-detail)" }}
         >{uiText("ui.ChatPanel.retry")}</button>
       )}
       {card.errorKind === "request_too_large" && card.sourceMsgId != null && (
-        <button type="button" onClick={() => onRecoverImages(card)} className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer" style={{ fontSize: "var(--text-detail)" }}>{uiText("ui.ChatPanel.cleanUpImages")}</button>
+        <button type="button" onClick={() => onRecoverImages(card)} className="shrink-0 rounded-[var(--radius-lg)] bg-surface px-2 py-0.5 font-medium text-text-primary hover:bg-surface-hover transition-colors cursor-pointer" style={{ fontSize: "var(--text-detail)" }}>{uiText("ui.ChatPanel.cleanUpImages")}</button>
       )}
       <button
         type="button"
@@ -201,6 +201,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [imageRecovery, setImageRecovery] = useState<({ mode: "retry"; card: FlowErrorCard; candidates: ContextImageEntry[]; currentImageCount: number } | { mode: "manage"; candidates: ContextImageEntry[] }) | null>(null);
   const [contextImageBytes, setContextImageBytes] = useState(0);
   const [contextImageWarnAt, setContextImageWarnAt] = useState(32 * 1024 * 1024);
+  /** 大图片提示是常驻条，用户手动关掉后本会话不再出现 */
+  const [imageWarnDismissed, setImageWarnDismissed] = useState(false);
   const errorsByAnchor = useMemo(() => {
     const m = new Map<number, FlowErrorCard[]>();
     for (const c of sessionErrors) {
@@ -2812,11 +2814,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       <TodoStrip sessionId={sidRef.current} />
       {/* 打断丢弃插话的提示——紧贴输入卡：「我刚发出去那条到底发没发出去」与输入动作同一视线区域 */}
       <DroppedSteerNotice dropped={droppedQueue} />
-      {contextImageBytes + pendingImageBytes >= contextImageWarnAt && !busy && (
+      {contextImageBytes + pendingImageBytes >= contextImageWarnAt && !busy && !imageWarnDismissed && (
         <div className="mx-[var(--chat-content-inset)] mb-2 px-3 py-2 rounded-[var(--radius-lg)] border border-warning-border bg-surface-elevated text-xs text-text-secondary flex items-center justify-between gap-3">
           <span>
             {uiText("ui.ChatPanel.largeImagePayload")}{contextImageBytes > 0 ? uiText("ui.ChatPanel.aboutMbInHistory", { v0: (contextImageBytes / (1024 * 1024)).toFixed(1) }) : ""}{pendingImageBytes > 0 ? uiText("ui.ChatPanel.aboutMbOfNewlyEncodedImages", { v0: (pendingImageBytes / (1024 * 1024)).toFixed(1) }) : ""}{uiText("ui.ChatPanel.newImagesWillBeResizedButThe")}</span>
-          {contextImageBytes > 0 && <button type="button" className="shrink-0 text-text-primary underline cursor-pointer" onClick={() => { void manageContextImages(); }}>{uiText("ui.ChatPanel.cleanUpHistoricalImages")}</button>}
+          <span className="flex shrink-0 items-center gap-2">
+            {contextImageBytes > 0 && <button type="button" className="text-text-primary underline cursor-pointer" onClick={() => { void manageContextImages(); }}>{uiText("ui.ChatPanel.cleanUpHistoricalImages")}</button>}
+            {/* 手动关闭：这是常驻提示，用户看过一次就该能收起（本会话内不再出现） */}
+            <button type="button" onClick={() => setImageWarnDismissed(true)} title={uiText("common.close")} aria-label={uiText("common.close")}
+              className="p-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M3 3l10 10M13 3L3 13" />
+              </svg>
+            </button>
+          </span>
         </div>
       )}
       <ChatInput

@@ -307,7 +307,7 @@
   "ui.CompactionDialog.secondsUntilAutomaticCompaction": " seconds until automatic compaction",
   "ui.CompactionDialog.automaticCompactionPaused": "Automatic compaction paused",
   "ui.CompactionDialog.noStartANewSessionAndWrite": "No, start a new session and write a handoff prompt",
-  "ui.CompactionDialog.noCompactAfterMintSNextResponse": "No, compact after Mint’s next response",
+  "ui.CompactionDialog.noCompactAfterMintSNextResponse": "Remind me later",
   "ui.CompactionDialog.instructionsHighlightWhatToRetainTheEngine": "Instructions highlight what to retain. The engine fixes the summary structure.",
   "ui.CompactionDialog.eGRetainDatabaseSchemaChanges": "e.g. Retain database schema changes",
   "ui.CompactionDialog.yesWithInstructions": "Yes, with instructions",

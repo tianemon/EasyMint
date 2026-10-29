@@ -307,7 +307,7 @@
   "ui.CompactionDialog.secondsUntilAutomaticCompaction": " 秒后自动压缩",
   "ui.CompactionDialog.automaticCompactionPaused": "已暂停自动压缩",
   "ui.CompactionDialog.noStartANewSessionAndWrite": "否，开启新会话，帮我写交接提示词",
-  "ui.CompactionDialog.noCompactAfterMintSNextResponse": "否，Mint 下次回复完触发",
+  "ui.CompactionDialog.noCompactAfterMintSNextResponse": "稍后再提醒",
   "ui.CompactionDialog.instructionsHighlightWhatToRetainTheEngine": "指令只用于强调要保留的信息（摘要的段落结构由引擎固定，不能改）。",
   "ui.CompactionDialog.eGRetainDatabaseSchemaChanges": "例如：保留数据库 schema 变更",
   "ui.CompactionDialog.yesWithInstructions": "是，输入指令",
