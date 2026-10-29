@@ -261,6 +261,7 @@
   "ui.ChatPanel.failedTryAgain": "{{v0}} failed. Try again.",
   "ui.ChatPanel.restoreToContext": "Restore to context",
   "ui.ChatPanel.removeFromContext": "Remove from context",
+  "ui.ChatPanel.modelSwitchFailed": "Could not switch to {{v0}}: {{v1}}",
   "ui.ChatPanel.resendThisMessage": "Resend this message?",
   "ui.ChatPanel.laterResponsesSystemCardsAndDelegatedResults": "Later responses, system cards, and delegated results will be regenerated.",
   "ui.ChatPanel.resend": "Resend",

@@ -261,6 +261,7 @@
   "ui.ChatPanel.failedTryAgain": "{{v0}}失败，请重试",
   "ui.ChatPanel.restoreToContext": "恢复进上下文",
   "ui.ChatPanel.removeFromContext": "移出上下文",
+  "ui.ChatPanel.modelSwitchFailed": "无法切换到 {{v0}}：{{v1}}",
   "ui.ChatPanel.resendThisMessage": "重新发送这条消息？",
   "ui.ChatPanel.laterResponsesSystemCardsAndDelegatedResults": "这条消息之后的回答、系统卡片与委派结果会一并重来。",
   "ui.ChatPanel.resend": "重新发送",

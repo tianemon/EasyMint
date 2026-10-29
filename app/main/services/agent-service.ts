@@ -714,21 +714,25 @@ export class AgentService {
     return path.join(emHome(), "agent");
   }
 
-  private async getModel(store: Store, preferredProvider?: string, preferredModel?: string): Promise<Model<any> | null> {
-    // 会话指定模型 → 按名解析(指定供应商优先,缺省用全局 current)——原实现要求
-    // preferredProvider+preferredModel 同时存在,否则直接回落默认模型,前端选的模型被忽略
+  /**
+   * 解析会话要用的模型对象。
+   *
+   * **供应商恒由全局当前供应商决定**（用户 2026-10-29 定：切供应商对全部会话生效，会话不再
+   * 自己绑定供应商）；`preferredModel` 只表达「这个会话用哪个模型」。模型在当前供应商下解析
+   * 不到时退回它的默认模型——绝不跨供应商回落，否则请求会静默发到另一个供应商。
+   */
+  private async getModel(store: Store, preferredModel?: string): Promise<Model<any> | null> {
+    const providers = store.getSettings().apiProviders;
+    const current = providers?.current ?? undefined;
+    const currentModel = current ? providers?.configs?.[current]?.model : undefined;
     if (preferredModel) {
-      const m = await this.resolveModelByName(preferredModel, preferredProvider);
+      const m = await this.resolveModelByName(preferredModel, current);
       if (m) return m;
-      // 指定模型解析不到(配置里删掉了/改了模型列表)→ 退回该会话绑定供应商的默认模型,
-      // 不再跳到全局当前供应商的默认模型(跨供应商静默切换会把请求发到别的供应商)
-      const boundId = preferredProvider ?? store.getSettings().apiProviders?.current ?? undefined;
-      const boundCfg = boundId ? store.getSettings().apiProviders?.configs?.[boundId] : undefined;
-      if (boundId && boundCfg?.model) {
-        const dm = await this.resolveModelByName(boundCfg.model, boundId);
-        if (dm) {
-          console.warn(`[agent] 模型 ${preferredModel} 不可用，回落到绑定供应商默认模型 ${boundCfg.model}`);
-          return dm;
+      if (current && currentModel) {
+        const fallback = await this.resolveModelByName(currentModel, current);
+        if (fallback) {
+          console.warn(`[agent] 模型 ${preferredModel} 在当前供应商 ${current} 下不可用，回落到默认模型 ${currentModel}`);
+          return fallback;
         }
       }
     }
@@ -1881,8 +1885,8 @@ export class AgentService {
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     thinkingLevel?: string,
     systemPayload?: SystemMessagePayload,
-    /** 会话指定供应商(需求 5:不同会话不同供应商;与 model 搭配创建会话) */
-    preferredProvider?: string,
+    /** 兼容保留：供应商已统一为全局当前供应商（2026-10-29），此参数不再参与模型解析 */
+    _preferredProvider?: string,
     /** 前端发起发送的 tab id(透传回 chat-session 广播,前端精确绑定 tab,防多新 tab 错配) */
     tabId?: string,
   ): Promise<{ chatId: string; sessionId: string }> {
@@ -1934,6 +1938,9 @@ export class AgentService {
           this.activeChats.delete(existing.chatId);
           console.log(`[agent] 丢弃按需激活的会话 ${existing.chatId}，按完整配置重建`);
         } else if (existing && existing.session) {
+          // 供应商统一到全局 current（2026-10-29）：复用的会话若还绑着旧供应商（切供应商时它正在输出、
+          // 或当时新供应商没有可回退的模型），发消息前必须纠正——否则请求会静默打到旧供应商
+          await this.rebindToCurrentProvider(existing);
           // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
           // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
           if (thinkingLevel) {
@@ -1954,9 +1961,14 @@ export class AgentService {
 
       // 新会话
       const chatId = `chat-${++this.chatCounter}`;
-      const piModel = await this.getModel(this.store, preferredProvider, model);
-      if (!piModel && !resumeSessionId) {
-        throw new Error("未配置 AI 模型，请在设置中配置 API");
+      // 恢复旧会话时优先用它自己记过的模型名（cache），在当前供应商下解析；
+      // 没有记录就用当前供应商的默认模型——供应商始终跟随全局，见 getModel 注释
+      const cachedModel = resumeSessionId ? readCache(resumeSessionId)?.model : undefined;
+      const piModel = await this.getModel(this.store, model ?? cachedModel);
+      // 恢复旧会话也一样要解析到模型：解析不到就不能拿 JSONL 里的旧模型顶上——
+      // 那是旧供应商的模型，会把请求发回去（供应商已统一为全局 current）
+      if (!piModel) {
+        throw new Error(resumeSessionId ? "当前供应商没有可用模型，请在设置里配置" : "未配置 AI 模型，请在设置中配置 API");
       }
 
       // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
@@ -2008,7 +2020,8 @@ export class AgentService {
               return resumePiSession({
                 cwd: resolvedPath,
                 agentDir: this.getAgentDir(),
-                model: model ? piModel ?? undefined : undefined,
+                // 总是按当前供应商解析（JSONL 里记的是旧供应商/旧模型，直接沿用会把请求发回去）
+                model: piModel ?? undefined,
                 thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
                 store: this.store,
                 resumeSessionFile: info.path,
@@ -2118,7 +2131,8 @@ export class AgentService {
           thinkingLevel: session.thinkingLevel,
         });
         if (session.model) {
-          broadcast("agent:model-changed", { sessionId: resumeSessionId, model: session.model.id });
+          // 必须带上 provider：恢复时会按当前供应商重解析模型，UI 的供应商显示要一起跟上
+          broadcast("agent:model-changed", { sessionId: resumeSessionId, provider: session.model.provider, model: session.model.id });
         }
         this.broadcastThinkingLevel(chat);
       }
@@ -2295,16 +2309,19 @@ export class AgentService {
     const activeId = providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
     const fallbackModel = activeCfg?.model ?? "";
-    const fallbackProvider = activeId ?? undefined;
 
     for (const [, chat] of this.activeChats) {
       const modelName = chat.currentModel || fallbackModel;
-      const providerId = chat.provider || fallbackProvider;
+      // 供应商恒为全局 current：切供应商要让**全部会话**跟着走（2026-10-29 定），
+      // 不再用会话自己绑定的 provider（那会让旧会话继续打旧供应商）
+      const providerId = activeId ?? undefined;
       if (!modelName) {
         console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（无模型可解析）`);
         continue;
       }
       let model = await this.resolveModelByName(modelName, providerId);
+      // 会话原模型在新供应商里不存在（切了供应商）→ 用新供应商的默认模型，而不是保留旧模型
+      if (!model && fallbackModel && modelName !== fallbackModel) model = await this.resolveModelByName(fallbackModel, providerId);
       if (!model && modelName === AUTO_MODEL_ID) model = await getActiveModel(this.store);
       if (!model) {
         console.log(`[agent] 刷新会话模型失败: 运行时查不到 ${modelName}`);
@@ -2323,8 +2340,10 @@ export class AgentService {
         this._deferredRefreshNeeded = true;
         continue;
       }
-      console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${modelName} 窗口=${model.contextWindow}`);
-      await this.applySessionModel(chat, model, modelName === AUTO_MODEL_ID ? model.id : modelName);
+      // 落盘/广播一律用**实际解析到的模型 id**：切供应商后旧模型名解析不到、落到新供应商默认模型时，
+      // 若仍写旧名，界面会显示 gpt 而请求实际是 deepseek-chat（正是要修的那类不一致）
+      console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${model.id} 窗口=${model.contextWindow}`);
+      await this.applySessionModel(chat, model, model.id);
     }
   }
 
@@ -2432,12 +2451,34 @@ export class AgentService {
     } catch { return null; }
   }
 
-  async setModel(sessionId: string, modelName: string, providerId?: string): Promise<void> {
-    const chat = this.findActiveChat(sessionId);
-    if (!chat?.session) return;
-    // Runtime checks native file revisions before resolving the requested model.
-    const model = await this.resolveModelByName(modelName, providerId);
+  /**
+   * 供应商统一到全局 current 的兜底：会话仍绑着别的供应商时按当前供应商重绑。
+   *
+   * 切供应商触发的 refreshActiveSessionsModel 会跳过「正在输出」的会话，新供应商没有可回退模型时
+   * 也会跳过；这些会话下一次发消息前必须过这里，否则请求仍会打到旧供应商（2026-10-29 定的规则）。
+   */
+  private async rebindToCurrentProvider(chat: ActiveChat): Promise<void> {
+    const current = this.store.getSettings().apiProviders?.current ?? undefined;
+    const bound = (chat.session as unknown as { model?: { provider?: string } } | null)?.model?.provider;
+    if (!current || !bound || bound === current) return;
+    const model = await this.getModel(this.store, chat.currentModel);
+    if (!model) throw new Error(`当前供应商 ${current} 没有可用模型，请先在设置里配置`);
+    await this.applySessionModel(chat, model, model.id);
+    console.log(`[agent] 重绑会话 ${chat.chatId}：${bound} → ${current}/${model.id}`);
+  }
+
+  /**
+   * 切换会话模型——**只影响该会话**，不动全局默认模型（用户 2026-10-29 定）。
+   * 供应商恒为全局 current（`_providerId` 仅兼容旧调用）；模型在当前供应商下不存在时抛错，
+   * 由渲染层提示并回滚显示，不再静默失败。
+   */
+  async setModel(sessionId: string, modelName: string, _providerId?: string): Promise<void> {
+    const current = this.store.getSettings().apiProviders?.current ?? undefined;
+    const model = await this.resolveModelByName(modelName, current);
     if (!model) throw new Error(`模型不可用：${modelName}，请检查供应商配置`);
+    const chat = this.findActiveChat(sessionId);
+    // 会话未激活（应用重启后还没建立 session）：写进缓存，下一次发送/恢复时按它解析
+    if (!chat?.session) { writeCache(sessionId, { model: modelName, ...(current ? { provider: current } : {}) }); return; }
     await this.applySessionModel(chat, model, modelName);
   }
 
@@ -2863,7 +2904,7 @@ export class AgentService {
       return null;
     }
     const cached = readCache(sessionId);
-    const piModel = await this.getModel(this.store, cached?.provider, cached?.model);
+    const piModel = await this.getModel(this.store, cached?.model);
     // 历史编辑操作（撤回/移出上下文）不应因原供应商已删除而无法打开会话。
     // SDK 的 summarize:false 树导航可在无模型会话上运行；真正重发时再由 sendMessage 校验模型。
     const session = await resumePiSession({

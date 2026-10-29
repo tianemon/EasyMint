@@ -9,6 +9,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, mem
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AttachItem, ChatMessage, PendingUserBubble, displayCompactionSummary, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
+import { toast } from "./ui/Toast";
 import { confirmFullAccess } from "./permission-confirmation";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
 import { sessionOverrides } from "@shared/session-resume-policy";
@@ -278,7 +279,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 而 sidRef 还是 __new_xxx——ask 等按会话过滤的订阅在此窗口放行，避免提问卡片丢失
   const pendingFirstTurnRef = useRef(false);
   const storeModel = useSettingsStore((s) => s.model);
-  const setStoreModel = useSettingsStore((s) => s.setModel);
   // 全局聊天思考等级:仅作为新会话的初始默认(方案 B,聊天下拉可临时改)
   const globalThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
   const [thinkingLevel, setThinkingLevel] = useState(globalThinkingLevel || "medium");
@@ -585,13 +585,24 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (!existingSid && storeModel) setChatModel(storeModel);
   }, [storeModel, existingSid]);
 
+  /**
+   * 切换本会话模型：**不动全局默认模型**（用户 2026-10-29 定：只有切供应商才影响全部会话）。
+   * 主进程解析失败时回滚显示并说明原因——此前 `.catch(() => {})` 吞掉异常，
+   * 界面显示新模型、实际请求还走旧模型（Codex 额度耗尽才被发现的那个问题）。
+   */
   const handleModelChange = useCallback(async (m: string) => {
-    sessionModelOwnedRef.current = true;
-    setChatModel(m); setStoreModel(m);
+    const previous = chatModelRef.current;
+    setChatModel(m);
     const sid = sidRef.current;
-    // 带上会话绑定供应商——否则按全局当前供应商解析，绑定供应商不同时模型解析不到、切换静默丢失
-    if (sid) { window.electronAPI.agent.setModel(sid, m, chatProvider || undefined).catch(() => {}); }
-  }, [setStoreModel, chatProvider]);
+    if (!sid) { sessionModelOwnedRef.current = true; return; }
+    try {
+      await window.electronAPI.agent.setModel(sid, m);
+      sessionModelOwnedRef.current = true;
+    } catch (e) {
+      setChatModel(previous);
+      toast(uiText("ui.ChatPanel.modelSwitchFailed", { v0: m, v1: e instanceof Error ? e.message : String(e) }));
+    }
+  }, []);
 
   /** 标准/只读 → 完全访问时说明风险并确认；切回或切到只读直接生效。模式会持久化为全局默认。 */
   const handlePermissionModeChange = useCallback(async (mode: PermissionMode) => {
