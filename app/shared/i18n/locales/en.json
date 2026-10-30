@@ -912,7 +912,7 @@
   "ui.PluginsTab.allowAiToManageSkills": "Allow AI to manage skills",
   "ui.PluginsTab.mintCanCreateAndUpdateAiManaged": "Mint can create and update AI-managed skills with manage_skill. Applies to new sessions; disabled by default.",
   "ui.PluginsTab.allowAiToRetainExperience": "Allow AI to retain experience",
-  "ui.PluginsTab.mintCanSaveUsefulLessonsAfterTasks": "Mint can save useful lessons after tasks and search past experience. Entries can be edited or deleted. Applies to new sessions; disabled by default.",
+  "ui.PluginsTab.mintCanSaveUsefulLessonsAfterTasks": "Allow saving reusable lessons and searching past experience. Saves take effect directly; entries can be updated or retired. Applies to new or reactivated sessions; disabled by default.",
   "ui.PluginsTab.nameLowercaseLettersDigitsHyphens": "Name (lowercase letters, digits, hyphens)",
   "ui.PluginsTab.nameMustMatchAZ09A": "Name must match [a-z0-9][a-z0-9-]{0,63}: lowercase letters, digits, hyphens; at most 64 characters",
   "ui.PluginsTab.descriptionOneLineIncludedInSessionPrompts": "Description (one line; included in session prompts)",

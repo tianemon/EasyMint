@@ -60,15 +60,15 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       + "落盘后可随时用 updateId 改写、用 retire_experiences 退役。",
     promptSnippet: "沉淀经验（写原文 + 登记索引；直接入库）",
     promptGuidelines: [
-      "**严格把关（第一原则）**：只收两种——① 开一个新项目/新会话就能直接派上用场的通用知识（本机环境、框架与技术栈的用法与坑、版本行为）；② 下次排查同类问题能借鉴的思路与教训。其余一律不沉淀（一次性操作、本次专属细节、项目业务事实、读过代码就明白的信息、含敏感信息）；**宁少勿多**——首屏只注入有限条索引（本项目/通用/技术栈三桶各取前几条），垃圾条目会把真正有用的挤掉",
-      "**自行判断、直接入库**：判断值得就调 learn，落盘立即生效（没有确认环节）；判断不值得就静默跳过，不要在回复里问用户「要不要沉淀」",
-      "learn 前先用 search_experiences 查重：命中近似经验时优先带 updateId 改写它（补全/纠错/合并），确属新经验才新增",
-      "**判定作用域**（scope）——**全局库放「与本项目代码无关」的通用知识，不要用来跨项目共用项目经验**：scope=global 放 ① 本机与环境（操作系统与版本、路径与目录约定、shell/环境变量、git 配置与提交习惯、包管理器与工具安装位置）② **框架与技术栈**（Flutter / Spring / Electron / React / 语言与库的用法、坑、版本行为）③ 跨项目成立的工作方式；scope=project（默认）放**只对本项目有效**的：某组件/模块/接口的实现与约定、业务规则、具体代码的修复/优化/踩坑/排查结论、本项目参考文档位置。一句话判据：换一个项目还成立吗？成立 → 全局；只在本项目代码里才成立 → 项目库",
+      "**按价值保存，不按工作量保存**：用户明确要求记住，或本任务验证了以后可能再用、已有规则/文档未覆盖的根因、解法或适用边界时保存；项目内有效也可以有价值。不因工具调用多、任务完成或完成 review 就例行沉淀。没有值得记的内容就静默结束，不追加专门评估回合、不问用户要不要沉淀。不要保存一次性操作、未验证猜测或敏感信息",
+      "**内容各归原处**：任务进展归会话/开发记录，步骤与状态归待办/正式任务，长期必守规则归项目规则/现行文档，可重复执行的方法归 skill，审查发现归 review 报告。经验库只补充这些载体未覆盖、容易再踩的教训，不复制现有规则，也不把经验当作高于当前用户指令和项目事实的要求",
+      "**直接入库与查重**：保存前用 search_experiences 查近似条目；有则优先带 updateId 改写，无则新增，不需用户确认。同一任务同一主题不重复新增",
+      "**作用域与价值分开判断**：scope=global 用于换项目仍成立的环境、技术栈/版本行为与工作方法；scope=project（默认）用于仅本项目成立、否则容易再次踩坑的实现约束与决策理由。已在项目规则或文档中明确的事实不重复保存",
       "**判定 tags（决定注入时机）**：全局条目必须给 tags——技术栈/平台类写技术名（如 [\"flutter\"]、[\"electron\",\"tailwind\"]、[\"macos\"]），**只有带 tags 与当前项目技术栈匹配的全局条目才会被注入**；本机环境/工作方式这类「任何项目都该看见」的用空数组（常驻注入）。项目条目不需 tags",
       "**kind 标时效**：principle（与本项目无关的通用知识）/ convention（项目内约定，默认）/ temporary（只在当前阶段成立，过了就退役）",
       "**title 是一句话说明**（≤60 字，写清「什么场景 + 什么结论」，用于索引展示与检索）；**body 是原文**，按「问题 → 做法 → 验证」三段写 markdown：换一个会话不看上下文也能看懂，写清触发条件、具体做法与成功标志",
       "**纠错回流**：用户纠正/推翻某条经验的适用性时（「这条不对」「规矩改了」），或你发现经验与当前代码事实冲突 → 立刻用 updateId 改写；整条不再成立则用 retire_experiences 退役——不要只在回复里承认",
-      "同一会话同一主题只沉淀一次；偏「可执行步骤」的追加 skill 参数固化为工作流（与经验库不重复）",
+      "需要固化可重复执行的方法时可用 skill 参数；经验 body 只保留适用边界与验证教训，不复制 skill 中的操作步骤",
     ],
     parameters: {
       type: "object" as const,
@@ -165,7 +165,7 @@ export async function createSearchExperiencesTool(projectPath?: string): Promise
     description:
       "检索历史沉淀的经验库（全局 + 当前项目合并），返回匹配条目及其原文文件名——**这里只给索引与命中片段**，"
       + "判断确实相关时再用 read 读原文（路径 = 工具结果里的目录 + file 名）。"
-      + "适用：接手任务/遇到报错时先搜是否踩过同样的坑；learn 前查重（命中近似经验时带 updateId 改写而不是新增）。",
+      + "适用：遇到疑似踩过的坑时搜索历史解法；learn 前查重（命中近似经验时带 updateId 改写而不是新增）。",
     promptSnippet: "搜索历史沉淀的经验（关键词；返回索引与片段）",
     parameters: {
       type: "object" as const,
@@ -183,7 +183,7 @@ export async function createSearchExperiencesTool(projectPath?: string): Promise
         const where = e.scope === "project" ? "项目" : "全局";
         const tags = e.tags.length > 0 ? ` · tags ${e.tags.join(",")}` : "";
         const excerpt = e.excerpt ? `\n    片段：${e.excerpt.slice(0, 180)}` : "";
-        return `- [id: ${shortId(e.id)}] ${e.title}（${where}·${kindLabel(e.kind)}${tags} · file ${e.file} · 使用 ${e.usageCount ?? 0}）${excerpt}`;
+        return `- [id: ${shortId(e.id)}] ${e.title}（${where}·${kindLabel(e.kind)}${tags} · file ${e.file} · 检索命中 ${e.usageCount ?? 0}）${excerpt}`;
       });
       return text(
         `匹配 ${total} 条（显示前 ${hits.length} 条）。**只看索引与片段判断是否相关**，需要全文时用 read 读原文`

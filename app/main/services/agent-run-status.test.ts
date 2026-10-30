@@ -24,7 +24,7 @@ function setup(run: (emit: (event: AgentSessionEvent) => void) => Promise<void>)
     sendCustomMessage: vi.fn(() => run(emit)), getContextUsage: () => undefined, getLastAssistantText: () => "",
   };
   const chat = { chatId: "chat", sessionId: "session", session, abortController: new AbortController(),
-    firstUserMessage: "", learnToolInstalled: false, promptDone: undefined as Promise<void> | undefined };
+    firstUserMessage: "", promptDone: undefined as Promise<void> | undefined };
   const service = new AgentService({} as Store);
   (service as unknown as { activeChats: Map<string, object> }).activeChats.set("chat", chat);
   return { service, chat, session, listeners };
@@ -47,6 +47,29 @@ describe("host run status ownership", () => {
     expect(sent.events.some(event => event.channel === "agent:exit")).toBe(false);
     const done = chat.promptDone; release(); await done;
     expect(stream().at(-1)).toMatchObject({ type: "turn_end", outcome: "completed" });
+    expect(service.getBusyState("session").busy).toBe(false);
+    expect(listeners.size).toBe(0);
+  });
+  it("does not start a learning continuation after a long completed run, including recovered legacy flags", async () => {
+    vi.useFakeTimers();
+    const { service, chat, session, listeners } = setup(async emit => {
+      emit({ type: "agent_start" } as AgentSessionEvent);
+      emit({ type: "turn_start" } as AgentSessionEvent);
+      for (let i = 0; i < 16; i++) {
+        emit({ type: "tool_execution_start", toolCallId: `tool-${i}`, toolName: "bash", args: {} });
+        emit({ type: "tool_execution_end", toolCallId: `tool-${i}`, toolName: "bash", result: { content: [{ type: "text", text: i === 0 ? "failed" : "ok" }] }, isError: i === 0 });
+      }
+      emit({ type: "agent_settled", aborted: false });
+    });
+    // Old in-memory metadata must not revive the removed automatic follow-up.
+    Object.assign(chat, { learnToolInstalled: true, learnSuggestDone: false });
+    const inject = vi.spyOn(service, "injectSystemMessage");
+    service.injectSystemMessage("session", "requested work", "delegation", { triggerTurn: true });
+    await chat.promptDone;
+    await vi.runAllTimersAsync();
+    expect(session.sendCustomMessage).toHaveBeenCalledTimes(1);
+    expect(inject).toHaveBeenCalledTimes(1);
+    expect(stream().filter(event => event.type === "turn_end")).toEqual([expect.objectContaining({ outcome: "completed" })]);
     expect(service.getBusyState("session").busy).toBe(false);
     expect(listeners.size).toBe(0);
   });

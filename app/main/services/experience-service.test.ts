@@ -3,7 +3,7 @@
  *
  * 隔离方式：把 HOME 指到项目内临时目录后再动态 import —— 全局库路径在模块加载期由
  * os.homedir() 决定（Node 在 POSIX 上读 $HOME、Windows 上读 USERPROFILE，两个都 stub），
- * 否则测试会写到用户真实的 ~/.easymint/experiences/。
+ * 并显式设置 EASYMINT_HOME，避免继承本机开发目录覆盖而写到用户真实数据。
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -37,6 +37,7 @@ beforeEach(async () => {
   mkdirSync(path.join(projectPath, ".easymint"), { recursive: true });
   vi.stubEnv("HOME", tmpHome);
   vi.stubEnv("USERPROFILE", tmpHome);
+  vi.stubEnv("EASYMINT_HOME", path.join(tmpHome, ".easymint"));
   vi.resetModules();
   svc = await import("./experience-service");
 });
@@ -235,19 +236,67 @@ describe("注入：只给索引；通用常驻 + 技术栈按项目匹配", () =
   });
 });
 
-describe("体检候选：原文缺失 / 标题重复 / 超期临时", () => {
-  it("三类候选都能报出，且注入块会附上", () => {
+describe("普通启动索引不安排经验维护", () => {
+  it("缺失正文、重复标题和旧临时记录不触发维护指令，旧记录仍可显式退役", () => {
     const a = svc.appendExperience({ title: "重复标题示例甲", body: "正文" }, { projectPath }).entry;
     svc.appendExperience({ title: "重复标题示例乙", body: "正文" }, { projectPath });
-    const b = svc.appendExperience({ title: "原文会丢的条目", body: "正文" }, { projectPath }).entry;
-    rmSync(path.join(projDir(), b.file));
-    const old = Date.now() - 20 * 86400000;
-    const items = readIndex(projDir()).map((e) => (e.id === a.id ? { ...e, title: "重复标题示例甲", updatedAt: old, kind: "temporary" } : e));
-    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, updatedAt: Date.now(), items }));
-    const candidates = svc.buildReviewCandidates(projectPath);
-    const flat = candidates.map((c) => c.reason).join("\n");
-    expect(flat).toContain("原文缺失");
-    expect(flat).toMatch(/疑似重复|已 \d+ 天未更新/);
-    expect(svc.buildExperienceInjection(projectPath)).toContain("待体检");
+    rmSync(path.join(projDir(), a.file));
+    const items = readIndex(projDir()).map(e => ({ ...e, kind: "temporary", updatedAt: Date.now() - 20 * 86400000, usageCount: 7 }));
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, items }));
+    const block = svc.buildExperienceInjection(projectPath);
+    expect(block).not.toContain("待体检");
+    expect(block).toContain("检索命中7");
+    expect(block).not.toContain("retire_experiences");
+    expect(svc.retireExperiences(projectPath, [a.id], "原文已缺失").retired).toHaveLength(1);
+  });
+});
+
+describe("检索命中只作为次要信号", () => {
+  it("旧记录即使命中很多，也不能压过更新的同类经验", () => {
+    const old = svc.appendExperience({ title: "同词旧经验", body: "OLD_BODY" }, { projectPath }).entry;
+    const fresh = svc.appendExperience({ title: "同词新经验", body: "NEW_BODY" }, { projectPath }).entry;
+    const items = readIndex(projDir()).map(e => ({ ...e, updatedAt: e.id === old.id ? Date.now() - 40 * 86400000 : Date.now(), usageCount: e.id === old.id ? 999 : 0 }));
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, items }));
+    expect(svc.searchExperiences("同词", projectPath).hits.map(h => h.id)).toEqual([fresh.id, old.id]);
+    const block = svc.buildExperienceInjection(projectPath);
+    expect(block.indexOf(fresh.file)).toBeLessThan(block.indexOf(old.file));
+  });
+
+  it("即使高命中记录超出注入上限，也不挤掉更合适的四条项目经验", () => {
+    const old = svc.appendExperience({ title: "旧高命中", body: "正文" }, { projectPath }).entry;
+    for (let i = 0; i < 4; i++) svc.appendExperience({ title: `当前经验${i}`, body: "正文" }, { projectPath });
+    const items = readIndex(projDir()).map(e => e.id === old.id ? { ...e, updatedAt: Date.now() - 100 * 86400000, kind: "temporary", usageCount: 999 } : e);
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, items }));
+    const block = svc.buildExperienceInjection(projectPath);
+    expect(block).not.toContain(old.file);
+    for (let i = 0; i < 4; i++) expect(block).toContain(`当前经验${i}`);
+  });
+
+  it("容量回收不因检索命中多而保留过时低优先级条目，保留旧计数字段兼容", () => {
+    const now = Date.now();
+    const items = Array.from({ length: 100 }, (_, i) => ({ id: randomUUID(), title: `条目${i}`, file: `e${i}.md`, tags: [], kind: i === 0 ? "temporary" : "convention", createdAt: now, updatedAt: i === 0 ? now - 100 * 86400000 : now, usageCount: i === 0 ? 999 : 0 }));
+    mkdirSync(projDir(), { recursive: true });
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, items }));
+    for (const item of items) writeFileSync(path.join(projDir(), item.file), item.title);
+    svc.appendExperience({ title: "新经验", body: "正文" }, { projectPath });
+    expect(readIndex(projDir())).toHaveLength(100);
+    expect(readIndex(projDir()).some(e => e.id === items[0]!.id)).toBe(false);
+    const archived = JSON.parse(readFileSync(path.join(svc.archiveDir("project", projectPath), "index.json"), "utf-8")) as Array<{ id: string }>;
+    expect(archived.map(e => e.id)).toContain(items[0]!.id);
+    expect(existsSync(path.join(svc.archiveDir("project", projectPath), items[0]!.file))).toBe(true);
+  });
+
+  it("三类索引各自限额，仍按技术栈筛选且不加载正文", () => {
+    writeFileSync(path.join(projectPath, "package.json"), JSON.stringify({ dependencies: { react: "19" } }));
+    for (let i = 0; i < 7; i++) {
+      svc.appendExperience({ title: `项目${i}`, body: "SECRET_BODY" }, { projectPath });
+      svc.appendExperience({ title: `通用${i}`, body: "SECRET_BODY" }, { scope: "global", projectPath });
+      svc.appendExperience({ title: `React${i}`, body: "SECRET_BODY", tags: ["react"] }, { scope: "global", projectPath });
+    }
+    const block = svc.buildExperienceInjection(projectPath);
+    expect(block).toContain("【本项目 4 条】");
+    expect(block).toContain("【全局通用·常驻 4 条】");
+    expect(block).toContain("技术栈匹配（react）3 条");
+    expect(block).not.toContain("SECRET_BODY");
   });
 });

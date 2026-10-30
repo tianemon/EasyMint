@@ -912,7 +912,7 @@
   "ui.PluginsTab.allowAiToManageSkills": "允许 AI 创建与管理 skill",
   "ui.PluginsTab.mintCanCreateAndUpdateAiManaged": "开启后，Mint 可在会话中用 manage_skill 工具创建/更新 AI 管理区的 skill（进行中的会话不生效；默认关闭）",
   "ui.PluginsTab.allowAiToRetainExperience": "允许 AI 自沉淀经验",
-  "ui.PluginsTab.mintCanSaveUsefulLessonsAfterTasks": "开启后，Mint 可在任务完成时自行判断并沉淀经验（直接入库、无需确认，可改可删），并可检索历史经验（进行中的会话不生效；默认关闭）",
+  "ui.PluginsTab.mintCanSaveUsefulLessonsAfterTasks": "允许保存可复用经验并检索历史记录。保存直接生效，可改写或退役。新建或重新激活的会话生效；默认关闭。",
   "ui.PluginsTab.nameLowercaseLettersDigitsHyphens": "名称（小写字母/数字/连字符）",
   "ui.PluginsTab.nameMustMatchAZ09A": "名称需匹配 [a-z0-9][a-z0-9-]{0,63}（小写字母/数字/连字符，≤64 字符）",
   "ui.PluginsTab.descriptionOneLineIncludedInSessionPrompts": "描述（单行，注入会话提示词）",

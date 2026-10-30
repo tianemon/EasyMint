@@ -94,7 +94,7 @@ const DECLARED = [
   { entry: "managed-skills", klass: "persistence", why: "同上（AI 写入的技能区）" },
   { entry: "skill-registry.json", klass: "none", why: "只是登记表；注入内容来自技能文件本身，它只决定可见性" },
   { entry: "experiences", klass: "persistence", why: "buildExperienceInjection 在会话构建时注入，每轮随行" },
-  { entry: "learn-state.json", klass: "none", why: "自沉淀的节流状态，不构成注入" },
+  { entry: "learn-state.json", klass: "none", why: "历史自动沉淀节流状态，已停止读写；旧文件可保留" },
   { entry: "agent-templates.json", klass: "persistence", why: "id + 名称 + 描述拼进 task 工具描述" },
   { entry: "session-types.json", klass: "none", why: "只切换提示词档位（mint/designer），不能注入文本" },
   { entry: "session-pins.json", klass: "none", why: "会话置顶（UI 状态）" },

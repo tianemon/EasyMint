@@ -32,8 +32,7 @@ import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool
 import { createRetireExperiencesTool } from "./tools/experience-tool";
 import { createEnvironmentTool } from "./tools/environment-tool";
 import { createDependencyTool } from "./tools/dependency-tool";
-import { evaluateLearnGate, isFixTool } from "./learn-gate";
-import { searchExperiences, buildExperienceInjection, shortId } from "./experience-service";
+import { buildExperienceInjection } from "./experience-service";
 import { createImportTools } from "./import-tools";
 import { registerSessionIdMapping, abortDelegations, abortTask, getRunningSummary, getRunningDelegations, getOwnedSessionIds, resolveParentSessionId } from "./task/registry";
 import type { TaskStatus } from "./task/types";
@@ -126,17 +125,6 @@ interface ActiveChat {
   rebuildToolsOnNextMessage?: boolean;
   /** 本会话已 compact 次数（轮转取消后仅统计用） */
   compactCount: number;
-  /** learn 触发控制（期3）：本轮（单轮）信号累计 + 每会话一次防重 */
-  toolCallCount: number;
-  /** 本轮是否出现过工具报错（与 learnFixAfterError 构成「错误-修复对」） */
-  learnErrorSeen: boolean;
-  /** 报错之后是否出现过修复动作（write/edit/bash 类） */
-  learnFixAfterError: boolean;
-  /** 本轮最近一次工具报错的文本摘录（≤150 字符，供经验回递检索） */
-  learnErrorText: string;
-  learnSuggestDone: boolean;
-  /** learn / search_experiences / retire_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
-  learnToolInstalled: boolean;
   /** 本次激活后的首个 API usage 已记录（只记数量，不记录提示词和参数内容）。 */
   firstUsageLogged?: boolean;
 }
@@ -501,52 +489,6 @@ function clearPendingAsks(sessionId: string): void {
   }
 }
 
-// ── learn 触发状态持久化（重启后不重复提示/建议，防重复沉淀） ──────────
-
-interface LearnSessionState {
-  suggestDone?: boolean;
-  /** 最后写入时间（容量裁剪依据） */
-  savedAt?: number;
-}
-
-const LEARN_STATE_PATH = path.join(emHome(), "learn-state.json");
-/** learn-state 容量底线：超出裁剪最旧，防止文件无限增长 */
-const MAX_LEARN_STATE = 500;
-
-function loadLearnStates(): Record<string, LearnSessionState> {
-  try {
-    if (fs.existsSync(LEARN_STATE_PATH)) {
-      const data: unknown = JSON.parse(fs.readFileSync(LEARN_STATE_PATH, "utf-8"));
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        return data as Record<string, LearnSessionState>;
-      }
-    }
-  } catch (e) {
-    console.warn("[agent] learn-state 读取失败（按无状态处理）:", (e as Error).message);
-  }
-  return {};
-}
-
-function saveLearnState(sessionId: string, state: LearnSessionState): void {
-  try {
-    const states = loadLearnStates();
-    states[sessionId] = { ...state, savedAt: Date.now() };
-    // 容量底线：超 500 会话裁剪最旧（按 savedAt），文件不随会话数无限增长
-    const keys = Object.keys(states);
-    if (keys.length > MAX_LEARN_STATE) {
-      keys.sort((a, b) => (states[a].savedAt ?? 0) - (states[b].savedAt ?? 0));
-      for (const k of keys.slice(0, keys.length - MAX_LEARN_STATE)) delete states[k];
-    }
-    // 原子写（temp+rename）：崩溃半截不会让 learn-state 变损坏——
-    // 损坏时 loadLearnStates 按无状态处理，会破坏「每会话一次提示」的去重
-    const tmp = LEARN_STATE_PATH + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(states, null, 2));
-    fs.renameSync(tmp, LEARN_STATE_PATH);
-  } catch (e) {
-    console.warn("[agent] learn-state 写入失败:", (e as Error).message);
-  }
-}
-
 /** Mint 向用户结构化提问工具：问题 + 选项点选 + 自定义输入（支持多选与级联联动）。
  *  execute 挂起等待用户回答（run 级 signal 仅显式 abort 触发，正常回合等待安全），
  *  用户答后结果以文本返回，Mint 据此继续推进 */
@@ -745,7 +687,7 @@ export class AgentService {
   private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string, opts?: { worker?: boolean }): Promise<{
     tools: ToolDefinition[];
     canUseTool: CanUseToolFn;
-    /** 经验工具族（learn / search_experiences / retire_experiences）是否已注册（会话级快照——触发提示按此判断，不按实时设置） */
+    /** 经验工具族（learn / search_experiences / retire_experiences）是否已注册（会话级快照——提示注入按此判断，不按实时设置） */
     learnInstalled: boolean;
   }> {
     // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）。
@@ -829,7 +771,7 @@ export class AgentService {
       // learn / search_experiences / retire_experiences 受独立开关控制（D8：自沉淀默认关闭；三工具同进退）。
       // 沉淀与退役都**直接落盘、不等用户确认**（判断是模型的职责）；worker 不装——子 Agent 的沉淀
       // 会写进主 Agent 的经验库，且 worker 无终端可纠正，交由主 Agent 统一判断。
-      // 注册结果作为快照返回（记入 chat）——活跃会话工具集固定于创建时，触发提示必须与快照一致，
+      // 注册结果作为提示组装的快照返回——活跃会话工具集固定于创建时，提示注入必须与快照一致，
       // 不能按实时设置判断（中途开开关会提示指向本会话不存在的工具——实测发生过）
       let learnInstalled = false;
       if (!opts?.worker && this.store.getSettings().learnEnabled) {
@@ -874,7 +816,7 @@ export class AgentService {
     // 减少无谓的越界尝试；工具被拒时错误消息会带统一策略的规则、目标和阶段
     parts.push(PERMISSION_RULES_PROMPT);
 
-    // 历史经验注入（learn 开关开启 且**本会话真的装了经验工具**时）：项目级优先 + 使用次数排序，
+    // 历史经验注入（learn 开关开启 且**本会话真的装了经验工具**时）：按作用域、时效与新鲜度选择有限索引，
     // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search。
     // worker 不注入：子会话没有 learn/search/retire 工具（见 buildExtraTools 的注册条件），
     // 注入了等于指导模型调不存在的工具，也会把子会话的注入计成「送达」抬高价值分
@@ -1007,35 +949,6 @@ export class AgentService {
           // 摘要卡不在这里处理：实时展示走 event-bridge 的 compacted 事件（带展示文本），
           // 重开会话时从落盘的 compaction 条目重建——两条路共一份文本，不再另注入一条进模型上下文
         }
-
-        // ── learn 硬信号采集（期3）：单轮口径——agent_start 归零。
-        //    归零信号用 agent_start 而非 turn_start——源码实证（pi-agent-core/agent-loop.js
-        //    runLoop 内层循环）：turn_start 在每个工具调用批次都发，用它归零计数永远到不了阈值 ──
-        if (chat && event.type === "agent_start") {
-          chat.toolCallCount = 0;
-          chat.learnErrorSeen = false;
-          chat.learnFixAfterError = false;
-          chat.learnErrorText = "";
-        }
-        if (chat && event.type === "tool_execution_start") {
-          chat.toolCallCount++;
-          // 报错之后出现写类工具 = 修复动作（构成「错误-修复对」——最高价值的沉淀信号）
-          if (chat.learnErrorSeen && isFixTool(String((event as { toolName?: string }).toolName ?? ""))) {
-            chat.learnFixAfterError = true;
-          }
-        }
-        // 工具报错（内容优先于退出码——见会话行为分析的口径，此处取 SDK 的 isError 标记）
-        if (chat && event.type === "tool_execution_end" && (event as { isError?: boolean }).isError) {
-          chat.learnErrorSeen = true;
-          // 截取报错文本摘录（与模型上下文同源；压缩空白防超长），供踩坑信号触发经验回递
-          const ev = event as { toolName?: string; result?: unknown };
-          try {
-            const raw = ev.result === undefined ? "" : typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result);
-            chat.learnErrorText = ((ev.toolName ? ev.toolName + " " : "") + raw).replace(/\s+/g, " ").slice(0, 150);
-          } catch {
-            chat.learnErrorText = ev.toolName ?? "";
-          }
-        }
       } catch (e) {
         console.error("[agent] bridge error:", e);
       }
@@ -1095,10 +1008,6 @@ export class AgentService {
             return renameSession(sessionId, title, chat.projectPath);
           }).catch(e => { console.warn(`[agent] 自动命名未落盘：session=${sessionId}`, e); });
         }
-
-        // ── learn 分级触发（期3）：回合结束检查累计工具调用数。
-        //    缓存中性：系统消息为会话尾部追加，前缀不变，缓存命中不受损 ──
-        if (chat && pr.outcome === "completed") this.maybeInjectLearnHint(chat);
       } else {
         // A prompt intercepted by an extension can resolve without starting an agent run.
         // Release the UI without inventing a completed outcome.
@@ -2122,18 +2031,7 @@ export class AgentService {
           // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
           provider: session.model?.provider,
           currentModel: session.model?.id,
-          toolCallCount: 0,
-          learnErrorSeen: false,
-          learnFixAfterError: false,
-          learnErrorText: "",
-          learnSuggestDone: false,
-          learnToolInstalled: learnInstalled,
         };
-        // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
-        const learnState = loadLearnStates()[created.sessionId];
-        if (learnState) {
-          created.learnSuggestDone = !!learnState.suggestDone;
-        }
 
         if (isDesigner) {
           created.agentType = "designer";
@@ -2515,60 +2413,6 @@ export class AgentService {
     await this.applySessionModel(chat, model, modelName);
     return true;
   }
-
-  /** learn 触发：单轮硬信号达到「评估门槛」时提示一次。门槛只是下限——够格被评估，
-   *  不等于值得沉淀；值不值得由模型按提示中的判定标准判断（无价值静默跳过）。
-   *  双通道（WB 标准工程化）：踩坑修复（报错→修复）价值最高，门槛 8；纯大轮门槛 15。
-   *  每会话最多一次（learn-state.json 持久化，重启不重放）。 */
-  private maybeInjectLearnHint(chat: ActiveChat): void {
-    // 工具存在性按会话创建时快照（learnToolInstalled）判断——活跃会话工具集固定于创建时，
-    // 按实时设置判断会提示指向本会话不存在的工具（实测发生过：中途开开关 → learn not found）
-    if (!chat.learnToolInstalled || chat.learnSuggestDone) return;
-    const gate = evaluateLearnGate({
-      toolCallCount: chat.toolCallCount,
-      errorSeen: chat.learnErrorSeen,
-      fixAfterError: chat.learnFixAfterError,
-    });
-    if (!gate) return;
-    chat.learnSuggestDone = true;
-    saveLearnState(chat.sessionId, { suggestDone: true });
-    const headline = gate.channel === "fix"
-      ? `本轮出现「工具报错 → 修复」的过程（${chat.toolCallCount} 次工具调用），踩坑类经验复用价值最高，优先评估`
-      : `本轮工具调用 ${chat.toolCallCount} 次（达到沉淀评估门槛）`;
-    // 经验回递：用本会话报错文本检索历史经验，命中则注入（在提示沉淀之前先让模型知道
-    // 「上次遇过」——复用价值在存之前就已经兑现；检索失败/无报错文本则正常走评估提示）
-    let recallBlock = "";
-    const errQ = (chat.learnErrorText ?? "").trim();
-    if (errQ) {
-      try {
-        const { hits } = searchExperiences(errQ, chat.projectPath);
-        if (hits.length > 0) {
-          // 只给索引（标题 + 文件名 + 短 id）——正文按需 read；命中项若已过时/不适用，
-          // 模型可直接 updateId 改写或 retire_experiences 退役
-          recallBlock = `\n\n【相关历史经验（已按本会话报错检索到，仅作参考；判断适用再复用，不刻意使用）】\n`
-            + hits.slice(0, 3)
-              .map((e) => `- [id: ${shortId(e.id)}] ${e.title}（file ${e.file}）${e.excerpt ? `\n  片段：${e.excerpt.slice(0, 160)}` : ""}`)
-              .join("\n");
-        }
-      } catch (e) {
-        console.warn("[learn] 经验回递检索失败（不影响评估提示）:", (e as Error).message);
-      }
-    }
-    // triggerTurn: true 开捕获回合——本轮上下文还热，是评估最佳时机
-    this.injectSystemMessage(
-      chat.sessionId,
-      `${headline}${recallBlock}。先判断本轮是否存在「值得沉淀」的内容，再决定是否调用 learn：
-
-【值得沉淀】踩坑修复（报错→根因→解法，下次能避坑）／验证过的方法流程（换个项目也能用）／项目约定与架构决策（删掉这条未来的你会犯错）。
-
-【不值得沉淀——直接跳过】一次性操作（配环境、跑一次命令、本次专属排查）／纯信息问答（读代码讲原理，没有方法论）／已沉淀过（用 search_experiences 确认过）／项目特有细节换项目无用／含敏感信息（密钥、内网地址）。
-
-判定为不值得沉淀时：**静默跳过**——不调 learn、也不要在回复里提及沉淀，继续正常汇报即可。值得沉淀就调 learn **直接入库（无确认环节）**；入库后仍可随时用 updateId 改写、或用 retire_experiences 退役——沉淀与清理都由你自行判断。`,
-      "learn",
-      { triggerTurn: true },
-    );
-  }
-
 
   async killChat(chatId: string): Promise<void> {
     const closing = this.closingChats.get(chatId);
@@ -2955,12 +2799,6 @@ export class AgentService {
       assistantUuid: randomUUID(),
       eventBuffer: [],
       compactCount: 0,
-      toolCallCount: 0,
-      learnErrorSeen: false,
-      learnFixAfterError: false,
-      learnErrorText: "",
-      learnSuggestDone: false,
-      learnToolInstalled: false,
     };
     this.activeChats.set(chat.chatId, chat);
     console.log(`[agent] 按需激活会话 ${sessionId} → ${chat.chatId}`);

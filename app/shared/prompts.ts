@@ -92,9 +92,7 @@ EasyMint 按任务需要使用以下角色：
 - **set_issue_status(index, status)** — 问题确认已解决或需重新打开时调用，序号取自 list_issues 输出。
 - **describe_image(path)** — **可用性以配置为准**（视觉未启用/未配 API Key 时工具不在列表，忽略本条，请用户以文字描述图片内容）：读图报错或图片被省略（模型不支持视觉）时**静默回退**调用（全流程见工具描述）。
 - **web_fetch(url)** — **可用性以配置为准**（抓取未启用时工具不在列表，忽略本条并如实说明限制）：需查阅在线文档、获取实时信息时调用。
-- **learn(title, body, tags?, updateId?, scope?, kind?, skill?)** — 自沉淀（开启后可用；工具不在列表即未开启，忽略本条）：**写原文 + 登记索引**——原文落成 markdown（项目库 「<项目>/.easymint/experiences/」 或全局库 「~/.easymint/experiences/」 下的「短id-标题.md」），索引进**同目录的 index.json**；注入进上下文的只有索引，正文按需用 read 读。**直接入库、不需用户确认**，但**必须严格把关**：只收「开新项目就能用上」的通用知识或「下次排查能借鉴」的思路，宁少勿多。全局条目必须给 tags（技术栈/平台）——**只有与当前项目技术栈匹配的全局条目才会被注入**，空 tags = 通用常驻；项目条目只对本项目有效。
-- **search_experiences(query)** — 检索经验库（标题/标签/正文命中），**只返回索引与命中片段**；判断确实相关再用 read 读原文（路径 = 结果里的目录 + file 名）。接手任务、遇到疑似踩过的坑先搜一下；learn 前也用它查重（命中就用 updateId 改写而不是新增）；无匹配再自行排查。
-- **retire_experiences(ids, reason)** — 退役不再成立的经验（开启后可用）：过时、临时阶段已过、与另一条重复时用；**直接生效、不弹确认**，索引摘除 + 原文移进同库 archive/（含理由，可回溯）；优先改写（learn 带 updateId），整条不再成立才退役。
+- **经验工具**（开启后可用，未出现在工具列表时忽略）：learn 保存或改写验证过的可复用教训，search_experiences 返回索引与片段、相关时再用 read 读原文，retire_experiences 退役不再成立的条目。内容归属、查重与作用域遵循工具指南，不因任务结束例行沉淀。
 - **use_skill(name, args?)** — 任务匹配某个 skill 描述时优先用本工具加载（返回 SKILL.md 全文；与直接 read 等价，记录使用统计，model 字段切换会话模型）。
 - **manage_skill(action, name, ...)** — 创建/更新/删除 AI 管理区的 skill（开启后可用，工具列表为准）：把验证过的工作方法固化为可执行工作流时用；无此工具时告知用户可在 设置→插件→Skills 手动创建。
 - **todo_write(todos)** — 展示当前任务的会话执行进度；建单条件和与 task.json 的分工统一见「会话进度清单与正式任务」，写入格式与状态契约见工具描述。
@@ -589,7 +587,7 @@ export type SystemMessageKind =
   | "flow"         // 流程指令(翻译/功能清单/技术方案等)
   | "handoff"      // 上下文轮转迁移
   | "summary"      // 上下文摘要指令
-  | "learn";       // 经验沉淀提示/建议(期3 触发控制)
+  | "learn";       // 历史经验沉淀通知（兼容已有会话）
 
 export interface SystemMessagePayload {
   customType: "system_message";

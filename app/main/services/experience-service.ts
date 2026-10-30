@@ -14,7 +14,7 @@
  *    项目技术栈匹配时注入（Flutter 经验不会出现在 React 项目里）
  *  - `kind`：principle（与具体项目无关的通用知识）/ convention（项目内约定）/ temporary（临时，过时应退役）
  *  - 退役与容量淘汰都把原文移进 archive/（含理由，可回溯），不直接删
- *  - 索引损坏改名存证后重建；原文缺失进体检候选
+ *  - 索引损坏改名存证后重建；原文缺失不影响索引检索，可显式改写或退役
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -38,7 +38,7 @@ interface ExperienceIndexEntry {
   kind: ExperienceKind;
   createdAt: number;
   updatedAt: number;
-  /** search_experiences 命中次数（模型主动检索 = 被用上的证据） */
+  /** 检索返回次数（含保存前查重），不是阅读、采纳或有效复用次数 */
   usageCount?: number;
   lastUsedAt?: number;
   /** 被注入进系统提示词（送达模型上下文）的次数 */
@@ -64,11 +64,6 @@ interface ArchivedExperience {
   retiredReason: string;
 }
 
-interface ExperienceReviewItem {
-  shortIds: string[];
-  reason: string;
-}
-
 interface IndexFile {
   version: number;
   updatedAt: number;
@@ -81,14 +76,12 @@ const INDEX_VERSION = 1;
 const MAX_ITEMS = 100;
 const MAX_ARCHIVE = 200;
 const SEARCH_LIMIT = 10;
-const REVIEW_LIMIT = 5;
 const SHORT_ID_LEN = 8;
 /** 常驻额度：本项目条目、全局通用条目、全局技术栈匹配条目各一份额度（索引行很短，但总额度仍是设计的一部分） */
 const INJECT_PROJECT_LIMIT = 4;
 const INJECT_COMMON_LIMIT = 4;
 const INJECT_STACK_LIMIT = 3;
 const TITLE_MAX = 60;
-const TEMPORARY_STALE_DAYS = 14;
 
 export function shortId(id: string): string {
   return id.slice(0, SHORT_ID_LEN);
@@ -219,14 +212,13 @@ function readExperienceBody(scope: ExperienceScope, projectPath: string | undefi
   return existsSync(p) ? readFileSync(p, "utf-8") : null;
 }
 
-/** 价值分：kind 权重 + 命中次数 + 新鲜度 + 项目级加成（注入排序与容量淘汰共用） */
+/** 保留优先级：时效类型、新鲜度与作用域；检索返回（含查重）不能证明价值，不参与淘汰评分 */
 function valueScore(e: ExperienceIndexEntry, scope: ExperienceScope): number {
   const kind = normalizeKind(e.kind);
   const kindW = kind === "principle" ? 3 : kind === "temporary" ? 1 : 2;
-  const used = Math.min(e.usageCount ?? 0, 4);
   const ageDays = (Date.now() - e.updatedAt) / 86400000;
   const fresh = ageDays < 30 ? 2 : ageDays < 90 ? 1 : 0;
-  return kindW + used + fresh + (scope === "project" ? 1 : 0);
+  return kindW + fresh + (scope === "project" ? 1 : 0);
 }
 
 type ResolveResult =
@@ -337,7 +329,7 @@ function patchEntry(entry: ExperienceIndexEntry, patch: { title?: string; tags?:
 
 /** 改写已有条目（纠错/补全/合并）：正文重写文件、索引同步；作用域不变（换作用域用 moveExperience）。
  *  标题变了就连文件名一起改（短 id 前缀不变，仍是身份锚点）——用户会直接翻这个目录，
- *  文件名跟内容对不上反而碍事。改名与索引写入不同步时，体检的「原文缺失」会把异常报出来。 */
+ *  文件名跟内容对不上反而碍事。 */
 export function updateExperience(
   projectPath: string | undefined,
   ref: string,
@@ -510,9 +502,9 @@ function tokenize(query: string): string[] {
   return [...new Set([...tokens, ...grams])].slice(0, 12);
 }
 
-/** 关键词检索：标题/标签命中权重 2、正文命中权重 1；按总分排序（同分看命中次数与更新时间）。
+/** 关键词检索：标题/标签命中权重 2、正文命中权重 1；按相关性与更新时间排序（最后以检索命中次数破同分）。
  *  opts.touch=true 时命中条目记 usageCount/lastUsedAt——仅供模型主动检索的工具使用
- *  （自动回递等内部调用不 touch，防自增强反馈环）；计数写盘失败不影响检索结果。 */
+ *  （普通查询默认不 touch，避免把内部读取当成模型检索）；计数写盘失败不影响检索结果。 */
 export function searchExperiences(
   query: string,
   projectPath?: string,
@@ -545,7 +537,7 @@ export function searchExperiences(
       return { e, n, excerpt };
     })
     .filter((s) => s.n > 0)
-    .sort((a, b) => b.n - a.n || (b.e.usageCount ?? 0) - (a.e.usageCount ?? 0) || b.e.updatedAt - a.e.updatedAt);
+    .sort((a, b) => b.n - a.n || b.e.updatedAt - a.e.updatedAt || (b.e.usageCount ?? 0) - (a.e.usageCount ?? 0));
   const hits = scored.slice(0, SEARCH_LIMIT).map((s) => ({ ...s.e, excerpt: s.excerpt }));
   if (hits.length > 0 && opts?.touch) touchHits(projectPath, new Set(hits.map((h) => h.id)));
   return { hits, total: scored.length };
@@ -608,45 +600,13 @@ function bumpInjected(hits: ExperienceHit[], projectPath?: string): void {
   }
 }
 
-/** 体检候选：只做「够格被评估」的下限筛选，价值判断交给模型。
- *  三条不依赖命中数据的规则：原文缺失（索引指向的文件没了）、标题高度的重复组、超期临时经验。 */
-export function buildReviewCandidates(projectPath?: string): ExperienceReviewItem[] {
-  const all = loadScoped(projectPath);
-  const missing: ExperienceReviewItem[] = [];
-  const stale: ExperienceReviewItem[] = [];
-  for (const e of all) {
-    if (!existsSync(bodyPath(e.scope, projectPath, e))) {
-      missing.push({ shortIds: [shortId(e.id)], reason: `原文缺失（${e.file}）：${e.title}` });
-    }
-    if (normalizeKind(e.kind) !== "temporary") continue;
-    const days = Math.floor((Date.now() - e.updatedAt) / 86400000);
-    if (days >= TEMPORARY_STALE_DAYS) stale.push({ shortIds: [shortId(e.id)], reason: `临时经验已 ${days} 天未更新：${e.title}` });
-  }
-  const groups = new Map<string, ExperienceHit[]>();
-  for (const e of all) {
-    const key = e.title.replace(/\s+/g, "").slice(0, 10);
-    if (key.length < 6) continue; // 标题太短不足以判重
-    groups.set(key, [...(groups.get(key) ?? []), e]);
-  }
-  const dupes: ExperienceReviewItem[] = [];
-  for (const [, list] of groups) {
-    if (list.length < 2) continue;
-    dupes.push({
-      shortIds: list.map((e) => shortId(e.id)),
-      reason: `标题疑似重复：「${list[0]!.title}」等 ${list.length} 条`,
-    });
-  }
-  const half = Math.ceil(REVIEW_LIMIT / 2);
-  return [...missing.slice(0, half), ...dupes.slice(0, half), ...stale.slice(0, half)].slice(0, REVIEW_LIMIT);
-}
-
 /** 会话启动注入：**只有索引**（标题 + 文件名 + 计数），分三桶——本项目条目、全局通用（无 tags）、
  *  全局技术栈匹配（tags 与当前项目技术栈有交集）。正文一律不给：模型判断相关时按「目录 + file 名」read 原文。 */
 export function buildExperienceInjection(projectPath?: string): string {
   const all = loadScoped(projectPath);
   if (all.length === 0) return "";
   const stacks = detectProjectStacks(projectPath);
-  const byScore = (a: ExperienceHit, b: ExperienceHit): number => valueScore(b, b.scope) - valueScore(a, a.scope) || b.updatedAt - a.updatedAt;
+  const byScore = (a: ExperienceHit, b: ExperienceHit): number => valueScore(b, b.scope) - valueScore(a, a.scope) || b.updatedAt - a.updatedAt || (b.usageCount ?? 0) - (a.usageCount ?? 0);
   const project = all.filter((e) => e.scope === "project").sort(byScore).slice(0, INJECT_PROJECT_LIMIT);
   const common = all.filter((e) => e.scope === "global" && e.tags.length === 0).sort(byScore).slice(0, INJECT_COMMON_LIMIT);
   const matched = all
@@ -656,7 +616,7 @@ export function buildExperienceInjection(projectPath?: string): string {
   const picked = [...project, ...common, ...matched];
 
   const line = (e: ExperienceHit): string =>
-    `- ${compact(e.title, 50)} — file ${e.file}（${e.scope === "project" ? "项目" : "全局"}·${kindLabel(e.kind)}·使用${e.usageCount ?? 0}·更新 ${stampShort(e.updatedAt)}）`;
+    `- ${compact(e.title, 50)} — file ${e.file}（${e.scope === "project" ? "项目" : "全局"}·${kindLabel(e.kind)}·检索命中${e.usageCount ?? 0}·更新 ${stampShort(e.updatedAt)}）`;
 
   const dirs = listStoreDirs(projectPath);
   const parts: string[] = [
@@ -672,10 +632,5 @@ export function buildExperienceInjection(projectPath?: string): string {
 
   bumpInjected(picked, projectPath);
 
-  const candidates = buildReviewCandidates(projectPath);
-  const review = candidates.length > 0
-    ? `\n【待体检 ${candidates.length} 条】可能已过时或重复，判断后可用 retire_experiences 退役，或用 learn 带 updateId 改写：\n`
-      + candidates.map((c) => `- ${c.shortIds.join("、")}：${c.reason}`).join("\n")
-    : "";
-  return `${parts.join("\n")}${review}`;
+  return parts.join("\n");
 }
