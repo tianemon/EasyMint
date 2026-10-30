@@ -492,7 +492,7 @@
     "projectInstaller": "app/main/services/project-design.ts"
   },
   "componentGallery": {
-    "source": "app/renderer/src/components/new-project/ComponentGallery.tsx",
+    "source": "app/shared/visual-design/showcase.ts",
     "categories": [
       "buttons",
       "inputs",
@@ -503,7 +503,8 @@
       "feedback",
       "layers"
     ],
-    "status": "interactive-showcase-not-installable-framework-library"
+    "status": "interactive-showcase-not-installable-framework-library",
+    "note": "React 预览组件（new-project/ComponentGallery.tsx）未被任何入口引用，已于 2026-10-30 移除；组件画廊由共享 showcase 渲染器生成。"
   },
   "pageTemplates": [
     {

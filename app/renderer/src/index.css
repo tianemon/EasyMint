@@ -2111,7 +2111,6 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
   .creation-dialog[data-step="3"] .creation-style-options { min-height: 0; overflow-y: auto; }
   .creation-dialog[data-step="3"] .creation-preview-panel { display: flex; flex-direction: column; min-height: 0; }
   .creation-dialog[data-step="3"] .creation-active-style, .creation-dialog[data-step="3"] .creation-preview-tools { flex-shrink: 0; }
-  .creation-dialog[data-step="3"] .style-preview.is-inline { flex: 1; height: auto; min-height: 0; }
   .creation-dialog[data-step="3"] .creation-preview-placeholder { flex: 1; min-height: 0; }
 }
 

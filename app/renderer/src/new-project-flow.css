@@ -103,7 +103,6 @@
   .creation-wizard .creation-style-layout { flex: 1; min-height: 0; grid-template-rows: minmax(0,1fr); align-items: stretch; }
   .creation-wizard .creation-preview-panel { display: flex; flex-direction: column; min-height: 0; }
   .creation-wizard .creation-preview-tools { flex-shrink: 0; }
-  .creation-wizard .component-gallery-host { flex: 1; min-height: 0; height: auto; }
 }
 .creation-inline-layout-viewport { display: flex; flex: 1; min-width: 0; min-height: 260px; height: 400px; }
 
