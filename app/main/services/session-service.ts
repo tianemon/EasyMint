@@ -446,6 +446,12 @@ export async function deleteSession(
     if (existsSync(info.path)) {
       rmSync(info.path, { force: true });
     }
+    // 子 Agent 记录落在 <会话目录>/<sessionId>/subagents/ 下，主文件删掉后它们就没人认领了
+    // （实测 13 个残留目录、367 个子会话、5.7MB）。与下面的 todos 同理：会话删了，它派出去的
+    // 子会话也不该留在磁盘上。basename 校验是为了让异常 id 无法跳出会话目录。
+    if (path.basename(sessionId) === sessionId) {
+      rmSync(path.join(path.dirname(info.path), sessionId), { recursive: true, force: true });
+    }
     // 清理 pin/archive/title 记录
     const pinned = readPinned();
     delete pinned[sessionId];
