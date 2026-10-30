@@ -97,7 +97,9 @@ describe('project visual pipeline', () => {
         fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('项目总览','USER WORKSPACE'));
         expect(()=>saveProjectDesign(r,{styleId:'editorial'},undefined,resources)).toThrow('scene has user changes');
         expect(fs.readFileSync(file,'utf8')).toContain('USER WORKSPACE');expect(readProjectDesign(r)?.selection.styleId).toBe('business');
-    });
+    /** 连写四套 HTML/CSS（每次 saveProjectDesign 都重生成整套资源）。单跑约 1.7s，全量并行时
+        磁盘 IO 争用会把它放大到 6s 以上，撞上 vitest 默认 5s —— 断言没失败，只是排队。 */
+    }, 15000);
     it('refuses missing assets instead of providing a stale generation contract', () => { const r = root(); saveProjectDesign(r, { styleId: 'glass' }, '', resources); fs.unlinkSync(path.join(r, '.easymint/design/theme.css')); expect(() => projectDesignSection(r)).toThrow('asset missing'); });
     it('exports native component states and normalizes brand primitives without losing flat geometry', () => { const r = root(); const spec = saveProjectDesign(r, { styleId: 'flat', brandId: 'apple' }, '', resources); expect(spec.primitive.radius.primary).toBe('0px'); expect(spec.semantic.controls.primary.border).toContain(spec.semantic.accent); expect(spec.provenance.traits).toBeDefined(); expect(JSON.parse(fs.readFileSync(path.join(r, '.easymint/design/native-tokens.json'), 'utf8')).states).toEqual(spec.states); });
     it('refuses to leave an existing unlinked prototype silently unchanged', () => { const r = root(); saveProjectDesign(r, { styleId: 'flat' }, '', resources); fs.mkdirSync(path.join(r, 'prototype')); fs.writeFileSync(path.join(r, 'prototype/index.html'), '<h1>User prototype</h1>'); expect(() => saveProjectDesign(r, { styleId: 'glass' }, '', resources)).toThrow('not linked'); expect(readProjectDesign(r)?.selection.styleId).toBe('flat'); expect(fs.readFileSync(path.join(r, 'prototype/index.html'), 'utf8')).toBe('<h1>User prototype</h1>'); });
