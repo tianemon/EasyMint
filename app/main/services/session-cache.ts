@@ -11,6 +11,7 @@ import { readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync,
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { emHome } from "../utils/paths";
+import { isSafeSessionId } from "../../shared/session-id";
 import { atomicWrite } from "./native-config-storage";
 import { getSessionManagerClass } from "./pi-sdk";
 
@@ -27,7 +28,7 @@ export interface SessionCache {
 }
 
 function cachePath(sessionId: string): string {
-  if (!/^[A-Za-z0-9_.-]{1,256}$/.test(sessionId) || sessionId === "." || sessionId === "..") throw new Error("Invalid session cache identity");
+  if (!isSafeSessionId(sessionId)) throw new Error("Invalid session cache identity");
   return path.join(CACHE_DIR, `${sessionId}.json`);
 }
 

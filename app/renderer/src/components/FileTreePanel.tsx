@@ -23,19 +23,28 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey, refres
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const requestId = useRef(0);
   const loadTree = useCallback(() => {
-    if (!projectPath) return;
+    const id = ++requestId.current;
     setError(null);
+    if (!projectPath) return;
     window.electronAPI.file
       .readTree(projectPath)
-      .then(({ nodes, truncated: cut }) => { setFiles(nodes); setTruncated(cut); })
+      .then(({ nodes, truncated: cut }) => {
+        if (id !== requestId.current) return;
+        setFiles(nodes); setTruncated(cut);
+      })
       .catch((e: unknown) => {
+        if (id !== requestId.current) return;
         setError(e instanceof Error ? e.message : uiText("ui.FileTreePanel.couldNotLoadFileTree"));
       });
   }, [projectPath]);
 
   useEffect(() => {
+    // 缓存只属于当前项目；同项目切页刷新直接调 loadTree，不清空现有内容。
+    setFiles([]); setTruncated(false); setExpanded(new Set()); setSelectedFile(null);
     loadTree();
+    return () => { requestId.current++; };
   }, [loadTree]);
 
   // 切回「文件」页时的静默刷新：只替换数据，不动 expanded/selected，界面不闪。

@@ -65,16 +65,23 @@ export class FileService {
     nodeLimit = TREE_NODE_LIMIT,
   ): Promise<{ nodes: FileNode[]; truncated: boolean }> {
     const expanded = this.expand(dirPath);
-    // 只校验根目录就够：子路径全部由 `path.join(父, entry.name)` 拼出，而 readdir 返回的
-    // name 不含分隔符、也不会是 `.`/`..`；目录项来自 Dirent，符号链接的 isDirectory() 为
-    // false（不会被递归跟随）。因此「父在 base 内」可传递到每个子节点，不必逐层复验。
     if (!this.isPathSafe(expanded, baseDir)) return { nodes: [], truncated: false };
+    // 安全根内仍可能有独立受保护的后代；一次解析保护根并映射回遍历别名，
+    // 后续只做轻量路径比较，不恢复逐目录 realpath 的开销。
+    const realRoot = canonicalPolicyPath(expanded, this.expand(baseDir));
+    const protectedPaths = [...protectedWriteRoots(), ...protectedCredentialPaths()]
+      .map(root => canonicalPolicyPath(root, realRoot))
+      .filter(root => {
+        const relative = path.relative(realRoot, root);
+        return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+      })
+      .map(root => path.join(expanded, path.relative(realRoot, root)));
     const budget: TreeBudget = { remaining: nodeLimit, truncated: false };
-    const nodes = await this.readTreeDir(expanded, maxDepth, budget);
+    const nodes = await this.readTreeDir(expanded, maxDepth, budget, protectedPaths);
     return { nodes, truncated: budget.truncated };
   }
 
-  private async readTreeDir(expanded: string, depth: number, budget: TreeBudget): Promise<FileNode[]> {
+  private async readTreeDir(expanded: string, depth: number, budget: TreeBudget, protectedPaths: readonly string[]): Promise<FileNode[]> {
     if (depth <= 0 || budget.remaining <= 0) return [];
     let entries: fs.Dirent[];
     try {
@@ -86,18 +93,19 @@ export class FileService {
     const nodes: FileNode[] = [];
     for (const entry of entries) {
       if (TREE_EXCLUDE.has(entry.name)) continue;
+      const fullPath = path.join(expanded, entry.name);
+      if (protectedPaths.some(root => isWithin(root, fullPath))) continue;
       if (budget.remaining <= 0) {
         budget.truncated = true;
         break;
       }
       budget.remaining -= 1;
-      const fullPath = path.join(expanded, entry.name);
       if (entry.isDirectory()) {
         nodes.push({
           name: entry.name,
           path: fullPath,
           isDirectory: true,
-          children: await this.readTreeDir(fullPath, depth - 1, budget),
+          children: await this.readTreeDir(fullPath, depth - 1, budget, protectedPaths),
         });
       } else {
         nodes.push({ name: entry.name, path: fullPath, isDirectory: false });

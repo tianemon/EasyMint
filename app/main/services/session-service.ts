@@ -14,10 +14,11 @@ import { toolMessageForUi } from "../../shared/tool-presentation";
  *  - session-types.json      → { sessionId: "mint"|"designer" }
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, rmdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, rmdirSync, lstatSync } from "node:fs";
 import path from "node:path";
 import { resolveHome, emHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
+import { isSafeSessionId } from "../../shared/session-id";
 import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
 import { isEmptyDirShell } from "./pi-session-dir";
 import { getSessionManagerClass, type AgentSession } from "./pi-sdk";
@@ -438,19 +439,20 @@ export async function deleteSession(
   sessionId: string,
   projectPath: string,
 ): Promise<void> {
+  // 缓存和子目录均使用该 ID，任何路径语法都必须在首次删除前拒绝。
+  if (!isSafeSessionId(sessionId)) throw new Error("Invalid session identity");
   const resolved = path.resolve(resolveHome(projectPath));
   const sessions = await listPiSessions(resolved);
   const info = sessions.find((s) => s.id === sessionId);
   if (info) {
-    // 删除 Pi 会话文件
-    if (existsSync(info.path)) {
-      rmSync(info.path, { force: true });
-    }
-    // 子 Agent 记录落在 <会话目录>/<sessionId>/subagents/ 下，主文件删掉后它们就没人认领了
-    // （实测 13 个残留目录、367 个子会话、5.7MB）。与下面的 todos 同理：会话删了，它派出去的
-    // 子会话也不该留在磁盘上。basename 校验是为了让异常 id 无法跳出会话目录。
-    if (path.basename(sessionId) === sessionId) {
-      rmSync(path.join(path.dirname(info.path), sessionId), { recursive: true, force: true });
+    const parent = path.resolve(path.dirname(info.path));
+    const childDir = path.resolve(parent, sessionId);
+    if (path.dirname(childDir) !== parent) throw new Error("Invalid session directory");
+    // 自定义 ID 可能与另一条 JSONL 文件同名；普通文件不是子会话容器，不能递归删除。
+    const childStat = lstatSync(childDir, { throwIfNoEntry: false });
+    if (existsSync(info.path)) rmSync(info.path, { force: true });
+    if (childStat?.isDirectory() || childStat?.isSymbolicLink()) {
+      rmSync(childDir, { recursive: true, force: true });
     }
     // 清理 pin/archive/title 记录
     const pinned = readPinned();

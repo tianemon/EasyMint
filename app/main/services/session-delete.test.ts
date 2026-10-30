@@ -1,61 +1,85 @@
-/**
- * 删除会话必须把它派出去的子 Agent 记录一起删掉。
- *
- * 子 Agent 的 jsonl 落在 `<会话目录>/<sessionId>/subagents/` 下，而 deleteSession 原先只
- * rmSync 主会话文件。结果是主文件没了、目录还在——实测攒下 13 个无法归属的目录、367 个
- * 子会话、5.7MB，界面上完全看不见，也没法再打开。
- *
- * 这与同一个函数里已经处理的 todos 是同一类问题（注释原话：「否则会话删了、清单永远留着」），
- * 只是漏了这一处。
- */
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// 这些值在 mock 工厂里被 async 函数引用，调用时才求值——此时 beforeAll 已经赋好。
-let mainFile = "";
 let sessionDir = "";
-
 vi.mock("./pi-session", () => ({
-  listPiSessions: async () => [{ id: "sess-1", path: mainFile }],
+  listPiSessions: (cwd: string) => SessionManager.list(cwd, sessionDir),
   getPiSessionDir: () => sessionDir,
   tryGetPiSessionDir: () => sessionDir,
 }));
-vi.mock("./pi-sdk", () => ({ getSessionManagerClass: vi.fn() }));
 vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
 
-const home = mkdtempSync(path.join(os.tmpdir(), "em-del-home-"));
-const project = mkdtempSync(path.join(os.tmpdir(), "em-del-proj-"));
-process.env.EASYMINT_HOME = home;
-
+let root: string;
+let project: string;
 let service: typeof import("./session-service");
-let subDir = "";
-
-beforeAll(async () => {
-  sessionDir = path.join(project, ".easymint", "sessions");
-  mainFile = path.join(sessionDir, "2026-10-30T00-00-00-000Z_sess-1.jsonl");
-  subDir = path.join(sessionDir, "sess-1", "subagents");
-  mkdirSync(subDir, { recursive: true });
-  writeFileSync(mainFile, "{}\n");
-  writeFileSync(path.join(subDir, "child-a.jsonl"), "{}\n");
+beforeEach(async () => {
+  root = path.join(process.cwd(), "temp/tests", `session-delete-${randomUUID()}`);
+  project = path.join(root, "project");
+  sessionDir = path.join(root, "sessions", "project-a");
+  mkdirSync(sessionDir, { recursive: true });
+  vi.stubEnv("EASYMINT_HOME", path.join(root, "home"));
+  vi.resetModules();
   service = await import("./session-service");
 });
+afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
 
-afterAll(() => {
-  rmSync(home, { recursive: true, force: true });
-  rmSync(project, { recursive: true, force: true });
-});
+function record(id: string): string {
+  const file = path.join(sessionDir, "imported.jsonl");
+  writeFileSync(file, JSON.stringify({ type: "session", version: 3, id, timestamp: new Date().toISOString(), cwd: project }) + "\n");
+  return file;
+}
 
 describe("deleteSession", () => {
-  it("连同子 Agent 目录一起删除，不留无法归属的孤儿", async () => {
-    expect(existsSync(subDir)).toBe(true);
-
-    await service.deleteSession("sess-1", project);
-
-    expect(existsSync(mainFile)).toBe(false);
+  it("deletes a normal custom-id session and its children while retaining sibling sessions", async () => {
+    const id = "custom.session-1", main = record(id);
+    const subDir = path.join(sessionDir, id, "subagents");
+    mkdirSync(subDir, { recursive: true });
+    writeFileSync(path.join(subDir, "child.jsonl"), "{}");
+    const sibling = path.join(sessionDir, "sibling.jsonl");
+    writeFileSync(sibling, "unrelated");
+    await service.deleteSession(id, project);
+    expect(existsSync(main)).toBe(false);
     expect(existsSync(subDir)).toBe(false);
-    // 父目录本身留着：同一个项目里可能还有别的会话
-    expect(existsSync(sessionDir)).toBe(true);
+    expect(readFileSync(sibling, "utf-8")).toBe("unrelated");
+  });
+
+  it.each(["", ".", "..", "../other", "a/b", "a\\b", "unsupported:id"])("rejects unsafe identity %j before changing any record or metadata", async id => {
+    const main = record(id);
+    expect((await SessionManager.list(project, sessionDir)).map(s => s.id)).toContain(id);
+    const sibling = path.join(root, "sessions", "project-b", "other.jsonl");
+    mkdirSync(path.dirname(sibling), { recursive: true });
+    writeFileSync(sibling, "unrelated");
+    const metadata = path.join(root, "home", "session-titles.json");
+    mkdirSync(path.dirname(metadata), { recursive: true });
+    writeFileSync(metadata, '{"preserve":"unchanged"}');
+    await expect(service.deleteSession(id, project)).rejects.toThrow(/Invalid session/);
+    expect(existsSync(main)).toBe(true);
+    expect(readFileSync(sibling, "utf-8")).toBe("unrelated");
+    expect(readFileSync(metadata, "utf-8")).toBe('{"preserve":"unchanged"}');
+  });
+
+  it("does not mistake another session file for a custom ID's child directory", async () => {
+    const id = "sibling.jsonl", main = record(id);
+    const sibling = path.join(sessionDir, id);
+    const unrelated = JSON.stringify({ type: "session", version: 3, id: "other-session", timestamp: new Date().toISOString(), cwd: project }) + "\n";
+    writeFileSync(sibling, unrelated);
+    expect((await SessionManager.list(project, sessionDir)).map(s => s.id)).toEqual(expect.arrayContaining([id, "other-session"]));
+    await service.deleteSession(id, project);
+    expect(existsSync(main)).toBe(false);
+    expect(readFileSync(sibling, "utf-8")).toBe(unrelated);
+  });
+
+  it("removes a child-directory symlink without following it to other data", async () => {
+    const id = "custom-id", main = record(id);
+    const outside = path.join(root, "unrelated");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(path.join(outside, "keep"), "safe");
+    symlinkSync(outside, path.join(sessionDir, id), process.platform === "win32" ? "junction" : "dir");
+    await service.deleteSession(id, project);
+    expect(existsSync(main)).toBe(false);
+    expect(readFileSync(path.join(outside, "keep"), "utf-8")).toBe("safe");
   });
 });

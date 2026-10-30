@@ -8,7 +8,7 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileService } from "./file-service";
 
 let tmp: string;
@@ -23,6 +23,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -96,6 +97,46 @@ describe("readTree", () => {
     const { nodes, truncated } = await svc.readTree(tmp, tmp, 10, 4);
     expect(nodes).toHaveLength(4);
     expect(truncated).toBe(true);
+  });
+
+  it("filters protected descendants without rebuilding root validation for every directory", async () => {
+    const home = path.join(tmp, "nested", "em-home");
+    vi.stubEnv("EASYMINT_HOME", home);
+    touch("nested/em-home/.control-tmp/private-control-file");
+    touch("nested/em-home/em-settings.json");
+    touch("nested/em-home/visible.txt");
+    touch("src/deep/visible.ts");
+    expect(svc.isPathSafe(path.join(home, ".control-tmp"), tmp)).toBe(false);
+    const validate = vi.spyOn(svc, "isPathSafe");
+    const { nodes } = await svc.readTree(tmp, tmp);
+    const tree = JSON.stringify(nodes);
+    expect(tree).not.toContain("private-control-file");
+    expect(tree).not.toContain(".control-tmp");
+    expect(tree).not.toContain("em-settings.json");
+    expect(tree).toContain("visible.txt");
+    expect(tree).toContain("visible.ts");
+    expect(validate).toHaveBeenCalledOnce();
+  });
+
+  it("retains protection for descendant names beginning with two dots", async () => {
+    vi.stubEnv("EASYMINT_HOME", path.join(tmp, "..em-home"));
+    touch("..em-home/.control-tmp/private-control-file");
+    touch("ordinary.txt");
+    const { nodes } = await svc.readTree(tmp, tmp);
+    expect(JSON.stringify(nodes)).not.toContain("private-control-file");
+    expect(JSON.stringify(nodes)).toContain("ordinary.txt");
+  });
+
+  it("also filters protected descendants when the traversal root is an allowed symlink alias", async () => {
+    const home = path.join(sub, "em-home");
+    vi.stubEnv("EASYMINT_HOME", home);
+    touch("sub/em-home/.control-tmp/private-control-file");
+    touch("sub/visible.txt");
+    const alias = path.join(tmp, "alias");
+    symlinkSync(sub, alias, process.platform === "win32" ? "junction" : "dir");
+    const { nodes } = await svc.readTree(tmp, alias);
+    expect(JSON.stringify(nodes)).not.toContain("private-control-file");
+    expect(nodes.find(node => node.name === "visible.txt")?.path).toBe(path.join(alias, "visible.txt"));
   });
 
   it("项目外的目录返回空树（路径归属校验仍在）", async () => {
