@@ -55,6 +55,10 @@ const EXTERNALS = [
   // 打进 bundle 会让 main.cjs 体积翻倍；同样先补进 dependencies 再 external 化。
   // 动态 import 只在**检测到系统代理**时才执行，故不给启动加成本
   "undici",
+  // 主进程只用它取几条文案（对话框标题、启动错误提示），但 i18next 本体占 bundle 81KB
+  // （约 3.5%）。纯 JS 无原生扩展，且已在 dependencies 里（renderer 侧由 vite 自行打包，
+  // 不受这份清单影响）；外部化后运行时从 node_modules 加载，与 semver/ws 同一机制。
+  "i18next",
 ];
 
 function mainOptions(overrides = {}) {
