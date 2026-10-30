@@ -7,7 +7,7 @@ import { formatTokenCount } from "../lib/token-format";
 import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AttachItem, ChatMessage, PendingUserBubble, displayCompactionSummary, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, displayCompactionSummary, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, toolResultEntry, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { toast } from "./ui/Toast";
 import { confirmFullAccess } from "./permission-confirmation";
@@ -1734,16 +1734,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // tool_result — 工具执行结果(主进程 event-bridge 转发 toolResult 消息):
       // 按 toolCallId 追加 tool_result entry,渲染时关联到对应工具块显示结果
       if (event.type === "tool_result" && event.toolCallId) {
-        const resultEntry = {
-          kind: "tool_result" as const,
-          toolUseId: event.toolCallId,
-          nestedCalls: event.nestedCalls, durationMs: event.durationMs, imagePath: event.imagePath,
-          presentation: event.presentation,
-          name: event.toolName,
-          content: event.content ?? "",          isError: event.isError ?? false,
-          timestamp: event.timestamp ?? Date.now(),
-          source: "chat" as const,
-        };
+        const resultEntry = toolResultEntry(event, "chat");
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         const target = msgs.find((m) => m.id === latestAiIdRef.current);
         if (target && target.role === "ai") {

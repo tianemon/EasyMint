@@ -1,4 +1,4 @@
-import { applyNestedToolEvent, mergeConsecutiveText, piBlocksToEntries, type ChatMessage } from "./chat-utils";
+import { applyNestedToolEvent, mergeConsecutiveText, piBlocksToEntries, toolResultEntry, type ChatMessage } from "./chat-utils";
 
 /** Child events use the same entry conversion and tool identities as the main conversation. */
 export function applySubagentEvent(messages: ChatMessage[], event: StreamEvent, nextId: () => number): ChatMessage[] {
@@ -8,9 +8,7 @@ export function applySubagentEvent(messages: ChatMessage[], event: StreamEvent, 
   if (event.type === "tool_result" && event.toolCallId) return messages.map(message => {
     if (!message.entries?.some(entry => entry.kind === "tool_use" && entry.id === event.toolCallId)) return message;
     const entries = message.entries.filter(entry => entry.kind !== "tool_result" || entry.toolUseId !== event.toolCallId);
-    return { ...message, entries: [...entries, { kind: "tool_result", toolUseId: event.toolCallId!, name: event.toolName,
-      content: event.content ?? "", isError: !!event.isError, nestedCalls: event.nestedCalls,
-      presentation: event.presentation, timestamp: now }] };
+    return { ...message, entries: [...entries, toolResultEntry(event)] };
   });
   if (event.type === "custom_event") return [...messages, { id: nextId(), role: "user", text: event.text,
     timestamp: now, piTs: event.timestamp, customType: event.customType, details: event.details }];

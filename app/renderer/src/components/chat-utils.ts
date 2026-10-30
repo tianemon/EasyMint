@@ -13,6 +13,39 @@ export function applyNestedToolEvent(entries: StreamEntry[], event: NestedToolEv
     ? { ...entry, nestedCalls: updateNestedCalls(entry.nestedCalls, event) } : entry);
 }
 
+/**
+ * `tool_result` 事件 → entry。
+ *
+ * 主会话与子 Agent 对结果的**摆放**策略不同（主会话在原位置替换同 toolUseId 的结果、
+ * 子 Agent 先剔除旧结果再追加到末尾），但字段映射是同一件事。此前这段抄了两份，
+ * 新增一个字段就得凭记忆改两处；这里只共用映射，摆放各自由调用方决定。
+ *
+ * `source` 只在主会话结果块上标注（两处渲染路径不同）。
+ */
+export function toolResultEntry(
+  event: {
+    toolCallId?: string; toolName?: string; content?: string; isError?: boolean;
+    nestedCalls?: NestedToolCalls;
+    presentation?: Extract<StreamEntry, { kind: "tool_result" }>["presentation"];
+    durationMs?: number; imagePath?: string; timestamp?: number;
+  },
+  source?: string,
+): Extract<StreamEntry, { kind: "tool_result" }> {
+  return {
+    kind: "tool_result",
+    toolUseId: event.toolCallId ?? "",
+    name: event.toolName,
+    content: event.content ?? "",
+    isError: event.isError ?? false,
+    nestedCalls: event.nestedCalls,
+    presentation: event.presentation,
+    durationMs: event.durationMs,
+    imagePath: event.imagePath,
+    timestamp: event.timestamp ?? Date.now(),
+    ...(source ? { source } : {}),
+  };
+}
+
 /** 附件项（图片或文档） */
 export interface AttachItem {
   name: string;
