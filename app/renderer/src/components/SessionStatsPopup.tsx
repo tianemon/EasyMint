@@ -3,7 +3,7 @@ import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect, useMemo } from "react";
 import { Modal } from "./ui/Modal";
-import { formatTokenWindow } from "../lib/token-format";
+import { formatTokenWindow, formatTokenCount } from "../lib/token-format";
 
 /**
  * 会话统计弹窗。
@@ -60,11 +60,10 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
     return () => { cancelled = true; };
   }, [sessionId, projectPath]);
 
-  const fmtTokens = (n: number) => formatNumber(n, { notation: "compact", maximumFractionDigits: 1 });
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
   // 0 与「还没数据」在这里是同一种表达：留空，不写 0
   const count = (n: number | undefined) => (n ? formatNumber(n) : undefined);
-  const tokens = (n: number | undefined) => (n ? fmtTokens(n) : undefined);
+  const tokens = (n: number | undefined) => (n ? formatTokenCount(n) : undefined);
 
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
@@ -102,7 +101,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
               <div className="flex justify-between border-t border-border/50 pt-1 mt-1">
                 <span className="text-text-secondary">{uiText("ui.SessionStatsPopup.total")}</span>
                 {stats?.tokens.total ? (
-                  <span className="text-text-primary font-medium tabular-nums">{fmtTokens(stats.tokens.total)}</span>
+                  <span className="text-text-primary font-medium tabular-nums">{formatTokenCount(stats.tokens.total)}</span>
                 ) : null}
               </div>
             </div>

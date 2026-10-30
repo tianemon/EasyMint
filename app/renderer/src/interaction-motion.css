@@ -91,7 +91,8 @@
   text-align: right;
 }
 .msg-in.msg-with-output-meta {
-  padding-bottom: max(0px, calc(var(--message-footer-height, 24px) - 28px));
+  /* Absolute actions/usage belong to this row; the next virtual row must start after them. */
+  padding-bottom: var(--message-footer-space, 28px);
 }
 
 /* Measured footer budget: 380px for long English usage + 3 actions at default scale.

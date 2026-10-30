@@ -3,7 +3,7 @@ import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runn
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
 import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
-import { formatNumber } from "../lib/locale-format";
+import { formatTokenCount } from "../lib/token-format";
 import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -179,11 +179,6 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
   );
 }
 
-
-/** token 数格式化（显示用：1.2k / 3.4M） */
-function fmtTokenCount(n: number): string {
-  return formatNumber(n, { notation: "compact", maximumFractionDigits: 1 });
-}
 
 /** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
 const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，使用用户所用的语言。";
@@ -3567,9 +3562,12 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
                   const total = (msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0) + (msg.usage.cacheWriteTokens || 0);
                   const read = msg.usage.cacheReadTokens || 0;
                   return <span className="break-words">
-                    {uiText("ui.ChatPanel.input")}{fmtTokenCount(total)}
-                    {" · "}{uiText("ui.ChatPanel.output")}{fmtTokenCount(msg.usage.outputTokens || 0)}
-                    {read > 0 && total > 0 ? uiText("ui.ChatPanel.cacheHit", { v0: ((read / total) * 100).toFixed(2) }) : ""}
+                    {uiText("ui.ChatPanel.input")}{formatTokenCount(total)}
+                    {" · "}{uiText("ui.ChatPanel.output")}{formatTokenCount(msg.usage.outputTokens || 0)}
+                    {/* 0% 也要显示：这一行是用户找「哪一轮没命中缓存」的唯一入口，
+                        隐藏 0 会让最该看的那几行凭空消失，还会被当成数据缺失
+                        （2026-10-30 用户按 41.28% 的平均值反查时正是卡在这里） */}
+                    {total > 0 ? uiText("ui.ChatPanel.cacheHit", { v0: ((read / total) * 100).toFixed(2) }) : ""}
                   </span>;
                 })()}
               </div>

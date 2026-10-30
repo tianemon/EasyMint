@@ -14,3 +14,12 @@ export function formatTokenWindow(tokens: number): string {
   if (tokens % 1024 === 0) return `${tokens / 1024}K`;
   return `${Math.floor(tokens / 1000)}K`;
 }
+
+/** Usage counts are decimal quantities, independent of locale and model window labels. */
+export function formatTokenCount(tokens: number): string {
+  if (!Number.isFinite(tokens) || tokens < 0) return "—";
+  const count = Math.round(tokens);
+  if (count < 1000) return String(count);
+  const thousands = Number((count / 1000).toFixed(1));
+  return thousands < 1000 ? `${thousands}K` : `${Number((count / 1_000_000).toFixed(1))}M`;
+}

@@ -102,11 +102,14 @@ export function BubbleActions({ text, onPin, sid, visible, regenerate, edit, met
     const footer = footerRef.current;
     const row = footer?.closest<HTMLElement>(".msg-in");
     if (!hasMetadata || !footer || !row) return;
-    const measure = () => row.style.setProperty("--message-footer-height", `${footer.offsetHeight}px`);
+    const measure = () => {
+      const margin = Number.parseFloat(getComputedStyle(footer).marginTop) || 0;
+      row.style.setProperty("--message-footer-space", `${footer.getBoundingClientRect().height + margin}px`);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(footer);
-    return () => { observer.disconnect(); row.style.removeProperty("--message-footer-height"); };
+    return () => { observer.disconnect(); row.style.removeProperty("--message-footer-space"); };
   }, [hasMetadata]);
   return (
     <div ref={footerRef} inert={!visible} className={`${inline ? "shrink-0" : "absolute top-full left-0 mt-1"} flex items-center ${metadata ? "bubble-actions-with-meta" : ""} transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
