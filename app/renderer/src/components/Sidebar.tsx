@@ -254,7 +254,9 @@ export function Sidebar({
             onArchived={() => setArchivedRefresh((v) => v + 1)}
           />
         </div>
-        <div className={activeTab === "files" ? "h-full" : "hidden"}>
+        {/* files 容器不加 h-full：让内容撑开、由 .sb-content 统一滚动，
+            滚动条才会和会话列表落在同一条竖线上（内层自滚会右移 6px 落在 padding 内） */}
+        <div className={activeTab === "files" ? undefined : "hidden"}>
           <FileTreePanel
             projectPath={projectPath}
             onFileClick={onFileClick}

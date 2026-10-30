@@ -107,7 +107,9 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey, refres
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    // 不在这里自建滚动：外层 .sb-content 已经是 overflow-y:auto + scrollbar-gutter: stable，
+    // 内层再滚一次会让滚动条落在 `.sb-content` 的右内边距里面，比会话列表的滚动条左 6px。
+    <div>
       {error ? (
         <div className="p-4 text-center">
           <p className="text-danger text-sm mb-2">{appText(error)}</p>
@@ -118,7 +120,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey, refres
             {uiText("ui.ChatPanel.retry")}</button>
         </div>
       ) : files.length === 0 ? (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center py-8">
           <p className="text-xs text-text-secondary">{uiText("ui.FileTreePanel.noProjectFiles")}</p>
         </div>
       ) : (
