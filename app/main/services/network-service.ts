@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { WebSocketServer, WebSocket } from "ws";
 import { Bonjour } from "bonjour-service";
 import { generateKeyPair, deriveSharedKey, encrypt, decrypt, makeChallenge } from "./device-crypto";
+import { pickBestAddress } from "./device-address";
 import { emHome } from "../utils/paths";
 
 // ── 常量（频率对齐蓝牙指导值，见方案文档频率参数表） ──
@@ -50,38 +51,6 @@ export interface DiscoveredDevice {
   name: string;
   address: string;
   port: number;
-}
-
-/** 本机 IPv4 地址集(排除回环/APIPA/虚拟网卡段)——对端同网段匹配基准 */
-function localIPv4Prefixes(): Set<string> {
-  const prefixes = new Set<string>();
-  try {
-    for (const addrs of Object.values(os.networkInterfaces())) {
-      for (const a of addrs ?? []) {
-        if (a.family !== "IPv4" || a.internal) continue;
-        // 排除 WSL/Hyper-V(172.16-31)/Docker(172.17+ 也被 172.16-31 覆盖)/APIPA(169.254)
-        const first = a.address.split(".")[0];
-        const second = Number(a.address.split(".")[1] ?? 0);
-        if (first === "127" || first === "169") continue;
-        if (first === "172" && second >= 16 && second <= 31) continue;
-        prefixes.add(a.address.split(".").slice(0, 2).join("."));
-      }
-    }
-  } catch { /* 忽略 */ }
-  return prefixes;
-}
-
-/**
- * 从 mDNS 上报的地址列表中选择"与本机同网段"的地址(真实局域网 IP)。
- * 问题:Windows 多网卡(Hyper-V/WSL 虚拟网卡 172.x)会抢占 addresses 首位,
- * 取第一个 IPv4 会连到虚拟网卡(实测 172.28.64.1)——对端真实 IP 与本机同网段,优先匹配。
- */
-function pickBestAddress(addresses: string[]): string | undefined {
-  const v4 = addresses.filter((a) => a.includes(".") && !a.startsWith("169.") && !a.startsWith("127."));
-  if (v4.length === 0) return undefined;
-  const localPrefixes = localIPv4Prefixes();
-  // 优先同网段(前两段相同);无匹配退回第一个 IPv4
-  return v4.find((a) => localPrefixes.has(a.split(".").slice(0, 2).join("."))) ?? v4[0];
 }
 
 /**
