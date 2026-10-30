@@ -7,6 +7,7 @@ import { isUiLanguage } from "../shared/i18n/locale";
 import { BrowserWindow, ipcMain, dialog, app, shell, clipboard } from "electron";
 import p from "path";
 import fs from "fs";
+import { createProviderUsageService } from "./services/provider-usage";
 import os from "os";
 import { randomUUID } from "node:crypto";
 import { ProjectService } from "./services/project-service";
@@ -114,6 +115,27 @@ interface Services {
 }
 
 export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store, remoteTerminalService }: Services): void {
+  const accountUsage = createProviderUsageService({
+    providers: () => store.getSettings().apiProviders,
+    auth: async config => {
+      const repository = await getNativeConfig(store);
+      if (config.presetId === "github-copilot" && config.authType === "oauth") {
+        // The user-entitlement API takes the original GitHub token, not Copilot's short-lived inference token.
+        const credentials = JSON.parse(fs.readFileSync(repository.files.auth, "utf8")) as Record<string, {type?: string; refresh?: string; enterpriseUrl?: string}>;
+        const credential = credentials[config.id];
+        return credential?.type === "oauth" && typeof credential.refresh === "string"
+          ? { token: credential.refresh, type: "oauth", enterpriseUrl: credential.enterpriseUrl } : undefined;
+      }
+      const runtime = await repository.getRuntime();
+      const resolved = await runtime.getAuth(config.id);
+      return resolved?.auth.apiKey ? {token:resolved.auth.apiKey,type:config.authType === "oauth" ? "oauth" : "api_key"} : undefined;
+    },
+  });
+  ipcMain.handle("provider:usage", async (_e, input: unknown) => {
+    const request = input as {providerId?: unknown; force?: unknown} | undefined;
+    if (!request || typeof request.providerId !== "string") return {ok:false,reason:"unsupported"};
+    return accountUsage.query(request.providerId, request.force === true);
+  });
   const formAssist = new FormAssistService(async () => {
     const repository = await getNativeConfig(store);
     const runtime = await repository.getRuntime();
@@ -829,7 +851,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const providers = settings.apiProviders;
     const activeId = providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-    // 仅 DeepSeek 支持余额查询 API(/user/balance);其他供应商返回 null(前端不显示)
+    // Retain the original DeepSeek-only contract; other supported accounts use provider:usage.
     if (!activeId || activeCfg?.presetId !== "deepseek") return null;
     const runtime = await (await getNativeConfig(store)).getRuntime();
     const apiKey = (await runtime.getAuth(activeId))?.auth.apiKey;

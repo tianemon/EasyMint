@@ -642,6 +642,7 @@ interface ElectronAPI {
     /** 授权码步骤用：读一次剪贴板（用户刚从浏览器地址栏复制了回调链接） */
     readClipboard: () => Promise<string>;
     /** Codex（ChatGPT 订阅）额度 + 可用手动重置次数；失败时给 reason（界面据此决定是否显示） */
+    usage: (providerId: string, force?: boolean) => Promise<import("@shared/provider-usage").AccountUsageResult>;
     codexQuota: (force?: boolean) => Promise<
       | { ok: true; quota: import("@shared/codex-quota").CodexQuotaView }
       | { ok: false; reason: "no-credential" | "reauth" | "network" | "unsupported" }

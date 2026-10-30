@@ -155,6 +155,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("provider:authCancel", { requestId }) as Promise<boolean>,
     openAuthUrl: (url: string) => ipcRenderer.invoke("provider:authOpenUrl", { url }) as Promise<boolean>,
     readClipboard: () => ipcRenderer.invoke("provider:authClipboard") as Promise<string>,
+    usage: (providerId: string, force = false) => ipcRenderer.invoke("provider:usage", {providerId,force}) as Promise<import("../shared/provider-usage").AccountUsageResult>,
     codexQuota: (force = false) =>
       ipcRenderer.invoke("provider:codexQuota", { force }) as Promise<
         | { ok: true; quota: unknown }

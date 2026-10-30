@@ -6,6 +6,8 @@ import { CodexQuotaSection } from "./CodexQuotaSection";
 import { formatPlanLabel } from "@shared/codex-quota";
 import { hasOpenModal } from "./ui/Modal";
 import { registerOverlay } from "../lib/overlay-stack";
+import { accountUsageLabels } from "@shared/provider-usage";
+import { ProviderUsageSection } from "./ProviderUsageSection";
 
 /** Account usage belongs to the enabled provider, including empty sessions. */
 export function PlanUsageButton(): JSX.Element | null {
@@ -57,11 +59,15 @@ export function PlanUsageButton(): JSX.Element | null {
     const unregister = registerOverlay(panelRef.current);
     return () => { unregister(); document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open, close]);
-  useEffect(() => { close(); setPlan(undefined); }, [current?.id, close]);
+  useEffect(() => { close(); setPlan(undefined); }, [current?.id, current?.presetId, current?.authType, current?.apiKey, current?.baseUrl, close]);
+  useEffect(() => window.electronAPI.provider.onAuthEvent?.(message => {
+    if (message.providerId === current?.id) { close(); setPlan(undefined); }
+  }), [current?.id, close]);
   const codex = current?.presetId === "openai-codex";
-  if (!codex && current?.presetId !== "deepseek") return null;
+  const labels = current ? accountUsageLabels(current) : undefined;
+  if (!labels) return null;
   const planLabel = codex ? formatPlanLabel(plan) : "";
-  const title = uiText(codex ? "ui.CodexQuota.title" : "ui.ProviderAccount.deepseekTitle");
+  const title = codex ? uiText("ui.CodexQuota.title") : current?.presetId === "deepseek" ? uiText("ui.ProviderAccount.deepseekTitle") : uiText("ui.AccountUsage.title",{provider:current!.name});
   const titleLabel = planLabel ? `${title} ${planLabel}` : title;
 
   return (
@@ -72,16 +78,17 @@ export function PlanUsageButton(): JSX.Element | null {
       {open && (
         <div ref={panelRef} id={panelId} role="dialog" aria-label={titleLabel} className="no-drag absolute bottom-full left-1/2 mb-2 z-dropdown bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[360px] max-w-[calc(100vw-16px)] overflow-y-auto p-5 text-xs" style={{ transform: `translateX(calc(-50% + ${placement.shift}px))`, maxHeight: placement.maxHeight }}>
           <div className="flex items-center justify-between mb-4">
-            <span className="flex items-baseline gap-1.5 text-sm font-medium text-text-primary">
-              {title}
+            <span className="min-w-0 flex-1 flex items-baseline gap-1.5 text-sm font-medium text-text-primary">
+              <span className="truncate">{title}</span>
               {/* 套餐档位（Plus / Pro …）比标题轻一档，不用括号也不抢视线 */}
-              {planLabel && <span className="text-xs font-normal text-text-muted">{planLabel}</span>}
+              {planLabel && <span className="shrink-0 text-xs font-normal text-text-muted">{planLabel}</span>}
             </span>
             <button type="button" onClick={() => { close(); triggerRef.current?.focus(); }} aria-label={uiText("common.close")} className="text-text-muted hover:text-text-primary">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 4 8 8m0-8-8 8" /></svg>
             </button>
           </div>
-          {codex ? <CodexQuotaSection key={current!.id} active onPlan={setPlan} /> : <DeepSeekBalanceSection key={current!.id} />}
+          {codex ? <CodexQuotaSection key={current!.id} active onPlan={setPlan} /> : current?.presetId === "deepseek" ? <DeepSeekBalanceSection key={current.id} />
+            : <ProviderUsageSection key={`${current!.id}:${current!.presetId}`} providerId={current!.id} labels={labels} />}
         </div>
       )}
     </div>
