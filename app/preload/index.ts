@@ -386,7 +386,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
     killChat: (chatId: string) => ipcRenderer.invoke("agent:killChat", { chatId }) as Promise<void>,
     killSession: (sessionId: string) => ipcRenderer.invoke("agent:kill-session", { sessionId }) as Promise<void>,
-    activeSessions: () => ipcRenderer.invoke("agent:active-sessions") as Promise<string[]>,
     reclaimChat: (sessionId: string) => ipcRenderer.invoke("agent:reclaim-chat", { sessionId }) as Promise<void>,
     cancelReclaim: (sessionId: string) => ipcRenderer.invoke("agent:cancel-reclaim", { sessionId }) as Promise<void>,
     onChatClosed: (callback: (data: { sessionId: string }) => void) => {

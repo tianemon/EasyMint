@@ -414,7 +414,6 @@
   "ui.SessionHistory.unpin": "Unpin",
   "ui.SessionHistory.rename": "Rename",
   "ui.SessionHistory.archive": "Archive",
-  "ui.SessionHistory.endSession": "End session",
   "ui.SessionHistory.deleteSession": "Delete session",
   "ui.SessionHistory.delete": "Delete “",
   "ui.SessionHistory.thisSession": "this session",

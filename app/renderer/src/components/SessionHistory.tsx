@@ -47,9 +47,6 @@ export function SessionHistory({
 }: SessionHistoryProps): JSX.Element {
   useUiLocale();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
-  const [designIds, setDesignIds] = useState<Set<string>>(new Set());
-  // 活跃会话集合(主进程 activeChats 内存态):状态点 绿=激活 / 灰白=未激活
-  const [activeSessions, setActiveSessions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -60,12 +57,6 @@ export function SessionHistory({
   const initialLoadDone = useRef(false);
   const renamingRef = useRef(false);
 
-  const refreshActive = useCallback(() => {
-    window.electronAPI.agent.activeSessions()
-      .then((ids) => setActiveSessions(new Set(ids)))
-      .catch(() => {});
-  }, []);
-
   const load = useCallback(() => {
     const path = projectPath || getWorkspaceDir();
     if (!initialLoadDone.current) setLoading(true);
@@ -74,19 +65,7 @@ export function SessionHistory({
       .then((data) => { setSessions(data); initialLoadDone.current = true; })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : uiText("ui.SessionHistory.couldNotLoad")))
       .finally(() => setLoading(false));
-    // 设计会话 ID 集合（区分圆点/菱形点）
-    window.electronAPI.conv.designSessions()
-      .then((ids) => setDesignIds(new Set(ids)))
-      .catch(() => {});
-    refreshActive();
-  }, [projectPath, refreshActive]);
-
-  // 会话创建/关闭广播 → 刷新活跃状态点
-  useEffect(() => {
-    const off1 = window.electronAPI.agent.onChatSession(() => refreshActive());
-    const off2 = window.electronAPI.agent.onChatClosed(() => refreshActive());
-    return () => { off1(); off2(); };
-  }, [refreshActive]);
+  }, [projectPath]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey, load]);
@@ -146,7 +125,6 @@ export function SessionHistory({
     await window.electronAPI.conv.delete(sessionId, path);
     onSessionDelete?.(sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
-    refreshActive();
     setPendingDelete(null);
   };
 
@@ -157,22 +135,12 @@ export function SessionHistory({
     if (tab) ts.closeTab(tab.id);
   };
 
-  // 右键「结束会话」:用户明确点击,立即 kill(不做延迟回收)
-  const handleKillSession = async () => {
-    if (!menu.sessionId) return;
-    await window.electronAPI.agent.killSession(menu.sessionId);
-    closeTabBySession(menu.sessionId);
-    refreshActive();
-    setMenu((m) => ({ ...m, visible: false }));
-  };
-
   // 右键「归档」:从列表移除,会话文件保留(archived-sessions.json 标记,SDK 无自动清理)
   const handleArchive = async () => {
     if (!menu.sessionId) return;
     await window.electronAPI.conv.archiveSession(menu.sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
     closeTabBySession(menu.sessionId);
-    refreshActive();
     setMenu((m) => ({ ...m, visible: false }));
     onArchived?.();
   };
@@ -233,7 +201,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.pinned")}</div>
               {pinned.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -241,7 +209,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.today")}</div>
               {today.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -249,7 +217,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.earlier")}</div>
               {recent.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -257,7 +225,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.older")}</div>
               {older.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -285,11 +253,6 @@ export function SessionHistory({
           <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleArchive}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 8l-2-4H4L2 8"/><path d="M2 8v12h20V8"/><path d="M8 13h8"/></svg>
             {uiText("ui.SessionHistory.archive")}</button>
-          {activeSessions.has(menu.sessionId) && (
-            <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
-              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-              {uiText("ui.SessionHistory.endSession")}</button>
-          )}
           <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleDelete}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             {uiText("ui.AgentTemplateSettings.delete")}</button>
@@ -329,7 +292,6 @@ export function SessionHistory({
 interface RowProps {
   session: SessionItem;
   active: boolean;
-  isDesign?: boolean;
   editingId: string | null;
   editTitle: string;
   onSelect?: (sessionId: string) => void;
@@ -337,11 +299,9 @@ interface RowProps {
   onEditTitle: (v: string) => void;
   onCommitRename: () => void;
   onCancelEdit: () => void;
-  /** 活跃会话集合(主进程 activeChats):状态点颜色 绿=激活 / 灰白=未激活 */
-  activeSessions: Set<string>;
 }
 
-function SessionItemRow({ session, active, isDesign, activeSessions, editingId, editTitle, onSelect, onContextMenu, onEditTitle, onCommitRename, onCancelEdit }: RowProps): JSX.Element {
+function SessionItemRow({ session, active, editingId, editTitle, onSelect, onContextMenu, onEditTitle, onCommitRename, onCancelEdit }: RowProps): JSX.Element {
   if (editingId === session.sessionId) {
     return (
       <div className="px-3 py-1 flex gap-1">
@@ -365,11 +325,10 @@ function SessionItemRow({ session, active, isDesign, activeSessions, editingId, 
       onClick={() => onSelect?.(session.sessionId)}
       onContextMenu={(e) => onContextMenu(e, session)}
     >
-      {isArchived ? (
+      {/* 行首不再有状态点：激活与否是主进程内存态（还掺了"关闭后保留 2 分钟"），对用户没有
+          可操作的含意；设计会话的菱形也一并去掉，会话类型改由标题与内容体现。 */}
+      {isArchived && (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5 shrink-0 mr-2 text-text-muted"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 8l2.5 2.5" strokeLinecap="round"/></svg>
-      ) : (
-        // 状态点:激活(主进程 activeChats 有该会话)=绿 / 未激活=灰白;设计会话菱形、普通圆
-        <span className={`w-[6px] h-[6px] shrink-0 mr-[-2px] ${activeSessions.has(session.sessionId) ? "bg-success" : "bg-dot-gray"} ${isDesign ? "rotate-45" : "rounded-full"}`}  />
       )}
       <span className="flex-1 min-w-0 truncate">{session.title}</span>
       <span className="sb-item-meta">{fmtDate(session.updatedAt)}</span>

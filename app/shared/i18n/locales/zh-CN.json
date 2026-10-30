@@ -414,7 +414,6 @@
   "ui.SessionHistory.unpin": "取消置顶",
   "ui.SessionHistory.rename": "重命名",
   "ui.SessionHistory.archive": "归档",
-  "ui.SessionHistory.endSession": "结束会话",
   "ui.SessionHistory.deleteSession": "删除会话",
   "ui.SessionHistory.delete": "确定删除「",
   "ui.SessionHistory.thisSession": "该会话",

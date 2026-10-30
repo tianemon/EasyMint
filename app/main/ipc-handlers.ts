@@ -448,8 +448,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:cancel-reclaim", (_e, { sessionId }) => {
     agentService.cancelReclaim(sessionId);
   });
-  // 会话状态点/结束会话
-  ipcMain.handle("agent:active-sessions", () => agentService.listActiveSessions());
   ipcMain.handle("agent:kill-session", (_e, { sessionId }) => {
     return agentService.killSession(sessionId);
   });

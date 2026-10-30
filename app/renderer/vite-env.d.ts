@@ -352,7 +352,6 @@ interface ElectronAPI {
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     killChat: (chatId: string) => Promise<void>;
     killSession: (sessionId: string) => Promise<void>;
-    activeSessions: () => Promise<string[]>;
     reclaimChat: (sessionId: string) => Promise<void>;
     cancelReclaim: (sessionId: string) => Promise<void>;
     onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;

@@ -2607,15 +2607,10 @@ export class AgentService {
     return work;
   }
 
-  /** 按 sessionId 立即结束会话(右键「结束会话」,用户明确点击不做延迟) */
+  /** 按 sessionId 立即结束会话（删除会话前收尾；用户明确操作，不做延迟回收） */
   async killSession(sessionId: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (chat) await this.killChat(chat.chatId);
-  }
-
-  /** 活跃会话 sessionId 列表(会话列表状态点用) */
-  listActiveSessions(): string[] {
-    return Array.from(this.activeChats.values()).map((c) => c.sessionId).filter(Boolean) as string[];
   }
 
   /** 关闭 tab 后的会话回收记录(按 sessionId 防重复) */
