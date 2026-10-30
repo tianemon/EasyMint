@@ -76,7 +76,7 @@
 .assistant-flow:empty, .assistant-content-flow:empty { display: none; }
 .msg-conclusion .prose > :last-child { margin-bottom: 0; }
 
-/* Stats share the action row's visibility and stay outside the message surface. */
+/* Actions keep their layout space while hidden, so following status/process rows cannot overlap. */
 .bubble-actions-with-meta {
   width: 100%;
   justify-content: space-between;
@@ -90,11 +90,6 @@
   justify-content: flex-end;
   text-align: right;
 }
-.msg-in.msg-with-output-meta {
-  /* Absolute actions/usage belong to this row; the next virtual row must start after them. */
-  padding-bottom: var(--message-footer-space, 28px);
-}
-
 /* Measured footer budget: 380px for long English usage + 3 actions at default scale.
    Keep a 400px floor without per-message width measurement.
    Clamp to available space so narrow panes can stack actions without widening the chat. */

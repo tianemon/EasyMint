@@ -1,5 +1,5 @@
 import { uiText, useUiLocale } from "../lib/i18n";
-import { useState, useRef, useLayoutEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
 
@@ -93,26 +93,11 @@ export function BubbleActions({ text, onPin, sid, visible, regenerate, edit, met
   /** 重新生成入口：只有 assistant 气泡传（undefined = 不渲染该按钮）；不可用时置灰 + title 说明原因 */
   regenerate?: { disabledReason?: string; onClick: () => void };
   edit?: { disabledReason?: string; onClick: () => void };
-  /** 用户气泡的复制、钉住、编辑共用一行；其它气泡仍悬浮在气泡下方。 */
+  /** 用户气泡的复制、钉住、编辑共用一行；其它气泡在正文下方独占操作行。 */
   inline?: boolean;
 }): JSX.Element {
-  const footerRef = useRef<HTMLDivElement>(null);
-  const hasMetadata = !!metadata;
-  useLayoutEffect(() => {
-    const footer = footerRef.current;
-    const row = footer?.closest<HTMLElement>(".msg-in");
-    if (!hasMetadata || !footer || !row) return;
-    const measure = () => {
-      const margin = Number.parseFloat(getComputedStyle(footer).marginTop) || 0;
-      row.style.setProperty("--message-footer-space", `${footer.getBoundingClientRect().height + margin}px`);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(footer);
-    return () => { observer.disconnect(); row.style.removeProperty("--message-footer-space"); };
-  }, [hasMetadata]);
   return (
-    <div ref={footerRef} inert={!visible} className={`${inline ? "shrink-0" : "absolute top-full left-0 mt-1"} flex items-center ${metadata ? "bubble-actions-with-meta" : ""} transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+    <div inert={!visible} className={`${inline ? "shrink-0" : "mt-1"} flex items-center ${metadata ? "bubble-actions-with-meta" : ""} transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
       <div className="flex items-center shrink-0">
         <CopyBubbleBtn text={text} />
         <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
