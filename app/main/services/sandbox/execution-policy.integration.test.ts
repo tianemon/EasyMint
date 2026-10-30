@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -7,10 +6,17 @@ import { ensureSandbox, releaseSandbox, wrapForSandbox } from "./manager";
 import { createExecutionContext } from "../permission/execution-context";
 
 describe("执行策略真实 I/O", () => {
-  // 放系统临时目录，不放项目根：runtimeRoot（root/runtimes）由 srt 在释放租约时回写，
-  // 一旦清理没跑完就会在仓库根留下一个 `.sandbox-policy-<pid>` 空壳——2026-09-20 起
-  // 这样累积了 121 个、约 170MB。临时目录即便漏了也只落在 /tmp，由系统回收。
-  const root = path.join(os.tmpdir(), `em-sandbox-policy-${process.pid}`);
+  // 放项目内的 `temp/`（已 gitignore），**不能用 os.tmpdir()**。
+  //
+  // 两件约束一起决定这个位置：
+  // ① 这个用例要验证「workspace 之外的写入被拒绝」，所以 outside 必须落在沙盒的允许区之外。
+  //    macOS 的 sandbox-exec 拒绝写 /tmp，Linux 的 bwrap 却允许——把 root 放到 tmpdir 后，
+  //    Linux 上的 outside 变成了「合法写入」，用例于是红（v1.4.7 的 CI 就是这样红的）。
+  //    项目内的目录在两边都被拒，与 v1.4.6 之前的位置一致。
+  // ② 又不能直接放项目根：runtimeRoot（root/runtimes）由 srt 在释放租约时回写，清理没跑完
+  //    就会在仓库根留空壳（2026-09-20 起累积了 121 个、约 170MB）。放进 temp/ 后即便漏了
+  //    也不进 git status。
+  const root = path.join(process.cwd(), "temp", `sandbox-policy-${process.pid}`);
   const workspace = path.join(root, "workspace");
   const outside = path.join(root, "outside.txt");
 
