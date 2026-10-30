@@ -69,6 +69,25 @@ describe("provider account usage contracts",()=>{
   const corrected=parseProviderUsage("kimi-coding",{usages:{limit_5h:{used_ratio:0}},limits:[{window:{duration:300,timeUnit:"TIME_UNIT_MINUTE"},detail:{limit:100,used:88}}]});
   expect(corrected).toHaveLength(1);expect(corrected[0]!.value).toBe("88");
  });
+ it("retains independent Kimi windows even when both use the generic allowance label",()=>{
+  const rows=parseProviderUsage("kimi-coding",{limits:[
+   {window:{duration:30,timeUnit:"TIME_UNIT_MINUTE"},detail:{limit:100,used:20}},
+   {window:{duration:60,timeUnit:"TIME_UNIT_MINUTE"},detail:{limit:100,used:70}},
+  ]});
+  expect(rows.map(row=>[row.value,row.scope])).toEqual([["20","30 min"],["70","60 min"]]);
+  expect(new Set(rows.map(row=>row.id)).size).toBe(2);
+ });
+ it.each([-1,101,Infinity])("keeps a valid Kimi ratio when legacy usage %s cannot replace it",used=>{
+  expect(parseProviderUsage("kimi-coding",{usages:{limit_5h:{used_ratio:.4}},limits:[
+   {window:{duration:300,timeUnit:"TIME_UNIT_MINUTE"},detail:{limit:100,used}},
+  ]}).map(row=>[row.label,row.value])).toEqual([["fiveHour","40"]]);
+ });
+ it("identifies equivalent Kimi window units without duplicating the ratio window",()=>{
+  const rows=parseProviderUsage("kimi-coding",{usages:{limit_5h:{used_ratio:.4}},limits:[
+   {window:{duration:5,timeUnit:"TIME_UNIT_HOUR"},detail:{limit:100,used:60}},
+  ]});
+  expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({id:"limit_5h",label:"fiveHour",value:"60"});
+ });
  it("keeps Z.ai weekly and monthly-tool windows distinct and respects failure envelopes",()=>{
   const rows=parseProviderUsage("zai",{success:true,data:{limits:[{type:"CREDIT_LIMIT",unit:3,number:5,percentage:20},{type:"TOKENS_LIMIT",unit:6,number:1,percentage:50},{type:"TIME_LIMIT",percentage:0}]}});
   expect(rows.map(r=>[r.label,r.value])).toEqual([["fiveHour","20"],["weekly","50"],["monthlyTools","0"]]);

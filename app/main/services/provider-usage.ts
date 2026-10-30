@@ -114,10 +114,19 @@ export function parseProviderUsage(preset: string, raw: unknown): AccountUsageRo
     if (Array.isArray(body.limits)) body.limits.slice(0, 20).forEach((value, index) => {
       const item = object(value), window = object(item.window), detail = object(item.detail), total = number(detail.limit), used = number(detail.used);
       if (!total || total < 0 || used === undefined) return;
-      const minutes = number(window.duration), label = window.timeUnit === "TIME_UNIT_MINUTE" && minutes === 300 ? "fiveHour" : window.timeUnit === "TIME_UNIT_DAY" && minutes === 7 ? "weekly" : "quota";
-      const existing = rows.findIndex(row => row.label === label);
-      if (existing >= 0) rows.splice(existing, 1);
-      percent(`count-${index}`, label, used / total * 100, detail.resetTime);
+      const valuePercent = used / total * 100;
+      if (!Number.isFinite(valuePercent) || valuePercent < 0 || valuePercent > 100) return;
+      const units: Record<string, [number, string]> = {TIME_UNIT_SECOND:[1,"s"],TIME_UNIT_MINUTE:[60,"min"],TIME_UNIT_HOUR:[3600,"h"],TIME_UNIT_DAY:[86400,"d"]};
+      const unit = typeof window.timeUnit === "string" && Object.hasOwn(units,window.timeUnit) ? units[window.timeUnit] : undefined;
+      const duration = number(window.duration), seconds = duration !== undefined && unit ? duration * unit[0] : undefined;
+      const label = seconds === 18000 ? "fiveHour" : seconds === 604800 ? "weekly" : "quota";
+      const id = label === "fiveHour" ? "limit_5h" : label === "weekly" ? "limit_7d" : `count-${index}`;
+      const replacement: AccountUsageRow = {id,label,unit:"usedPercent",value:String(valuePercent),resetAt:reset(detail.resetTime),
+        scope:label === "quota" && duration !== undefined && duration > 0 && unit ? `${duration} ${unit[1]}` : undefined};
+      // Replace only the same known window, and only after validating the replacement.
+      const existing = rows.findIndex(row => row.id === id);
+      if (existing >= 0) rows[existing] = replacement;
+      else rows.push(replacement);
     });
     if (!rows.length) { const item = object(body.usage), total = number(item.limit), used = number(item.used); if (total && total > 0 && used !== undefined) percent("total", "quota", used / total * 100, item.resetTime); }
   } else if (preset === "minimax" || preset === "minimax-cn") {
