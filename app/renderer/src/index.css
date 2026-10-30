@@ -824,6 +824,10 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   padding: var(--s3) var(--s2) var(--s1);
   display: flex; align-items: center; justify-content: space-between;
 }
+/* 会话列表分组标题（今天/之前）：仍比条目轻，但比 --color-text-secondary 高一档。
+   用 color-mix 朝 primary 混，而不是加透明度——半透明白字在深色主题下会变暗，
+   方向正好相反。 */
+.sb-group-title { color: color-mix(in srgb, var(--color-text-primary) 68%, var(--color-text-secondary)); }
 .sb-item {
   display: flex; align-items: center; gap: var(--s2);
   padding: var(--s2) var(--s3); border-radius: var(--radius-lg);
