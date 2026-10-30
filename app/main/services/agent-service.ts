@@ -20,7 +20,7 @@ import { waitForAbortSettlement, settleSessionIdle } from "./abort-settlement";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
-import { createPiSession, resumePiSession, listPiSessions, disposePiSession, getPiSessionDir } from "./pi-session";
+import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
 import { createWithPermissionGate, withSessionCreationLock } from "./session-permission-gate";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
@@ -57,6 +57,7 @@ import {
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn, getSessionManagerClass } from "./pi-sdk";
 import { readCache, writeCache } from "./session-cache";
+import { readSessionImageStats, type SessionImageStatsCache } from "./session-image-stats";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
@@ -1747,18 +1748,8 @@ export class AgentService {
     // 还要等 2 分钟才回收——而它只是为了算图片占了几个字节（本仓库有 51MB 的会话）。
     if (!projectPath) return { ok: false, error: "会话未加载" };
     try {
-      const resolved = path.resolve(resolveHome(projectPath));
-      const info = (await listPiSessions(resolved)).find((s) => s.id === sessionId);
-      if (!info) return { ok: false, error: "会话未加载" };
-      const mtimeMs = fs.statSync(info.path).mtimeMs;
-      const cached = this.contextImageCache.get(info.path);
-      if (cached && cached.mtimeMs === mtimeMs) return cached.value;
-      const SM = await getSessionManagerClass();
-      const manager = SM.open(info.path, getPiSessionDir(resolved), resolved);
-      const candidates = contextImageEntries(manager.buildSessionProjection().entries);
-      const value = { ok: true as const, candidates, encodedBytes: candidates.reduce((total, entry) => total + entry.encodedBytes, 0) };
-      this.contextImageCache.set(info.path, { mtimeMs, value });
-      return value;
+      const stats = await readSessionImageStats(projectPath, sessionId, this.contextImageCache);
+      return stats ? { ok: true, ...stats } : { ok: false, error: "会话未加载" };
     } catch {
       return { ok: false, error: "会话加载失败" };
     }
@@ -2619,13 +2610,10 @@ export class AgentService {
   /**
    * 上下文图片统计的磁盘读缓存（键 = 会话文件路径，mtime 变化即失效）。
    *
-   * 打开会话时前端会问一次图片占用，这个问答不该把会话变成"活跃"（见 getContextImageStats）。
-   * 改为读磁盘后，同一会话在消息追加前会反复命中同一次解析。
+   * 解析本身搬到了 `session-image-stats`（只读磁盘、够不到 activateSession）；
+   * 缓存留在这里是为了随 AgentService 一起回收，不引入模块级全局状态。
    */
-  private contextImageCache = new Map<string, {
-    mtimeMs: number;
-    value: { ok: true; candidates: ContextImageEntry[]; encodedBytes: number };
-  }>();
+  private contextImageCache: SessionImageStatsCache = new Map();
 
   /**
    * 关闭 tab → 会话保留 2 分钟,2 分钟后直接 killChat(不做活跃判断——
