@@ -15,6 +15,15 @@ import type { Store } from "./store";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" }, BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
+// 真实的 listPiSessions 会按 cwd 在 ~/.easymint/agent/sessions/ 下建目录（Pi 的 SM.list 行为），
+// 于是每次跑这个用例都用临时路径在真实 home 里留一个空目录（实测攒了 38 个）。
+// 这里只需要"查不到这条会话"，不必真的碰会话库。
+vi.mock("./pi-session", () => ({
+  createPiSession: vi.fn(),
+  resumePiSession: vi.fn(),
+  disposePiSession: vi.fn(),
+  listPiSessions: async () => [],
+}));
 
 function create(): AgentService {
   return new AgentService({ getSettings: () => ({ learnEnabled: true }) } as unknown as Store);
