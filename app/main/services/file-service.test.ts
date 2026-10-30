@@ -4,7 +4,7 @@
  * 回归点（2026-09-23）：越界与文件不存在原先都返回 ""，渲染层无法与「真的是空文件」区分，
  * 点开一个已改名/已删除的文件链接只得到一片空白、没有任何提示。
  */
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
@@ -111,5 +111,30 @@ describe("readTree", () => {
 
   it("目录不存在时返回空树而不是抛错（异步读的失败分支）", async () => {
     expect(await svc.readTree(tmp, path.join(tmp, "gone"))).toEqual({ nodes: [], truncated: false });
+  });
+
+  /**
+   * 这条是「只在入口校验一次」的安全前提守卫。
+   *
+   * 子目录不再逐层复验路径归属，靠的是：子路径由 `readdir` 的 name 拼出（不含分隔符），
+   * 且 Dirent 不跟随符号链接——符号链接的 isDirectory() 为 false，不会被递归。一旦哪天
+   * 改了遍历方式（比如改用 stat 判断类型、或跟随 symlink），这条会立刻红。
+   */
+  it("不跟随符号链接把项目外的内容带进树", async () => {
+    const outside = path.join(os.tmpdir(), `file-service-out-${randomUUID().slice(0, 8)}`);
+    mkdirSync(outside, { recursive: true });
+    try {
+      writeFileSync(path.join(outside, "secret.txt"), "");
+      symlinkSync(outside, path.join(tmp, "linked"));
+
+      const { nodes } = await svc.readTree(tmp, tmp);
+      const linked = nodes.find((n) => n.name === "linked");
+      expect(linked).toBeDefined();
+      expect(linked!.isDirectory).toBe(false);
+      expect(linked!.children).toBeUndefined();
+      expect(JSON.stringify(nodes)).not.toContain("secret.txt");
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

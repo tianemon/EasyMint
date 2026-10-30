@@ -55,8 +55,9 @@ export function Sidebar({
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   // 归档恢复后自增,触发 SessionHistory 主列表刷新(受控 sessionRefreshKey 无法直接改)
   const [archivedRefresh, setArchivedRefresh] = useState(0);
-  /** 切 tab 时的静默刷新令牌（见 switchTab：面板常驻后靠它补"切回即刷新"） */
-  const [tabRefresh, setTabRefresh] = useState(0);
+  /** 切 tab 时的静默刷新令牌：只刷**切过去**的那一个面板（另一个在隐藏，没必要读） */
+  const [sessionRefresh, setSessionRefresh] = useState(0);
+  const [fileRefresh, setFileRefresh] = useState(0);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const newProjectRef = useRef<HTMLButtonElement>(null);
@@ -150,12 +151,14 @@ export function Sidebar({
 
 
   const switchTab = useCallback((tab: SidebarTab) => {
-    setActiveTab((prev) => (prev === tab ? prev : tab));
-    // 两个面板都常驻（切走只是隐藏），所以"切回即刷新"要由令牌补：会话列表与文件树
-    // 各自静默重读一次，保留现有内容、不闪白。原来靠卸载重挂顺带刷新，代价是每次都
-    // 重新扫描（文件树实测 20ms 同步阻塞 + 473KB IPC）。
-    setTabRefresh((v) => v + 1);
-  }, []);
+    // 点已经激活的 tab 不重载：原先无条件自增令牌，连点两下"文件"就会读两遍树
+    if (activeTab === tab) return;
+    setActiveTab(tab);
+    // 两个面板都常驻（切走只是隐藏），所以"切回即刷新"要由令牌补：只刷切过去的那个，
+    // 另一个在隐藏状态下读一遍纯属浪费。刷新是静默的——保留现有内容，数据回来再替换。
+    if (tab === "sessions") setSessionRefresh((v) => v + 1);
+    else setFileRefresh((v) => v + 1);
+  }, [activeTab]);
 
   const toggleDrawer = useCallback((tab: DrawerTab) => {
     if (drawerTab === tab && drawerOpen) {
@@ -242,7 +245,7 @@ export function Sidebar({
             projectPath={projectPath}
             onSessionClick={onSessionClick}
             onNewSession={onNewSession}
-            refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh + tabRefresh}
+            refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh + sessionRefresh}
             onRestored={() => setArchivedRefresh((v) => v + 1)}
           />
           <SessionHistory
@@ -250,7 +253,7 @@ export function Sidebar({
             onSessionClick={onSessionClick}
             onSessionDelete={onSessionDelete}
             activeSessionId={activeSessionId}
-            refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh + tabRefresh}
+            refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh + sessionRefresh}
             onArchived={() => setArchivedRefresh((v) => v + 1)}
           />
         </div>
@@ -260,7 +263,7 @@ export function Sidebar({
           <FileTreePanel
             projectPath={projectPath}
             onFileClick={onFileClick}
-            refreshToken={tabRefresh}
+            refreshToken={fileRefresh}
           />
         </div>
       </div>

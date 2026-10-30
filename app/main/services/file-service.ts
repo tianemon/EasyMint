@@ -51,9 +51,11 @@ export class FileService {
   /**
    * 读取文件树（`file:readTree` 通道）。
    *
-   * 全程异步：原先是 `fs.readdirSync` 逐层同步递归，本项目实测 20ms、约 3000 节点，
-   * 这段时间主进程被整块占住，所有 IPC 与 UI 帧都得排队（侧栏"文件"页那一下顿感的来源之一）。
-   * 改成 `fs.promises.readdir` 后主进程不再被独占，代价是每个目录多一次 await。
+   * 两个性能点都踩过（2026-10-30 实测本项目 697 个目录 / 3071 节点）：
+   * ① 原先 `fs.readdirSync` 逐层同步递归，主进程被整段占住；
+   * ② 更贵的是**每层都做一次路径安全校验**：`isPathSafe` 里两次 `canonicalPolicyPath`
+   *    （`existsSync` 循环 + `realpathSync.native`）加两次保护清单构造，697 层实测 239ms，
+   *    把一次读树从 ~20ms 拖到 ~222ms。现在只在入口校验一次（见下方论证）。
    */
   async readTree(
     baseDir: string,
@@ -62,14 +64,18 @@ export class FileService {
     /** 节点上限（缺省 TREE_NODE_LIMIT）；参数化的目的是让截断行为可被小规模夹具验证 */
     nodeLimit = TREE_NODE_LIMIT,
   ): Promise<{ nodes: FileNode[]; truncated: boolean }> {
+    const expanded = this.expand(dirPath);
+    // 只校验根目录就够：子路径全部由 `path.join(父, entry.name)` 拼出，而 readdir 返回的
+    // name 不含分隔符、也不会是 `.`/`..`；目录项来自 Dirent，符号链接的 isDirectory() 为
+    // false（不会被递归跟随）。因此「父在 base 内」可传递到每个子节点，不必逐层复验。
+    if (!this.isPathSafe(expanded, baseDir)) return { nodes: [], truncated: false };
     const budget: TreeBudget = { remaining: nodeLimit, truncated: false };
-    const nodes = await this.readTreeDir(baseDir, this.expand(dirPath), maxDepth, budget);
+    const nodes = await this.readTreeDir(expanded, maxDepth, budget);
     return { nodes, truncated: budget.truncated };
   }
 
-  private async readTreeDir(baseDir: string, expanded: string, depth: number, budget: TreeBudget): Promise<FileNode[]> {
+  private async readTreeDir(expanded: string, depth: number, budget: TreeBudget): Promise<FileNode[]> {
     if (depth <= 0 || budget.remaining <= 0) return [];
-    if (!this.isPathSafe(expanded, baseDir)) return [];
     let entries: fs.Dirent[];
     try {
       entries = await fs.promises.readdir(expanded, { withFileTypes: true });
@@ -91,7 +97,7 @@ export class FileService {
           name: entry.name,
           path: fullPath,
           isDirectory: true,
-          children: await this.readTreeDir(baseDir, fullPath, depth - 1, budget),
+          children: await this.readTreeDir(fullPath, depth - 1, budget),
         });
       } else {
         nodes.push({ name: entry.name, path: fullPath, isDirectory: false });

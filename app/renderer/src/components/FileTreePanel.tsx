@@ -38,12 +38,16 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey, refres
     loadTree();
   }, [loadTree]);
 
-  // 切回「文件」页时的静默刷新：只替换数据，不动 expanded/selected，界面不闪
+  // 切回「文件」页时的静默刷新：只替换数据，不动 expanded/selected，界面不闪。
+  // 依赖只写令牌——之前把 loadTree 也放进依赖，projectPath 变化时会和上面的 effect
+  // 各触发一次，等于每次切项目都读两遍树（第二遍纯浪费）。
+  const loadRef = useRef(loadTree);
+  loadRef.current = loadTree;
   const firstRefresh = useRef(true);
   useEffect(() => {
     if (firstRefresh.current) { firstRefresh.current = false; return; }
-    loadTree();
-  }, [refreshToken, loadTree]);
+    loadRef.current();
+  }, [refreshToken]);
 
   useEffect(() => {
     if (collapseAllKey && collapseAllKey > 0) {
