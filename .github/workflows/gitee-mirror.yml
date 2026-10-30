@@ -13,16 +13,16 @@ name: Mirror to Gitee
 # 首次启用前 Gitee 上必须已有同名仓库，否则推送会失败。
 
 on:
+  # 只监听 main，**不监听 tag**：发版时 main 与 tag 指向同一个提交，tag 那次推送
+  # 镜像的内容与 main 完全一致，跑第二遍只是幂等空推送（v1.4.3–v1.4.7 每次都留下
+  # 两条同名 run，2026-10-30 已清理）。此前靠 concurrency 串行化避免两次并发互相踩，
+  # 那解决了冲突但没减少次数。
+  #
+  # 代价：若将来 tag 打在**非 main** 的提交上（如临时 hotfix 分支），镜像不会自动跟。
+  # 届时用 workflow_dispatch 手动补一次即可。
   push:
     branches: [main]
-    tags: ['v*']
   workflow_dispatch:
-
-# 发版时 main 与 tag 是**两次推送**，会同时触发两次本工作流（v1.4.3 实测：main@06:16:22、
-# tag@06:16:24），两个 run 并发往 Gitee 推同一批 ref，后到的那次报
-# `! [remote rejected] origin/main -> main (incorrect old value provided)` 变红——
-# 内容其实已经被先到的 run 推完了（重跑只剩 "Everything up-to-date"）。
-# 串行化到同一组：后来的排队等前一个结束，此时它只会是幂等的空推送。
 # 不用 cancel-in-progress：被取消的 run 同样是灰/红，且取消时机不确定会不会打断一次真实推送。
 concurrency:
   group: gitee-mirror
