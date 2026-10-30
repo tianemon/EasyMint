@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -6,7 +7,10 @@ import { ensureSandbox, releaseSandbox, wrapForSandbox } from "./manager";
 import { createExecutionContext } from "../permission/execution-context";
 
 describe("执行策略真实 I/O", () => {
-  const root = path.join(process.cwd(), `.sandbox-policy-${process.pid}`);
+  // 放系统临时目录，不放项目根：runtimeRoot（root/runtimes）由 srt 在释放租约时回写，
+  // 一旦清理没跑完就会在仓库根留下一个 `.sandbox-policy-<pid>` 空壳——2026-09-20 起
+  // 这样累积了 121 个、约 170MB。临时目录即便漏了也只落在 /tmp，由系统回收。
+  const root = path.join(os.tmpdir(), `em-sandbox-policy-${process.pid}`);
   const workspace = path.join(root, "workspace");
   const outside = path.join(root, "outside.txt");
 
@@ -16,8 +20,13 @@ describe("执行策略真实 I/O", () => {
   });
 
   afterAll(async () => {
-    fs.rmSync(root, { recursive: true, force: true });
+    // 顺序不能反：runtimeRoot 就在 root 下面，srt 在释放租约时仍要写运行区
+    // （logs/state/tools/tmp），先删目录再 release 会被它重新建出来——实测每跑一次
+    // `vitest run` 就在项目根留下一个空壳，累积了 120+ 个、约 170MB。
     await releaseSandbox();
+    fs.rmSync(root, { recursive: true, force: true });
+    // 守护：目录清不掉就当场红，别再让它悄悄堆在项目根
+    expect(fs.existsSync(root)).toBe(false);
   });
 
   function run(command: string, env?: NodeJS.ProcessEnv): ReturnType<typeof spawnSync> {
