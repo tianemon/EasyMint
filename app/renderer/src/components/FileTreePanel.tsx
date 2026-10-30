@@ -1,16 +1,24 @@
 import { appText } from "../lib/i18n";
 import { uiText, useUiLocale } from "../lib/i18n";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface FileTreePanelProps {
   projectPath: string;
   onFileClick?: (filePath: string, fileName: string) => void;
   collapseAllKey?: number;
+  /**
+   * 静默刷新令牌：值变化即重新读树，但**不清空现有列表**。
+   *
+   * 侧栏切 tab 不再卸载本组件（切走只是隐藏），原来"切回就等于重新加载"的语义
+   * 改由这个令牌补上——否则用户会看到旧的文件列表。
+   */
+  refreshToken?: number;
 }
 
-export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: FileTreePanelProps): JSX.Element {
+export function FileTreePanel({ projectPath, onFileClick, collapseAllKey, refreshToken }: FileTreePanelProps): JSX.Element {
   useUiLocale();
   const [files, setFiles] = useState<FileNode[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +28,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
     setError(null);
     window.electronAPI.file
       .readTree(projectPath)
-      .then(setFiles)
+      .then(({ nodes, truncated: cut }) => { setFiles(nodes); setTruncated(cut); })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : uiText("ui.FileTreePanel.couldNotLoadFileTree"));
       });
@@ -29,6 +37,13 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
   useEffect(() => {
     loadTree();
   }, [loadTree]);
+
+  // 切回「文件」页时的静默刷新：只替换数据，不动 expanded/selected，界面不闪
+  const firstRefresh = useRef(true);
+  useEffect(() => {
+    if (firstRefresh.current) { firstRefresh.current = false; return; }
+    loadTree();
+  }, [refreshToken, loadTree]);
 
   useEffect(() => {
     if (collapseAllKey && collapseAllKey > 0) {
@@ -107,7 +122,14 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
           <p className="text-xs text-text-secondary">{uiText("ui.FileTreePanel.noProjectFiles")}</p>
         </div>
       ) : (
-        renderTree(files)
+        <>
+          {renderTree(files)}
+          {truncated && (
+            <div className="px-3 py-2 text-[length:var(--text-2xs)] text-text-secondary">
+              {uiText("ui.FileTreePanel.treeTruncated")}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -256,7 +256,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // file:*（目标路径必须在项目根内——见 projectRootContaining；FileService 内部再做一次 baseDir 包含校验）
   // 1.7：参数经 zod 运行时校验——畸形 payload（非字符串路径/缺字段）返回明确错误而非静默失败
-  ipcMain.handle("file:readTree", guard(z.object({ dirPath: pathString }).loose(), (data) =>
+  ipcMain.handle("file:readTree", guard(z.object({ dirPath: pathString }).loose(), async (data) =>
     fileService.readTree(projectRootContaining(data.dirPath) ?? "", data.dirPath)));
   ipcMain.handle("file:readContent", guard(z.object({ filePath: pathString }).loose(), (data) =>
     // 项目根可能为 null（路径不属于任何已登记项目）：不抛错也不返回空串，交给 FileService 出原因码，

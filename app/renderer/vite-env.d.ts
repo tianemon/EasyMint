@@ -282,7 +282,7 @@ interface ElectronAPI {
     saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => Promise<{ ok: boolean; error?: string }>;
   };
   file: {
-    readTree: (dirPath: string) => Promise<FileNode[]>;
+    readTree: (dirPath: string) => Promise<{ nodes: FileNode[]; truncated: boolean }>;
     readContent: (filePath: string) => Promise<{ ok: true; content: string } | { ok: false; reason: "missing" | "outside-project" }>;
     writeContent: (filePath: string, content: string) => Promise<void>;
     createFile: (filePath: string, content?: string) => Promise<void>;

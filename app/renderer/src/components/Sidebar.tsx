@@ -55,6 +55,8 @@ export function Sidebar({
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   // 归档恢复后自增,触发 SessionHistory 主列表刷新(受控 sessionRefreshKey 无法直接改)
   const [archivedRefresh, setArchivedRefresh] = useState(0);
+  /** 切 tab 时的静默刷新令牌（见 switchTab：面板常驻后靠它补"切回即刷新"） */
+  const [tabRefresh, setTabRefresh] = useState(0);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const newProjectRef = useRef<HTMLButtonElement>(null);
@@ -148,7 +150,11 @@ export function Sidebar({
 
 
   const switchTab = useCallback((tab: SidebarTab) => {
-    setActiveTab(tab);
+    setActiveTab((prev) => (prev === tab ? prev : tab));
+    // 两个面板都常驻（切走只是隐藏），所以"切回即刷新"要由令牌补：会话列表与文件树
+    // 各自静默重读一次，保留现有内容、不闪白。原来靠卸载重挂顺带刷新，代价是每次都
+    // 重新扫描（文件树实测 20ms 同步阻塞 + 473KB IPC）。
+    setTabRefresh((v) => v + 1);
   }, []);
 
   const toggleDrawer = useCallback((tab: DrawerTab) => {
@@ -228,32 +234,33 @@ export function Sidebar({
         <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} aria-pressed={activeTab === "files"} onClick={() => switchTab("files")}>{t("nav.files")}</button>
       </div>
 
-      {/* Content */}
+      {/* Content —— 两个面板都常驻，切 tab 只切显示（hidden），不再卸载重挂。
+          卸载重挂会让文件树每次重新扫描、会话列表每次重新请求，用户看到的就是"点一下顿一下"。 */}
       <div className="sb-content">
-        {activeTab === "sessions" ? (
-          <div className="sb-session-lists flex flex-col min-h-0 flex-1">
-            <SessionBar
-              projectPath={projectPath}
-              onSessionClick={onSessionClick}
-              onNewSession={onNewSession}
-              refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh}
-              onRestored={() => setArchivedRefresh((v) => v + 1)}
-            />
-            <SessionHistory
-              projectPath={projectPath}
-              onSessionClick={onSessionClick}
-              onSessionDelete={onSessionDelete}
-              activeSessionId={activeSessionId}
-              refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh}
-              onArchived={() => setArchivedRefresh((v) => v + 1)}
-            />
-          </div>
-        ) : (
+        <div className={activeTab === "sessions" ? "sb-session-lists flex flex-col min-h-0 flex-1" : "hidden"}>
+          <SessionBar
+            projectPath={projectPath}
+            onSessionClick={onSessionClick}
+            onNewSession={onNewSession}
+            refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh + tabRefresh}
+            onRestored={() => setArchivedRefresh((v) => v + 1)}
+          />
+          <SessionHistory
+            projectPath={projectPath}
+            onSessionClick={onSessionClick}
+            onSessionDelete={onSessionDelete}
+            activeSessionId={activeSessionId}
+            refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh + tabRefresh}
+            onArchived={() => setArchivedRefresh((v) => v + 1)}
+          />
+        </div>
+        <div className={activeTab === "files" ? "h-full" : "hidden"}>
           <FileTreePanel
             projectPath={projectPath}
             onFileClick={onFileClick}
+            refreshToken={tabRefresh}
           />
-        )}
+        </div>
       </div>
 
       {/* Drawer — Task / Issue / Run panels */}

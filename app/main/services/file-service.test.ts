@@ -59,3 +59,57 @@ describe("readContent", () => {
     expect(svc.readContent(null, path.join(tmp, "nope.md"))).toEqual({ ok: false, reason: "missing" });
   });
 });
+
+/**
+ * readTree 契约（2026-10-30 改为异步 + 节点上限）。
+ *
+ * 侧栏“文件”页原先每次切回都重新同步递归整棵树：本项目实测 20ms、约 3000 节点、473KB JSON，
+ * 主进程被整块占住，用户看到的就是“点一下顿一下”。异步化后这些断言保证结构没被改坏。
+ */
+describe("readTree", () => {
+  const touch = (rel: string): void => {
+    const full = path.join(tmp, rel);
+    mkdirSync(path.dirname(full), { recursive: true });
+    writeFileSync(full, "");
+  };
+
+  it("嵌套目录成型，重目录（node_modules/dist/.git/temp）不进树", async () => {
+    touch("src/main.ts");
+    touch("src/deep/deeper/a.ts");
+    touch("node_modules/pkg/index.js");
+    touch("dist/bundle.js");
+    touch(".git/config");
+    touch("temp/scratch.txt");
+
+    const { nodes, truncated } = await svc.readTree(tmp, tmp);
+    // beforeEach 已建 sub/，所以顶层是 src + sub
+    expect(nodes.map((n) => n.name).sort()).toEqual(["src", "sub"]);
+    expect(truncated).toBe(false);
+    const src = nodes.find((n) => n.name === "src")!;
+    expect(src.isDirectory).toBe(true);
+    expect(src.children!.map((n) => n.name).sort()).toEqual(["deep", "main.ts"]);
+  });
+
+  it("碰到节点上限就停并报 truncated，不返回一棵巨型树", async () => {
+    for (let i = 0; i < 10; i += 1) touch(`f${i}.txt`);
+    // 上限参数化只为此：真限 5000 要造 5001 个文件，慢且没测到更多东西
+    const { nodes, truncated } = await svc.readTree(tmp, tmp, 10, 4);
+    expect(nodes).toHaveLength(4);
+    expect(truncated).toBe(true);
+  });
+
+  it("项目外的目录返回空树（路径归属校验仍在）", async () => {
+    const outside = path.join(os.tmpdir(), `file-service-out-${randomUUID().slice(0, 8)}`);
+    mkdirSync(outside, { recursive: true });
+    try {
+      writeFileSync(path.join(outside, "secret.txt"), "");
+      expect(await svc.readTree(sub, outside)).toEqual({ nodes: [], truncated: false });
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("目录不存在时返回空树而不是抛错（异步读的失败分支）", async () => {
+    expect(await svc.readTree(tmp, path.join(tmp, "gone"))).toEqual({ nodes: [], truncated: false });
+  });
+});

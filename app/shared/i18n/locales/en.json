@@ -330,6 +330,7 @@
   "ui.ErrorBoundary.somethingWentWrong": "Something went wrong",
   "ui.ErrorBoundary.unknownError": "Unknown error",
   "ui.FileTreePanel.couldNotLoadFileTree": "Could not load file tree",
+  "ui.FileTreePanel.treeTruncated": "Too many files to list: only part of the tree is shown",
   "ui.FileTreePanel.noProjectFiles": "No project files",
   "ui.ImageRecoveryDialog.cleanUpHistoricalImagesAndRetry": "Clean up historical images and retry",
   "ui.ImageRecoveryDialog.selectedImagesWillNoLongerBeSent": "Selected images will no longer be sent. Message text and original session records are retained. Attach the originals again if you need them later.",

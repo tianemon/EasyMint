@@ -11,6 +11,23 @@ interface FileNode {
   children?: FileNode[];
 }
 
+/** 树遍历的排除项。模块级常量：原先每次递归都重建一个 Set（本项目 697 个目录就是 697 个）。 */
+const TREE_EXCLUDE = new Set([".git", "node_modules", ".DS_Store", "dist", "temp"]);
+
+/**
+ * 单次遍历的节点上限。
+ *
+ * 没有上限时，monorepo 十万级文件会生成几十 MB JSON 走 IPC + 结构化克隆——
+ * 那不是"卡一下"而是界面直接卡死。超限即停止递归并回报 truncated，由前端提示。
+ */
+const TREE_NODE_LIMIT = 5000;
+
+/** 遍历预算：递归各层共用一个，超限即停并标记截断。 */
+interface TreeBudget {
+  remaining: number;
+  truncated: boolean;
+}
+
 export class FileService {
   private expand(p: string): string {
     return resolveHome(p);
@@ -31,27 +48,56 @@ export class FileService {
     return isWithin(base, target);
   }
 
-  readTree(baseDir: string, dirPath: string, maxDepth = 10): FileNode[] {
-    const expanded = this.expand(dirPath);
-    if (!this.isPathSafe(dirPath, baseDir)) return [];
-    if (!fs.existsSync(expanded)) return [];
-    if (maxDepth <= 0) return [];
-    const entries = fs.readdirSync(expanded, { withFileTypes: true });
-    const exclude = new Set([".git", "node_modules", ".DS_Store", "dist", "temp"]);
-    return entries
-      .filter((e) => !exclude.has(e.name))
-      .map((entry): FileNode => {
-        const fullPath = path.join(expanded, entry.name);
-        if (entry.isDirectory()) {
-          return {
-            name: entry.name,
-            path: fullPath,
-            isDirectory: true,
-            children: this.readTree(baseDir, fullPath, maxDepth - 1),
-          };
-        }
-        return { name: entry.name, path: fullPath, isDirectory: false };
-      });
+  /**
+   * 读取文件树（`file:readTree` 通道）。
+   *
+   * 全程异步：原先是 `fs.readdirSync` 逐层同步递归，本项目实测 20ms、约 3000 节点，
+   * 这段时间主进程被整块占住，所有 IPC 与 UI 帧都得排队（侧栏"文件"页那一下顿感的来源之一）。
+   * 改成 `fs.promises.readdir` 后主进程不再被独占，代价是每个目录多一次 await。
+   */
+  async readTree(
+    baseDir: string,
+    dirPath: string,
+    maxDepth = 10,
+    /** 节点上限（缺省 TREE_NODE_LIMIT）；参数化的目的是让截断行为可被小规模夹具验证 */
+    nodeLimit = TREE_NODE_LIMIT,
+  ): Promise<{ nodes: FileNode[]; truncated: boolean }> {
+    const budget: TreeBudget = { remaining: nodeLimit, truncated: false };
+    const nodes = await this.readTreeDir(baseDir, this.expand(dirPath), maxDepth, budget);
+    return { nodes, truncated: budget.truncated };
+  }
+
+  private async readTreeDir(baseDir: string, expanded: string, depth: number, budget: TreeBudget): Promise<FileNode[]> {
+    if (depth <= 0 || budget.remaining <= 0) return [];
+    if (!this.isPathSafe(expanded, baseDir)) return [];
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(expanded, { withFileTypes: true });
+    } catch {
+      // 不存在 / 无权限 / 遍历中被删：单目录失败不拖垮整棵树（原 existsSync+readdirSync 同样会返回空）
+      return [];
+    }
+    const nodes: FileNode[] = [];
+    for (const entry of entries) {
+      if (TREE_EXCLUDE.has(entry.name)) continue;
+      if (budget.remaining <= 0) {
+        budget.truncated = true;
+        break;
+      }
+      budget.remaining -= 1;
+      const fullPath = path.join(expanded, entry.name);
+      if (entry.isDirectory()) {
+        nodes.push({
+          name: entry.name,
+          path: fullPath,
+          isDirectory: true,
+          children: await this.readTreeDir(baseDir, fullPath, depth - 1, budget),
+        });
+      } else {
+        nodes.push({ name: entry.name, path: fullPath, isDirectory: false });
+      }
+    }
+    return nodes;
   }
 
   /**

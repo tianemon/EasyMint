@@ -330,6 +330,7 @@
   "ui.ErrorBoundary.somethingWentWrong": "出了点问题",
   "ui.ErrorBoundary.unknownError": "未知错误",
   "ui.FileTreePanel.couldNotLoadFileTree": "加载文件树失败",
+  "ui.FileTreePanel.treeTruncated": "项目文件过多，这里只显示了一部分",
   "ui.FileTreePanel.noProjectFiles": "暂无项目文件",
   "ui.ImageRecoveryDialog.cleanUpHistoricalImagesAndRetry": "整理历史图片后重试",
   "ui.ImageRecoveryDialog.selectedImagesWillNoLongerBeSent": "选中的图片将不再随请求发送。消息文字和原始会话记录会保留；如果之后还需要分析原图，可以重新附图。",
