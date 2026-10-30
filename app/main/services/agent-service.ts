@@ -20,7 +20,7 @@ import { waitForAbortSettlement, settleSessionIdle } from "./abort-settlement";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
-import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
+import { createPiSession, resumePiSession, listPiSessions, disposePiSession, getPiSessionDir } from "./pi-session";
 import { createWithPermissionGate, withSessionCreationLock } from "./session-permission-gate";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
@@ -1727,18 +1727,41 @@ export class AgentService {
 
   /** Current normalized image payload retained in the model context. */
   async getContextImageStats(sessionId: string, projectPath?: string): Promise<{ ok: true; candidates: ContextImageEntry[]; encodedBytes: number; maxRequestBytes?: number } | { ok: false; error: string }> {
-    let chat = this.findActiveChat(sessionId);
-    if (!chat?.session && projectPath) {
+    const active = this.findActiveChat(sessionId);
+    if (active?.session) {
       try {
-        await this.activateSession(sessionId, projectPath);
-        chat = this.findActiveChat(sessionId);
-      } catch {
-        return { ok: false, error: "会话加载失败" };
-      }
+        const candidates = contextImageEntries(active.session.sessionManager.buildSessionProjection().entries);
+        return {
+          ok: true,
+          candidates,
+          encodedBytes: candidates.reduce((total, entry) => total + entry.encodedBytes, 0),
+          maxRequestBytes: active.session.model?.inputLimits?.maxRequestBytes,
+        };
+      } catch { /* 落到磁盘读 */ }
     }
-    if (!chat?.session) return { ok: false, error: "会话未加载" };
-    const candidates = contextImageEntries(chat.session.sessionManager.buildSessionProjection().entries);
-    return { ok: true, candidates, encodedBytes: candidates.reduce((total, entry) => total + entry.encodedBytes, 0), maxRequestBytes: chat.session.model?.inputLimits?.maxRequestBytes };
+
+    // 未激活：**读磁盘，不建最小会话**。
+    //
+    // 打开会话时前端就会问这个统计（ChatPanel 的图片占用 effect）。原先这里调 activateSession，
+    // 于是"纯读一条会话"也会把整份 jsonl resume 成活跃 chat：状态点变绿、内存常驻、关掉后
+    // 还要等 2 分钟才回收——而它只是为了算图片占了几个字节（本仓库有 51MB 的会话）。
+    if (!projectPath) return { ok: false, error: "会话未加载" };
+    try {
+      const resolved = path.resolve(resolveHome(projectPath));
+      const info = (await listPiSessions(resolved)).find((s) => s.id === sessionId);
+      if (!info) return { ok: false, error: "会话未加载" };
+      const mtimeMs = fs.statSync(info.path).mtimeMs;
+      const cached = this.contextImageCache.get(info.path);
+      if (cached && cached.mtimeMs === mtimeMs) return cached.value;
+      const SM = await getSessionManagerClass();
+      const manager = SM.open(info.path, getPiSessionDir(resolved), resolved);
+      const candidates = contextImageEntries(manager.buildSessionProjection().entries);
+      const value = { ok: true as const, candidates, encodedBytes: candidates.reduce((total, entry) => total + entry.encodedBytes, 0) };
+      this.contextImageCache.set(info.path, { mtimeMs, value });
+      return value;
+    } catch {
+      return { ok: false, error: "会话加载失败" };
+    }
   }
 
   /** Proactive cleanup; no user turn is rewound. */
@@ -2597,6 +2620,17 @@ export class AgentService {
 
   /** 关闭 tab 后的会话回收记录(按 sessionId 防重复) */
   private reclaims = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /**
+   * 上下文图片统计的磁盘读缓存（键 = 会话文件路径，mtime 变化即失效）。
+   *
+   * 打开会话时前端会问一次图片占用，这个问答不该把会话变成"活跃"（见 getContextImageStats）。
+   * 改为读磁盘后，同一会话在消息追加前会反复命中同一次解析。
+   */
+  private contextImageCache = new Map<string, {
+    mtimeMs: number;
+    value: { ok: true; candidates: ContextImageEntry[]; encodedBytes: number };
+  }>();
 
   /**
    * 关闭 tab → 会话保留 2 分钟,2 分钟后直接 killChat(不做活跃判断——
