@@ -72,6 +72,7 @@
     "@types/unzipper": "^0.10.11",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.1.1",
+    "7zip-bin": "5.2.0",
     "concurrently": "^10.0.4",
     "dompurify": "^3.4.15",
     "electron": "^43.7.3",
@@ -180,6 +181,13 @@
       "icon": "assets/icon-volume.icns"
     },
     "win": {
+      "extraResources": [
+        {
+          "from": "temp/runtime-resources/windows/${arch}",
+          "to": "windows-runtime",
+          "filter": ["manifest.json", "portable-git.7z.exe", "7za.exe", "NOTICE.txt", "7zip-LICENSE.txt", "7zip-README.txt"]
+        }
+      ],
       "target": [
         "nsis",
         "zip"
@@ -193,6 +201,7 @@
       "allowToChangeInstallationDirectory": true,
       "include": "scripts/installer.nsh"
     },
+    "beforePack": "scripts/prepare-windows-runtime.cjs",
     "afterPack": "scripts/after-pack.cjs",
     "linux": {
       "target": [

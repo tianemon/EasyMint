@@ -1,10 +1,11 @@
 /**
  * 执行层：把「计划」跑起来，按**阶段**回报进度，装完复核。
  *
- * 三条执行策略：
+ * 四条执行策略：
  * - `pkg`（Linux）：包管理器 + pkexec 单命令（系统弹授权框）
  * - `usernsProfile`（Linux）：加载 AppArmor profile 给 bwrap 放行 userns（pkexec；见 fixUserns）
  * - `winInstall`（Windows）：srt 自带的一次性装配（隔离账户 + WFP 网络过滤，自提权 → 一次 UAC）
+ * - `windowsRuntime`（Windows）：随包 Git/Bash 的用户级准备与修复，不提权
  *
  * 为什么用阶段而非解析包管理器输出：apt/dnf/pacman/zypper 的输出格式、进度条、语言各不相同，
  * 解析必然脆弱且随时被上游改坏；阶段化在两家策略上都成立，进度条用"不确定态"更诚实。
@@ -25,6 +26,7 @@ import { cleanEnv, prependPathDirs, probeEnvironment, probePathDirs } from "./pr
 import { packagedSrtVersion, srtWinSpawn } from "../sandbox/srt-win";
 import type { EnvReport } from "./types";
 import { emHome } from "../../utils/paths";
+import { ensureWindowsRuntime } from "../windows-runtime";
 
 export type InstallPhase = "preparing" | "installing" | "verifying" | "done" | "failed";
 
@@ -48,7 +50,8 @@ export interface InstallResult {
 
 type Plan =
   | { strategy: "pkg"; argv: string[] | null; manualCommand?: string }
-  | { strategy: "winInstall"; manualCommand?: string };
+  | { strategy: "winInstall"; manualCommand?: string }
+  | { strategy: "windowsRuntime"; manualCommand?: undefined };
 
 /** Windows 一次性装配的结果：`cancelled` = 用户在 UAC 窗口点了取消（srt 的 exit 10） */
 export interface WinInstallOutcome {
@@ -59,6 +62,7 @@ export interface RunDeps {
   spawn: typeof spawn;
   /** Windows 一次性装配（srt 自提权）；单测注入用 */
   installWin: () => Promise<WinInstallOutcome>;
+  prepareRuntime: (opts: { signal?: AbortSignal; onProgress?: (message: string) => void }) => Promise<unknown>;
   probe: () => Promise<EnvReport>;
   logger: (line: string) => void;
   /** 覆盖计划层（单测注入用；生产不传） */
@@ -91,9 +95,10 @@ async function defaultInstallWin(): Promise<WinInstallOutcome> {
   return { cancelled: st?.cancelled === true };
 }
 
-/** 计划层：Linux 走包管理器白名单；Windows 走 srt 装配（手工指引见 plan.ts 的 windowsInstallCommand） */
+/** 计划层：Linux 走包管理器白名单；Windows 分开准备用户运行环境与 srt 装配（手工指引见 plan.ts 的 windowsInstallCommand） */
 async function computePlan(ids: readonly string[]): Promise<Plan> {
   if (process.platform === "win32") {
+    if (ids.length === 1 && ids[0] === "windowsRuntime") return { strategy: "windowsRuntime" };
     if (!isWindowsInstallRequest(ids)) return { strategy: "pkg", argv: null };
     try {
       const srt = await import("@anthropic-ai/sandbox-runtime");
@@ -191,6 +196,19 @@ export async function installDependencies(
     const r = await runArgv(plan.argv, spawnFn, signal, log);
     exitCode = r.exitCode;
     errorText = r.tail;
+  } else if (plan.strategy === "windowsRuntime") {
+    onEvent({ phase: "installing", index: 1, total, message: "正在准备命令运行环境…" });
+    try {
+      await (deps.prepareRuntime ?? ensureWindowsRuntime)({
+        signal,
+        onProgress: message => onEvent({ phase: "installing", index: 1, total, message }),
+      });
+      exitCode = 0;
+    } catch (error) {
+      errorText = error instanceof Error ? error.message : String(error);
+      exitCode = FAILED_EXIT;
+      log(`[install] command runtime failed: ${errorText}`);
+    }
   } else {
     onEvent({ phase: "installing", index: 1, total, message: "正在安装系统保护组件（会弹出系统授权窗口）…" });
     log("[install] windows installWindowsSandboxAsync");
@@ -221,6 +239,8 @@ export async function installDependencies(
   let reason: string;
   if (signal?.aborted) {
     reason = "安装已取消";
+  } else if (plan.strategy === "windowsRuntime") {
+    reason = errorText ? `命令运行环境准备失败：${outputTail(errorText, 160)}` : "命令运行环境尚不可用，请重新检测或重试修复";
   } else if (winCancelled) {
     // 用户的选择，不是故障：不能套下面那条"安装未完成（退出码 null）"
     reason = "你在系统授权窗口点了取消，环境没有改变——需要时再点一次「一键安装」即可";

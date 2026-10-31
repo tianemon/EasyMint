@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { emHome } from "../../utils/paths";
+import { preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
 
 export interface DevelopmentRuntime {
   id: string;
@@ -92,17 +93,22 @@ const SAFE_GIT_CONFIG_KEYS = [
 function seedSafeGitConfig(runtime: DevelopmentRuntime): void {
   const target = path.join(runtime.home, ".gitconfig");
   if (fs.existsSync(target)) return;
+  const prepared = process.platform === "win32" ? preparedWindowsRuntime() : undefined;
+  const git = prepared?.git ?? "git";
+  const env = prepared ? windowsRuntimeEnvironment(process.env, prepared) : process.env;
   for (const key of SAFE_GIT_CONFIG_KEYS) {
-    const read = spawnSync("git", ["config", "--global", "--get", key], {
+    const read = spawnSync(git, ["config", "--global", "--get", key], {
       encoding: "utf8",
+      windowsHide: true,
       timeout: 3000,
-      env: process.env,
+      env,
     });
     if (read.status !== 0 || !read.stdout.trim()) continue;
-    const write = spawnSync("git", ["config", "--file", target, key, read.stdout.trim()], {
+    const write = spawnSync(git, ["config", "--file", target, key, read.stdout.trim()], {
       encoding: "utf8",
+      windowsHide: true,
       timeout: 3000,
-      env: process.env,
+      env,
     });
     if (write.status !== 0) {
       try { fs.rmSync(target, { force: true }); } catch { /* 下次创建上下文时重试 */ }

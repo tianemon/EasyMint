@@ -31,7 +31,7 @@ type WorkerRequestWithoutId =
 
 /** 导出为纯函数，覆盖 Windows worker 隔离维度的回归测试。 */
 export function windowsWorkerKey(context: ExecutionContext): string {
-  return [context.ownerId ?? "shared", context.workspaceRealPath, context.runtimeRoot, context.mode, context.policyVersion].join("\u0000");
+  return [context.ownerId ?? "shared", context.workspaceRealPath, context.runtimeRoot, context.mode, context.policyVersion, context.bundledRuntimeRoot ?? ""].join("\u0000");
 }
 
 function requestId(): string { return `win-srt-${process.pid}-${Date.now()}-${++sequence}`; }
@@ -43,7 +43,7 @@ function workerEntrypoint(): string {
 }
 
 function createWorker(key: string): WorkerHandle {
-  const child = fork(workerEntrypoint(), [], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
+  const child = fork(workerEntrypoint(), [], { stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true });
   const handle: WorkerHandle = { key, child, pending: new Map(), initialized: false, leases: new Set(), revoking: false };
   const fail = (message: string) => {
     for (const pending of handle.pending.values()) pending.reject(new Error(message));

@@ -7,8 +7,8 @@
  * - 安装只走**白名单**：渲染层只能传 EnvItemId，命令由 plan.ts 按发行版生成。
  */
 
-/** 环境条目标识。新增项必须同时更新 plan.ts 的白名单（否则自动安装会拒绝） */
-export type EnvItemId = "bwrap" | "socat" | "rg" | "userns" | "winSandbox" | "gitBash";
+/** 环境条目标识。新增项必须同时更新安装计划的白名单（否则自动安装会拒绝） */
+export type EnvItemId = "bwrap" | "socat" | "rg" | "userns" | "winSandbox" | "gitBash" | "windowsRuntime";
 
 export type EnvItemStatus = "ok" | "missing" | "blocked" | "unknown";
 
@@ -19,7 +19,8 @@ export type EnvItemStatus = "ok" | "missing" | "blocked" | "unknown";
 export type EnvAutoFix =
   | { strategy: "pkg"; packages: string[] }
   | { strategy: "usernsProfile" }
-  | { strategy: "winInstall" };
+  | { strategy: "winInstall" }
+  | { strategy: "windowsRuntime" };
 
 export interface EnvFix {
   /** auto：可由 EM 自己安装。pkg 策略只给**包名**，命令在 plan.ts 按发行版生成 */

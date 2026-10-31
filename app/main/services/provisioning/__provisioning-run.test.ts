@@ -352,3 +352,54 @@ describe("userns 一键修复：执行层", () => {
     expect(events).toHaveLength(0);
   });
 });
+
+
+describe("Windows runtime preparation stays separate from sandbox elevation", () => {
+  it("uses the portable preparer, forwards progress and verifies without UAC or package commands", async () => {
+    const events: InstallEvent[] = [];
+    const prepareRuntime = vi.fn(async ({ onProgress }: { onProgress?: (message: string) => void }) => { onProgress?.("extracting fixture"); });
+    const installWin = vi.fn(); const spawn = vi.fn();
+    const result = await installDependencies(["windowsRuntime"], event => events.push(event), {
+      plan: { strategy: "windowsRuntime" }, prepareRuntime, installWin, spawn: spawn as never, logger: () => {},
+      probe: async () => report(["ok", "missing"], ["windowsRuntime", "winSandbox"]),
+    });
+    expect(prepareRuntime).toHaveBeenCalledOnce();
+    expect(installWin).not.toHaveBeenCalled(); expect(spawn).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(events.some(event => event.message === "extracting fixture")).toBe(true);
+    expect(events.at(-1)?.phase).toBe("done");
+  });
+
+  it("returns a runtime repair error locally without elevation or misleading authorization advice", async () => {
+    const installWin = vi.fn();
+    const result = await installDependencies(["windowsRuntime"], () => {}, {
+      plan: { strategy: "windowsRuntime" }, prepareRuntime: async () => { throw new Error("archive damaged"); }, installWin, logger: () => {},
+      probe: async () => report(["unknown"], ["windowsRuntime"]),
+    });
+    expect(result.ok).toBe(false); expect(result.reason).toContain("archive damaged");
+    expect(result.reason).not.toContain("系统授权"); expect(installWin).not.toHaveBeenCalled();
+  });
+});
+
+
+it("runtime repair remains failed when preparation returns but capability verification is not ready", async () => {
+  const result = await installDependencies(["windowsRuntime"], () => {}, {
+    plan: { strategy: "windowsRuntime" }, prepareRuntime: async () => {}, logger: () => {},
+    probe: async () => report(["unknown"], ["windowsRuntime"]),
+  });
+  expect(result.ok).toBe(false);
+  expect(result.reason).toContain("命令运行环境尚不可用");
+});
+
+it("forwards runtime cancellation without requesting elevation", async () => {
+  const controller = new AbortController(); controller.abort();
+  const installWin = vi.fn();
+  const result = await installDependencies(["windowsRuntime"], () => {}, {
+    plan: { strategy: "windowsRuntime" },
+    prepareRuntime: async ({ signal }) => { expect(signal).toBe(controller.signal); throw new Error("cancelled"); },
+    installWin, logger: () => {}, probe: async () => report(["missing"], ["windowsRuntime"]),
+  }, controller.signal);
+  expect(result.ok).toBe(false); expect(result.reason).toBe("安装已取消");
+  expect(installWin).not.toHaveBeenCalled();
+  expect(isWindowsInstallRequest(["windowsRuntime", "winSandbox"])).toBe(false);
+});

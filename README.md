@@ -80,6 +80,8 @@ sudo xattr -rd com.apple.quarantine /Applications/EasyMint.app
 
 Windows 若出现 SmartScreen 提示，点「更多信息」→「仍要运行」；Linux 的 AppImage 需要先 `chmod +x`。
 
+Windows 版随包提供 Git 和 Bash，首次启动自动准备，可在「设置 → 环境检测」中重新检测或修复。标准模式的系统保护组件在设置中按需授权安装；完全访问不要求安装该组件。
+
 版本变化与兼容说明见 [更新日志](CHANGELOG.md)。
 
 1. **配置 AI 供应商**：按首次设置引导，使用供应商支持的 API Key 或账号授权。EasyMint 自身无需注册账号，模型调用按供应商规则计费，详见下方「AI 供应商」。
@@ -310,6 +312,8 @@ npm run dev          # Vite dev server + Electron
 npm run build        # 生产构建
 npm run lint         # ESLint + TypeScript 类型检查
 ```
+
+Windows 源码开发时，先运行 `node scripts/prepare-windows-runtime.cjs --arch x64` 准备内置运行环境资源（ARM64 使用 `--arch arm64`）；Windows 打包会自动准备对应架构资源。
 
 需要 Node.js 环境。安装脚本通过 `ELECTRON_MIRROR` 配置 Electron 下载镜像；已有环境变量会保留。锁文件安装可使用 `node scripts/install-deps.cjs ci`。
 

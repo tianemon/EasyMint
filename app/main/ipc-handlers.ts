@@ -18,6 +18,7 @@ import { broadcast } from "./services/ipc-broadcast";
 import { getNativeConfig, setNativeRuntimeReadyNotifier } from "./services/native-config";
 import { setSandboxDisabledProvider, resetSandboxState } from "./services/sandbox/manager";
 import { probeEnvironment } from "./services/provisioning/probe";
+import { ensureWindowsRuntime, resetWindowsRuntimeProbe } from "./services/windows-runtime";
 import { installDependencies, fixUserns } from "./services/provisioning/run";
 import { IMAGE_MIME, resolveHome, nearestExistingDir, emHome } from "./utils/paths";
 import { applyDockIcon } from "./utils/dock-icon";
@@ -667,6 +668,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("env:probe", () => probeEnvironment());
   // 「重新检测」：先重置沙盒失败缓存——否则装好依赖仍会被缓存的 fail-closed 挡住，用户以为白装了
   ipcMain.handle("env:retest", async () => {
+    if (process.platform === "win32") resetWindowsRuntimeProbe();
     await resetSandboxState();
     return probeEnvironment();
   });
@@ -683,7 +685,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
         {},
         envInstallAbort.signal,
       );
-      if (result.ok) await resetSandboxState(); // 装完即生效（不必重启）
+      // 成功时保留复检得到的ready，Git探测与skill导入会同步读取这份快照。
+      if (!result.ok && process.platform === "win32") resetWindowsRuntimeProbe();
+      if (result.ok || process.platform === "win32") await resetSandboxState(); // Windows 安装后允许下一次执行重新验证
       return result;
     } finally {
       envInstallAbort = null;
@@ -709,12 +713,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("env:cancel", () => { envInstallAbort?.abort(); });
 
-  // 启动自检：延迟探测一次（不与启动争资源），结果广播给所有窗口 → 侧边栏红点 + 设置页环境检测。
-  // 探测失败**不打扰用户**（正式进设置页时还有一次主动探测兜底）。
+  // Upgrade preparation stays silent and never installs the elevated sandbox component.
   setTimeout(() => {
-    probeEnvironment()
-      .then((report) => broadcast("env:report", report))
-      .catch(() => { /* 静默：探测失败会在设置页显示为「检测失败」 */ });
+    void (async () => {
+      if (process.platform === "win32") {
+        try { await ensureWindowsRuntime(); }
+        catch (error) { console.warn("[provisioning] 命令运行环境准备失败:", error); }
+      }
+      const report = await probeEnvironment();
+      broadcast("env:report", report);
+    })().catch(error => console.warn("[provisioning] 启动环境检测失败:", error));
   }, 1500);
 
   // appearance:* — 渲染层上报「当前生效主题」（单一真相源：theme-store 设置 data-theme 的同一处）

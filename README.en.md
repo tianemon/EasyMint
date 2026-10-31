@@ -75,6 +75,8 @@ Enter your login password (it stays invisible while typing), then double-click t
 
 On Windows, if SmartScreen appears, click "More info" → "Run anyway". On Linux, the AppImage needs `chmod +x` first.
 
+Windows builds include Git and Bash and prepare them on first launch. Recheck or repair them under Settings → Environment. System protection for Standard mode is installed with explicit authorization in Settings; Full Access does not require that component.
+
 See [CHANGELOG.md](CHANGELOG.md) for release and compatibility notes (Chinese).
 
 1. **Configure an AI provider.** Follow the first-launch setup and use an API key or account authorization supported by your provider. EasyMint has no separate account system; model usage follows your provider's billing rules. See [AI providers](#ai-providers).
@@ -307,6 +309,8 @@ npm run dev          # Vite dev server + Electron
 npm run build        # Production build
 npm run lint         # ESLint + TypeScript checks
 ```
+
+For Windows source development, first run `node scripts/prepare-windows-runtime.cjs --arch x64` (`--arch arm64` for ARM64) to prepare the bundled runtime resources. Windows packaging prepares the matching architecture automatically.
 
 Requires a Node.js environment. The installer configures Electron downloads through `ELECTRON_MIRROR`, preserving an existing value. For lockfile installation, use `node scripts/install-deps.cjs ci`.
 

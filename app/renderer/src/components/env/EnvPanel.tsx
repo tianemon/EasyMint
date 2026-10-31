@@ -97,7 +97,8 @@ const MIN_WORK_SCREEN_MS = 5000;
  * 用户随后手动点按钮不受影响（按钮文案会据此显示uiText("ui.extra.retryInstall")）。
  * 设置页传 autoFix=false，本集合对它无作用。
  */
-const autoDoneOnce = new Set<"pkg" | "userns">();
+type AutoAction = "pkg" | "userns" | "windowsRuntime";
+const autoDoneOnce = new Set<AutoAction>();
 
 /**
  * 「自动安装」的一次性决策（纯函数，便于单测）：返回这一轮该自动触发的动作。
@@ -118,10 +119,14 @@ export function nextAutoAction(s: {
   installing: boolean;
   sandboxDisabled: boolean;
   installableCount: number;
+  runtimeCount?: number;
   fixableCount: number;
-  done: ReadonlySet<"pkg" | "userns">;
-}): "pkg" | "userns" | null {
-  if (!s.autoFix || !s.hasReport || s.probeFailed || s.probing || s.installing || s.sandboxDisabled) return null;
+  done: ReadonlySet<AutoAction>;
+}): AutoAction | null {
+  if (!s.autoFix || !s.hasReport || s.probeFailed || s.probing || s.installing) return null;
+  // The portable runtime is required even when sandboxing is disabled; it never asks for UAC.
+  if (s.runtimeCount) return s.done.has("windowsRuntime") ? null : "windowsRuntime";
+  if (s.sandboxDisabled) return null;
   if (s.installableCount > 0) return s.done.has("pkg") ? null : "pkg";
   if (s.fixableCount > 0) return s.done.has("userns") ? null : "userns";
   return null;
@@ -179,20 +184,23 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   // 缓存的 fail-closed 会让用户以为白装了。
   useImperativeHandle(ref, () => ({ retest: (): void => { void refresh(true); } }), [refresh]);
 
-  const items = report?.items ?? [];
+  const items = (report?.items ?? []).filter(item => variant !== "onboarding" || item.id !== "winSandbox");
   const broken = items.filter((i) => i.status !== "ok");
   /** 必装项未就绪（决定能否继续）vs 可选项未就绪（只提示）——引导页据此决定是"等"还是"往下走" */
   const requiredBroken = broken.filter((i) => i.required).length;
   const optionalBroken = broken.length - requiredBroken;
-  /** 能自动装的（fix.auto 且有包名由 main 侧白名单决定）；blocked/unknown 不在一键安装范围。
+  /** 常规安装与免管理员运行环境修复；损坏的运行环境允许 unknown 状态下重建。
    *  usernsProfile 走单独的「一键修复」按钮——它不吃 id 列表，混进来会被 main 侧整批拒绝 */
-  const installable = broken.filter((i) => i.status === "missing" && i.fix.auto && i.fix.auto.strategy !== "usernsProfile");
+  const installable = broken.filter(i => i.fix.auto?.strategy === "windowsRuntime"
+    || (i.status === "missing" && i.fix.auto?.strategy === "pkg"));
+  const runtimeInstallable = installable.filter(i => i.fix.auto?.strategy === "windowsRuntime");
+  const sandboxInstallable = broken.filter(i => i.status === "missing" && i.fix.auto?.strategy === "winInstall");
   /** 被系统策略拦住、但 main 侧给出了"一键修复"策略的（目前是 bwrap 的 userns 放行） */
   const fixable = broken.filter((i) => i.status === "blocked" && i.fix.auto?.strategy === "usernsProfile");
   /** 兜底开关是否可用（关闭沙盒运行 / 重新开启） */
   const sandboxOffAvailable = broken.length > 0 && items.some((i) => i.fix.sandboxOff);
   /** 操作区是否有内容：设置页在"全部就绪"时不该留一行空白 */
-  const hasActions = installable.length > 0 || fixable.length > 0 || installing
+  const hasActions = installable.length > 0 || sandboxInstallable.length > 0 || fixable.length > 0 || installing
     || sandboxOffAvailable || sandboxDisabled;
   /** 真在探测/安装（与"工作屏幕是否可见"是两件事，见 workScreenVisible） */
   const busy = probing || installing;
@@ -208,13 +216,13 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   /** 实际工作期间刻意静默（"一个标题，一个动画"），就绪后允许显示检测结论。 */
   const quiet = working && !handedOff;
 
-  const install = async (): Promise<void> => {
-    if (installable.length === 0) return;
-    autoDoneOnce.add("pkg"); // 手动点过一次也算——失败后按钮据此改口uiText("ui.extra.retryInstall")，别让用户以为是第一次
+  const install = async (selected = installable): Promise<void> => {
+    if (selected.length === 0) return;
+    autoDoneOnce.add(selected.every(item => item.id === "windowsRuntime") ? "windowsRuntime" : "pkg"); // 手动点过一次也算——失败后按钮据此改口uiText("ui.extra.retryInstall")，别让用户以为是第一次
     setInstalling(true);
     setResult(null);
     try {
-      const res = await window.electronAPI.env.install(installable.map((i) => i.id));
+      const res = await window.electronAPI.env.install(selected.map((i) => i.id));
       setResult(res);
       if (res.report) setReport(res.report);
     } catch (e) {
@@ -252,12 +260,13 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   useEffect(() => {
     const action = nextAutoAction({
       autoFix, hasReport: report !== null, probeFailed, probing, installing, sandboxDisabled,
-      installableCount: installable.length, fixableCount: fixable.length,
+      installableCount: installable.filter(i => i.fix.auto?.strategy === "pkg").length,
+      runtimeCount: runtimeInstallable.length, fixableCount: fixable.length,
       done: autoDoneOnce,
     });
     if (!action) return;
     autoDoneOnce.add(action);
-    void (action === "pkg" ? install() : fixUserns());
+    void (action === "userns" ? fixUserns() : install(action === "windowsRuntime" ? runtimeInstallable : installable));
   });
 
   // ── 最短停留（仅引导流程）────────────────────────────────────────────────────
@@ -272,19 +281,19 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   // 最短停留只用来决定"什么时候交回宿主"，不再参与"显示什么"。
 
   // ── 就绪即交回宿主（引导流程据此自动进入下一步）───────────────────────────────
-  // 判据用**必装项**：可选项（如 Windows 的 Git Bash）没装不挡路，只在副标题里提一句。
+  // Portable Git/Bash is required; Windows sandbox provisioning stays optional and is never auto-installed.
   // 还要等过最短停留：否则"探一下就完事"的机器上，交回宿主 → 页面立刻跳走，动画等于没显示。
   // handedOff 守卫（2026-09-21）：交回过一次就不再重复发信号——宿主可能把信号挂起
   // （如引导页 Step 2 检测到 pi 配置时收走自动跳转），挂起期间 report 刷新 / holdMin
   // 走完都会让本 effect 重跑；此前依赖宿主回调自身幂等兜着，属于隐式契约，现在面板侧显式保证。
   useEffect(() => {
     if (!onReady || handedOff) return;
-    if (!report || probing || probeFailed) return;
+    if (!report || probing || installing || probeFailed) return;
     if (requiredBroken > 0) return;
     if (holdMin) return;
     setHandedOff(true);   // 只通知一次；宿主可用 waitForUser 保留当前页并结束过场动画
     onReady();
-  }, [onReady, handedOff, report, probing, probeFailed, requiredBroken, holdMin]);
+  }, [onReady, handedOff, report, probing, installing, probeFailed, requiredBroken, holdMin]);
 
   const turnOffSandbox = async (): Promise<void> => {
     const okToOff = await confirmDialog({
@@ -464,7 +473,13 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
               {/* 自动装过一次后改口为"重试"：否则用户会以为是第一次，不知道自己刚才拒绝过授权框 */}
               {installing
                 ? uiText("ui.EnvPanel.installing")
-                : uiText("ui.EnvPanel.items", { v0: autoDoneOnce.has("pkg") ? uiText("ui.extra.retryInstall") : uiText("ui.extra.install"), v1: installable.length })}
+                : uiText("ui.EnvPanel.items", { v0: autoDoneOnce.has(runtimeInstallable.length > 0 ? "windowsRuntime" : "pkg") ? uiText("ui.extra.retryInstall") : uiText("ui.extra.install"), v1: installable.length })}
+            </button>
+          )}
+          {sandboxInstallable.length > 0 && (
+            <button className="btn-accent px-4 py-2 rounded-[var(--radius-lg)] text-xs font-medium"
+              disabled={installing} onClick={() => void install(sandboxInstallable)}>
+              {uiText("ui.EnvPanel.installWindowsSandbox")}
             </button>
           )}
           {installing && (

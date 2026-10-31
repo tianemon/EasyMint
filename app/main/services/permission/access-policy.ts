@@ -139,6 +139,7 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     // 正常的写入路径都不受影响：manage_skill / learn 走主进程直接写文件，用户手工编辑也不经这里。
     path.join(emHome(), "skills"),
     path.join(emHome(), "agent", "skills"),
+    path.join(emHome(), "runtime-tools"),
     path.join(emHome(), "managed-skills"),
     path.join(emHome(), "experiences"),
     path.join(emHome(), "agent-templates.json"),
@@ -236,7 +237,7 @@ export function standardWriteRoots(
   return [...new Set([workspaceRealPath, runtimeRoot, "/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"])];
 }
 
-export function buildExecutionPolicy(context: Pick<ExecutionContext, "mode" | "workspaceRealPath" | "runtimeRoot">): SandboxRuntimeConfig {
+export function buildExecutionPolicy(context: Pick<ExecutionContext, "mode" | "workspaceRealPath" | "runtimeRoot" | "bundledRuntimeRoot">): SandboxRuntimeConfig {
   const { mode, workspaceRealPath, runtimeRoot } = context;
   const credentials = protectedCredentialPaths();
   const runtimesRoot = developmentRuntimesRoot();
@@ -274,7 +275,7 @@ export function buildExecutionPolicy(context: Pick<ExecutionContext, "mode" | "w
       // EasyMint 自己按绝对资源保护安全边界；工作区内 .git/config 等开发文件需要正常可写。
       allowGitConfig: true,
       denyRead: mode === "full" ? credentials : [...credentials, runtimesRoot],
-      allowRead: mode === "full" ? [] : [runtimeRoot],
+      allowRead: mode === "full" ? [] : [runtimeRoot, ...(context.bundledRuntimeRoot ? [context.bundledRuntimeRoot] : [])],
       allowWrite,
       denyWrite: [
         ...protectedWriteRoots(),

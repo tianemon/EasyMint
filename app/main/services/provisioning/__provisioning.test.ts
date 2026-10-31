@@ -15,6 +15,8 @@ import { prependPathDirs, probeBinary, probeEnvironment, type ProbeDeps, type Pr
  * exe 路径做成可变属性 —— 测试先造好"包内 srt"的目录形状（含 package.json 版本），
  * 再调 probeEnvironment，这样版本钉取逻辑也一并被覆盖。
  */
+// Platform-injected Windows cases must not inspect or execute the real user's prepared runtime.
+vi.mock("../windows-runtime", () => ({ probeWindowsRuntime: async () => ({ status: "missing" }) }));
 const srtHarness = vi.hoisted(() => ({ calls: [] as unknown[], exe: "C:\\none\\vendor\\srt-win\\x64\\srt-win.exe" }));
 vi.mock("@anthropic-ai/sandbox-runtime", () => ({
   get VENDORED_SRT_WIN_EXE() { return srtHarness.exe; },
@@ -334,5 +336,20 @@ describe("Windows 环境探测（平台注入 + srt 打桩）", () => {
     expect(item?.detail).toContain("隔离账户未就绪");
     expect(item?.fix.auto).toEqual({ strategy: "winInstall" });
     expect(item?.fix.manual?.command).toBe("npx --yes @anthropic-ai/sandbox-runtime@9.9.9 windows-install");
+  });
+});
+
+
+describe("Windows portable command runtime", () => {
+  it.each(["ready", "missing", "broken"] as const)("reports actual runtime state %s with an offline repair action", async status => {
+    const runtimeProbe = vi.fn(async () => ({ status, detail: "runtime check", version: "git version fixture" }));
+    const report = await probeEnvironment({ platform: "win32", runtimeProbe });
+    const runtime = report.items.find(item => item.id === "windowsRuntime");
+    expect(runtimeProbe).toHaveBeenCalledOnce();
+    expect(runtime?.required).toBe(true);
+    expect(runtime?.status).toBe(status === "ready" ? "ok" : status === "missing" ? "missing" : "unknown");
+    expect(runtime?.fix.auto).toEqual(status === "ready" ? undefined : { strategy: "windowsRuntime" });
+    expect(report.items.some(item => item.id === "gitBash")).toBe(false);
+    expect(report.items.find(item => item.id === "winSandbox")?.required).toBe(false);
   });
 });

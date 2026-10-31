@@ -19,7 +19,7 @@ import {
   readDistro, resolveInstaller, resolvePkexec, usernsFixAvailable, usernsManualCommand,
   windowsInstallCommand, type Installer,
 } from "./plan";
-import { findBashOnWindows } from "../background-shell/registry";
+import { probeWindowsRuntime, type WindowsRuntimeProbe } from "../windows-runtime";
 import { packagedSrtVersion, srtWinSpawn } from "../sandbox/srt-win";
 import type { EnvItem, EnvItemId, EnvItemStatus, EnvReport } from "./types";
 
@@ -204,6 +204,7 @@ export async function probeEnvironment(
     platform?: string;
     /** 文件存在性（注入用）：pkexec 与 userns 一键修复的可用性都靠它判定，测试里不能碰真实文件系统 */
     exists?: (p: string) => boolean;
+    runtimeProbe?: () => Promise<WindowsRuntimeProbe>;
   } = {},
 ): Promise<EnvReport> {
   const platform = deps.platform ?? process.platform;   // 可注入：Windows 分支要能在任意宿主上被测试
@@ -295,7 +296,7 @@ export async function probeEnvironment(
       items.push({
         id: "winSandbox",
         label: "系统保护（隔离账户 + 网络过滤）",
-        required: true,
+        required: false,
         status: ok ? "ok" : "missing",
         impact: WIN_SANDBOX_IMPACT,
         ...(ok
@@ -315,7 +316,7 @@ export async function probeEnvironment(
       items.push({
         id: "winSandbox",
         label: "系统保护（隔离账户 + 网络过滤）",
-        required: true,
+        required: false,
         status: "unknown",
         impact: WIN_SANDBOX_IMPACT,
         detail: "检测失败（可能已安装）——不代表未安装，可点「重新检测」重试",
@@ -323,19 +324,24 @@ export async function probeEnvironment(
       });
     }
 
-    // Git Bash 是 bash 类工具的依赖；复用既有探测函数（避免两套候选路径各自漂移）
-    const bash = findBashOnWindows();
-    items.push({
-      id: "gitBash",
-      label: "Git Bash（bash 工具依赖）",
-      required: false,
-      status: bash ? "ok" : "missing",
-      impact: "缺少它 bash 类命令跑不了（Mint 的 shell 与 git 工具依赖它）——不影响主要功能，可按需安装",
-      ...(bash ? { version: bash } : { detail: "未找到 Git Bash——bash 类命令无法执行" }),
-      // 这条 fix **只有 url、没有命令**（装它得去官网下载安装包），故渲染层必须能展示 url，
-      // 否则该条目在界面上完全没有可执行的指引 —— 见 EnvPanel 的"前往下载"链接
-      fix: bash ? {} : { manual: { url: "https://git-scm.com/download/win" } },
-    });
+    // One capability check covers Git, Bash and their required utilities; presence alone is insufficient.
+    try {
+      const runtime = await (deps.runtimeProbe ?? probeWindowsRuntime)();
+      items.push({
+        id: "windowsRuntime", label: "命令运行环境（Git + Bash）", required: true,
+        status: runtime.status === "ready" ? "ok" : runtime.status === "missing" ? "missing" : "unknown",
+        ...(runtime.version ? { version: runtime.version } : {}),
+        impact: "缺少或损坏时无法执行 Git 和 Bash 命令，可从应用内置组件修复",
+        ...(runtime.detail ? { detail: runtime.detail } : {}),
+        fix: runtime.status === "ready" ? {} : { auto: { strategy: "windowsRuntime" } },
+      });
+    } catch (error) {
+      items.push({
+        id: "windowsRuntime", label: "命令运行环境（Git + Bash）", required: true, status: "unknown",
+        detail: error instanceof Error ? error.message : "运行环境检测失败，请重新检测",
+        fix: { auto: { strategy: "windowsRuntime" } },
+      });
+    }
   }
 
   return { items, distro, probedAt: Date.now() };

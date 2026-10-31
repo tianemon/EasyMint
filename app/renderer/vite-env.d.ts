@@ -19,8 +19,8 @@ declare namespace JSX {
 /** 与 main 的 provisioning/types.ts 对齐（渲染层不 import main，故在此镜像声明） */
 interface EnvFixShape {
   /** pkg=包管理器（Linux，命令在 main 侧按发行版生成）；usernsProfile=加载 AppArmor profile；
-   *  winInstall=srt 的 Windows 一次性装配 */
-  auto?: { strategy: "pkg"; packages: string[] } | { strategy: "usernsProfile" } | { strategy: "winInstall" };
+   *  winInstall=srt 的 Windows 一次性装配；windowsRuntime=免管理员命令环境 */
+  auto?: { strategy: "pkg"; packages: string[] } | { strategy: "usernsProfile" } | { strategy: "winInstall" } | { strategy: "windowsRuntime" };
   /** command 可以是多行（\n 分隔的步骤），界面按多行展示、整体复制 */
   manual?: { command?: string; url?: string };
   sandboxOff?: boolean;

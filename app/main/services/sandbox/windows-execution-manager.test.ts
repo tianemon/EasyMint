@@ -19,6 +19,7 @@ describe("Windows 动态沙盒 worker 隔离键", () => {
     expect(windowsWorkerKey(context({ ownerId: "session-b" }))).not.toBe(base);
     expect(windowsWorkerKey(context({ mode: "full", ownerId: "session-a" }))).not.toBe(base);
     expect(windowsWorkerKey(context({ workspaceRealPath: "D:\\work\\demo", ownerId: "session-a" }))).not.toBe(base);
+    expect(windowsWorkerKey(context({ bundledRuntimeRoot: "C:\\tools\\v2", ownerId: "session-a" }))).not.toBe(base);
     expect(windowsWorkerKey(context({ runtimeRoot: "C:\\runtime\\other", ownerId: "session-a" }))).not.toBe(base);
   });
 });

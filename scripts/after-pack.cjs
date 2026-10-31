@@ -13,6 +13,10 @@ const path = require("node:path");
  */
 exports.default = async function (context) {
   const { appOutDir } = context;
+  if (context.electronPlatformName === "win32") {
+    const { verifyPackagedWindowsRuntime, contextArchitecture } = require("./prepare-windows-runtime.cjs");
+    await verifyPackagedWindowsRuntime(path.join(appOutDir, "resources"), contextArchitecture(context));
+  }
   const resourcesDirs = [
     path.join(appOutDir, "resources"),
     path.join(appOutDir, "EasyMint.app", "Contents", "Resources"),

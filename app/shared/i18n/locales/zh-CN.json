@@ -2092,5 +2092,14 @@
   "ui.AccountUsage.error.invalid": "供应商暂未返回可用的用量数据",
   "ui.AccountUsage.error.changed": "供应商已切换，请重新打开",
   "ui.AccountUsage.recharge": "充值余额",
-  "ui.AccountUsage.baseBalance": "基础余额"
+  "ui.AccountUsage.baseBalance": "基础余额",
+  "ui.EnvPanel.installWindowsSandbox": "安装系统保护（需系统授权）",
+  "messages.windowsCommandRuntime": "命令运行环境（Git + Bash）",
+  "messages.windowsCommandRuntimeImpact": "缺少或损坏时无法执行 Git 和 Bash 命令，可从应用内置组件修复",
+  "messages.windowsCommandRuntimeProbeFailed": "运行环境检测失败，请重新检测",
+  "messages.preparingCommandRuntime": "正在准备命令运行环境…",
+  "messages.commandRuntimePreparationFailed": "命令运行环境准备失败：{{v0}}",
+  "messages.commandRuntimeUnavailable": "命令运行环境尚不可用，请重新检测或重试修复",
+  "messages.verifyingBundledRuntime": "正在校验内置运行环境…",
+  "messages.testingCommandRuntime": "正在验证命令执行…"
 }

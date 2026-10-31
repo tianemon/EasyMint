@@ -2092,5 +2092,14 @@
   "ui.AccountUsage.error.invalid": "The provider returned no usable usage data",
   "ui.AccountUsage.error.changed": "Provider changed. Reopen to refresh",
   "ui.AccountUsage.recharge": "Recharge balance",
-  "ui.AccountUsage.baseBalance": "Base balance"
+  "ui.AccountUsage.baseBalance": "Base balance",
+  "ui.EnvPanel.installWindowsSandbox": "Install system protection (requires authorization)",
+  "messages.windowsCommandRuntime": "Command runtime (Git + Bash)",
+  "messages.windowsCommandRuntimeImpact": "Git and Bash commands are unavailable if the runtime is missing or damaged. Repair it using the bundled components.",
+  "messages.windowsCommandRuntimeProbeFailed": "Runtime check failed. Check again.",
+  "messages.preparingCommandRuntime": "Preparing the command runtime…",
+  "messages.commandRuntimePreparationFailed": "Command runtime preparation failed: {{v0}}",
+  "messages.commandRuntimeUnavailable": "The command runtime is still unavailable. Check again or retry the repair.",
+  "messages.verifyingBundledRuntime": "Verifying the bundled runtime…",
+  "messages.testingCommandRuntime": "Verifying command execution…"
 }

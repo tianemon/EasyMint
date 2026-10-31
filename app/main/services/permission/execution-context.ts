@@ -49,6 +49,8 @@ export interface ExecutionContext {
   policyVersion: "2";
   /** 会话级执行所有者。Windows 用它隔离 ACL 沙盒 worker，避免权限模式在会话间串用。 */
   ownerId?: string;
+  /** 宿主验证过的内置工具目录，供Windows隔离账户获得只读执行权限。 */
+  bundledRuntimeRoot?: string;
 }
 
 /** 给已经编译好的策略绑定执行所有者；所有者不是模型参数，不能从工具输入伪造。 */

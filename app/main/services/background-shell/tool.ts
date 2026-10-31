@@ -10,7 +10,7 @@ import { TOOL_DISPLAY_DESCRIPTION } from "../../../shared/tool-intent";
 
 import type { ToolDefinition } from "../pi-sdk";
 import { getCreateBashToolDefinition } from "../pi-sdk";
-import { backgroundShellRegistry, type BackgroundShell, resolveSpawn, findBashOnWindows } from "./registry";
+import { backgroundShellRegistry, type BackgroundShell, resolveSpawn } from "./registry";
 import { spawn } from "node:child_process";
 import { createCodingAwareDecoder, createAnsiStripper, stripAnsi } from "./encoding";
 import { HumanActionDetector, type HumanAction } from "./human-action";
@@ -93,7 +93,7 @@ export async function executeForeground(
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   return new Promise((resolve, reject) => {
     const spawnPlan = "argv" in command
-      ? { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env }, error: undefined }
+      ? { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env, windowsHide: true }, error: undefined }
       : resolveSpawn(command.command, cwd, command.env);
     const { file, args, opts, error } = spawnPlan;
     if (error) {
@@ -168,7 +168,7 @@ export async function executeForeground(
       if (timer) clearTimeout(timer);
       flushDelta();
       if (typeof command !== "string") void command.release?.();
-      reject(new Error(`bash 执行失败: ${err.message}`));
+      reject(new Error(`命令启动失败 (${file}): ${err.message}`));
     });
     // exit can precede drained stdio: https://nodejs.org/api/child_process.html#event-close
     child.on("close", (code) => {
@@ -331,10 +331,9 @@ export async function createEnhancedBashTool(
       }
       let execTarget: ExecutionTarget;
       try {
-        // Windows 沙盒需要 Git Bash 绝对路径（srt argv 两跳启动的 binShell）
+        // Windows工具准备与路径选择统一由执行管理器完成。
         const spec = await wrapForSandbox(command, {
-          context,
-          ...(process.platform === "win32" ? { gitBashPath: findBashOnWindows() ?? undefined } : {}),
+          context, signal,
         });
         execTarget = spec.kind === "argv"
           ? { argv: spec.argv, env: spec.env, release: spec.release, violationKey: spec.violationKey, exemptReason: spec.exemptReason }
@@ -343,9 +342,7 @@ export async function createEnhancedBashTool(
         return {
           content: [{
             type: "text" as const,
-            text: sandboxed
-              ? `系统保护启动失败：${(e as Error).message}`
-              : `执行环境准备失败：${(e as Error).message}`,
+            text: `命令执行准备失败：${(e as Error).message}`,
           }],
         };
       }

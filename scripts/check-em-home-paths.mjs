@@ -91,6 +91,7 @@ const DECLARED = [
   { entry: "paired-devices.json", klass: "credential", also: "persistence", why: "含配对密钥，写入还会改变设备认证" },
   { entry: "paired-mobile-devices.json", klass: "credential", also: "persistence", why: "含 sharedSecret，写入还会改变设备认证" },
   { entry: "skills", klass: "persistence", why: "技能描述进 <skills> 分节、正文由 use_skill 读（每会话随行）" },
+  { entry: "runtime-tools", klass: "persistence", why: "内置可执行运行时，改写会影响后续命令执行" },
   { entry: "managed-skills", klass: "persistence", why: "同上（AI 写入的技能区）" },
   { entry: "skill-registry.json", klass: "none", why: "只是登记表；注入内容来自技能文件本身，它只决定可见性" },
   { entry: "experiences", klass: "persistence", why: "buildExperienceInjection 在会话构建时注入，每轮随行" },

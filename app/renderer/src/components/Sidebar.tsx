@@ -13,7 +13,6 @@ import { DevicePanel } from "./device/DevicePanel";
 import { MobileTerminalPanel } from "./device/MobileTerminalPanel";
 import { ProjectCreationGuide, useProjectCreationGuide } from "./new-project/ProjectCreationGuide";
 import { useThemeStore } from "../stores/theme-store";
-import { useEnvStore, subscribeEnvReport } from "../stores/env-store";
 import { readVersion, markRead } from "../lib/update-notice";
 import { SelectionIndicator } from "./ui/SelectionIndicator";
 
@@ -87,11 +86,7 @@ export function Sidebar({
   // 已读状态(按版本):红点 = 有版本且未读;气泡显示时红点隐藏(气泡是更强的未读提示)
   const dotUnread = updateInfo?.version != null && updateInfo.version !== readVersion("dot");
   const bubbleUnread = updateInfo?.downloaded && updateInfo.version != null && updateInfo.version !== readVersion("bubble");
-  // 环境问题（缺组件/被系统策略挡）也点亮设置按钮——语义与更新红点相反：**不因"看过"而消失**，
-  // 只有探测到全部就绪才灭（没修好就消掉会让人以为已经好了）
-  const envIssue = useEnvStore((s) => s.hasIssue);
-  useEffect(() => subscribeEnvReport(), []);
-  const showDot = (!!dotUnread && !bubbleUnread) || envIssue;
+  const showDot = !!dotUnread && !bubbleUnread;
 
   const handleSettings = () => {
     if (updateInfo?.version) {

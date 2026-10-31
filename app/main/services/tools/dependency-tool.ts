@@ -86,7 +86,7 @@ export async function createDependencyTool(cwd: string): Promise<ToolDefinition>
         if (!initialized.ok) throw new Error(`系统保护初始化失败：${initialized.reason}`);
       }
       const wrapped = await wrapForSandbox(command, {
-        context,
+        context, signal,
         gitBashPath: sandboxGitBashPath(),
       });
       const target = executionTarget(wrapped);

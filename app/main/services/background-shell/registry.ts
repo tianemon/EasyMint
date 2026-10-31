@@ -13,12 +13,13 @@
  * - stop() 立即置 stopping 并广播(前端即时反馈),5s 未退出 SIGKILL 兜底
  */
 
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { broadcast } from "../ipc-broadcast";
 import { decodeSeg, finalDecode } from "./encoding";
 import { readManagedEnvironment } from "../tools/environment-tool";
+import { preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
 import { annotateSandboxFailures } from "../sandbox/manager";
 import { trackChild, untrackChild } from "../process-registry";
 import { HumanActionDetector, type HumanAction } from "./human-action";
@@ -92,30 +93,9 @@ function cleanupOldLogs(logDir: string): void {
   } catch { /* 目录不存在等,忽略 */ }
 }
 
-/**
- * Windows 解析 bash 可执行文件(对齐 Pi getShellConfig):
- * 1. ProgramFiles\Git\bin\bash.exe(64 位 Git)
- * 2. ProgramFiles(x86)\Git\bin\bash.exe(32 位 Git)
- * 3. PATH 上的 bash.exe(Cygwin/MSYS2/WSL)
- * 找不到返回 null(调用方回退 shell:true → cmd.exe)
- */
+/** 只返回宿主已经验收的内置Bash，不再通过PATH猜测WSL或其它同名程序。 */
 export function findBashOnWindows(): string | null {
-  const candidates: string[] = [];
-  const pf = process.env.ProgramFiles;
-  const pf86 = process.env["ProgramFiles(x86)"];
-  if (pf) candidates.push(`${pf}\\Git\\bin\\bash.exe`);
-  if (pf86) candidates.push(`${pf86}\\Git\\bin\\bash.exe`);
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  try {
-    const r = spawnSync("where", ["bash.exe"], { encoding: "utf-8", timeout: 5000, windowsHide: true });
-    if (r.status === 0 && r.stdout) {
-      const m = r.stdout.trim().split(/\r?\n/)[0];
-      if (m && existsSync(m)) return m;
-    }
-  } catch { /* where 不可用等,忽略 */ }
-  return null;
+  return preparedWindowsRuntime()?.bash ?? null;
 }
 
 /** 统一生成受保护 bash 的平台参数，避免 Windows 调用方忘记传入已探测的 Git Bash。 */
@@ -131,7 +111,9 @@ export function sandboxGitBashPath(
  *  Unix 保持 shell:true(行为不变)。
  *  前台 bash(tool.ts)复用此配置。 */
 export function resolveSpawn(command: string, cwd: string, environment?: NodeJS.ProcessEnv): { file: string; args: string[]; opts: Parameters<typeof spawn>[2]; error?: string } {
-  const env = environment ?? { ...process.env, ...readManagedEnvironment() };
+  const inherited = environment ?? { ...process.env, ...readManagedEnvironment() };
+  const prepared = process.platform === "win32" ? preparedWindowsRuntime() : undefined;
+  const env = prepared ? windowsRuntimeEnvironment(inherited, prepared) : inherited;
   if (process.platform === "win32") {
     const bash = findBashOnWindows();
     if (bash) {
@@ -147,7 +129,7 @@ export function resolveSpawn(command: string, cwd: string, environment?: NodeJS.
       file: "cmd.exe",
       args: ["/c", "exit 1"],
       opts: { cwd, windowsHide: true },
-      error: "需要 Git Bash 才能执行后台命令。请安装 Git for Windows(https://git-scm.com/download/win),或改用不含 Git Bash 语法的命令。",
+      error: "命令运行环境尚未就绪，请在设置 → 环境检测中修复。",
     };
   }
   // Unix:shell:true + detached(独立进程组,kill(-pid) 杀树);此分支仅非 win32 可达
@@ -225,7 +207,7 @@ class BackgroundShellRegistry {
     const spawnPlan = typeof command === "string"
       ? resolveSpawn(command, cwd)
       : "argv" in command
-        ? { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env }, error: undefined }
+        ? { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env, windowsHide: true }, error: undefined }
         : resolveSpawn(command.command, cwd, command.env);
     const { file, args, opts, error } = spawnPlan;
     if (error) {

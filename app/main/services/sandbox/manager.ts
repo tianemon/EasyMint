@@ -15,6 +15,7 @@ import { createExecutionContext, type ExecutionContext } from "../permission/exe
 import { wrapWithWindowsWorker } from "./windows-execution-manager";
 import { srtWinPath, srtWinSpawn } from "./srt-win";
 import { isSandboxExcludedCommand } from "./compat-policy";
+import { ensureWindowsRuntime, preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
 
 /** Linux 沙盒系统依赖（EM 不代做系统安装——缺失时给安装指引，装好前自动降级） */
 const LINUX_SANDBOX_DEPS = ["bwrap", "socat", "rg"] as const;
@@ -277,8 +278,17 @@ export const sandboxLeaseInternals = { createOnceLease };
  */
 export async function wrapForSandbox(
   command: string,
-  opts: { context: ExecutionContext; gitBashPath?: string; windowsShell?: "bash" | "powershell"; approvedBrowserMcp?: boolean },
+  opts: { context: ExecutionContext; gitBashPath?: string; windowsShell?: "bash" | "powershell"; approvedBrowserMcp?: boolean; signal?: AbortSignal },
 ): Promise<SandboxSpawnSpec> {
+  opts.signal?.throwIfAborted();
+  if (process.platform === "win32") {
+    const tools = opts.windowsShell === "powershell" ? preparedWindowsRuntime() : await ensureWindowsRuntime({ signal: opts.signal });
+    if (tools) opts = { ...opts, gitBashPath: tools.bash, context: {
+      ...opts.context, bundledRuntimeRoot: tools.root,
+      environment: windowsRuntimeEnvironment(opts.context.environment, tools),
+    } };
+  }
+  opts.signal?.throwIfAborted();
   if (isSandboxBypassedForMode(opts.context.mode)) return nativeSpawnSpec(command, opts);
   // 此标志只由已复核配置的 MCP 传输传入，不能从命令名称或模型参数取得。
   if (opts.approvedBrowserMcp || isSandboxExcludedCommand(command)) {
@@ -347,7 +357,8 @@ function nativeSpawnSpec(
   const env = opts.context.environment;
   if (process.platform === "win32") {
     const powershell = opts.windowsShell === "powershell";
-    const exe = powershell ? "powershell.exe" : (opts.gitBashPath ?? "bash.exe");
+    if (!powershell && !opts.gitBashPath) throw new Error("Windows Bash runtime is not ready; repair it in Settings → Environment");
+    const exe = powershell ? "powershell.exe" : opts.gitBashPath!;
     const args = powershell ? ["-NoProfile", "-NonInteractive", "-Command", command] : ["-c", command];
     return { kind: "argv", argv: [exe, ...args], env };
   }
