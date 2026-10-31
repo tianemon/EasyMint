@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   quality-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
 
@@ -37,12 +37,10 @@ jobs:
       - name: Lint & typecheck
         run: npm run lint
 
-      # 沙盒相关用例需要 Linux 系统依赖（bwrap/socat/rg）；Ubuntu 24.04+ 还要放开 bwrap 建 userns。
-      # 否则 quality-gate 必然红（与 sandbox-smoke.yml 同一套前置）。该 sysctl 在部分内核上不存在 → 容忍跳过。
+      # Native sandbox success tests run on Ubuntu 22.04 without weakening host policy.
+      # Ubuntu 24.04 restricted-userns rejection is covered by sandbox-smoke.
       - name: 安装沙盒系统依赖
         run: sudo apt-get update && sudo apt-get install -y bubblewrap socat ripgrep
-      - name: 放开 unprivileged userns（Ubuntu 24.04+ 默认限制 bwrap）
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || echo "该内核无此开关，跳过"
 
       - name: Unit tests
         run: npx vitest run

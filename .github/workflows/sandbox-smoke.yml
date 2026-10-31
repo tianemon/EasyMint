@@ -10,7 +10,7 @@ on:
 jobs:
   linux:
     name: Linux 沙盒冒烟
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,12 +18,31 @@ jobs:
           node-version: 22
       - name: 安装沙盒系统依赖
         run: sudo apt-get update && sudo apt-get install -y bubblewrap socat ripgrep
-      - name: 放开 unprivileged userns（Ubuntu 24.04+ 默认限制 bwrap netns——真实用户机器同样需此配置或 AppArmor profile）
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: 安装依赖
         run: npm ci --ignore-scripts
       - name: 沙盒冒烟（initialize + wrap + 执行）
         run: node scripts/ci-sandbox-smoke.mjs
+
+  linux-restricted:
+    name: Linux 默认受限策略拒绝验证
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 使用发行版 profile，保持 userns 限制
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep apparmor-profiles
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+          profile=/usr/share/apparmor/extra-profiles/bwrap-userns-restrict
+          if [ ! -f "$profile" ]; then profile=/usr/share/doc/apparmor-profiles/extras/bwrap-userns-restrict; fi
+          sudo install -m 0644 "$profile" /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+      - run: npm ci --ignore-scripts
+      - name: 验证内层受限时不执行用户命令
+        run: node scripts/ci-sandbox-smoke.mjs --expect-blocked
 
   windows:
     name: Windows 沙盒冒烟

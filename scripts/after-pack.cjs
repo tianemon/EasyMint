@@ -11,8 +11,26 @@ const path = require("node:path");
  * 所以解包路径常常不存在——那时改从 asar 里读出来核对。真源是 postinstall 的
  * scripts/patch-pi-config.cjs，这里只负责「打包产物里到底带没带上」的验收，不再改写 asar。
  */
+// Shell execution cannot use virtual ASAR paths; a Linux package must carry a real native helper.
+function verifyPackagedLinuxSandbox(resources, arch) {
+  const machine = { x64: 62, arm64: 183 }[arch];
+  if (!machine) throw new Error(`Unsupported Linux sandbox architecture: ${arch}`);
+  const helper = path.join(resources, "app.asar.unpacked/node_modules/@anthropic-ai/sandbox-runtime/vendor/seccomp", arch, "apply-seccomp");
+  const stat = fs.statSync(helper);
+  if (!stat.isFile() || !(stat.mode & 0o111)) throw new Error("Packaged Linux sandbox helper is not executable");
+  const header = fs.readFileSync(helper).subarray(0, 20);
+  if (header.length < 20 || header.toString("hex", 0, 4) !== "7f454c46" || header[5] !== 1 || header.readUInt16LE(18) !== machine) {
+    throw new Error("Packaged Linux sandbox helper architecture mismatch");
+  }
+}
+exports.verifyPackagedLinuxSandbox = verifyPackagedLinuxSandbox;
+
 exports.default = async function (context) {
   const { appOutDir } = context;
+  if (context.electronPlatformName === "linux") {
+    const arch = typeof context.arch === "string" ? context.arch : require("electron-builder").Arch[context.arch];
+    verifyPackagedLinuxSandbox(path.join(appOutDir, "resources"), arch);
+  }
   if (context.electronPlatformName === "win32") {
     const { verifyPackagedWindowsRuntime, contextArchitecture } = require("./prepare-windows-runtime.cjs");
     await verifyPackagedWindowsRuntime(path.join(appOutDir, "resources"), contextArchitecture(context));

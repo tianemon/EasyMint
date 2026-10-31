@@ -20,6 +20,7 @@ import {
   windowsInstallCommand, type Installer,
 } from "./plan";
 import { probeWindowsRuntime, type WindowsRuntimeProbe } from "../windows-runtime";
+import { linuxSandboxProbeArgs } from "../sandbox/srt-linux";
 import { packagedSrtVersion, srtWinSpawn } from "../sandbox/srt-win";
 import type { EnvItem, EnvItemId, EnvItemStatus, EnvReport } from "./types";
 
@@ -155,8 +156,6 @@ const USERNS_IMPACT = "系统不允许创建隔离空间——即使 bubblewrap 
 /** Windows 系统保护条目：装配本身要弹一次 UAC，影响也说清"少了它会被怎样" */
 const WIN_SANDBOX_IMPACT = "缺少它 Mint 无法隔离执行命令，也不限制其网络访问（安装时会弹一次系统授权窗口）";
 
-/** userns 功能实测命令：`which bwrap` 查不出「包在但被 AppArmor 挡」（Ubuntu 24.04+ 默认如此） */
-const USERNS_PROBE_ARGS = ["--ro-bind", "/", "/", "--dev", "/dev", "--unshare-pid", "--", "echo", "ok"];
 
 /**
  * Ubuntu 24.04 起 AppArmor 默认禁止非特权进程创建 user namespace，bwrap 因此失败。
@@ -167,8 +166,9 @@ const USERNS_PROBE_ARGS = ["--ro-bind", "/", "/", "--dev", "/dev", "--unshare-pi
  * 是因为 AppImage / tar.gz / 源码运行拿不到那一步。
  */
 const APPARMOR_HINT =
-  "系统默认策略不允许 bubblewrap 创建隔离空间（Ubuntu 24.04 起的默认行为）。"
-  + "用 deb 安装时已自动处理过，这里仍显示说明那一步没成功；其余安装形态执行一次下面三条命令即可（不必重启）。";
+  "隔离链路验证失败：系统可能限制网络或嵌套用户命名空间。"
+  + "Ubuntu 24.04+ 的 AppArmor 策略可能阻止内层隔离组件；加载 bubblewrap profile 不保证完整链路可用。"
+  + "请先检查系统策略；不要为修复此问题全局关闭系统保护。";
 
 /**
  * 机器上没有 pkexec（polkit 缺失：WSL、精简镜像、无 polkit 的桌面）时的说明。
@@ -260,14 +260,22 @@ export async function probeEnvironment(
         fix: { sandboxOff: true },
       });
     } else {
-      const out = probe({ id: "userns", label: "", impact: USERNS_IMPACT, args: USERNS_PROBE_ARGS, candidates: ["bwrap", "/usr/bin/bwrap"] });
+      let out: ProbeOutcome;
+      let helperFailure: string | undefined;
+      try {
+        const args = linuxSandboxProbeArgs();
+        out = probe({ id: "userns", label: "", impact: USERNS_IMPACT, args, candidates: ["bwrap", "/usr/bin/bwrap"] });
+      } catch (error) {
+        helperFailure = `应用内置隔离组件不可用，请重新安装 EasyMint：${error instanceof Error ? error.message : String(error)}`;
+        out = { status: "unknown" };
+      }
       const ok = out.status === "ok";
       items.push({
         id: "userns", label: "隔离能力（用户命名空间）", required: true,
-        status: ok ? "ok" : "blocked",
+        status: ok ? "ok" : helperFailure ? "unknown" : "blocked",
         impact: USERNS_IMPACT,
-        ...(ok ? {} : { detail: pkexec ? APPARMOR_HINT : `${APPARMOR_HINT}${NO_PKEXEC_DETAIL}` }),
-        fix: ok ? {} : blockedFix(installer, exists),
+        ...(ok ? {} : { detail: helperFailure ?? (pkexec ? APPARMOR_HINT : `${APPARMOR_HINT}${NO_PKEXEC_DETAIL}`) }),
+        fix: ok ? {} : helperFailure ? { sandboxOff: true } : blockedFix(installer, exists),
       });
     }
 

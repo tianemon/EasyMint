@@ -1,46 +1,72 @@
-/**
- * srt 沙盒跨平台冒烟（CI 用：.github/workflows/sandbox-smoke.yml）
- * 断言：initialize 成功 → wrap 命令 → 执行成功 exit 0。
- * 平台差异（Linux 需 bwrap/socat/rg 已装；Windows 需已跑 windows-install）由 workflow 前置步骤保证。
- */
+/** Real-kernel smoke: positive execution and denial assertions, or expected namespace rejection.
+ * Source runner only; packaged helper paths are additionally verified by afterPack/tests. */
 import { SandboxManager, VENDORED_SRT_WIN_EXE } from "@anthropic-ai/sandbox-runtime";
-import { spawnSync } from "node:child_process";
-import { homedir } from "node:os";
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import assert from "node:assert/strict";
 
-const log = (s) => process.stdout.write(s + "\n");
-log(`[smoke] platform=${process.platform} node=${process.version}`);
-
-const config = {
-  network: { allowedDomains: ["*"], deniedDomains: [] },
-  filesystem: {
-    denyRead: [path.join(homedir(), ".ssh")],
-    allowWrite: [process.cwd()],
-    denyWrite: [],
-  },
-  // Windows：srt 要求显式指定 srt-win.exe（vendor 随包）路径
-  ...(process.platform === "win32" ? { windows: { srtWin: { path: VENDORED_SRT_WIN_EXE } } } : {}),
-};
-await SandboxManager.initialize(config);
-log("[smoke] initialize OK");
-
-// Windows：srt 不支持 shell 字符串包装，必须用 argv 形态（srt-win 两跳）+ shell:false；
-// Unix：shell 字符串包装（wrapWithSandbox）。
 const isWin = process.platform === "win32";
-const wrapped = isWin
-  ? await SandboxManager.wrapWithSandboxArgv("echo SMOKE-OK")
-  : await SandboxManager.wrapWithSandbox("echo SMOKE-OK");
-const r = isWin
-  ? spawnSync(wrapped.argv[0], wrapped.argv.slice(1), { cwd: process.cwd(), encoding: "utf8", timeout: 60000, env: { ...process.env, ...wrapped.env } })
-  : spawnSync(wrapped, { shell: true, cwd: process.cwd(), encoding: "utf8", timeout: 60000 });
-if (r.status !== 0) {
-  console.error("[smoke] 执行失败:", { status: r.status, stdout: r.stdout, stderr: r.stderr, wrapped: isWin ? wrapped.argv : String(wrapped).slice(0, 200) });
-  process.exit(1);
+const restricted = process.argv.includes("--expect-blocked");
+const root = fs.mkdtempSync(path.join(os.homedir(), ".em-sandbox-smoke-"));
+const work = path.join(root, "work"), denied = path.join(root, "secret");
+fs.mkdirSync(work); fs.writeFileSync(denied, "SMOKE-SECRET");
+const helper = process.platform === "linux" ? path.resolve(path.dirname(createRequire(import.meta.url).resolve("@anthropic-ai/sandbox-runtime")), "../vendor/seccomp", process.arch, "apply-seccomp") : undefined;
+if (helper) fs.accessSync(helper, fs.constants.X_OK);
+const config = {
+  network: { allowedDomains: [], deniedDomains: [], strictAllowlist: true },
+  filesystem: { denyRead: [denied], allowWrite: [work], denyWrite: [] },
+  ...(helper ? { seccomp: { applyPath: helper } } : {}),
+  ...(isWin ? { windows: { srtWin: { path: VENDORED_SRT_WIN_EXE } } } : {}),
+};
+const execute = async command => {
+  const spec = isWin ? await SandboxManager.wrapWithSandboxArgv(command) : await SandboxManager.wrapWithSandbox(command);
+  const result = await new Promise((resolve, reject) => {
+    const child = isWin ? spawn(spec.argv[0], spec.argv.slice(1), { cwd: work, env: { ...process.env, ...spec.env } })
+      : spawn(spec, { shell: true, cwd: work, detached: true });
+    let stdout = "", stderr = "";
+    const timer = setTimeout(() => { if (!isWin && child.pid) process.kill(-child.pid, "SIGKILL"); else child.kill(); }, 30_000);
+    child.stdout.on("data", c => { stdout += c; }); child.stderr.on("data", c => { stderr += c; });
+    child.once("error", reject);
+    child.once("close", code => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+  });
+  await SandboxManager.cleanupAfterCommand();
+  return result;
+};
+try {
+  if (restricted) {
+    // First prove the outer namespace setup works; an arbitrary spawn failure is not a valid negative test.
+    const baseline = await new Promise((resolve, reject) => {
+      const child = spawn("bwrap", ["--ro-bind", "/", "/", "--dev", "/dev", "--unshare-user", "--cap-drop", "ALL", "--unshare-pid", "--unshare-net", "--proc", "/proc", "--", "/bin/echo", "OUTER-OK"]);
+      let stdout = "", stderr = "";
+      child.stdout.on("data", c => { stdout += c; }); child.stderr.on("data", c => { stderr += c; });
+      child.once("error", reject); child.once("close", code => resolve({ code, stdout, stderr }));
+    });
+    assert.equal(baseline.code, 0, baseline.stderr); assert.ok(baseline.stdout.includes("OUTER-OK"));
+  }
+  await SandboxManager.initialize(config);
+  const r = await execute("echo SMOKE-OK");
+  if (restricted) {
+    assert.notEqual(r.code, 0, "restricted namespace unexpectedly allowed the workload");
+    assert.ok(!r.stdout.includes("SMOKE-OK"), "workload ran despite expected namespace denial");
+    assert.match(r.stderr, /apply-seccomp:.*unshare/);
+  } else {
+    assert.equal(r.code, 0, r.stderr); assert.ok(r.stdout.includes("SMOKE-OK"));
+    if (!isWin) {
+      const read = await execute(`cat '${denied}'`);
+      assert.notEqual(read.code, 0); assert.ok(!read.stdout.includes("SMOKE-SECRET"));
+      const write = await execute(`printf bad > '${root}/outside'`);
+      assert.notEqual(write.code, 0); assert.ok(!fs.existsSync(path.join(root, "outside")));
+      if (helper) {
+        const socket = await execute('python3 -c "import socket; socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)"');
+        assert.notEqual(socket.code, 0); assert.match(socket.stderr, /[Pp]ermission|[Oo]peration not permitted/);
+      }
+    }
+  }
+  console.log(`[smoke] ${process.platform}: ${restricted ? "restricted namespace rejected before workload" : "execution and protection checks passed"}`);
+} finally {
+  await SandboxManager.reset();
+  fs.rmSync(root, { recursive: true, force: true });
 }
-if (!r.stdout.includes("SMOKE-OK")) {
-  console.error("[smoke] 输出不符合预期:", r.stdout);
-  process.exit(1);
-}
-log(`[smoke] 执行 OK: ${r.stdout.trim()}`);
-await SandboxManager.reset();
-log("[smoke] 全部通过");

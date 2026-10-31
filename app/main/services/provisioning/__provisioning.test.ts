@@ -353,3 +353,21 @@ describe("Windows portable command runtime", () => {
     expect(report.items.find(item => item.id === "winSandbox")?.required).toBe(false);
   });
 });
+
+describe("Linux full isolation chain reporting", () => {
+  it("does not report ready when binary versions pass but namespace/helper execution fails", async () => {
+    const args: string[][] = [];
+    const report = await probeEnvironment({ platform: "linux", exists: () => false,
+      probe: spec => {
+        if (spec.id === "userns") { args.push(spec.args); return { status: "unknown" }; }
+        return { status: "ok", version: "fixture" };
+      },
+    });
+    expect(args[0]).toContain("--unshare-net");
+    expect(args[0]).toContain("--cap-drop");
+    expect(args[0]?.join(" ")).toContain("apply-seccomp");
+    const userns = report.items.find(item => item.id === "userns");
+    expect(userns?.status).toBe("blocked");
+    expect(userns?.detail).toContain("不保证完整链路可用");
+  });
+});

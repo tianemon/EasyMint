@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { buildExecutionPolicy, type PermissionMode } from "../permission/access-policy";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
 import { wrapWithWindowsWorker } from "./windows-execution-manager";
+import { linuxSandboxConfig } from "./srt-linux";
 import { srtWinPath, srtWinSpawn } from "./srt-win";
 import { isSandboxExcludedCommand } from "./compat-policy";
 import { ensureWindowsRuntime, preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
@@ -134,8 +135,8 @@ async function platformFailureReason(e: Error): Promise<string | null> {
     }
     // 官方做法是给 bwrap 加载 AppArmor profile，而不是全局关掉 userns 限制
     //（deb 安装时由 build/linux-after-install.sh 自动落；其余安装形态到「设置 → 环境检测」看指引）
-    return `沙盒初始化失败（Ubuntu 24.04 起默认禁止 bwrap 创建普通用户命名空间，需加载 AppArmor profile；`
-      + `用 deb 安装时已自动处理，仍失败请到「设置 → 环境检测」按指引执行一次）：${e.message}`;
+    return `沙盒初始化失败（可能缺少应用内置组件或系统限制了嵌套用户命名空间；`
+      + `请到「设置 → 环境检测」查看详细结果，加载 bubblewrap profile 不保证内层隔离可用）：${e.message}`;
   }
   if (process.platform === "win32") {
     try {
@@ -159,7 +160,8 @@ async function platformFailureReason(e: Error): Promise<string | null> {
  * 但打包后它指向 `app.asar` 内——config 里这一串最终也是交给 spawn 的，
  * 必须过 `srtWinPath()` 改写到 `.asar.unpacked`（原因见 srt-win.ts 文件头）。
  */
-async function applyWindowsConfig(cfg: SandboxRuntimeConfig): Promise<SandboxRuntimeConfig> {
+async function applyPlatformConfig(cfg: SandboxRuntimeConfig): Promise<SandboxRuntimeConfig> {
+  if (process.platform === "linux") return linuxSandboxConfig(cfg);
   if (process.platform !== "win32") return cfg;
   try {
     const srt = await getSrt();
@@ -194,7 +196,7 @@ export async function ensureSandbox(cwd: string, mode?: PermissionMode): Promise
     // sandboxViolationStore 永远为空 → annotateStderrWithSandboxFailures 拿到空数组直接返回
     // 原文 → **沙盒拦截对用户与模型完全静默**（历史现象："命令莫名失败、不知道为什么"）。
     // 它同时也是兼容性清单的腐化探测器：没有它，清单失效只能表现为莫名其妙的失败。
-    await srt.SandboxManager.initialize(await applyWindowsConfig(buildSandboxConfig(cwd)), undefined, true);
+    await srt.SandboxManager.initialize(await applyPlatformConfig(buildSandboxConfig(cwd)), undefined, true);
     _state = "ok";
     return { ok: true };
   } catch (e) {
@@ -305,7 +307,7 @@ export async function wrapForSandbox(
     // 否则违规注解匹配不上——见 annotateSandboxFailures）。
     return { kind: "argv", ...wrapped, violationKey: wrapped.commandId, release: createSandboxLease() };
   }
-  const policy = buildExecutionPolicy(context);
+  const policy = await applyPlatformConfig(buildExecutionPolicy(context));
   // srt 会在外层把 TMPDIR 设为自己的 scratch 目录。非完全访问档在最内层恢复运行区变量，
   // 让遵循 HOME/TMP/XDG 约定的开发工具稳定写入项目运行区；真正边界仍由 policy 强制。
   const effectiveCommand = context.mode !== "full"

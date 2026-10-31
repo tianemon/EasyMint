@@ -2101,5 +2101,7 @@
   "messages.commandRuntimePreparationFailed": "命令运行环境准备失败：{{v0}}",
   "messages.commandRuntimeUnavailable": "命令运行环境尚不可用，请重新检测或重试修复",
   "messages.verifyingBundledRuntime": "正在校验内置运行环境…",
-  "messages.testingCommandRuntime": "正在验证命令执行…"
+  "messages.testingCommandRuntime": "正在验证命令执行…",
+  "ui.env.linuxChainBlocked": "隔离链路验证失败：系统可能限制网络或嵌套用户命名空间。Ubuntu 24.04+ 的 AppArmor 策略可能阻止内层隔离组件；加载 bubblewrap profile 不保证完整链路可用。请先检查系统策略；不要为修复此问题全局关闭系统保护。",
+  "ui.env.linuxHelperBroken": "应用内置隔离组件不可用，请重新安装 EasyMint：{{detail}}"
 }

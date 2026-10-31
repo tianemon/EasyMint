@@ -14,7 +14,7 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
+import { createWriteStream, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { broadcast } from "../ipc-broadcast";
 import { decodeSeg, finalDecode } from "./encoding";

@@ -2101,5 +2101,7 @@
   "messages.commandRuntimePreparationFailed": "Command runtime preparation failed: {{v0}}",
   "messages.commandRuntimeUnavailable": "The command runtime is still unavailable. Check again or retry the repair.",
   "messages.verifyingBundledRuntime": "Verifying the bundled runtime…",
-  "messages.testingCommandRuntime": "Verifying command execution…"
+  "messages.testingCommandRuntime": "Verifying command execution…",
+  "ui.env.linuxChainBlocked": "Isolation chain verification failed: system policy may restrict network or nested user namespaces. Ubuntu 24.04+ AppArmor policies can block the inner sandbox helper; loading a bubblewrap profile does not guarantee the full chain works. Check system policy without globally disabling protection.",
+  "ui.env.linuxHelperBroken": "The bundled sandbox helper is unavailable. Reinstall EasyMint: {{detail}}"
 }
