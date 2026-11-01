@@ -319,3 +319,10 @@ Requires a Node.js environment. The installer configures Electron downloads thro
 EasyMint's development is itself an experiment in AI coding: approximately 99% of the project was produced using DeepSeek models (the lowest-cost flash tier since July), growing from a 14-file shell template into a desktop product.
 
 [**Building a desktop coding agent with a low-cost model**](PROJECT_STORY.md) (Chinese).
+
+## Contact
+
+- **Enterprise, private deployment and custom development**: [811978297@qq.com](mailto:811978297@qq.com) · [th811978297@gmail.com](mailto:th811978297@gmail.com)
+- **Community group (QQ, Chinese)**: 730870205
+
+For bug reports and feature requests, please [open an issue](https://github.com/tianemon/EasyMint/issues). You are also welcome to join the QQ group. For enterprise collaboration, on-premise deployment, private-network deployment requirements or custom development, email us with a brief description of your use case, team size and requirements.

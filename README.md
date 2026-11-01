@@ -322,3 +322,10 @@ Windows 源码开发时，先运行 `node scripts/prepare-windows-runtime.cjs --
 EasyMint 的开发本身就是一次「AI 编程」实践：项目约 99% 由 DeepSeek 模型完成（7 月起为最便宜的 flash 档），从 14 个文件的 shell 模板长成如今的桌面产品。
 
 [**用最便宜的模型，做出专业级的桌面编程 Agent**](PROJECT_STORY.md)
+
+## 合作与交流
+
+- **企业合作 / 私有化部署 / 定制开发**：[811978297@qq.com](mailto:811978297@qq.com) · [th811978297@gmail.com](mailto:th811978297@gmail.com)
+- **交流反馈群（QQ）**：730870205
+
+问题反馈和功能建议欢迎[提交 issue](https://github.com/tianemon/EasyMint/issues)，也欢迎加入 QQ 群交流。企业合作、私有化部署、内网环境适配及定制开发，请通过邮件联系，并简要说明使用场景、团队规模与具体需求。

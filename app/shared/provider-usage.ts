@@ -8,8 +8,8 @@ export interface AccountUsageRow {
   scope?: string;
   resetAt?: string;
 }
-export type AccountUsageResult = { ok: true; providerId: string; rows: AccountUsageRow[]; updatedAt: number }
-  | { ok: false; reason: "unsupported" | "auth" | "rateLimit" | "unavailable" | "invalid" | "changed" };
+export type AccountUsageResult = { ok: true; providerId: string; rows: AccountUsageRow[]; updatedAt: number; codex?: import("./codex-quota").CodexQuotaView }
+  | { ok: false; reason: "unsupported" | "auth" | "rateLimit" | "unavailable" | "invalid" | "changed"; clearSnapshot?: boolean };
 
 const rows: Record<string, AccountUsageLabel[]> = {
   "openai-codex": ["fiveHour", "weekly"], deepseek: ["balance"],

@@ -1,8 +1,12 @@
+import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
+import type { CodexQuotaResult } from "../../shared/codex-quota";
 import { createHash } from "node:crypto";
 import type { ApiProvidersData, ProviderConfig } from "../../shared/platform-presets";
 import { accountUsageLabels, accountUsagePlatform, type AccountUsageLabel, type AccountUsageResult, type AccountUsageRow } from "../../shared/provider-usage";
 
-export interface UsageAuth { token: string; type: "oauth" | "api_key"; enterpriseUrl?: string }
+export interface UsageAuth { token: string; type: "oauth" | "api_key"; enterpriseUrl?: string; accountId?: string; subject?: string }
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
 const number = (value: unknown): number | undefined => (typeof value === "number" || typeof value === "string" && value.trim() !== "") && Number.isFinite(Number(value)) ? Number(value) : undefined;
@@ -19,6 +23,7 @@ export function usageRequest(config: ProviderConfig, auth: UsageAuth): { url: st
   const preset = accountUsagePlatform(config);
   const headers: Record<string, string> = { Authorization: `Bearer ${auth.token}`, Accept: "application/json" };
   const urls: Record<string, string> = {
+    deepseek: "https://api.deepseek.com/user/balance",
     moonshotai: "https://api.moonshot.ai/v1/users/me/balance", "moonshotai-cn": "https://api.moonshot.cn/v1/users/me/balance",
     openrouter: "https://openrouter.ai/api/v1/key", "kimi-coding": "https://api.kimi.com/coding/v1/usages",
     zai: "https://api.z.ai/api/monitor/usage/quota/limit", "zai-coding-cn": "https://open.bigmodel.cn/api/monitor/usage/quota/limit",
@@ -66,7 +71,12 @@ export function parseProviderUsage(preset: string, raw: unknown): AccountUsageRo
     const parsed = number(value);
     if (parsed !== undefined && parsed >= 0) rows.push({ id, label, unit: "remainingCount", value: String(parsed), resetAt: reset(when), scope });
   };
-  if (preset === "siliconflow" || preset === "siliconflow-cn") {
+  if (preset === "deepseek") {
+    if (Array.isArray(body.balance_infos)) body.balance_infos.slice(0, 10).forEach((value, index) => {
+      const item = object(value), parsed = money(item.total_balance);
+      if (parsed !== undefined && typeof item.currency === "string") rows.push({id: `balance-${index}`, label: "balance", unit: "money", value: parsed, currency: item.currency});
+    });
+  } else if (preset === "siliconflow" || preset === "siliconflow-cn") {
     if (body.status === false || body.code !== 20000) return [];
     const data = object(body.data);
     amount("balance", data.totalBalance); amount("recharge", data.chargeBalance); amount("baseBalance", data.balance);
@@ -153,38 +163,101 @@ export function parseProviderUsage(preset: string, raw: unknown): AccountUsageRo
   return rows;
 }
 
+// Snapshots are optional UI data; reject corrupt rows before they reach date/number formatters.
+const quotaWindowSchema = z.object({usedPercent:z.number(),windowSeconds:z.number(),resetAt:z.number().optional(),reached:z.boolean()});
+const snapshotSchema = z.object({
+  ok:z.literal(true), providerId:z.string(), updatedAt:z.number(),
+  rows:z.array(z.object({id:z.string(),label:z.string(),value:z.string().optional(),
+    unit:z.enum(["money","usedPercent","remainingPercent","remainingCount","unlimited"]),
+    currency:z.string().optional(),scope:z.string().optional(),
+    resetAt:z.string().refine(value => Number.isFinite(Date.parse(value))).optional()})),
+  codex:z.object({plan:z.string().optional(),primary:quotaWindowSchema.optional(),secondary:quotaWindowSchema.optional(),fetchedAt:z.number(),
+    credits:z.object({available:z.number(),items:z.array(z.object({id:z.string(),title:z.string().optional(),grantedAt:z.string().optional(),expiresAt:z.string().optional()}))})}).optional(),
+});
+
 export function createProviderUsageService(deps: {
   providers: () => ApiProvidersData | undefined;
   auth: (config: ProviderConfig) => Promise<UsageAuth | undefined>;
   fetch?: typeof fetch;
   now?: () => number;
+  snapshotFile?: string;
+  codex?: (force: boolean) => Promise<CodexQuotaResult>;
 }) {
   const cache = new Map<string, { at: number; result: AccountUsageResult }>();
+  const revisions = new Map<string, number>();
   const pending = new Map<string, Promise<AccountUsageResult>>();
   const now = deps.now ?? Date.now;
-  return { async query(providerId: string, force = false): Promise<AccountUsageResult> {
+  type Success = Extract<AccountUsageResult, {ok:true}>;
+  const snapshots = new Map<string, {key:string; result:Success}>();
+  if (deps.snapshotFile) {
+    try {
+      const entries = JSON.parse(fs.readFileSync(deps.snapshotFile, "utf8"));
+      if (Array.isArray(entries)) for (const [id, value] of entries.slice(0, 64)) {
+        const parsed = snapshotSchema.safeParse(value?.result);
+        if (typeof id === "string" && typeof value?.key === "string" && parsed.success && parsed.data.providerId === id) {
+          snapshots.set(id, {key:value.key,result:parsed.data as Success});
+        }
+      }
+    } catch { /* Missing or corrupt optional snapshots do not affect account queries. */ }
+  }
+  const persist = () => {
+    if (!deps.snapshotFile) return;
+    try {
+      fs.mkdirSync(path.dirname(deps.snapshotFile), {recursive:true});
+      fs.writeFileSync(deps.snapshotFile + ".tmp", JSON.stringify([...snapshots]), {mode:0o600});
+      fs.renameSync(deps.snapshotFile + ".tmp", deps.snapshotFile);
+    } catch { console.warn("[ProviderUsage] Could not save usage snapshot"); }
+  };
+  return {
+    forget(providerId: string) {
+      revisions.set(providerId, (revisions.get(providerId) ?? 0) + 1);
+      snapshots.delete(providerId);
+      for (const key of cache.keys()) if (key.startsWith(providerId + ":")) cache.delete(key);
+      persist();
+    },
+    async query(providerId: string, force = false, cachedOnly = false): Promise<AccountUsageResult> {
     const current = deps.providers(), configured = current?.configs[providerId];
-    if (current?.current !== providerId || !configured || configured.id !== providerId) return { ok:false, reason:"changed" };
+    if (!configured || configured.id !== providerId) return { ok:false, reason:"changed" };
     const config = { ...configured };
+    const revision = revisions.get(providerId) ?? 0;
     if (!accountUsageLabels(config)) return { ok:false, reason:"unsupported" };
     const isCurrent = () => {
       const next = deps.providers(), candidate = next?.configs[providerId];
-      return next?.current === providerId && candidate?.presetId === config.presetId && candidate?.authType === config.authType && candidate?.apiKey === config.apiKey && candidate?.baseUrl === config.baseUrl;
+      return (revisions.get(providerId) ?? 0) === revision && candidate?.id === providerId && candidate?.presetId === config.presetId && candidate?.authType === config.authType && candidate?.apiKey === config.apiKey && candidate?.baseUrl === config.baseUrl;
     };
     let auth: UsageAuth | undefined;
     try { auth = await deps.auth(config); } catch { return {ok:false,reason:"unavailable"}; }
-    if (!auth?.token) return {ok:false,reason:"auth"};
     if (!isCurrent()) return {ok:false,reason:"changed"};
+    if (!auth?.token) { if (snapshots.delete(providerId)) persist(); return {ok:false,reason:"auth",clearSnapshot:true}; }
     const request = usageRequest(config, auth);
-    if (!request) return {ok:false,reason:"unsupported"};
-    const key = `${providerId}:${config.presetId}:${createHash("sha256").update(auth.token).update(request.url).digest("hex")}`;
+    const codex = config.presetId === "openai-codex" && deps.codex;
+    if (!request && !codex) return {ok:false,reason:"unsupported"};
+    const key = `${providerId}:${config.presetId}:${createHash("sha256").update(JSON.stringify([auth.token, auth.accountId, auth.subject, auth.type, request?.url ?? "codex", config.baseUrl, config.authType])).digest("hex")}`;
+    // Persistent history follows a stable account ID when available; live requests still use the token.
+    const snapshotKey = `${providerId}:${config.presetId}:${createHash("sha256").update(JSON.stringify([
+      auth.type === "oauth" && auth.accountId && auth.subject ? ["account",auth.accountId,auth.subject] : ["token",auth.token,auth.accountId],
+      request?.url ?? "codex",config.baseUrl,config.authType,
+    ])).digest("hex")}`;
+    const snapshot = snapshots.get(providerId);
+    if (snapshot && snapshot.key !== snapshotKey) { snapshots.delete(providerId); persist(); }
+    if (cachedOnly) return snapshot?.key === snapshotKey ? snapshot.result : {ok:false,reason:"unavailable",clearSnapshot:true};
     const previous = cache.get(key);
     if (previous && now() - previous.at < 60_000 && (!force || !previous.result.ok && previous.result.reason === "rateLimit")) return previous.result;
-    let work = pending.get(key);
+    const pendingKey = `${key}:${revision}`;
+    let work = pending.get(pendingKey);
     if (!work) {
       work = (async (): Promise<AccountUsageResult> => {
         try {
-          const response = await (deps.fetch ?? fetch)(request.url, {headers:request.headers,redirect:"error",signal:AbortSignal.timeout(10_000)});
+          if (codex) {
+            const result = await codex(force);
+            if (!result.ok) return {ok:false,reason:result.reason === "no-credential" || result.reason === "reauth" ? "auth" : "unavailable"};
+            const rows: AccountUsageRow[] = [];
+            for (const [id, label, window] of [["primary", "fiveHour", result.quota.primary], ["secondary", "weekly", result.quota.secondary]] as const) {
+              rows.push({id,label,unit:"usedPercent",value:window ? String(window.usedPercent) : undefined,resetAt:window?.resetAt ? new Date(window.resetAt * 1000).toISOString() : undefined});
+            }
+            return {ok:true,providerId,rows,updatedAt:result.quota.fetchedAt,codex:result.quota};
+          }
+          const response = await (deps.fetch ?? fetch)(request!.url, {headers:request!.headers,redirect:"error",signal:AbortSignal.timeout(10_000)});
           if (!response.ok) {
             await response.body?.cancel();
             return {ok:false,reason:response.status === 401 || response.status === 403 ? "auth" : response.status === 429 ? "rateLimit" : "unavailable"};
@@ -193,10 +266,16 @@ export function createProviderUsageService(deps: {
           return rows.length ? {ok:true,providerId,rows,updatedAt:now()} : {ok:false,reason:"invalid"};
         } catch { return {ok:false,reason:"unavailable"}; }
       })();
-      pending.set(key, work);
-      void work.then(result => { cache.set(key,{at:now(),result}); if (cache.size > 32) cache.delete(cache.keys().next().value!); }).finally(() => pending.delete(key));
+      pending.set(pendingKey, work);
+      void work.then(result => { if (!isCurrent()) return; cache.set(key,{at:now(),result}); if (cache.size > 32) cache.delete(cache.keys().next().value!); }).finally(() => pending.delete(pendingKey));
     }
     const result = await work;
-    return isCurrent() ? result : {ok:false,reason:"changed"};
+    if (!isCurrent()) return {ok:false,reason:"changed"};
+    // Verify credentials again: logout or account replacement may happen during a request.
+    const latestAuth = await deps.auth(config).catch(() => undefined);
+    if (!isCurrent() || latestAuth?.token !== auth.token || latestAuth?.accountId !== auth.accountId || latestAuth?.subject !== auth.subject || latestAuth?.enterpriseUrl !== auth.enterpriseUrl) return {ok:false,reason:"changed"};
+    if (result.ok) { snapshots.set(providerId,{key:snapshotKey,result}); persist(); }
+
+    return result;
   }};
 }

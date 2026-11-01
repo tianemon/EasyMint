@@ -1,3 +1,4 @@
+import { ProviderUsagePreview } from "./ProviderUsagePreview";
 import { uiText, useUiLocale, appText } from "../../lib/i18n";
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
@@ -593,6 +594,7 @@ export function ProvidersManager() {
                 <div className="text-[length:var(--text-11)] text-text-secondary mt-0.5 truncate">
                   <span className="font-mono">{cfg.model}</span>
                 </div>
+                <ProviderUsagePreview config={cfg} />
               </div>
               <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                 {!isActive && (

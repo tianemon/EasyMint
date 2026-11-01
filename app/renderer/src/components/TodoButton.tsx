@@ -17,17 +17,27 @@ interface UserTodo {
 }
 
 export const TodoButton = memo(function TodoButton({ projectPath }: { projectPath: string }): JSX.Element {
+  return <ProjectTodoButton key={projectPath} projectPath={projectPath} />;
+});
+
+const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { projectPath: string }): JSX.Element {
   useUiLocale();
   const [open, setOpen] = useState(false);
   const [todos, setTodos] = useState<UserTodo[] | null>(null);
   const [migratedNote, setMigratedNote] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState<{ id: number; title: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const editPending = useRef(false);
   const [err, setErr] = useState<string | null>(null);
+  const projectRef = useRef(projectPath);
+  projectRef.current = projectPath;
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const r = await window.electronAPI.todos.list(projectPath);
+    if (projectRef.current !== projectPath) return;
     if (r.ok && r.data) {
       setTodos(r.data.todos);
       if (r.data.migrated && r.data.migratedCount !== undefined) {
@@ -60,7 +70,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
     const onDown = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setOpen(false); };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
@@ -87,6 +97,21 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
     if (expandedId === id) setExpandedId(null);
     load();
   }, [projectPath, load, expandedId]);
+
+  useEffect(() => { setEditing(null); setErr(null); }, [projectPath]);
+
+  const saveEdit = async () => {
+    if (!editing || !editing.title.trim() || editPending.current) return;
+    editPending.current = true;
+    setSaving(true);
+    try {
+      const result = await window.electronAPI.todos.update(projectPath, editing.id, editing.title.trim());
+      if (projectRef.current !== projectPath) return;
+      if (result.ok) { setEditing(null); setErr(null); await load(); }
+      else setErr(result.error ?? uiText("ui.TodoButton.saveFailed"));
+    } catch { if (projectRef.current === projectPath) setErr(uiText("ui.TodoButton.saveFailed")); }
+    finally { editPending.current = false; setSaving(false); }
+  };
 
   const openCount = todos?.filter((t) => t.status === "open").length ?? 0;
 
@@ -137,23 +162,43 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
                         : "border-border hover:border-accent text-transparent"
                     }`}
                     
+                    disabled={saving}
                     onClick={() => toggle(t.id)}
                   >
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                   </button>
-                  <button
-                    type="button"
-                    className={`flex-1 min-w-0 text-left text-xs leading-relaxed break-words ${t.status === "done" ? "text-text-muted line-through" : "text-text-primary"}`}
-                    
-                    onClick={() => setExpandedId((v) => (v === t.id ? null : t.id))}
-                  >
-                    {t.title}
+                  {editing?.id === t.id ? (
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <input autoFocus aria-label={uiText("menu.edit")} maxLength={200}
+                        className="em-input w-full px-2 py-1 text-xs" value={editing.title} disabled={saving}
+                        onChange={event => setEditing({ id: t.id, title: event.target.value })}
+                        onKeyDown={event => {
+                          if (event.nativeEvent.isComposing) return;
+                          if (event.key === "Enter") { event.preventDefault(); void saveEdit(); }
+                          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (!saving) setEditing(null); }
+                        }} />
+                      <div className="flex gap-2 text-xs">
+                        <button type="button" className="text-accent disabled:opacity-40" disabled={saving || !editing.title.trim()} onClick={() => void saveEdit()}>{uiText("ui.TodoButton.save")}</button>
+                        <button type="button" className="text-text-secondary" disabled={saving} onClick={() => setEditing(null)}>{uiText("common.cancel")}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button"
+                      className={`flex-1 min-w-0 text-left text-xs leading-relaxed break-words ${t.status === "done" ? "text-text-muted line-through" : "text-text-primary"}`}
+                      onClick={() => setExpandedId(value => value === t.id ? null : t.id)}>{t.title}</button>
+                  )}
+                  <button type="button" aria-label={uiText("menu.edit")} title={uiText("menu.edit")}
+                    disabled={saving} className="text-text-muted hover:text-text-primary shrink-0 mt-0.5 disabled:opacity-40"
+                    onClick={() => { setEditing({ id: t.id, title: t.title }); setErr(null); }}>
+                    {/* User supplied Lucide square-pen, scaled to match the row controls. */}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
                   </button>
                   <button
                     type="button"
                     className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-danger transition-all shrink-0 mt-0.5"
                    
-                    onClick={() => remove(t.id)}
+                    disabled={saving}
+                    onClick={() => { if (editing?.id === t.id) setEditing(null); remove(t.id); }}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                   </button>

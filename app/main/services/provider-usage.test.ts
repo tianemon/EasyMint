@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createProviderUsageService, parseProviderUsage, usageRequest, type UsageAuth } from "./provider-usage";
 import { accountUsageLabels } from "../../shared/provider-usage";
@@ -116,14 +119,14 @@ describe("account usage query isolation",()=>{
   f.setToken("new-key");await f.service.query("a");expect(f.request).toHaveBeenCalledTimes(2);
   f.advance();await f.service.query("a");expect(f.request).toHaveBeenCalledTimes(3);
  });
- it("rejects stale account IDs before resolving credentials",async()=>{
-  const f=fixture();expect(await f.service.query("b")).toEqual({ok:false,reason:"changed"});expect(f.auth).not.toHaveBeenCalled();
+ it("rejects deleted account IDs before resolving credentials",async()=>{
+  const f=fixture();expect(await f.service.query("missing")).toEqual({ok:false,reason:"changed"});expect(f.auth).not.toHaveBeenCalled();
  });
- it("does not return a late result after switching providers",async()=>{
+ it("keeps account queries independent of the selected chat provider",async()=>{
   const f=fixture();let resolve!:(response:Response)=>void;
   f.request.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
   const query=f.service.query("a");await vi.waitFor(()=>expect(f.request).toHaveBeenCalledTimes(1));
-  f.state.current="b";resolve(Response.json({data:{usage:10}}));expect(await query).toEqual({ok:false,reason:"changed"});
+  f.state.current="b";resolve(Response.json({data:{usage:10}}));expect(await query).toMatchObject({ok:true,providerId:"a"});
  });
  it("rejects an in-place platform change while a request is running",async()=>{
   const f=fixture();let resolve!:(response:Response)=>void;
@@ -142,4 +145,106 @@ describe("account usage query isolation",()=>{
   f.auth.mockRejectedValueOnce(new Error("do not expose token"));expect(await f.service.query("a",true)).toEqual({ok:false,reason:"unavailable"});
   f.request.mockRejectedValueOnce(new Error("timeout"));expect(await f.service.query("a",true)).toEqual({ok:false,reason:"unavailable"});
  });
+});
+
+
+describe("persistent account snapshots", () => {
+ it("restores the last success without a network request and never writes credentials", async () => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"em-usage-"));
+  try {
+   const snapshotFile=path.join(dir,"usage.json");
+   const state:ApiProvidersData={current:"other",configs:{deepseek:config("deepseek")}};
+   const auth=vi.fn(async()=>key);
+   const request=vi.fn<typeof fetch>(async()=>Response.json({balance_infos:[{currency:"CNY",total_balance:"18.50"}]}));
+   const deps={providers:()=>state,auth,fetch:request,snapshotFile,now:()=>1000};
+   const first=createProviderUsageService(deps);
+   expect(await first.query("deepseek")).toMatchObject({ok:true,rows:[{value:"18.50",currency:"CNY"}]});
+   expect(fs.readFileSync(snapshotFile,"utf8")).not.toContain(key.token);
+   const restored=createProviderUsageService({...deps,now:()=>100000});
+   expect(await restored.query("deepseek",false,true)).toMatchObject({ok:true,updatedAt:1000});
+   expect(request).toHaveBeenCalledTimes(1);
+   request.mockRejectedValueOnce(new Error("offline"));
+   expect(await restored.query("deepseek",true)).toEqual({ok:false,reason:"unavailable"});
+   expect(await restored.query("deepseek",false,true)).toMatchObject({ok:true,updatedAt:1000});
+   auth.mockResolvedValue({...key,token:"another-account"});
+   expect(await restored.query("deepseek",false,true)).toEqual({ok:false,reason:"unavailable",clearSnapshot:true});
+   expect(fs.readFileSync(snapshotFile,"utf8")).not.toContain("18.50");
+  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+ });
+ it("ignores corrupt optional snapshots", async () => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"em-usage-"));
+  try {
+   const snapshotFile=path.join(dir,"usage.json");
+   fs.writeFileSync(snapshotFile,JSON.stringify([["a",{key:"fingerprint",result:{ok:true,providerId:"a",updatedAt:1,rows:[{resetAt:"invalid"}]}}]]));
+   const state:ApiProvidersData={current:"a",configs:{a:config("openrouter","a")}};
+   const service=createProviderUsageService({providers:()=>state,auth:async()=>key,snapshotFile});
+   expect(await service.query("a",false,true)).toEqual({ok:false,reason:"unavailable",clearSnapshot:true});
+  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+ });
+ it("does not resurrect an invalidated snapshot when an earlier request completes",async()=>{
+  const f=fixture();let resolve!:(response:Response)=>void;
+  f.request.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+  const pending=f.service.query("a");await vi.waitFor(()=>expect(f.request).toHaveBeenCalledTimes(1));
+  f.service.forget("a");resolve(Response.json({data:{usage:10}}));
+  expect(await pending).toEqual({ok:false,reason:"changed"});
+  expect(await f.service.query("a",false,true)).toEqual({ok:false,reason:"unavailable",clearSnapshot:true});
+ });
+ it("rejects a different account selection even if it reuses the same access token",async()=>{
+  const f=fixture();
+  f.auth.mockResolvedValue({...key,accountId:"first"}); await f.service.query("a");
+  f.auth.mockResolvedValue({...key,accountId:"second"});
+  expect(await f.service.query("a",false,true)).toEqual({ok:false,reason:"unavailable",clearSnapshot:true});
+ });
+ it("clears snapshots when credentials disappear but retains them after an authentication error",async()=>{
+  const f=fixture();await f.service.query("a");
+  f.request.mockResolvedValueOnce(new Response("",{status:401}));
+  expect(await f.service.query("a",true)).toEqual({ok:false,reason:"auth"});
+  expect(await f.service.query("a",false,true)).toMatchObject({ok:true});
+  f.auth.mockResolvedValueOnce(undefined as never);
+  expect(await f.service.query("a",false,true)).toEqual({ok:false,reason:"auth",clearSnapshot:true});
+  expect(await f.service.query("a",false,true)).toEqual({ok:false,reason:"unavailable",clearSnapshot:true});
+ });
+ it("handles Codex quota using the same isolated snapshot contract",async()=>{
+  const state:ApiProvidersData={current:"deepseek",configs:{codex:config("openai-codex","codex")}};
+  const codex=vi.fn(async()=>({ok:true as const,quota:{primary:{usedPercent:25,windowSeconds:18000,reached:false},credits:{available:2,items:[]},fetchedAt:500}}));
+  const service=createProviderUsageService({providers:()=>state,auth:async()=>key,codex});
+  expect(await service.query("codex")).toMatchObject({ok:true,providerId:"codex",rows:[{value:"25"},{}],updatedAt:500,codex:{credits:{available:2}}});
+  expect(await service.query("codex",false,true)).toMatchObject({ok:true,updatedAt:500});
+  expect(codex).toHaveBeenCalledTimes(1);
+ });
+});
+it("retains the same Codex account's snapshot across access-token rotation and restart",async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"em-usage-"));
+ try {
+  const snapshotFile=path.join(dir,"usage.json");
+  let token="original-token";
+  const state:ApiProvidersData={current:null,configs:{codex:config("openai-codex","codex")}};
+  const deps={providers:()=>state,auth:async()=>({token,type:"oauth" as const,accountId:"same-account",subject:"same-user"}),snapshotFile,
+   codex:async()=>({ok:true as const,quota:{credits:{available:0,items:[]},fetchedAt:123}})};
+  const service=createProviderUsageService(deps);
+  await service.query("codex"); token="refreshed-token";
+  const restarted=createProviderUsageService(deps);
+  expect(await restarted.query("codex",false,true)).toMatchObject({ok:true,updatedAt:123});
+ } finally {fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+it("does not let an obsolete credential lookup delete a newer snapshot",async()=>{
+ const f=fixture();
+ let release!:(auth:UsageAuth|undefined)=>void;
+ f.auth.mockImplementationOnce(()=>new Promise(resolve=>{release=resolve as typeof release;}));
+ const old=f.service.query("a");
+ expect(f.auth).toHaveBeenCalledTimes(1);
+ f.service.forget("a");
+ expect(await f.service.query("a")).toMatchObject({ok:true});
+ release(undefined);
+ expect(await old).toEqual({ok:false,reason:"changed"});
+ expect(await f.service.query("a",false,true)).toMatchObject({ok:true});
+});
+
+it("does not share OAuth history between different users of the same workspace",async()=>{
+ const f=fixture();
+ f.auth.mockResolvedValue({...key,type:"oauth",accountId:"workspace",subject:"first-user"});
+ await f.service.query("a");
+ f.auth.mockResolvedValue({...key,type:"oauth",accountId:"workspace",subject:"second-user"});
+ expect(await f.service.query("a",false,true)).toEqual({ok:false,reason:"unavailable",clearSnapshot:true});
 });

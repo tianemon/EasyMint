@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearCodexQuotaCache, consumeCodexResetCredit, consumeResetBody, fetchCodexQuota, parseCodexQuota, planFromAccessToken } from "./codex-usage";
+import { clearCodexQuotaCache, consumeCodexResetCredit, consumeResetBody, fetchCodexQuota, readCodexQuotaAuth, parseCodexQuota, planFromAccessToken } from "./codex-usage";
 import type { Store } from "./store";
 
 /** 真实响应的节选（数值来自一次 plus 账号的查询） */
@@ -136,6 +136,14 @@ afterEach(() => {
 });
 
 describe("fetchCodexQuota", () => {
+  it("uses expired credentials only to identify saved snapshots, never for live queries", async () => {
+    writeAuth({type:"oauth",access:"expired",accountId:"acct-1",expires:Date.now()-1000});
+    expect(readCodexQuotaAuth(STORE)).toBeNull();
+    expect(readCodexQuotaAuth(STORE,true)).toEqual({access:"expired",accountId:"acct-1"});
+    const request=vi.fn();vi.stubGlobal("fetch",request);
+    expect(await fetchCodexQuota(STORE)).toEqual({ok:false,reason:"no-credential"});
+    expect(request).not.toHaveBeenCalled();
+  });
   it("带齐两个请求：usage + 重置凭据，头里有 Authorization 与账号 id", async () => {
     const calls: Array<{ url: string; headers: Record<string, string> }> = [];
     vi.stubGlobal("fetch", (async (url: string, init?: { headers?: Record<string, string> }) => {

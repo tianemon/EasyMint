@@ -44,6 +44,7 @@ export interface ProviderAuthPromptOption {
 
 /** 登录过程中推给界面的事件（英文 message 只在主进程留日志，不进本结构） */
 export type ProviderAuthUiEvent =
+  | { kind: "credentials_changed" }
   /** 授权链接已就绪（主进程同时已尝试用系统浏览器打开） */
   | { kind: "browser"; url: string }
   /** 设备码：需用户在浏览器输入 userCode */

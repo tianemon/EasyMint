@@ -82,6 +82,7 @@ const DECLARED = [
   { entry: "sessions", klass: "none", why: "历史位置，只作迁移来源" },
   { entry: "electron", klass: "none", why: "Electron userData（Chromium 缓存）" },
   { entry: "projects", klass: "none", why: "pi SDK 的项目会话目录" },
+  { entry: "usage-snapshots.json", klass: "none", why: "仅用于额度界面的历史快照与不可逆凭据指纹，不含密钥，不参与模型上下文或执行权限" },
   { entry: "projects.json", klass: "none", why: "项目清单（路径与最近打开时间）" },
   { entry: ".cleanup-pending.json", klass: "none", why: "退出清理的待处理标记" },
   { entry: "migration-cache", klass: "none", why: "迁移用的临时包" },

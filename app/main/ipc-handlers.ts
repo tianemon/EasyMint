@@ -118,7 +118,13 @@ interface Services {
 export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store, remoteTerminalService }: Services): void {
   const accountUsage = createProviderUsageService({
     providers: () => store.getSettings().apiProviders,
+    snapshotFile: p.join(emHome(), "usage-snapshots.json"),
+    codex: async force => (await import("./services/codex-usage")).fetchCodexQuota(store, {force}),
     auth: async config => {
+      if (config.presetId === "openai-codex") {
+        const auth = (await import("./services/codex-usage")).readCodexQuotaAuth(store, true);
+        return auth ? {token:auth.access,type:"oauth",accountId:auth.accountId,subject:auth.subject} : undefined;
+      }
       const repository = await getNativeConfig(store);
       if (config.presetId === "github-copilot" && config.authType === "oauth") {
         // The user-entitlement API takes the original GitHub token, not Copilot's short-lived inference token.
@@ -132,10 +138,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       return resolved?.auth.apiKey ? {token:resolved.auth.apiKey,type:config.authType === "oauth" ? "oauth" : "api_key"} : undefined;
     },
   });
+  const forgetAccountUsage = (providerId: string) => {
+    accountUsage.forget(providerId);
+    for (const config of Object.values(store.getSettings().apiProviders?.configs ?? {})) {
+      if (config.presetId === providerId && config.id !== providerId) accountUsage.forget(config.id);
+    }
+  };
   ipcMain.handle("provider:usage", async (_e, input: unknown) => {
-    const request = input as {providerId?: unknown; force?: unknown} | undefined;
+    const request = input as {providerId?: unknown; force?: unknown; cachedOnly?: unknown} | undefined;
     if (!request || typeof request.providerId !== "string") return {ok:false,reason:"unsupported"};
-    return accountUsage.query(request.providerId, request.force === true);
+    return accountUsage.query(request.providerId, request.force === true, request.cachedOnly === true);
   });
   const formAssist = new FormAssistService(async () => {
     const repository = await getNativeConfig(store);
@@ -818,7 +830,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("provider:authLogin", async (_e, input: unknown) => {
     const data = expectPayload(z.object({ providerId: nonEmptyString, requestId: nonEmptyString.max(128) }).loose(), input);
-    return loginProvider(store, data.providerId, data.requestId);
+    forgetAccountUsage(data.providerId);
+    const result = await loginProvider(store, data.providerId, data.requestId);
+    if (result.ok) {
+      forgetAccountUsage(data.providerId);
+      broadcast("provider:authEvent", {providerId:data.providerId,requestId:data.requestId,event:{kind:"credentials_changed"}});
+    }
+    return result;
   });
   ipcMain.handle("provider:authInput", (_e, input: unknown) => {
     const data = expectPayload(z.object({ requestId: nonEmptyString.max(128), value: z.string() }).loose(), input);
@@ -830,7 +848,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("provider:authLogout", async (_e, input: unknown) => {
     const data = expectPayload(z.object({ providerId: nonEmptyString }).loose(), input);
-    return logoutProvider(store, data.providerId);
+    forgetAccountUsage(data.providerId);
+    const result = await logoutProvider(store, data.providerId);
+    if (result.ok) {
+      forgetAccountUsage(data.providerId);
+      broadcast("provider:authEvent", {providerId:data.providerId,requestId:"logout",event:{kind:"credentials_changed"}});
+    }
+    return result;
   });
   ipcMain.handle("provider:authOpenUrl", async (_e, input: unknown) => {
     const data = expectPayload(z.object({ url: z.string().min(1) }).loose(), input);
@@ -844,13 +868,22 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // 消耗重置**不可逆**，界面必须先二次确认；凭据沿用 auth.json 里已有的 Codex 登录。
   ipcMain.handle("provider:codexQuota", async (_e, input: unknown) => {
     const data = expectPayload(z.object({ force: z.boolean().optional() }).loose(), input ?? {});
-    const { fetchCodexQuota } = await import("./services/codex-usage");
-    return fetchCodexQuota(store, { force: data.force === true });
+    const providers = store.getSettings().apiProviders;
+    const config = Object.values(providers?.configs ?? {}).find(config => config.presetId === "openai-codex");
+    if (!config) return {ok:false,reason:"no-credential"};
+    const result = await accountUsage.query(config.id, data.force === true);
+    return result.ok && result.codex ? {ok:true,quota:result.codex} : {ok:false,reason:!result.ok && result.reason === "auth" ? "reauth" : "network"};
   });
   ipcMain.handle("provider:codexConsumeReset", async (_e, input: unknown) => {
     const data = expectPayload(z.object({ creditId: z.string().min(1).optional() }).loose(), input ?? {});
     const { consumeCodexResetCredit } = await import("./services/codex-usage");
-    return consumeCodexResetCredit(store, data.creditId);
+    const result = await consumeCodexResetCredit(store, data.creditId);
+    if (result.code !== "error") {
+      for (const config of Object.values(store.getSettings().apiProviders?.configs ?? {})) {
+        if (config.presetId === "openai-codex") accountUsage.forget(config.id);
+      }
+    }
+    return result;
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();
@@ -859,26 +892,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
     // Retain the original DeepSeek-only contract; other supported accounts use provider:usage.
     if (!activeId || activeCfg?.presetId !== "deepseek") return null;
-    const runtime = await (await getNativeConfig(store)).getRuntime();
-    const apiKey = (await runtime.getAuth(activeId))?.auth.apiKey;
-    if (!apiKey) return null;
-    // Pi 内置 provider — 从 Pi 拿 baseUrl
-    let rawUrl = "https://api.deepseek.com";
-    if (activeCfg?.presetId) {
-      const { getPiProviders } = await import("./services/pi-init");
-      const providers = await getPiProviders(store);
-      const pi = providers.find((p) => p.id === activeCfg.presetId);
-      if (pi?.baseUrl) rawUrl = pi.baseUrl;
-    }
-    let origin: string;
-    try { origin = new URL(rawUrl).origin; } catch { return null; }
-    try {
-      const url = `${origin}/user/balance`;
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (!resp.ok) return null;
-      const json = await resp.json() as Record<string, unknown>;
-      return json;
-    } catch { return null; }
+    const result = await accountUsage.query(activeId);
+    return result.ok ? {balance_infos:result.rows.filter(row => row.unit === "money").map(row => ({currency:row.currency ?? "",total_balance:row.value ?? "",granted_balance:""}))} : null;
   });
 
   // project:saveProfile — 持久化项目产品类型规范(NewProjectDialog 创建时写入,

@@ -35,6 +35,7 @@ const CACHE_MS = 60_000;
 interface CodexAuth {
   access: string;
   accountId?: string;
+  subject?: string;
 }
 
 /**
@@ -47,14 +48,20 @@ interface CodexAuth {
  *
  * 过期判断只做"明显过期就判需要重新登录"：真正的刷新仍由 SDK 在下次调用时完成。
  */
-function readAuth(_store: Store): CodexAuth | null {
+export function readCodexQuotaAuth(_store: Store, allowExpired = false): CodexAuth | null {
   const file = path.join(emAgentDir(), "auth.json");
   try {
     const raw = JSON.parse(fs.readFileSync(file, "utf-8")) as Record<string, unknown>;
     const entry = raw["openai-codex"] as { type?: string; access?: string; accountId?: string; expires?: number } | undefined;
     if (!entry?.access) return null;
-    if (typeof entry.expires === "number" && entry.expires < Date.now()) return null;
-    return { access: entry.access, accountId: entry.accountId };
+    if (!allowExpired && typeof entry.expires === "number" && entry.expires < Date.now()) return null;
+    // Workspace ID alone need not distinguish individual users. Keep the JWT subject in memory only.
+    let subject: string | undefined;
+    try {
+      const payload = JSON.parse(Buffer.from(entry.access.split(".")[1] ?? "", "base64url").toString("utf8"));
+      if (typeof payload.sub === "string" && payload.sub) subject = payload.sub;
+    } catch { /* Without a stable subject, snapshot identity falls back to the exact token. */ }
+    return { access: entry.access, accountId: entry.accountId, ...(subject ? {subject} : {}) };
   } catch (e) {
     console.warn("[codex-usage] 读取 Codex 凭据失败:", (e as Error).message);
     return null;
@@ -140,22 +147,23 @@ export function planFromAccessToken(access: string): string | undefined {
   }
 }
 
-let cached: { at: number; result: CodexQuotaResult } | null = null;
+let cached: { identity: string; at: number; result: CodexQuotaResult } | null = null;
 
-/** 缓存只对"成功"和"网络失败"生效；凭据类失败每次重查（用户可能刚好重新登录） */
+/** 短期缓存仅保留成功结果；每次先校验凭据身份。 */
 export function clearCodexQuotaCache(): void {
   cached = null;
 }
 
 /** 查一次额度（含可用重置凭据）。任何失败都降级成 reason，不抛。 */
 export async function fetchCodexQuota(store: Store, options: { force?: boolean } = {}): Promise<CodexQuotaResult> {
-  if (!options.force && cached && Date.now() - cached.at < CACHE_MS) return cached.result;
-  const auth = await readAuth(store);
-  if (!auth) return { ok: false, reason: "no-credential" };
+  const auth = await readCodexQuotaAuth(store);
+  if (!auth) { cached = null; return { ok: false, reason: "no-credential" }; }
+  const identity = JSON.stringify([auth.access, auth.accountId]);
+  if (!options.force && cached?.identity === identity && Date.now() - cached.at < CACHE_MS) return cached.result;
   try {
     const [usageRes, creditsRes] = await Promise.all([
-      fetch(`${BASE}/wham/usage`, { headers: headers(auth) }),
-      fetch(`${BASE}/wham/rate-limit-reset-credits`, { headers: headers(auth) }),
+      fetch(`${BASE}/wham/usage`, { headers: headers(auth), signal: AbortSignal.timeout(10_000), redirect: "error" }),
+      fetch(`${BASE}/wham/rate-limit-reset-credits`, { headers: headers(auth), signal: AbortSignal.timeout(10_000), redirect: "error" }),
     ]);
     if (usageRes.status === 401 || usageRes.status === 403) return { ok: false, reason: "reauth" };
     if (!usageRes.ok) return { ok: false, reason: "unsupported" };
@@ -166,7 +174,7 @@ export async function fetchCodexQuota(store: Store, options: { force?: boolean }
     // 端点偶尔不带 plan_type：退回凭据里的套餐声明（拿不到就留白，不猜）
     quota.plan ??= planFromAccessToken(auth.access);
     const result: CodexQuotaResult = { ok: true, quota };
-    cached = { at: Date.now(), result };
+    cached = { identity, at: Date.now(), result };
     return result;
   } catch (e) {
     console.warn("[codex-usage] 查询额度失败:", (e as Error).message);
@@ -192,7 +200,7 @@ export function consumeResetBody(creditId: string | undefined, requestId: string
  * `creditId` 不传 = 让后端自己挑一张（官方客户端的做法）；指定 id 时优先用快过期的那张。
  */
 export async function consumeCodexResetCredit(store: Store, creditId?: string): Promise<ConsumeResetResult> {
-  const auth = await readAuth(store);
+  const auth = await readCodexQuotaAuth(store);
   if (!auth) return { code: "error", error: "no-credential" };
   const key = creditId ?? "auto";
   const requestId = pendingRedeem.get(key) ?? randomUUID();

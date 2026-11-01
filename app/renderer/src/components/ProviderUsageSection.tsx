@@ -48,7 +48,7 @@ export function ProviderUsageSection({providerId,labels}:{providerId:string;labe
   </div>;
 }
 
-function formatUsageValue(row:AccountUsageRow):string {
+export function formatUsageValue(row:AccountUsageRow):string {
   if(row.unit==="unlimited")return uiText("ui.AccountUsage.unlimited");
   if(row.value===undefined)return "—";
   if(row.unit==="remainingCount")return uiText("ui.AccountUsage.remainingCount",{value:row.value});
