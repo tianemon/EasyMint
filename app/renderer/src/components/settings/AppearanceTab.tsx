@@ -1,3 +1,4 @@
+import { LanguageSelector } from "./LanguageSelector";
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
@@ -5,7 +6,7 @@ import { useThemeStore } from "../../stores/theme-store";
 import { GlowGroupManager } from "./GlowGroupManager";
 import { ColorPickerField } from "../ColorPicker";
 
-/** 界面设置:聊天/界面字体缩放 + 状态指示光效 */
+/** 界面设置:界面语言、聊天/界面字体缩放与状态指示光效 */
 export function AppearanceTab(): JSX.Element {
   useUiLocale();
   const chatFontScale = useSettingsStore((s) => s.chatFontScale);
@@ -72,6 +73,9 @@ export function AppearanceTab(): JSX.Element {
 
   return (
     <div className="space-y-5">
+      <section>
+        <LanguageSelector />
+      </section>
       {/* 阅读字体:动态内容区(聊天/编辑器/Shell 输出等)百分比缩放 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.AppearanceTab.readingFont")}</h3>

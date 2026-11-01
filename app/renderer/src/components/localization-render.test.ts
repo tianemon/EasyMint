@@ -34,6 +34,7 @@ describe("English interface coverage", () => {
   it("localizes untouched seeded color groups and preserves user group names", async () => {
     await uiI18n.changeLanguage("en");
     const html = renderToStaticMarkup(createElement(AppearanceTab));
+    expect(html).toContain("Interface language");
     expect(html).toContain("Reading font");
     expect(html).toContain("Interface font");
     expect(html).toContain("Custom 1");

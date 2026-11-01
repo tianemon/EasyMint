@@ -1,4 +1,3 @@
-import { LanguageSelector } from "./LanguageSelector";
 import { useTranslation } from "react-i18next";
 import "../../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -233,9 +232,6 @@ export function GeneralTab(): JSX.Element {
 
   return (
     <div className="space-y-5">
-      <section>
-        <LanguageSelector />
-      </section>
       {/* 路径 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">{t("settings.defaultProjectDir")}</h3>

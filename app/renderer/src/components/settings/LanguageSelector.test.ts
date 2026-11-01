@@ -43,9 +43,11 @@ describe("localized settings rendering", () => {
   it("renders translated General and About entry points without changing project data", async () => {
     const zh = renderToStaticMarkup(createElement(GeneralTab));
     expect(zh).toContain("默认项目路径");
+    expect(zh).not.toContain("界面语言");
     await uiI18n.changeLanguage("en");
     const general = renderToStaticMarkup(createElement(GeneralTab));
     expect(general).toContain("Default project directory");
+    expect(general).not.toContain("Interface language");
     expect(general).toContain("Context compaction threshold");
     expect(general).toContain('value="/projects"');
     const about = renderToStaticMarkup(createElement(AboutTab));
