@@ -390,12 +390,16 @@ describe("native Pi extension discovery", () => {
     // getAliases 新增 pi-ai/models（含旧包名兼容别名）；Git 解析和 config.js 未变。
     // 私有 API clearExtensionCache 仍在
     // dist/core/extensions/loader.js、package.json 的 piConfig.configDir 仍被 config.js 读取。
+    // 1.4.0 → 1.5.0 复核记录（2026-11-03）：git.js 逐字未变；getAliases 的 pi-ai 根别名改为
+    // pi-ai-extension-view.js（compat + TypeBox 的 Type/Static/TSchema，扩展旧写法继续可用），
+    // 仍按 @earendil-works/* 整段前缀归类，EM 的 isPiProvidedModule 无需改动；
+    // loader.js 仍导出 clearExtensionCache，config.js 仍读 piConfig.configDir。
     const require = createRequire(path.join(__dirname, "anchor.cjs"));
     const manifestPath = (require.resolve.paths("@earendil-works/pi-coding-agent") ?? [])
       .map((root) => path.join(root, "@earendil-works", "pi-coding-agent", "package.json"))
       .find((file) => fs.existsSync(file));
     expect(manifestPath).toBeDefined();
-    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.4.0");
+    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.5.0");
     const { parseGitUrl } = await import(pathToFileURL(path.join(path.dirname(manifestPath!), "dist", "utils", "git.js")).href);
     const forms = ["git:github:owner/repo", "git:github.com/owner/repo@tag", "https://github.com/owner/repo.git", "git:git@github.com:owner/repo.git"];
     const identities = forms.map((source) => {

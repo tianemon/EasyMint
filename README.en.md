@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
-  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-1.4.0-blue?style=flat-square" alt="Pi Coding Agent" />
+  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-1.5.0-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
 </p>
 
@@ -297,7 +297,7 @@ Switching language does not rewrite chat history, user-defined names, project fi
 | State | Zustand 5 |
 | Editor / terminal | Monaco Editor / xterm.js |
 | Plugins | Pi Extensions / Model Context Protocol SDK |
-| AI engine | Pi Coding Agent 1.4.0 |
+| AI engine | Pi Coding Agent 1.5.0 |
 
 ## Local development
 

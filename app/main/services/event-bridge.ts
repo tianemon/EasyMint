@@ -328,7 +328,7 @@ export function bridgeSessionEvents(
       if (blocks.length > 0) {
         callbacks.onEvent({
           type: "message" as const, sessionId: "", blocks, partial: true,
-          // Pi 1.4.0 AssistantMessageEvent discriminant (pi-ai/dist/types.d.ts).
+          // Pi 1.5.0 AssistantMessageEvent discriminant (pi-ai/dist/types.d.ts).
           activity: event.assistantMessageEvent.type.startsWith("thinking_") ? "thinking"
             : event.assistantMessageEvent.type.startsWith("text_") ? "text"
               : event.assistantMessageEvent.type.startsWith("toolcall_") ? "tool" : undefined,
