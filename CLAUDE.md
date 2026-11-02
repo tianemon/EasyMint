@@ -351,6 +351,7 @@ npm run lint             # ESLint + TypeScript 类型检查
 - **落盘到 `~/.easymint`**：跑 `npm run check:em-home`（漏登记即红）——它把源码里的落盘条目与 `access-policy.ts` 三个 `protected*` 清单交叉核对，新条目须同时进 `scripts/check-em-home-paths.mjs` 的 `DECLARED` 表。判定：内容会进模型上下文或决定后续执行能力 → `persistence`；含凭据 → `credential`；只影响本机 UI → `none`（`none` 也要写理由）
 - **新增工具**：只读档白名单 `agent-permission-service.ts` 的 `readonlyDenyReason` 是 **fail-closed**（新工具默认被拒——要显式声明能力，别靠兜底规则恰好拦住）；前端 `ChatBlocks.tsx` 的 `TOOL_LABELS` / `toolIconPaths` / `toolDetailLabel` / `isMcp` 与 `chat-utils.ts` 的 `displayToolAction` 都要跟上
 - **新增 MCP 字段**：`mcp-service.ts` 的 `McpServerConfig` ↔ `vite-env.d.ts` 的 `McpServerCfg` ↔ `PluginsTab.tsx` 表单三处；**纳入 `definitionFingerprint` 意味着外部改动需重新确认**，且既有 `mcpApproved` 记录会当场失配 → 必须在 CHANGELOG 交代
+- **升级/替换 Pi SDK**：`postinstall` 的三类补丁必须实际执行（用 `--ignore-scripts` 安装时手动跑 `scripts/patch-pi-config.cjs`、`patch-sandbox-runtime.cjs`、`patch-pi-mcp.cjs`）；装完确认 `node_modules/@earendil-works/pi-coding-agent/package.json` 的 `piConfig.configDir` 为 `.easymint`、`PI_CODING_AGENT_DIR` 指向 `~/.easymint/agent`——任一失效会静默退回 Pi 原生 `.pi` / `~/.pi/agent`，用户已有配置将读不到；两个配置补丁脚本都是 fail-closed，上游改读取点会直接报错。细节见 `private_docs/design/CONFIG_PATHS.md`
 - **改提示词 / 规则**：`app/shared/prompts.ts`（MINT_SYSTEM_PROMPT）+ `template/AGENTS.md` 与 `CLAUDE.md` 两处（专属章节的分化属正常，差异由用户手工同步，**别主动收敛或建校验脚本**）
 - **给模型看的文案**：工具描述 / `promptSnippet` / 提示词里点名的工具名与"完整 / 全部"类承诺，改实现时逐句回代码核对（按需加载后 `mcp__*` 不在首轮工具列表里，文案照旧指名会引导模型去找一个不存在的名字，多一次往返还促成重复调用）
 - 完整流程、跨版本检查与易漂移热点对见 skill `easymint-change-impact`
