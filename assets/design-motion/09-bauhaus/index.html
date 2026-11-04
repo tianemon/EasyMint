@@ -21,7 +21,6 @@ const MB = +(Q.get('mb') || window.DEMO.motionBlur.samples);          // harness
 // elements. Without v5 every code path below is the v4 film, unchanged.
 const V5 = Q.get('v5') === '1';
 const NOLINK = new Set(V5 ? (Q.get('nolink') || '').split(',').map(s => s.trim()).filter(Boolean) : []);
-const BASE = '/docs/design/ui-curation-2026-10-23/motion/vendor/demos/09-bauhaus/';
 const cues = {
  "bpm": 120,
  "beat": 0.5,
