@@ -38,7 +38,10 @@ it("routes enhanced Mint and the seeded Mint-D through the actual SDK skill loca
       expect(skill).toBeDefined();
       expect(skill!.filePath).toBe(path.resolve("resources/skills/ui-aesthetic/SKILL.md"));
       expect(session.systemPrompt).toContain(skill!.filePath);
-      expect(session.systemPrompt).toContain(systemPrompt);
+      // 公共责任在语言尾段之前注入；分别核对原角色正文与尾段均完整保留。
+      const [role, language] = systemPrompt.split("<thinking_language>");
+      expect(session.systemPrompt).toContain(role.trimEnd());
+      if (language) expect(session.systemPrompt).toContain("<thinking_language>" + language);
       const read = session.agent.state.tools.find(tool=>tool.name==="read")!;
       const content = await read.execute("load-ui-craft",{path:skill!.filePath},new AbortController().signal);
       const body = JSON.stringify(content.content);
