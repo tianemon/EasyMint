@@ -16,32 +16,61 @@ export const AGENT_DELIVERY_RULES = `<easymint_delivery_rules>
 **交互与交付**：内部核实做深，面向用户先给结果和完成程度，再给影响结论的必要证据；只有用户能决定的事才列为决策。遵守当前角色和用户已约定的回复格式，不把过程日志或待验收清单当成结果。多项需求内部逐项验收，回复保留各项结果与必要限制。用用户能理解的功能和效果解释，技术细节按需给出；不让用户挑内部实现或代做验收。执行中在关键进展、阻塞或计划变化时简短更新，用户只要结果时尊重其偏好。任务结束就结束，不追加“是否继续优化”。任务型子 Agent 按调度范围执行，不能直接询问用户时返回具体缺口、推荐、证据和未验证范围，不假定授权、不等待用户；主会话负责面向用户筛选。
 </easymint_delivery_rules>`;
 
-export function withAgentDeliveryRules(prompt: string): string {
+export function withAgentDeliveryRules(prompt: string, ruleWarnings: string[] = []): string {
   // 应用自有段落可来自旧版自定义副本；更新为一份现行内容，其他文本保留。
-  const base = prompt.replace(/<easymint_delivery_rules>[\s\S]*?<\/easymint_delivery_rules>\s*/g, "").trimEnd();
+  const base = prompt.replace(/<easymint_(delivery_rules|rule_loading)>[\s\S]*?<\/easymint_\1>\s*/g, "").trimEnd();
+  const rules = ruleWarnings.length
+    ? `${AGENT_DELIVERY_RULES}\n\n<easymint_rule_loading>\n${ruleWarnings.join("\n")}\n以上是上下文加载诊断，不是项目规则。保留其他已加载规则；不得声称已读这些文件。若缺失内容影响当前任务或授权边界，先说明限制并获取必要信息，其余独立工作继续；不要绕过访问权限。\n</easymint_rule_loading>`
+    : AGENT_DELIVERY_RULES;
   const language = base.indexOf("<thinking_language>");
-  if (language < 0) return [base, AGENT_DELIVERY_RULES].filter(Boolean).join("\n\n");
-  return `${base.slice(0, language).trimEnd()}\n\n${AGENT_DELIVERY_RULES}\n\n${base.slice(language)}`;
+  if (language < 0) return [base, rules].filter(Boolean).join("\n\n");
+  return `${base.slice(0, language).trimEnd()}\n\n${rules}\n\n${base.slice(language)}`;
 }
 
 type ContextFile = { path: string; content: string };
+const OPTIONAL_FILE_ERRORS = new Set(["ENOENT", "ENOTDIR", "EISDIR", "EACCES", "EPERM", "ELOOP", "EIO", "EBUSY", "EMFILE", "ENFILE"]);
+function optionalFileError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && OPTIONAL_FILE_ERRORS.has((error as NodeJS.ErrnoException).code ?? "");
+}
+function contextIdentity(filePath: string): string {
+  try { return fs.realpathSync(filePath); }
+  catch (error) {
+    if (!optionalFileError(error)) throw error;
+    // SDK 已取得正文；文件随后变化不应让去重操作丢掉这份可用快照。
+    return path.resolve(filePath);
+  }
+}
 
 /** SDK 每目录只选一份；补齐同目录 CLAUDE，保留 override 的显式覆盖语义。 */
-export function completeProjectRuleFiles(files: ContextFile[]): ContextFile[] {
+export function completeProjectRuleFiles(files: ContextFile[], onWarning: (message: string) => void = console.warn): ContextFile[] {
   const result: ContextFile[] = [];
-  const seen = new Set(files.map(file => fs.realpathSync(file.path)));
+  const seen = new Set(files.map(file => contextIdentity(file.path)));
   for (const file of files) {
     result.push(file);
     if (!/^AGENTS\.md$/i.test(path.basename(file.path))) continue;
+    const attempted = new Set<string>();
     for (const name of ["CLAUDE.md", "CLAUDE.MD"]) {
       const candidate = path.join(path.dirname(file.path), name);
-      if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) continue;
-      const canonical = fs.realpathSync(candidate);
-      if (!seen.has(canonical)) {
-        result.push({ path: candidate, content: fs.readFileSync(candidate, "utf8").replace(/^\uFEFF/, "") });
-        seen.add(canonical);
+      let found = false;
+      try {
+        const stat = fs.statSync(candidate);
+        if (!stat.isFile()) continue;
+        found = true;
+        // 大小写不敏感卷上 realpath 仍可能保留输入拼写，使用文件身份避免重复尝试。
+        const attemptKey = stat.ino ? `${stat.dev}:${stat.ino}` : path.resolve(candidate);
+        if (attempted.has(attemptKey)) continue;
+        attempted.add(attemptKey);
+        const canonical = fs.realpathSync(candidate);
+        if (!seen.has(canonical)) {
+          result.push({ path: candidate, content: fs.readFileSync(candidate, "utf8").replace(/^\uFEFF/, "") });
+          seen.add(canonical);
+        }
+        break;
+      } catch (error) {
+        if (!optionalFileError(error)) throw error;
+        if (!found && (error.code === "ENOENT" || error.code === "ENOTDIR")) continue;
+        onWarning(`EasyMint 无法读取补充规则：${JSON.stringify({ path: candidate, code: error.code })}`);
       }
-      break;
     }
   }
   return result;

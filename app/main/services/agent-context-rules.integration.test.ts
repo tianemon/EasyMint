@@ -93,4 +93,22 @@ describe("delivery rules in production sessions", () => {
       expect(prompt).toContain("TEAM_RULE");
     }
   });
+
+  it.each([undefined, "CUSTOM_ROLE"])("keeps the session usable and exposes missing-rule diagnostics with base %s", async base => {
+    const env = await setup({ "AGENTS.md": "PRIMARY_RULE", "CLAUDE.md": "UNREADABLE_RULE" });
+    const read = fs.readFileSync;
+    vi.spyOn(fs, "readFileSync").mockImplementation((...args: Parameters<typeof fs.readFileSync>) => {
+      if (String(args[0]).toLowerCase() === path.join(env.cwd, "CLAUDE.md").toLowerCase()) throw Object.assign(new Error("fixture denied"), { code: "EACCES" });
+      return read(...args);
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const session = await env.create(base);
+    expect(session.systemPrompt).toContain("PRIMARY_RULE");
+    expect(session.systemPrompt).not.toContain("UNREADABLE_RULE");
+    expect(session.systemPrompt).toContain("EACCES");
+    expect(session.systemPrompt).toContain("不得声称已读这些文件");
+    expect(session.systemPrompt.split("<easymint_rule_loading>")).toHaveLength(2);
+    expect(session.systemPrompt.split(AGENT_DELIVERY_RULES)).toHaveLength(2);
+    expect(warn).toHaveBeenCalledOnce();
+  });
 });

@@ -40,7 +40,7 @@ import { normalizePermissionMode } from "./permission/execution-context";
 import { createMcpSessionExtensions, disposeMcpSession } from "./mcp-runtime";
 import { projectDesignSection } from "./project-design";
 import { trackRoutingSession } from "./auto-model-routing";
-import { AGENT_DELIVERY_RULES, completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
+import { completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
 
 const routingReleases = new WeakMap<AgentSession, () => void>();
 
@@ -195,6 +195,7 @@ async function buildSession(
   }) : [];
   // SDK 先解析基础 prompt，再解析 append；无自定义内容时保留其原生身份、工具指南等段。
   let usesSdkDefaultPrompt = false;
+  let ruleWarnings: string[] = [];
   const guardedLoader = new DRL({
     cwd: opts.cwd,
     agentDir: opts.agentDir,
@@ -220,10 +221,16 @@ async function buildSession(
     systemPromptOverride: base => {
       const effective = opts.systemPrompt || base;
       usesSdkDefaultPrompt = !effective;
-      return effective ? withAgentDeliveryRules(effective) : effective;
+      return effective ? withAgentDeliveryRules(effective, ruleWarnings) : effective;
     },
-    appendSystemPromptOverride: base => usesSdkDefaultPrompt ? [...base, AGENT_DELIVERY_RULES] : base,
-    agentsFilesOverride: ({ agentsFiles }) => ({ agentsFiles: completeProjectRuleFiles(agentsFiles) }),
+    appendSystemPromptOverride: base => usesSdkDefaultPrompt ? [...base, withAgentDeliveryRules("", ruleWarnings)] : base,
+    agentsFilesOverride: ({ agentsFiles }) => {
+      ruleWarnings = [];
+      return { agentsFiles: completeProjectRuleFiles(agentsFiles, message => {
+        ruleWarnings.push(message);
+        console.warn(message);
+      }) };
+    },
     skillsOverride: (base) => ({
       skills: [...base.skills, ...mergeIntoPiSkills(opts.cwd, base.skills)],
       diagnostics: base.diagnostics,
