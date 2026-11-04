@@ -40,6 +40,8 @@
   "about.checking": "Checking for updates...",
   "about.latest": "You’re up to date",
   "about.repository": "Source repository",
+  "about.contact": "Feedback & contact",
+  "about.qqGroup": "QQ group (Chinese)",
   "nav.openProject": "Open project",
   "nav.noWorkspace": "No workspace",
   "nav.newProject": "New project",

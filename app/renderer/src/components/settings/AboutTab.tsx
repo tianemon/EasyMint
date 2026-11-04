@@ -152,6 +152,34 @@ export function AboutTab(): JSX.Element {
           github.com/tianemon/EasyMint
         </a>
       </div>
+
+      <div className="flex flex-col items-center gap-2 text-sm">
+        <span className="text-text-secondary">{t("about.contact")}</span>
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          <a
+            href="mailto:811978297@qq.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            811978297@qq.com
+          </a>
+          <span className="text-text-muted">·</span>
+          <a
+            href="mailto:th811978291@gmail.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            th811978291@gmail.com
+          </a>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-text-secondary">{t("about.qqGroup")}</span>
+          <span className="text-text-primary select-all">730870205</span>
+        </div>
+      </div>
+
       <div className="text-xs text-text-muted space-x-4">
         <span>Electron · React · TypeScript</span>
         <span>Pi Agent SDK</span>
