@@ -64,7 +64,9 @@ describe("delegation and progress policy consistency",()=>{
   expect(docs).toContain("已获同一对象与范围授权的文档更新直接执行");
  });
  it("preserves terminal status ownership when independent review follows a finished delegation",()=>{
-  expect(MINT_SYSTEM_PROMPT).toContain("委派结果已自动进入终态时，做临时独立复核");
+  expect(MINT_SYSTEM_PROMPT).toContain("references/task-execution.md");
+  expect(read("resources/skills/ui-sync/SKILL.md")).toContain("references/task-execution.md");
+  expect(read("resources/skills/ui-sync/references/task-execution.md")).toContain("委派结果已自动进入终态时，做临时独立复核");
   const sync=read("resources/skills/ui-sync/SKILL.md");
   expect(sync).toContain("已完成任务的临时复核不回退原状态");
   expect(sync).toContain("不按「做个」「加个」「新增」等词自动触发");

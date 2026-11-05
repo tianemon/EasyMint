@@ -164,7 +164,7 @@ describe("命令执行路径上的交接（本地模拟，无真实 npm 登录�
       "setTimeout(() => {}, 1200);",
     ].join("");
     const res = await (tool as unknown as {
-      execute: (id: string, p: Record<string, unknown>, s: undefined, u: undefined, ctx: unknown) => Promise<{ content: Array<{ text: string }> }>;
+      execute: (id: string, p: Record<string, unknown>, s: undefined, u: undefined, ctx: unknown) => Promise<{ content: Array<{ text: string }>; details?: { phase: string; backgroundId: string; completionEvidence: boolean } }>;
     }).execute(
       "bg1",
       { command: `node -e ${JSON.stringify(script)}`, background: true, [EXECUTION_POLICY]: createExecutionContext(cwd, "full") },
@@ -173,6 +173,8 @@ describe("命令执行路径上的交接（本地模拟，无真实 npm 登录�
       {},
     );
     expect(res.content[0]!.text).toContain("已后台启动");
+    expect(res.details).toMatchObject({ phase: "accepted", completionEvidence: false });
+    expect(backgroundShellRegistry.list().find(shell => shell.id === res.details!.backgroundId)).toBeDefined();
     // 第一条链接在命令仍运行时就必须已交出去（进入轮询等待，不是等 onExit）
     await new Promise((r) => setTimeout(r, 700));
     expect(got).toEqual([

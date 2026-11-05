@@ -383,8 +383,9 @@ export async function createEnhancedBashTool(
       return {
         content: [{
           type: "text" as const,
-          text: `已后台启动: ${command}\n后台 ID: ${id}\n输出自动收集(面板实时显示),完整输出落盘: ${logPath}\n命令退出后结果将自动注入会话。无需在命令中手动重定向输出——手动重定向会绕过自动收集,面板和通知将无内容。${exemptNote}`,
+          text: `已后台启动: ${command}\n本条仅为启动回执，不是命令完成或服务就绪的证据。\n后台 ID: ${id}\n输出自动收集(面板实时显示),完整输出落盘: ${logPath}\n命令退出后结果将自动注入会话。无需在命令中手动重定向输出——手动重定向会绕过自动收集,面板和通知将无内容。${exemptNote}`,
         }],
+        details: { phase: "accepted", backgroundId: id, logPath, completionEvidence: false },
       };
     },
   } as unknown as ToolDefinition;

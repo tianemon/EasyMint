@@ -329,7 +329,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 
       const n = tasks.length;
       return {
-        content: [{ type: "text" as const, text: `已启动 ${n} 个子 Agent 执行，完成后结果将注入会话。` }],
+        content: [{ type: "text" as const, text: `已启动 ${n} 个子 Agent 执行。委派 ID: ${record.delegationId}。本条仅为启动回执，不是完成证据；完成后结果将注入会话，再据结果核实任务。` }],
+        details: { phase: "accepted", delegationId: record.delegationId, taskCount: n, completionEvidence: false },
       };
     },
   } as any) as ToolDefinition;
