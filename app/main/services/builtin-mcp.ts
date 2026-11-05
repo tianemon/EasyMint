@@ -42,7 +42,7 @@ export async function createProductTools(projectPath?: string, getSessionId?: ()
   const tools: ToolDefinition[] = [];
 
   // UI 控制工具（始终注册）
-  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "显示「确认开发」按钮。中等及以上项目就绪时调用。就绪标准：① task.json ≥1 个任务；② README.md 和 AGENTS.md 已写；③ 依赖已安装、环境可构建（按技术栈验证）；④ 需先完成原型并获用户确认的项目已确认（G4）。极简项目不建 task.json，直接开发不走此流程。", () => {
+  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "显示「确认开发」按钮。仅应用真实新建入口的创建流程中，中等及以上项目就绪时调用；普通接手或维护不因规模触发本工具，也不为调用它补建创建资料。就绪标准：① task.json ≥1 个任务；② README.md 和 AGENTS.md 已写；③ 依赖已安装、环境可构建（按技术栈验证）；④ 需先完成原型并获用户确认的项目已确认（G4）。极简项目不建 task.json，直接开发不走此流程。", () => {
     const sessionId = getSessionId?.();
     if (!projectPath || !sessionId) throw new Error("确认开发需要项目会话");
     const taskFile = join(projectPath, "task.json");
