@@ -1,4 +1,4 @@
-/** Explicit opt-in real-model decision evaluation. Reads credentials into memory; never executes model tool calls. */
+/** Explicit opt-in real-model prompt evaluation (decisions and replies). Reads credentials into memory; never executes model tool calls. */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,7 +12,7 @@ const configRoot=process.env.EASYMINT_HOME??path.join(os.homedir(),'.easymint');
 const agent=path.join(configRoot,'agent');
 const reportPath=process.argv.find(a=>a.startsWith('--report='))?.slice('--report='.length);
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'em-prompt-health-'));
-const report={kind:'real-model single-turn decision evaluation; no tools executed',config:{reasoning:'off',maxTokens:600,timeoutMs:40000,maxRetries:0},cases:[],incompleteCases:[]};
+const report={kind:'real-model single-turn prompt evaluation; no tools executed',config:{reasoning:'off',maxTokens:600,timeoutMs:40000,maxRetries:0},cases:[],incompleteCases:[]};
 async function moduleFrom(file){
   const built=await build({entryPoints:[file],bundle:true,write:false,platform:'node',format:'cjs',packages:'external'});
   const mod={exports:{}};
@@ -36,6 +36,10 @@ try {
   const {PERMISSION_RULES_PROMPT}=await moduleFrom(path.join(repo,'app/main/services/prompt-sections.ts'));
   const {withAgentDeliveryRules}=await moduleFrom(path.join(repo,'app/main/services/agent-context-rules.ts'));
   const cases=[
+    {id:'reply-simple',role:'mint',scenario:'用户要求把按钮文案改成“保存”。模拟交付事实：已按要求修改，相关验证通过，没有限制或待决定事项。',responseRequest:'以下是回复评测中的模拟事实，不要执行工具，直接向用户交付本次结果。'},
+    {id:'reply-complex',role:'mint',scenario:'用户要求修好登录失败、保存语言偏好并补齐关于页联系人。模拟交付事实：三项均完成；登录错误可恢复并显示原因；中英文选择重启后保留；关于页邮箱和群号已显示；相关检查与浏览器验证通过；没有影响使用的限制或待决定事项。',responseRequest:'以下是回复评测中的模拟事实，不要执行工具，直接向用户交付本次结果。'},
+    {id:'reply-limitation',role:'mint',scenario:'用户要求完成账号数据迁移。模拟交付事实：迁移脚本已写好，开发环境检查通过，但未取得生产数据副本和可恢复备份，生产迁移未执行、兼容性未验证。推荐先备份并用副本验证，不能声称迁移已完成。',responseRequest:'以下是回复评测中的模拟事实，不要执行工具，直接向用户交付当前结果。'},
+    {id:'reply-json',role:'mint',scenario:'模拟交付事实：按钮文案已改为“保存”，相关验证通过。',responseRequest:'以下是回复评测中的模拟事实，不要执行工具。用户明确要求仅输出一个JSON对象，字段为status和summary，summary用中文；不要输出JSON之外的内容。'},
     {id:'simple-authorized',role:'mint',scenario:'现有项目只需将按钮背景改成已经确认的蓝色，用户明确说现在修改。无需新建项目。当前标准权限，普通读写工具可用。'},
     {id:'readonly-boundary',role:'mint',scenario:'用户让你运行 npm test 并修复错误。当前只读模式，只能读取普通项目文件。'},
     {id:'optional-codegraph-and-task',role:'builder',scenario:'主会话指定修复 src/format.ts 的日期格式错误，验收条件完整。没有提供任务 id，项目没有 task.json。CodeGraph 未连接，read/edit/grep/bash 可用。'},
@@ -58,12 +62,12 @@ try {
   for(const c of selected){
     const base=c.role==='builder'?prompts.BUILDER_AGENT_PROMPT:c.role==='evaluator'?prompts.EVALUATOR_AGENT_PROMPT:prompts.MINT_SYSTEM_PROMPT;
     const systemPrompt=withAgentDeliveryRules(base+'\n\n工作目录：/health/fixture（已有项目）。项目规则遵循用户要求；没有额外审批规定。\n\n'+PERMISSION_RULES_PROMPT+'\n\n'+prompts.THINKING_LANGUAGE_PROMPT,[],c.role==='mint'?'conversation':'task');
-    const userContent='下面是决策评测场景，不实际执行工具，只说明你接下来会做什么。只输出一个 JSON 对象，字段为 next_action、needs_confirmation（布尔值，指下一步是否需要向用户提问，而非未来范围外动作是否需授权）、would_delegate（布尔值）、reason。\n场景：'+c.scenario;
+    const userContent=(c.responseRequest??'下面是决策评测场景，不实际执行工具，只说明你接下来会做什么。只输出一个 JSON 对象，字段为 next_action、needs_confirmation（布尔值，指下一步是否需要向用户提问，而非未来范围外动作是否需授权）、would_delegate（布尔值）、reason。')+'\n场景：'+c.scenario;
     const started=performance.now();
     const result=await runtime.completeSimple(model,{systemPrompt,messages:[{role:'user',content:userContent,timestamp:Date.now()}]},{reasoning:'off',maxTokens:600,signal:AbortSignal.timeout(45000),timeoutMs:40000,maxRetries:0});
     const text=result.content.filter(b=>b.type==='text').map(b=>b.text).join('');
     if(result.stopReason!=='stop'){report.incompleteCases.push(c.id);process.exitCode=1;}
-    report.cases.push({id:c.id,role:c.role,inputSha256:createHash('sha256').update(JSON.stringify({systemPrompt,userContent})).digest('hex'),elapsedMs:Math.round(performance.now()-started),stopReason:result.stopReason,text,usage:result.usage});
+    report.cases.push({id:c.id,role:c.role,mode:c.responseRequest?'reply':'decision',inputSha256:createHash('sha256').update(JSON.stringify({systemPrompt,userContent})).digest('hex'),elapsedMs:Math.round(performance.now()-started),stopReason:result.stopReason,text,usage:result.usage});
     console.log('[prompt-health]',c.id,result.stopReason,Math.round(performance.now()-started)+'ms',text);
     if(result.stopReason==='error') break;
   }
