@@ -5,6 +5,7 @@ import { broadcast } from "./ipc-broadcast";
 import { buildExperienceInjection } from "./experience-service";
 import { THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
 import { PERMISSION_RULES_PROMPT } from "./prompt-sections";
+import * as piSessions from "./pi-session";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" }, BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
@@ -20,9 +21,26 @@ function create(session?: object) {
   if (session) internals.activeChats.set("chat-health", { chatId: "chat-health", sessionId: "session-health", session, abortController: new AbortController() });
   return { service, internals };
 }
-afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 describe("final prompt assembly", () => {
+  it("routes a background worker as a task even with a custom main-role prompt", async () => {
+    const { service } = create();
+    const execution = service as unknown as {
+      getModel(): Promise<unknown>;
+      buildExtraTools(): Promise<unknown>;
+      promptAndBridge(): Promise<void>;
+    };
+    vi.spyOn(execution, "getModel").mockResolvedValue({ id: "fixture" });
+    vi.spyOn(execution, "buildExtraTools").mockResolvedValue({ tools: [] });
+    vi.spyOn(execution, "promptAndBridge").mockResolvedValue();
+    const factory = vi.spyOn(piSessions, "createPiSession").mockResolvedValue({ sessionId: "worker" } as never);
+    const dispose = vi.spyOn(piSessions, "disposePiSession").mockResolvedValue();
+    await service.runWorker("/tmp/health-project", "AUTHORIZED_TASK", {} as never);
+    await vi.waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+    expect(factory).toHaveBeenCalledOnce();
+    expect(factory.mock.calls[0][0]).toMatchObject({ deliveryMode: "task", systemPrompt: expect.stringContaining("CUSTOM_PROMPT") });
+  });
   it("keeps custom content, environment and permission rules exactly once, with language rules last", () => {
     const { internals } = create();
     const prompt = internals.buildSystemPrompt("/tmp/health-project", true);

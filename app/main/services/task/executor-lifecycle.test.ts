@@ -32,6 +32,7 @@ describe("subagent lifecycle integration", () => {
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("glass; palette");
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(".easymint/design/visual-spec.json");
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).not.toContain(task);
+        expect(mocks.create.mock.lastCall?.[0].deliveryMode).toBe("task");
         if (agent) expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("ROLE_INSTRUCTIONS");
         expect(session.prompt).toHaveBeenCalledTimes(1);
         expect(session.prompt.mock.calls[0]?.[0]).toBe(task);
@@ -50,6 +51,7 @@ describe("subagent lifecycle integration", () => {
         const record = createDelegation("parent",[{agent:"mint-designer",task:"design the actual project",outputSchema,readOnly:true}]);
         await runSubagents(record,{cwd:root,agentDir:root,store:{} as Store});
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(DESIGNER_AGENT_PROMPT);
+        expect(mocks.create.mock.lastCall?.[0].deliveryMode).toBe("task");
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("flat; palette");
       }
     } finally { fs.rmSync(root,{recursive:true,force:true}); }

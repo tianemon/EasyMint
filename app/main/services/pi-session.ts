@@ -41,6 +41,7 @@ import { createMcpSessionExtensions, disposeMcpSession } from "./mcp-runtime";
 import { projectDesignSection } from "./project-design";
 import { trackRoutingSession } from "./auto-model-routing";
 import { completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
+import type { AgentDeliveryMode } from "./agent-context-rules";
 
 const routingReleases = new WeakMap<AgentSession, () => void>();
 
@@ -62,6 +63,8 @@ export interface PiSessionOptions {
   /** 会话落盘目录（缺省 getPiSessionDir(cwd)）；子 Agent 传 subagents/ 子目录避免平级出现在列表 */
   sessionDir?: string;
   systemPrompt?: string;
+  /** 对话角色默认 conversation；后台任务与委派入口显式传 task，不按模板文字猜测。 */
+  deliveryMode?: AgentDeliveryMode;
   isDesigner?: boolean;
   /** 额外的工具（task 等）。createPiSession 会自动追加基础 coding 工具 */
   extraTools?: ToolDefinition[];
@@ -221,9 +224,9 @@ async function buildSession(
     systemPromptOverride: base => {
       const effective = opts.systemPrompt || base;
       usesSdkDefaultPrompt = !effective;
-      return effective ? withAgentDeliveryRules(effective, ruleWarnings) : effective;
+      return effective ? withAgentDeliveryRules(effective, ruleWarnings, opts.deliveryMode) : effective;
     },
-    appendSystemPromptOverride: base => usesSdkDefaultPrompt ? [...base, withAgentDeliveryRules("", ruleWarnings)] : base,
+    appendSystemPromptOverride: base => usesSdkDefaultPrompt ? [...base, withAgentDeliveryRules("", ruleWarnings, opts.deliveryMode)] : base,
     agentsFilesOverride: ({ agentsFiles }) => {
       ruleWarnings = [];
       return { agentsFiles: completeProjectRuleFiles(agentsFiles, message => {

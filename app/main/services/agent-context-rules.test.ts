@@ -2,9 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AGENT_DELIVERY_RULES, completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
+import { getAgentDeliveryRules, completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
 import { THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
 
+const AGENT_DELIVERY_RULES = getAgentDeliveryRules();
 const roots: string[] = [];
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 function fixture(files: Record<string, string>) {
@@ -22,6 +23,16 @@ describe("public delivery responsibility", () => {
     expect(after.split(AGENT_DELIVERY_RULES)).toHaveLength(2);
     expect(after).not.toContain("OLD_RULE");
     expect(after.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);
+  });
+  it("replaces conversation responsibilities when switching to a delegated task", () => {
+    const before = withAgentDeliveryRules(`CUSTOM_ROLE\n\n${THINKING_LANGUAGE_PROMPT}`, ["OLD_DIAGNOSTIC"]);
+    const after = withAgentDeliveryRules(before, [], "task");
+    expect(after.split(getAgentDeliveryRules("task"))).toHaveLength(2);
+    expect(after).not.toContain("**对话职责**");
+    expect(after).not.toContain("OLD_DIAGNOSTIC");
+    expect(after.startsWith("CUSTOM_ROLE")).toBe(true);
+    expect(after.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);
+    expect(withAgentDeliveryRules(after, [], "task")).toBe(after);
   });
 });
 

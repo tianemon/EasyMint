@@ -243,6 +243,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       // 思考等级跟随主会话，再按模型能力自适应
       thinkingLevel: adaptSubagentThinkingLevel(subagentThinkingBase, model),
       store: opts.store, systemPrompt: fullPrompt, extraTools,
+      deliveryMode: "task",
       sessionDir: opts.sessionDir,
       // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
       canUseTool: opts.canUseTool as any,
@@ -270,6 +271,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       // 思考等级跟随主会话，并按模型能力自适应
       thinkingLevel: adaptSubagentThinkingLevel(subagentThinkingBase, model),
       store: opts.store, systemPrompt, extraTools,
+      deliveryMode: "task",
       sessionDir: opts.sessionDir,
       // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
       canUseTool: opts.canUseTool as any,
