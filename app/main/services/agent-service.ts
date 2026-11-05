@@ -76,7 +76,6 @@ type CanUseToolFn = (toolName: string, input: Record<string, unknown>, options: 
 const SYSTEM_KIND_TITLES: Record<string, string> = {
   "project-created": "项目初始化",
   flow: "流程指令",
-  handoff: "会话交接",
   summary: "上下文摘要",
   delegation: "SubAgent",
   shell: "后台命令",
@@ -123,7 +122,7 @@ interface ActiveChat {
   minimal?: boolean;
   /** 从只读放宽后需要重建工具集，才能安全地按需加载此前未连接的 MCP。 */
   rebuildToolsOnNextMessage?: boolean;
-  /** 本会话已 compact 次数（轮转取消后仅统计用） */
+  /** 本会话压缩次数（用于日志统计） */
   compactCount: number;
   /** 本次激活后的首个 API usage 已记录（只记数量，不记录提示词和参数内容）。 */
   firstUsageLogged?: boolean;
@@ -840,7 +839,7 @@ export class AgentService {
     this.bufferEvent(chat.sessionId, event, sent.sequence);
   }
 
-  /** 处理 prompt → 广播流事件到前端，含压缩追踪和轮转 */
+  /** 处理 prompt → 广播流事件到前端，含压缩追踪 */
   private async promptAndBridge(
     session: AgentSession,
     sessionId: string,

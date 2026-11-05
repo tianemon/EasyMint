@@ -52,14 +52,12 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
   useUiLocale();
   // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
   const session = useStatusStore((s) => s.bySession[sessionId]);
-  const sessionSummarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
-  const summarizing = !presentation && sessionSummarizing;
   const sessionBusy = useTabStore((s) => s.runningSessions.has(sessionId));
   const busy = presentation?.busy ?? sessionBusy;
   const asking = useAskStore(s => Object.values(s.asks).some(ask => ask.sessionId === sessionId));
   const signals = [...(session?.signals ?? [])].sort((a, b) => b.seq - a.seq);
   const current = presentation ? undefined : signals.find(signal => signal.id === "stopping") ?? signals.find(signal => signal.id === "dialog") ??
-    (busy ? signals.find(signal => signal.id === "compact" || signal.id === "summary") ??
+    (busy ? signals.find(signal => signal.id === "compact") ??
       signals.find(signal => signal.id === "retry") ?? signals.find(signal => signal.id.startsWith("tool:")) ??
       signals.find(signal => signal.id !== "outcome")
       : signals.find(signal => signal.id === "error") ?? signals.find(signal => signal.id === "outcome"));
@@ -135,7 +133,7 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
   */
 
   const showStatus = showSymbols;
-  if (!showStatus && !summarizing) return null;
+  if (!showStatus) return null;
 
   // 流光时长:一圈 = 颜色数 × 4s(shimmerSweep 位移 600% = 2 圈,总时长 = 颜色数 × 8s)
   // 速度档位:每周期 4s 由用户确认(原 3s 偏快);想再慢把系数 8 改大(每周期 = 系数/2 s)
@@ -182,12 +180,6 @@ export function StatusBar({ sessionId, expanded, onToggle, showCompletedOutcome 
       ) : (
         <div className="statusbar">{statusContent}</div>
       ))}
-      {summarizing && (
-        <div className="flex items-center gap-2 mx-[var(--chat-content-inset)] px-4 py-2 text-text-primary text-sm bg-accent-bg shrink-0">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
-          <span>{uiText("ui.StatusBar.summarizingThisSessionToContinueInA")}</span>
-        </div>
-      )}
     </>
   );
 }

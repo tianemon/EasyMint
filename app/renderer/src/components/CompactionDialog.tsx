@@ -107,7 +107,7 @@ export function CompactionDialog({
             onClick={onWriteHandoff}
             className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
-            {uiText("ui.CompactionDialog.noStartANewSessionAndWrite")}</button>
+            {uiText("ui.CompactionDialog.writeHandoffPrompt")}</button>
           <button
             type="button"
             onClick={onDefer}

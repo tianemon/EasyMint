@@ -323,9 +323,8 @@ export const ChatInput = memo(function ChatInput({
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
   const ctxWindow = useStatusStore((s) => s.bySession[sessionId]?.ctxWindow ?? null);
-  const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
-  const inputDisabled = summarizing || compacting;
+  const inputDisabled = compacting;
   // 状态指示光效配置
   const glowEffect = useSettingsStore((s) => s.glowEffect);
   const glowColorMode = useSettingsStore((s) => s.glowColorMode);
@@ -435,7 +434,7 @@ export const ChatInput = memo(function ChatInput({
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
-          placeholder={compacting ? uiText("ui.ChatInput.compactingContextPleaseWait2") : summarizing ? uiText("ui.ChatInput.summarizingSession") : uiText("ui.ChatInput.enterToSendShiftEnterForA")}
+          placeholder={compacting ? uiText("ui.ChatInput.compactingContextPleaseWait2") : uiText("ui.ChatInput.enterToSendShiftEnterForA")}
           rows={4}
           disabled={inputDisabled}
           className="chat-input"

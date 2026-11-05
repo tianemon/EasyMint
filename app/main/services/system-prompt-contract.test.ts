@@ -27,7 +27,6 @@ const ALL_KINDS: SystemMessageKind[] = [
   "project-created",
   "direct-create",
   "flow",
-  "handoff",
   "summary",
   "learn",
 ];

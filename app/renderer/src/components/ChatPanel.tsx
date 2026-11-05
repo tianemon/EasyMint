@@ -89,7 +89,6 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   get "project-created"() { return uiText("ui.ChatPanel.projectInitialization"); },
   get "direct-create"() { return uiText("ui.ChatPanel.directCreation"); },
   get flow() { return uiText("ui.ChatPanel.workflowInstruction"); },
-  get handoff() { return uiText("ui.ChatPanel.sessionHandoff"); },
   get summary() { return uiText("ui.ChatPanel.contextSummary"); },
   get learn() { return uiText("ui.ChatPanel.experienceRetention"); },
 };
@@ -670,8 +669,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   useEffect(() => { existingSidRef.current = existingSid; }, [existingSid]);
   // 当前会话的 pending ask（Mint 提问卡片，聊天区内嵌）
   const pendingAsk = useAskStore((s) => Object.values(s.asks).find((a) => a.sessionId === sid)) || null;
-  // 按会话读压缩/摘要状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
-  const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
+  // 按会话读压缩状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
   const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
   // 防御性兜底:临时 sid → 真实 sessionId 的常规迁移已由 onChatSession(698 行)同步完成,
   // 此处仅防 prop 直变(existingSid 从 undefined 一步到位)的遗漏场景,正常路径恒不命中
@@ -803,7 +801,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const expandedTurns = useProcessDisclosure(state => state.expanded);
   const toggleProcess = useProcessDisclosure(state => state.toggle);
   const closeProcess = useProcessDisclosure(state => state.close);
-  const executionBusy = (busy || stoppedRef.current) && !manualCompactingRef.current && !summarizing;
+  const executionBusy = (busy || stoppedRef.current) && !manualCompactingRef.current;
   const turnTimings = useMemo(() => buildTurnTimings(messages, executionBusy), [messages, executionBusy]);
   // A cancelled/failed run stops its identity clock before the busy flag settles.
   const activeTurnFirst = busy ? Array.from(turnTimings.values()).find(timing => timing.active)?.first : undefined;
@@ -1755,9 +1753,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().pushSignal(sidRef.current, "compact",
           manualCompactingRef.current ? uiText("ui.ChatPanel.compactingSession") : uiText("ui.ChatPanel.contextNeedsCompactionCompacting"));
       }
-      // compacted = 压缩完成：清除 compacting（蒙版消失）、
-      // 并兜底清除 summarizing（防御轮转总结路径的残留）。压缩开始置 busy(compacting 事件
-      // setSessionRunning(true))——此处必须恢复,否则空闲压缩后按钮卡"停止"态直到下条消息
+      // compaction_finished = 压缩完成；压缩蒙版由 applyPiRunStatus 清理。
+      // 手动压缩需恢复 busy，自动压缩仍属于正在执行的回合。
       if (event.type === "compaction_finished") {
         // Automatic compaction belongs to an active prompt; its end is not the end of that prompt.
         if (manualCompactingRef.current) setBusy(false);
@@ -1971,16 +1968,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (!sidRef.current && existingSid && permissionSid !== existingSid) return;
       setPermissionMode(mode);
     });
-    // Context rotation events — filter by chatId
+    // Manual compaction lifecycle — filter by chatId
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
       if (type === "done") {
-        // 压缩/总结结束兜底:清除压缩蒙版与总结状态(compacted 可能因中止不广播),
+        // 压缩结束兜底:清除压缩蒙版(compacted 可能因中止不广播),
         // 并恢复 busy(压缩置位后此处兜底清——防 compacted 未达时残留)
         useStatusStore.getState().setCompacting(sidRef.current, false);
-        useStatusStore.getState().setSummarizing(sidRef.current, false);
-        useStatusStore.getState().popSignal(sidRef.current, "summary");
         useStatusStore.getState().popSignal(sidRef.current, "compact");
         useTabStore.getState().setSessionRunning(sidRef.current, false);
         busyRef.current = false;
@@ -1997,9 +1992,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         manualCompactingRef.current = true;
         return;
       }
-      // summary 路径(轮转总结)
-      useStatusStore.getState().pushSignal(sidRef.current, "summary", uiText("ui.ChatPanel.summarizingAndStartingANewSession"));
-      useStatusStore.getState().setSummarizing(sidRef.current, true);
     });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage, maxTokens }) => {
       if (!currentChatRef.current) return;
@@ -2022,7 +2014,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         pct != null &&
         pct >= threshold &&
         !runningNow &&
-        !st?.compacting && !st?.summarizing &&
+        !st?.compacting &&
         ctxThresholdFiredRef.current !== threshold &&
         currentChatRef.current
       ) {
@@ -2035,20 +2027,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
     return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubLevel(); unsubPermission(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); useStatusStore.getState().reset(sidRef.current); };
   }, []);
-
-  // Summarizing timeout — 120s safety net
-  useEffect(() => {
-    if (!summarizing) return;
-    const timer = setTimeout(() => {
-      useStatusStore.getState().setSummarizing(sidRef.current, false);
-      useStatusStore.getState().popSignal(sidRef.current, "summary");
-      const msg = uiText("ui.ChatPanel.summaryTimedOutContinuingInANew");
-      useStatusStore.getState().pushSignal(sidRef.current, "error", msg, 8000);
-      showFlowError("system", msg);
-      console.error("[ChatPanel] summarization timed out after 120s");
-    }, 120_000);
-    return () => clearTimeout(timer);
-  }, [summarizing]);
 
   // Compacting timeout — 120s safety net:压缩状态异常(summarization 调用挂起)时恢复界面。
   // 只恢复显示,不中断 SDK 压缩(压缩可能仍在后台,完成后 compacted 事件会清状态)
@@ -3376,7 +3354,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
       const statusColor = (s?: string): string =>
         (s === "中止" || s === "已由用户中断" || s === "已由用户中止" || s === "已中止" || s === "已随权限切换中止" || s === "等待你操作") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
       // 结果型(委派/后台命令)与指令型一样默认折叠——完整内容展开看
-      // Every system type is collapsed, including handoff and future/legacy kinds.
+      // Every system type is collapsed, including future/legacy kinds.
       const collapsible = true;
       const collapsed = collapsible && !sysExpanded;
       return (

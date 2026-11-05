@@ -19,7 +19,6 @@ export function applyPiRunStatus(sessionId: string, event: { type: string; waiti
     if (event.outcome) status.pushSignal(sessionId, "outcome", uiText(event.outcome === "cancelled" ? "pi.cancelled" : event.outcome === "failed" ? "pi.failed" : "pi.completed"), 4000);
   } else if (event.type === "compaction_finished") {
     status.setCompacting(sessionId, false);
-    status.setSummarizing(sessionId, false);
     status.popSignal(sessionId, "compact");
   }
 }

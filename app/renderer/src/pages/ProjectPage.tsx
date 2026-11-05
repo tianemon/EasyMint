@@ -175,28 +175,6 @@ export function ProjectPage(): JSX.Element {
     }
   }, [activeTabId]);
 
-  // Listen for context rotation: old session archived → open new tab bound to new session.
-  // 接力消息（handoffPrompt）已由主进程 promptAndBridge 直接发送到新会话，
-  // 这里只需打开 tab，ChatPanel 挂载时自动加载新会话历史。
-  useEffect(() => {
-    const unsub = window.electronAPI.agent.onContextRotated(({ sessionId }) => {
-      const ts = useTabStore.getState();
-      // 关闭当前激活的 chat tab（轮转发生在当前会话）;suppress:轮转立即开新 tab,不触发默认页补建
-      const activeTab = ts.tabs.find((t) => t.type === "chat" && t.id === ts.activeTabId);
-      if (activeTab) ts.closeTab(activeTab.id, true);
-
-      // 打开绑定新会话的 tab
-      const tabId = `rotate-${Date.now()}`;
-      ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession", sessionId });
-      ts.setActiveTab(tabId);
-      setActiveSessionId(sessionId);
-
-      // 刷新会话列表:旧会话已被归档,应出现在"已归档"分组
-      setSessionRefreshKey((k) => k + 1);
-    });
-    return () => unsub();
-  }, [projectId]);
-
   // Listen for real-time task status updates from set_task_status MCP tool
   useEffect(() => {
     const unsub = window.electronAPI.agent.onTaskStatus(({ status, projectPath: eventPath }) => {

@@ -21,7 +21,6 @@ interface StatusSignal {
 
 interface SessionStatus {
   signals: StatusSignal[];
-  summarizing: boolean;
   compacting: boolean;
   /** 上下文使用率(null = 未知:压缩后尚无新回复,不显示 0 误导) */
   ctxPct: number | null;
@@ -36,7 +35,6 @@ interface StatusState {
   popSignal: (sessionId: string, id: string) => void;
   /** 按 id 前缀清理(回合结束时清除全部 tool:* 信号) */
   popSignalsByPrefix: (sessionId: string, prefix: string) => void;
-  setSummarizing: (sessionId: string, v: boolean) => void;
   setCompacting: (sessionId: string, v: boolean) => void;
   /** p 为 undefined = 只更新窗口、百分比保持原值(仅窗口变化时用) */
   setCtxPct: (sessionId: string, p: number | null | undefined, windowTokens?: number | null) => void;
@@ -46,7 +44,7 @@ interface StatusState {
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 let seqCounter = 0;
 
-const emptyStatus = (): SessionStatus => ({ signals: [], summarizing: false, compacting: false, ctxPct: null, ctxWindow: null });
+const emptyStatus = (): SessionStatus => ({ signals: [], compacting: false, ctxPct: null, ctxWindow: null });
 
 function timerKey(sessionId: string, id: string): string {
   return `${sessionId}\u0000${id}`;
@@ -98,11 +96,6 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     }
     const next: SessionStatus = { ...cur, signals };
     set({ bySession: { ...get().bySession, [sessionId]: next } });
-  },
-
-  setSummarizing: (sessionId, v) => {
-    const cur = get().bySession[sessionId] ?? emptyStatus();
-    set({ bySession: { ...get().bySession, [sessionId]: { ...cur, summarizing: v } } });
   },
 
   setCompacting: (sessionId, v) => {
