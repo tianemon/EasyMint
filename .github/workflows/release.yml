@@ -63,6 +63,7 @@ jobs:
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
           body: ${{ needs.prepare-notes.outputs.notes }}
           files: |
             dist-electron/*.dmg
@@ -95,6 +96,7 @@ jobs:
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
           body: ${{ needs.prepare-notes.outputs.notes }}
           files: |
             dist-electron/*.exe
@@ -127,6 +129,7 @@ jobs:
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
           body: ${{ needs.prepare-notes.outputs.notes }}
           files: |
             dist-electron/*.AppImage
