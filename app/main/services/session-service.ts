@@ -26,6 +26,7 @@ import { droppedContextIds, imageStrippedContextIds } from "./context-edit";
 import { broadcast } from "./ipc-broadcast";
 import { compactionSummaryNotice } from "../../shared/prompts";
 import { deleteSessionTodos } from "./session-todos";
+import { readSessionPreview, readSessionPreviews } from "./session-preview";
 
 const DATA_DIR = emHome();
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
@@ -129,6 +130,7 @@ function toListItem(
   pinned: Record<string, number>,
   archived: Record<string, number>,
   titles: Record<string, string>,
+  preview = "",
 ): SessionListItem {
   return {
     sessionId: info.id,
@@ -137,7 +139,7 @@ function toListItem(
     createdAt: info.created.getTime(),
     updatedAt: info.modified.getTime(),
     messageCount: info.messageCount,
-    lastMessage: info.allMessagesText?.slice(-100) || "",
+    lastMessage: preview,
     pinnedAt: pinned[info.id] || undefined,
     archivedAt: archived[info.id] || undefined,
   };
@@ -160,18 +162,20 @@ function sortSessions(list: SessionListItem[]): SessionListItem[] {
 export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
   const resolved = path.resolve(resolveHome(projectPath));
   const sessions = await listPiSessions(resolved);
+  const previews = await readSessionPreviews(sessions);
   const pinned = readPinned();
   const archived = readArchived();
   const titles = readTitles();
   return sortSessions(
     sessions
-      .map((s) => toListItem(s, pinned, archived, titles))
+      .map((s) => toListItem(s, pinned, archived, titles, previews.get(s.path)))
   );
 }
 
 export async function listDesignSessions(projectPath: string): Promise<SessionListItem[]> {
   const resolved = path.resolve(resolveHome(projectPath));
   const sessions = await listPiSessions(resolved);
+  const previews = await readSessionPreviews(sessions);
   const pinned = readPinned();
   const archived = readArchived();
   const titles = readTitles();
@@ -180,7 +184,7 @@ export async function listDesignSessions(projectPath: string): Promise<SessionLi
   return sortSessions(
     sessions
       .filter((s) => designIds.has(s.id))
-      .map((s) => toListItem(s, pinned, archived, titles))
+      .map((s) => toListItem(s, pinned, archived, titles, previews.get(s.path)))
   );
 }
 
@@ -369,7 +373,7 @@ export async function getSessionInfo(
   const pinned = readPinned();
   const archived = readArchived();
   const titles = readTitles();
-  return toListItem(info, pinned, archived, titles);
+  return toListItem(info, pinned, archived, titles, await readSessionPreview(info.path));
 }
 
 /**
