@@ -31,3 +31,9 @@ prototype/
 private_docs/
 task.json
 .npmrc
+
+# 液态玻璃内部手册仅存放于 private_docs；产品资源只放公开接入说明
+/resources/visual-design/liquid-platform-guide.md
+
+/design-assets/labs/liquid-glass-template/README.md
+/design-assets/labs/liquid-glass-spectral/README.md

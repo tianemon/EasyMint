@@ -2,17 +2,12 @@ import type { roundedLensMap } from './liquid-lens';
 import type { renderLiquidIcon } from './liquid-icons';
 
 /** Self-contained for source export. The pure lens generator is an explicit dependency. */
-export function mountLiquidShowcase(root:HTMLElement,english:boolean,makeLens:typeof roundedLensMap,makeIcon:typeof renderLiquidIcon):()=>void {
+export function mountLiquidShowcase(root:HTMLElement,english:boolean,_makeLens:typeof roundedLensMap|undefined,makeIcon:typeof renderLiquidIcon,mountGlass?:(root:HTMLElement)=>()=>void):()=>void {
   const scroll=root.querySelector<HTMLElement>('[data-ios-scroll]')!;
   const controls=root.querySelector<HTMLElement>('[data-ios-controls]')!;
   const overlay=root.querySelector<HTMLElement>('[data-ios-player-overlay]')!;
   const tabs=root.querySelector<HTMLElement>('[data-ios-tabs]')!;
-  const defs=root.querySelector<SVGDefsElement>('[data-ios-filters]')!;
-  const svgNS='http://www.w3.org/2000/svg';
-  const prefix=`ios-${Math.random().toString(36).slice(2,9)}`;
   const optics=[...root.querySelectorAll<HTMLElement>('[data-ios-optic]')];
-  const filters=new Map<HTMLElement,{id:string;size:string;image:SVGFEImageElement;filter:SVGFilterElement;displacement:SVGFEDisplacementMapElement}>();
-  const reduced=matchMedia('(prefers-reduced-transparency:reduce)');
   let disposed=false,openFrame=0,frame=0,pointerFrame=0,closeTimer:ReturnType<typeof setTimeout>|undefined,noticeTimer:ReturnType<typeof setTimeout>|undefined;
   let previousScroll=0,activeTab=root.querySelector<HTMLElement>('[data-ios-tab][aria-pressed="true"]')?.dataset.iosTab??'home',searching=root.dataset.iosSearching==='true',playing=root.dataset.iosPlaying==='true',currentTrack=Number(root.dataset.iosIndex)||0;
   let focusOrigin:HTMLElement|null=null;
@@ -81,27 +76,6 @@ export function mountLiquidShowcase(root:HTMLElement,english:boolean,makeLens:ty
       // background, continuously; crossing a content edge never swaps surface themes.
       const player=!!optic.closest('[data-ios-player-overlay]');
       optic.style.setProperty('--ios-ink-blend',player?'100%':'0%');
-      if(reduced.matches||optic.hasAttribute('data-ios-search-form'))continue;
-      const width=Math.round(optic.offsetWidth),height=Math.round(optic.offsetHeight),radius=Math.min(parseFloat(getComputedStyle(optic).borderTopLeftRadius)||28,width/2,height/2);
-      const size=`${width}:${height}:${Math.round(radius)}`;
-      let entry=filters.get(optic);
-      if(entry?.size===size)continue;
-      if(!entry){
-        const filter=document.createElementNS(svgNS,'filter');const id=`${prefix}-${filters.size}`;
-        filter.id=id;filter.setAttribute('filterUnits','userSpaceOnUse');filter.setAttribute('color-interpolation-filters','sRGB');filter.setAttribute('x','0');filter.setAttribute('y','0');
-        const image=document.createElementNS(svgNS,'feImage');image.setAttribute('preserveAspectRatio','none');image.setAttribute('result','lens');
-        const displacement=document.createElementNS(svgNS,'feDisplacementMap');displacement.setAttribute('in','SourceGraphic');displacement.setAttribute('in2','lens');displacement.setAttribute('scale','32');displacement.setAttribute('xChannelSelector','R');displacement.setAttribute('yChannelSelector','G');
-        const diffusion=document.createElementNS(svgNS,'feGaussianBlur');diffusion.setAttribute('stdDeviation',root.dataset.effect==='subtle'?'0.25':'3');
-        filter.append(image,displacement,diffusion);defs.append(filter);entry={id,size:'',image,filter,displacement};filters.set(optic,entry);
-      }
-      const map=makeLens(width,height,radius);
-      const canvas=document.createElement('canvas');canvas.width=map.width;canvas.height=map.height;
-      const context=canvas.getContext('2d');if(!context)continue;
-      const pixels=context.createImageData(map.width,map.height);pixels.data.set(map.data);context.putImageData(pixels,0,0);
-      entry.filter.setAttribute('width',String(width));entry.filter.setAttribute('height',String(height));entry.image.setAttribute('width',String(width));entry.image.setAttribute('height',String(height));entry.image.setAttribute('href',canvas.toDataURL());entry.displacement.setAttribute('scale',String(map.scale));entry.size=size;
-      const light=optic.querySelector<HTMLElement>('.ios-optic-light');
-      if(light){pixels.data.set(map.reflection);context.putImageData(pixels,0,0);light.style.backgroundImage=`url(${canvas.toDataURL()})`;}
-      optic.style.setProperty('--ios-lens-filter',`url(#${entry.id})`);
     }
     for(const glyph of root.querySelectorAll<HTMLElement>('.ios-tab>svg,.ios-tab>span,.ios-mini-open strong,.ios-mini-open small,.ios-mini-play svg,.ios-search-launch>svg')){
       const box=glyph.getBoundingClientRect();if(!box.width||!box.height)continue;
@@ -189,6 +163,7 @@ export function mountLiquidShowcase(root:HTMLElement,english:boolean,makeLens:ty
   const onSubmit=(event:Event)=>{if(event.target instanceof Element&&event.target.matches('[data-ios-search-form]'))event.preventDefault();};
   libraryFilters.querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String((button as HTMLElement).dataset.iosLibraryFilter===(likedOnly?'liked':'all'))));filterLibrary();tabs.inert=searching;root.querySelector<HTMLElement>('[data-ios-search-open]')!.inert=searching;scroll.inert=!overlay.hidden;controls.inert=!overlay.hidden;
   const playbackTimer=setInterval(()=>{if(!playing)return;const input=root.querySelector<HTMLInputElement>('[data-ios-progress]');if(!input)return;let next=Number(input.value)+1;if(next>=249){if(root.querySelector('[data-ios-repeat]')?.getAttribute('aria-pressed')==='true')next=0;else{const step=root.querySelector('[data-ios-shuffle]')?.getAttribute('aria-pressed')==='true'?1+Math.floor(Math.random()*Math.max(1,originals.length-1)):1;const source=originals[(currentTrack+step)%originals.length];if(source)setTrack(source);next=0;}}input.value=String(next);input.dispatchEvent(new Event('input',{bubbles:true}));},1000);
-  root.addEventListener('click',onClick);root.addEventListener('input',onInput);root.addEventListener('keydown',onKey);root.addEventListener('submit',onSubmit);root.addEventListener('pointermove',onPointer);root.addEventListener('pointerdown',onTabDown);root.addEventListener('pointerup',onTabEnd);root.addEventListener('pointercancel',onTabEnd);scroll.addEventListener('scroll',onScroll,{passive:true});reduced.addEventListener('change',schedule);schedule();
-  return()=>{disposed=true;clearInterval(playbackTimer);showQueue(false);queue.remove();libraryFilters.remove();root.querySelector('.ios-liked-empty')?.remove();cancelAnimationFrame(openFrame);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('keydown',onKey);root.removeEventListener('submit',onSubmit);root.removeEventListener('pointermove',onPointer);root.removeEventListener('pointerdown',onTabDown);root.removeEventListener('pointerup',onTabEnd);root.removeEventListener('pointercancel',onTabEnd);if(tabDrag&&tabs.hasPointerCapture(tabDrag.pointerId))tabs.releasePointerCapture(tabDrag.pointerId);scroll.removeEventListener('scroll',onScroll);reduced.removeEventListener('change',schedule);observer.disconnect();cancelAnimationFrame(frame);cancelAnimationFrame(pointerFrame);clearTimeout(closeTimer);clearTimeout(noticeTimer);filters.forEach((entry,optic)=>{entry.filter.remove();optic.style.removeProperty('--ios-lens-filter');optic.querySelector<HTMLElement>('.ios-optic-light')?.style.removeProperty('background-image');});scroll.inert=false;controls.inert=false;};
+  root.addEventListener('click',onClick);root.addEventListener('input',onInput);root.addEventListener('keydown',onKey);root.addEventListener('submit',onSubmit);root.addEventListener('pointermove',onPointer);root.addEventListener('pointerdown',onTabDown);root.addEventListener('pointerup',onTabEnd);root.addEventListener('pointercancel',onTabEnd);scroll.addEventListener('scroll',onScroll,{passive:true});schedule();
+  const disposeGlass=mountGlass?.(root);
+  return()=>{disposeGlass?.();disposed=true;clearInterval(playbackTimer);showQueue(false);queue.remove();libraryFilters.remove();root.querySelector('.ios-liked-empty')?.remove();cancelAnimationFrame(openFrame);root.removeEventListener('click',onClick);root.removeEventListener('input',onInput);root.removeEventListener('keydown',onKey);root.removeEventListener('submit',onSubmit);root.removeEventListener('pointermove',onPointer);root.removeEventListener('pointerdown',onTabDown);root.removeEventListener('pointerup',onTabEnd);root.removeEventListener('pointercancel',onTabEnd);if(tabDrag&&tabs.hasPointerCapture(tabDrag.pointerId))tabs.releasePointerCapture(tabDrag.pointerId);scroll.removeEventListener('scroll',onScroll);observer.disconnect();cancelAnimationFrame(frame);cancelAnimationFrame(pointerFrame);clearTimeout(closeTimer);clearTimeout(noticeTimer);scroll.inert=false;controls.inert=false;};
 }

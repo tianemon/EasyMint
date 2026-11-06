@@ -14,6 +14,29 @@ const resources = path.resolve('resources');
 afterEach(() => { vi.restoreAllMocks(); for (const r of roots.splice(0))
     fs.rmSync(r, { recursive: true, force: true }); });
 describe('project visual pipeline', () => {
+    it('ships the shared WebGL kernel, platform presets and native references with the liquid template', () => {
+        const r = root();
+        saveProjectDesign(r, {styleId:'liquid-glass'}, 'technical', resources);
+        const dir = path.join(r,'.easymint/design');
+        for (const file of ['LIQUID-USAGE.md','liquid-material.agsl','liquid-material-source.ts','liquid-webgl.ts','liquid-android-reference.kt','liquid-app-preset.json','liquid-template-preset.json']) {
+            expect(fs.existsSync(path.join(dir,file))).toBe(true);
+        }
+        expect(fs.existsSync(path.join(dir,'LIQUID-GLASS.md'))).toBe(false);
+        const usage = fs.readFileSync(path.join(dir,'LIQUID-USAGE.md'),'utf8');
+        expect(usage).toContain('# Liquid Glass integration');
+        expect(usage).not.toContain('## Capture continuity and surface use');
+        expect(usage).not.toContain('已确认的视觉经验');
+        const app = JSON.parse(fs.readFileSync(path.join(dir,'liquid-app-preset.json'),'utf8'));
+        const web = JSON.parse(fs.readFileSync(path.join(dir,'liquid-template-preset.json'),'utf8'));
+        expect(app.parameters.blur).toBe(2.5);
+        expect(web.parameters.blur).toBe(0.2);
+        const contract = JSON.parse(fs.readFileSync(path.join(dir,'scene-contract.json'),'utf8'));
+        expect(contract.opticalMaterial.primaryWebBackend).toBe('webgl2');
+        expect(fs.readFileSync(path.join(dir,'DESIGN.md'),'utf8')).toContain('Read LIQUID-USAGE.md');
+        expect(fs.readFileSync(path.join(dir,'PORTING.md'),'utf8')).toContain('Android AGSL source');
+        expect(fs.readFileSync(path.join(dir,'liquid-webgl.ts'),'utf8')).toContain("'./liquid-template-preset.json'");
+    });
+
     it.each(STYLE_PRESETS.map(style=>style.id))('persists the actual %s preview theme, four layouts, controls and native projection', styleId => { const r = root(), spec = saveProjectDesign(r, { styleId, targets: ['web', 'ios-mobile'] }, 'technical', resources); const dir = path.join(r, '.easymint/design'); expect(readProjectDesign(r)).toEqual(spec); expect(fs.readFileSync(path.join(dir, 'theme.css'), 'utf8')).toBe(deriveThemeCss(spec)); for (const layout of ['landing', 'dashboard', 'form', 'detail']) {
         const html = fs.readFileSync(path.join(dir, 'templates', `template-${layout}.html`), 'utf8');
         expect(html).toContain(deriveThemeCss(spec));

@@ -1,3 +1,4 @@
+import { LIQUID_PRESETS } from '../../shared/visual-design/liquid-contract';
 import { createSceneContract, sceneImplementationGuide } from "../../shared/visual-design/scene-contract";
 import { showcaseRuntimeSource } from "../../shared/visual-design/showcase-runtime";
 import fs from "node:fs";
@@ -10,7 +11,7 @@ import { updatePrototypeHtml } from "./project-design-html";
 const DIR = '.easymint/design';
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const read = (file: string) => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
-const allowed = (relative: string) => relative === 'prototype/index.html' || relative === '.easymint/project-profile.json' || /^\.easymint\/design\/(?:visual-spec\.json|theme\.css|components\.css|runtime\.js|native-tokens\.json|PORTING\.md|gallery\.html|showcase(?:-mobile)?\.html|scene-contract\.json|DESIGN\.md|motion\.html|manifest\.json|templates\/template-(?:landing|dashboard|form|detail)\.html)$/.test(relative);
+const allowed = (relative: string) => relative === 'prototype/index.html' || relative === '.easymint/project-profile.json' || /^\.easymint\/design\/(?:visual-spec\.json|theme\.css|components\.css|runtime\.js|native-tokens\.json|LIQUID-(?:GLASS|USAGE)\.md|liquid-material\.agsl|liquid-material-source\.ts|liquid-webgl\.ts|liquid-android-reference\.kt|liquid-(?:app|template)-preset\.json|PORTING\.md|gallery\.html|showcase(?:-mobile)?\.html|scene-contract\.json|DESIGN\.md|motion\.html|manifest\.json|templates\/template-(?:landing|dashboard|form|detail)\.html)$/.test(relative);
 function target(root: string, relative: string): string {
     if (!allowed(relative))
         throw new Error('Invalid managed design path');
@@ -111,11 +112,24 @@ export function saveProjectDesign(root: string, selection: VisualSelection, plat
     files.set(`${DIR}/theme.css`, deriveThemeCss(spec));
     files.set(`${DIR}/components.css`, assets.css);
     files.set(`${DIR}/runtime.js`, assets.runtime);
-    files.set(`${DIR}/native-tokens.json`, JSON.stringify({ schemaVersion: 1, source: 'visual-spec.json', platforms: spec.selection.targets, primitive: spec.primitive, semantic: spec.semantic, components: resolvedComponents(spec), states: spec.states, material: spec.material }, null, 2) + '\n');
+    files.set(`${DIR}/native-tokens.json`, JSON.stringify({ schemaVersion: 1, source: 'visual-spec.json', platforms: spec.selection.targets, primitive: spec.primitive, semantic: spec.semantic, components: resolvedComponents(spec), states: spec.states, material: { ...spec.material, ...(spec.selection.styleId === 'liquid-glass' ? { liquidGlass: LIQUID_PRESETS.app.parameters } : {}) } }, null, 2) + '\n');
     files.set(`${DIR}/PORTING.md`, '# Visual implementation contract\n\nWeb/Electron: reuse theme.css, components.css and runtime.js. Read DESIGN.md and scene-contract.json first. showcase.html and showcase-mobile.html share the picker source. In preset mode they are the selected complete product scene: reuse its defining layout, useful controls and material layers. In brief mode they are an optional neutral base; the user brief determines composition, materials and motion, including whether animation is needed. Templates and gallery are legacy compatibility starters, not the selected direction. There is no per-style motion destination. Copy inline marked theme/component style blocks into a single-file prototype, or import these project-relative files. Preserve the CSS classes, component states and material layers.\n\nNative Flutter/SwiftUI/Compose/React Native: the HTML showcase is a visual and interaction reference, not an implementation to copy. Use native-tokens.json as the decision source. Translate semantic colors, typography, spacing, radii, shadows and component states into the target toolkit; prefer platform navigation, controls and motion over reproducing DOM structure. Do not copy CSS strings into native properties. Declare unsupported effects instead of silently switching styles; provide the actual target preview before claiming parity.\n\n| Web effect | Native treatment |\n| --- | --- |\n| glass / liquid-glass blur and refraction | system material or blur+tint, with a declared fallback; refraction only when the target can draw it |\n| claymorphism / skeuomorphism layered shadows and texture | native elevation/shadow layers and asset textures |\n| retro print grain / halftone | static texture asset, not a runtime CSS filter |\n| tech canvas / 3D scan | simplified static or native-rendered equivalent; declare unsupported motion |\n\nTo change an existing prototype layout, merge its content into the matching generated template first, keeping data-easymint-root and data-layout, then call set_project_design with that layout. This adoption is checked before saving.\n\nUpdate appearance through set_project_design. It preserves edited managed files by reporting a conflict. User overrides belong in a separate project stylesheet, not in the generated theme. Brand references are inspirations; use the same available font stack in preview and implementation.\n');
     const title = spec.selection.projectName || path.basename(root);
     files.set(`${DIR}/showcase.html`, renderVisualDocument(spec, assets, { layout: 'showcase', title }));
     files.set(`${DIR}/showcase-mobile.html`, renderVisualDocument(spec, assets, { layout: 'showcase', device: 'mobile', title }));
+    if (spec.selection.styleId === 'liquid-glass') {
+        const materialRoot = path.join(resources, 'visual-design');
+        for (const [source, destination] of [
+            ['liquid-usage.md','LIQUID-USAGE.md'],
+            ['liquid-material.agsl','liquid-material.agsl'],
+            ['liquid-app-preset.json','liquid-app-preset.json'],
+            ['liquid-template-preset.json','liquid-template-preset.json'],
+            ['liquid-android-reference.kt','liquid-android-reference.kt'],
+        ]) files.set(`${DIR}/${destination}`, fs.readFileSync(path.join(materialRoot, source!), 'utf8'));
+        files.set(`${DIR}/liquid-material-source.ts`, fs.readFileSync(path.join(materialRoot, 'liquid-material-source.txt'), 'utf8'));
+        files.set(`${DIR}/liquid-webgl.ts`, fs.readFileSync(path.join(materialRoot, 'liquid-webgl-source.txt'), 'utf8'));
+        files.set(`${DIR}/PORTING.md`, files.get(`${DIR}/PORTING.md`)! + '\nLiquid Glass: read LIQUID-USAGE.md and the accepted platform presets. The primary Web backend is WebGL 2. Android AGSL source and the shared kernel are supplied. iOS 26+ can use native system glass with a declared fallback.\n');
+    }
     files.set(`${DIR}/scene-contract.json`, JSON.stringify(createSceneContract(spec), null, 2)+'\n');
     files.set(`${DIR}/DESIGN.md`, sceneImplementationGuide(spec));
     files.set(`${DIR}/gallery.html`, renderVisualDocument(spec, assets, { layout: 'gallery', title }));

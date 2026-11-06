@@ -29,7 +29,7 @@
     "typecheck": "concurrently --kill-others-on-fail --names main,preload,renderer \"tsc --noEmit -p app/main/tsconfig.json\" \"tsc --noEmit -p app/preload/tsconfig.json\" \"tsc --noEmit -p app/renderer/tsconfig.json\"",
     "test": "vitest run",
     "check:visual-brands": "node scripts/gen-visual-brands.cjs --check",
-    "check:visual-design": "node scripts/gen-visual-brands.cjs --check && node scripts/gen-visual-templates.mjs --check",
+    "check:visual-design": "node scripts/build-liquid-webgl.mjs --check && node scripts/gen-visual-brands.cjs --check && node scripts/gen-visual-templates.mjs --check",
     "install:deps": "node scripts/install-deps.cjs"
   },
   "dependencies": {
@@ -43,6 +43,7 @@
     "bonjour-service": "^1.4.4",
     "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
+    "html2canvas": "1.4.1",
     "i18next": "26.4.2",
     "jszip": "^3.10.2",
     "mammoth": "^1.12.3",

@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "source": "EasyMint Mobile MintLens",
+  "parameters": {
+    "cardWidth": 358,
+    "cardHeight": 98,
+    "radius": 24,
+    "circleSize": 80,
+    "referenceScale": 3.75,
+    "bevelRatio": 0.115,
+    "width": 1.36,
+    "sideWidth": 1.3,
+    "heightRatio": 0.52,
+    "normalStep": 0.04,
+    "ior": 1.5,
+    "travel": 0.86,
+    "sideTravel": 1.3,
+    "faceScale": 1,
+    "rimStrength": 0.23,
+    "sideRim": 1.22,
+    "rimRange": 0.6,
+    "darkEdge": 0.26,
+    "brightEdge": 0.24,
+    "edgeCenter": 0.4,
+    "edgeWidth": 0.2,
+    "adaptation": 1,
+    "environmentMix": 1.15,
+    "dispersion": 0.006,
+    "rimDispersion": 0.002,
+    "blur": 0.2,
+    "tintLight": 0,
+    "tintDark": 0.05
+  },
+  "theme": "light",
+  "background": "chat",
+  "positions": [
+    {
+      "x": 16,
+      "y": 470
+    },
+    {
+      "x": 152.3989522948466,
+      "y": 308.25107695580493
+    }
+  ],
+  "scroll": 120.5
+}

@@ -75,7 +75,7 @@ describe('product showcases', () => {
     expect(createVisualSpec({styleId:'liquid-glass'}).selection.effect).toBe('subtle');
     const regular=createVisualSpec({styleId:'liquid-glass',effect:'standard'});
     const clear=createVisualSpec({styleId:'liquid-glass',effect:'subtle'});
-    expect(regular.material.blur).toBe(3); expect(clear.material.blur).toBe(0.25);
+    expect(regular.material.blur).toBe(3); expect(clear.material.blur).toBe(0.2);
     const html=renderShowcase(regular);
     expect(html).toContain('data-ios-root'); expect(html).toContain('data-ios-filters');
     expect(html).toContain('data-ios-scroll'); expect(html).toContain('data-ios-expand');
@@ -83,7 +83,8 @@ describe('product showcases', () => {
     expect(html).toContain('data-ios-search-form');
     expect(html).not.toContain('feTurbulence');
     const exported=renderVisualDocument(regular,{css:'',runtime:''},{layout:'showcase'});
-    expect(exported).toContain('feDisplacementMap'); expect(exported).toContain('roundedLensMap');
+    expect(exported).toContain('EmLiquidWebGL.mountLiquidWebGL'); expect(exported).toContain('#version 300 es');
+    expect(exported).not.toContain('feDisplacementMap');
     expect(exported).not.toContain('feTurbulence');
   });
   it('bundles the two original motion studies without remote runtime dependencies', () => {

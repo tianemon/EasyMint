@@ -1,3 +1,4 @@
+import liquidTemplatePreset from '../../../resources/visual-design/liquid-template-preset.json';
 import brands from "./brands.json";
 import { STYLE_PRESETS, resolveStylePreset, sampleStyle, type StylePreset } from "./presets";
 import { DEFAULT_APPEARANCE, STYLE_EFFECTS, STYLE_PALETTES, type StyleAppearance } from "./appearance";
@@ -142,7 +143,7 @@ export function createVisualSpec(input: VisualSelection = {}): VisualSpec {
         provenance: brand ? { kind: 'brand-inspired', reference: brand.source, quality: brand.curated ? 'curated' : 'derived', traits: { typography: brand.typography, rounded: brand.rounded, ink: brand.ink, background: brand.background } } : { kind: 'builtin', quality: 'builtin' },
         primitive: { fontSize: { caption: 11, small: 12, body: Math.round(13 * bodyScale), label: Math.round(14 * bodyScale), title: Math.round(24 * displayScale), display: Math.round(40 * displayScale) }, spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, section: 32 }, radius: Object.fromEntries(Object.entries(preset.recipes).map(([k, v]) => [k, v.radius])), shadow: Object.fromEntries(Object.entries(preset.recipes).map(([k, v]) => [k, v.shadow])) },
         semantic: { background: preset.background, surface: preset.surface, ink: preset.ink, muted: preset.muted, accent: preset.accent, border: preset.border, colors: preset.colors, controls }, components, states: preset.states,
-        material: { artwork: preset.artwork, font: preset.font, density: preset.density, sidebar: preset.sidebar, texture: preset.texture, layout: preset.layout, rules: preset.rules, radius: preset.radius, tone:preset.tone??(preset.id==='glass'?'dark':'light'), blur: preset.id === 'glass' ? (appearance.effect === 'subtle' ? 4 : 24) : preset.id==='liquid-glass'?(appearance.effect==='subtle'?0.25:3):0, saturation: preset.id==='liquid-glass'?1.35:1.12 } };
+        material: { artwork: preset.artwork, font: preset.font, density: preset.density, sidebar: preset.sidebar, texture: preset.texture, layout: preset.layout, rules: preset.rules, radius: preset.radius, tone:preset.tone??(preset.id==='glass'?'dark':'light'), blur: preset.id === 'glass' ? (appearance.effect === 'subtle' ? 4 : 24) : preset.id==='liquid-glass'?(appearance.effect==='subtle'?liquidTemplatePreset.parameters.blur:3):0, saturation: preset.id==='liquid-glass'?1:1.12 } };
 }
 export function resolveVisualValue(spec: VisualSpec, value: string, seen = new Set<string>()): string {
     const reference = value.match(/^\{([\w.]+)\}$/);

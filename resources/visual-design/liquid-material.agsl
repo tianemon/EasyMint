@@ -1,0 +1,161 @@
+// EasyMint shared liquid material. Values supplied by the platform preset.
+uniform float u_heightRatio;
+uniform float u_normalStep;
+uniform float u_sideWidth;
+uniform float u_sideRim;
+uniform float u_sideTravel;
+uniform float u_travel;
+uniform float u_rimStrength;
+uniform float u_rimRange;
+uniform float u_faceScale;
+uniform float u_dispersion;
+uniform float u_rimDispersion;
+uniform float u_darkEdge;
+uniform float u_brightEdge;
+uniform float u_edgeCenter;
+uniform float u_edgeWidth;
+uniform float u_ior;
+uniform float u_adaptation;
+uniform float u_environmentMix;
+uniform shader backdrop;
+    uniform float2 size;
+    uniform float radius;
+    uniform float bevel;
+    uniform float refractionWidth;
+    uniform float pixelScale;
+    uniform float padding;
+
+    half4 sampleBackground(float2 uv) {
+      return backdrop.eval(clamp(uv + padding, float2(0.5), size + padding * 2.0 - 0.5));
+    }
+
+    half3 backgroundColorAt(float2 p) {
+      // Preserve the capture-edge fix for every neighborhood sample.
+      half4 sampled = sampleBackground(clamp(p, float2(0.5), size - 0.5));
+      return sampled.a > 0.001
+        ? sampled.rgb / sampled.a : sampleBackground(size * 0.5).rgb;
+    }
+
+    float luminance(half3 color) {
+      return dot(float3(color), float3(0.2126, 0.7152, 0.0722));
+    }
+
+    float surfaceDistance(float2 p) {
+      float2 q = abs(p - size * 0.5) - size * 0.5 + radius;
+      return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+    }
+
+    float lateralInfluence(float2 p) {
+      float2 q = abs(p - size * 0.5) - size * 0.5 + radius;
+      float2 corner = max(q, 0.0);
+      float cornerLength = length(corner);
+      float2 axis = q.x > q.y ? float2(1, 0) : float2(0, 1);
+      float2 direction = cornerLength > 0.001 ? corner / max(cornerLength, 0.001) : axis;
+      return direction.x * direction.x;
+    }
+
+    float localRefractionWidth(float2 p) {
+      return refractionWidth * (1.0 + (u_sideWidth - 1.0) * lateralInfluence(p));
+    }
+
+    float surfaceHeight(float2 p) {
+      float t = clamp(-surfaceDistance(p) / localRefractionWidth(p), 0.0, 1.0);
+      return refractionWidth * u_heightRatio * sqrt(max(0.0, 1.0 - (1.0 - t) * (1.0 - t)));
+    }
+
+    float2 trace(float2 p, float3 normal, float height, float ior) {
+      float3 inside = refract(float3(0, 0, -1), normal, 1.0 / ior);
+      float2 back = p + inside.xy * height / max(-inside.z, 0.025);
+      float3 outside = refract(inside, float3(0, 0, 1), ior);
+      // Extra rim lens joins the existing refraction with a zero-slope taper.
+      float lateral = lateralInfluence(p);
+      float rimDepth = max(-surfaceDistance(p), 0.0) / localRefractionWidth(p);
+      float rimLens = 1.0 - smoothstep(0.0, u_rimRange, rimDepth);
+      float2 bendDirection = normal.xy / max(length(normal.xy), 0.001);
+      float2 rimOffset = -bendDirection * bevel * u_rimStrength * (1.0 + (u_sideRim - 1.0) * lateral) *
+                        rimLens * rimLens * ((ior - 1.0) / 0.46);
+      return clamp(back + outside.xy * (bevel * u_travel * (1.0 + (u_sideTravel - 1.0) * lateral)) / max(-outside.z, 0.025) + rimOffset,
+                   float2(0.5 - padding), size + padding - 0.5);
+    }
+
+    half4 main(float2 sourcePoint) {
+      float2 p = sourcePoint - padding;
+      // Radius zero is the frosted title/status bar, with no curved surface.
+      if (radius < 0.1) return sampleBackground(p);
+      float2 v = p - size * 0.5;
+      float2 q = abs(v) - size * 0.5 + radius;
+      float2 corner = max(q, 0.0);
+      float cornerLength = length(corner);
+      float distance = cornerLength + min(max(q.x, q.y), 0.0) - radius;
+      float2 axis = q.x > q.y ? float2(1, 0) : float2(0, 1);
+      float2 outward = sign(v) * (cornerLength > 0.001 ? corner / max(cornerLength, 0.001) : axis);
+      float depth = max(-distance, 0.0);
+      float t = clamp(depth / bevel, 0.0, 1.0);
+      // Broader lateral shoulders keep a common flat-face height, avoiding a
+      // center ridge while the side refraction rolls smoothly through corners.
+      float localWidth = localRefractionWidth(p);
+      float height = surfaceHeight(p);
+      float stepSize = localWidth * u_normalStep;
+      float2 gradient = float2(
+        surfaceHeight(p + float2(stepSize, 0)) - surfaceHeight(p - float2(stepSize, 0)),
+        surfaceHeight(p + float2(0, stepSize)) - surfaceHeight(p - float2(0, stepSize))
+      ) / (2.0 * stepSize);
+      float3 normal = normalize(float3(-gradient, 1.0));
+      float2 greenUV = trace(p, normal, height, u_ior);
+      float2 faceUV = size * 0.5 + (p - size * 0.5) * u_faceScale;
+      float refractionT = clamp(depth / localWidth, 0.0, 1.0);
+      float edgeBlend = 1.0 - smoothstep(0.65, 1.0, refractionT);
+      half4 color = sampleBackground(mix(faceUV, greenUV, edgeBlend));
+      float edgeSupport = 1.0 - smoothstep(0.45, 1.0, refractionT);
+      float rimDispersion = 1.0 - smoothstep(0.0, 0.45, refractionT);
+      float dispersion = edgeSupport * u_dispersion + rimDispersion * u_rimDispersion;
+      color.r = mix(color.r, sampleBackground(trace(p, normal, height, u_ior - dispersion)).r, half(edgeBlend));
+      color.b = mix(color.b, sampleBackground(trace(p, normal, height, u_ior + dispersion)).b, half(edgeBlend));
+
+      float sectionWidth = bevel * 0.36;
+      float2 tangent = float2(-outward.y, outward.x) * bevel * 0.22;
+      float2 exteriorPoint = p + outward * sectionWidth;
+      half3 environment = (backgroundColorAt(exteriorPoint) * half(2.0) +
+        backgroundColorAt(exteriorPoint + tangent) +
+        backgroundColorAt(exteriorPoint - tangent)) * half(0.25);
+      half3 interior = (backgroundColorAt(p - outward * sectionWidth) * half(2.0) +
+        backgroundColorAt(p - outward * sectionWidth + tangent) +
+        backgroundColorAt(p - outward * sectionWidth - tangent)) * half(0.25);
+      float exteriorLuma = luminance(environment);
+      float interiorLuma = luminance(interior);
+      float localContrast = smoothstep(0.015, 0.18, abs(exteriorLuma - interiorLuma));
+      // Preserve the previous scene-adaptive material.
+      float edgeActivity = (0.24 + 0.76 * localContrast) * u_adaptation;
+      float lightSide = 1.0 - smoothstep(0.18, 0.82, exteriorLuma);
+      float darkSide = smoothstep(0.18, 0.82, exteriorLuma);
+      float section = 1.0 - smoothstep(bevel * 0.04, sectionWidth, depth);
+      color.rgb = mix(color.rgb, environment, half(section * (0.10 + 0.14 * localContrast) * u_environmentMix));
+      color.rgb *= half(1.0 - section * (0.035 + 0.12 * darkSide) * edgeActivity);
+      float outerDark = exp(-depth / (bevel * 0.044)) *
+                        (0.045 + 0.11 * darkSide) * edgeActivity;
+      color.rgb *= half(1.0 - outerDark);
+      float innerDistance = (depth - bevel * 0.072) / (bevel * 0.04);
+      float innerLight = exp(-innerDistance * innerDistance);
+      color.rgb += half(innerLight * (0.025 + 0.20 * lightSide) * edgeActivity) *
+                   mix(half3(1.0), environment, half(0.35)) * color.a;
+      float shoulderDistance = (depth - bevel * 0.20) / (bevel * 0.12);
+      float shoulder = exp(-shoulderDistance * shoulderDistance) *
+                       0.035 * lightSide * edgeActivity;
+      color.rgb += half(shoulder) * mix(half3(1.0), environment, half(0.55)) * color.a;
+
+      // Sub-pixel dark contour on the two lateral edges, fading around the corners.
+      float lateralWeight = pow(abs(outward.x), 4.0);
+      float lateralDistance = (depth - pixelScale * u_edgeCenter) / max(pixelScale * u_edgeWidth, 0.75);
+      float lateralShadow = exp(-lateralDistance * lateralDistance) * lateralWeight * u_darkEdge;
+      color.rgb *= half(1.0 - lateralShadow);
+      // The same fine contour profile lights the horizontal edges. Both contour
+      // weights fade smoothly through each corner, without a full white frame.
+      float horizontalWeight = pow(abs(outward.y), 4.0);
+      float horizontalHighlight = exp(-lateralDistance * lateralDistance) *
+                                  horizontalWeight * u_brightEdge;
+      color.rgb = mix(color.rgb, half3(color.a), half(horizontalHighlight));
+      // Match the web shader's SDF mask rather than relying on the RN clip.
+      // Pixels outside the optical contour retain the unshaded background.
+      float coverage = 1.0 - smoothstep(-0.75, 0.75, distance);
+      return mix(sampleBackground(p), color, half(coverage));
+    }
