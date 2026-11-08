@@ -307,4 +307,117 @@ describe("RemoteTerminalService", () => {
     await expect(receiveNothing(connection, 150)).resolves.toBeUndefined();
     connection.socket.close();
   });
+
+  it("forwardAppEvent 脱敏：shell-count 剥 logPath 且按订阅过滤，delegation-count 不泄露未订阅会话", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    service.on("error", () => {});
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+    // 登记 session-1 的会话订阅
+    await sendCommand(connection, 1, {
+      version: 1, sentAt: Date.now(), kind: "command", requestId: "request-1",
+      projectId: "project-1", sessionId: "session-1", payload: { command: "session.snapshot", data: {} },
+    });
+
+    // shell-count：非对象元素丢弃、未订阅会话剔除、logPath 剥离
+    service.forwardAppEvent({
+      sequence: 1, channel: "agent:shell-count",
+      data: [
+        { sessionId: "session-1", id: "s1", logPath: "/Users/me/secret.log" },
+        { sessionId: "session-2", id: "s2", logPath: "/Users/me/other.log" },
+        "not-an-object",
+      ],
+      emittedAt: Date.now(),
+    });
+    const shell = await receiveEvent(connection);
+    expect(shell.payload.channel).toBe("agent:shell-count");
+    expect(shell.payload.data as unknown).toEqual([{ sessionId: "session-1", id: "s1" }]);
+    expect(JSON.stringify(shell.payload.data)).not.toContain("secret.log");
+
+    // delegation-count 仍在转发白名单内：tasks 只含订阅会话、count 按 delegationId 去重
+    service.forwardAppEvent({
+      sequence: 2, channel: "agent:delegation-count",
+      data: { tasks: [
+        { sessionId: "session-1", delegationId: "d1", label: "A" },
+        { sessionId: "session-1", delegationId: "d1", label: "A2" },
+        { sessionId: "session-2", delegationId: "d2", label: "SECRET_OTHER_SESSION" },
+      ] },
+      emittedAt: Date.now(),
+    });
+    const delegation = await receiveEvent(connection);
+    expect(delegation.payload.channel).toBe("agent:delegation-count");
+    const dData = delegation.payload.data as unknown as { count: number; tasks: Array<Record<string, unknown>> };
+    expect(dData.count).toBe(1);
+    expect(dData.tasks).toEqual([
+      { sessionId: "session-1", delegationId: "d1", label: "A" },
+      { sessionId: "session-1", delegationId: "d1", label: "A2" },
+    ]);
+    expect(JSON.stringify(dData)).not.toContain("SECRET_OTHER_SESSION");
+    connection.socket.close();
+  });
+
+  it("forwardAppEvent 脱敏：delegation-init 剥 prompt、delegation-progress 剥 sessionFile/prompt 且兼容缺失/非对象载荷", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    service.on("error", () => {});
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+    await sendCommand(connection, 1, {
+      version: 1, sentAt: Date.now(), kind: "command", requestId: "request-1",
+      projectId: "project-1", sessionId: "session-1", payload: { command: "session.snapshot", data: {} },
+    });
+
+    service.forwardAppEvent({
+      sequence: 1, channel: "agent:delegation-init",
+      data: { sessionId: "session-1", tasks: [{ prompt: "SECRET_PROMPT", id: "t1" }] },
+      emittedAt: Date.now(),
+    });
+    const init = await receiveEvent(connection);
+    expect(init.payload.channel).toBe("agent:delegation-init");
+    expect((init.payload.data as unknown as { tasks: unknown[] }).tasks).toEqual([{ id: "t1" }]);
+    expect(JSON.stringify(init.payload.data)).not.toContain("SECRET_PROMPT");
+
+    service.forwardAppEvent({
+      sequence: 2, channel: "agent:delegation-progress",
+      data: { sessionId: "session-1", progress: { sessionFile: "/Users/me/secret", prompt: "SECRET_PROMPT", pct: 50 } },
+      emittedAt: Date.now(),
+    });
+    const progress = await receiveEvent(connection);
+    expect((progress.payload.data as unknown as { progress: unknown }).progress).toEqual({ pct: 50 });
+    expect(JSON.stringify(progress.payload.data)).not.toContain("sessionFile");
+
+    // progress 字段缺失 → 空对象，不抛异常
+    service.forwardAppEvent({
+      sequence: 3, channel: "agent:delegation-progress",
+      data: { sessionId: "session-1" },
+      emittedAt: Date.now(),
+    });
+    const empty = await receiveEvent(connection);
+    expect((empty.payload.data as unknown as { progress: unknown }).progress).toEqual({});
+
+    // event.data 非对象：shell-count 原样透传（filteredTaskEvent 仍放行），不崩
+    service.forwardAppEvent({
+      sequence: 4, channel: "agent:shell-count",
+      data: "not-an-object",
+      emittedAt: Date.now(),
+    });
+    const raw = await receiveEvent(connection);
+    expect(raw.payload.data as unknown).toBe("not-an-object");
+    connection.socket.close();
+  });
+
+  it("零连接时畸形 delegation-init 载荷不抛异常（脱敏外提须与原实现执行时机一致）", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    // 原实现的脱敏在连接循环体内，零连接时不计算；外提后若无连接门控，解构 null 会抛 TypeError。
+    expect(() => service.forwardAppEvent({
+      sequence: 1, channel: "agent:delegation-init",
+      data: { tasks: [null] },
+      emittedAt: Date.now(),
+    })).not.toThrow();
+  });
 });

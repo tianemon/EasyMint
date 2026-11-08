@@ -246,6 +246,15 @@ interface StreamEvent {
   groupId?: string;
 }
 
+/** 手机浏览器访问状态（与 main/services/mobile-web-service.ts 的 MobileWebStatus 对齐）。 */
+interface MobileWebStatus {
+  enabled: boolean;
+  port: number;
+  running: boolean;
+  lanAddresses: string[];
+  onlineWebDevices: number;
+}
+
 interface ElectronAPI {
   platform: string;
   piExtension: {
@@ -438,6 +447,12 @@ interface ElectronAPI {
     onChanged: (callback: () => void) => () => void;
     onError: (callback: (data: { message: string }) => void) => () => void;
   };
+  mobileWeb: {
+    getStatus: () => Promise<MobileWebStatus>;
+    setEnabled: (enabled: boolean) => Promise<MobileWebStatus>;
+    setPort: (port: number) => Promise<MobileWebStatus>;
+    onStatusChanged: (callback: (status: MobileWebStatus) => void) => () => void;
+  };
   migration: {
     accept: (transferId: string, targetPath: string) => Promise<{ ok: boolean; error?: string }>;
     reject: (transferId: string) => Promise<{ ok: boolean }>;
@@ -623,6 +638,8 @@ interface ElectronAPI {
       activeStatusGroupLight?: string;
       activeStatusGroupDark?: string;
       apiProviders?: import("@shared/platform-presets").ApiProvidersData;
+      mobileWebEnabled?: boolean;
+      mobileWebPort?: number;
     }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;

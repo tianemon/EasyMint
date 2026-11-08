@@ -102,6 +102,10 @@ interface SettingsState {
   chatPermissionMode: "readonly" | "standard" | "full";
   /** Linux 兜底：关闭沙盒运行（系统依赖装不上时的逃生通道，仅 Linux 生效） */
   sandboxDisabled: boolean;
+  /** 手机浏览器访问开关（默认关闭，C5）；真值同步见 mobileWeb:get-status */
+  mobileWebEnabled: boolean;
+  /** 手机浏览器访问端口（默认 47779，C5） */
+  mobileWebPort: number;
   /** 聊天字号缩放系数(0.9~1.3,默认 1):控制消息内容(正文/代码/思考/工具折叠)字号 */
   chatFontScale: number;
   /** 界面字号缩放系数(0.9~1.3,默认 1):统一控制 UI 骨架(文件列表/侧边栏/状态栏/设置页/会话列表等)文字 */
@@ -185,6 +189,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   chatThinkingLevel: "medium",
   chatPermissionMode: "standard",
   sandboxDisabled: false,
+  mobileWebEnabled: false,
+  mobileWebPort: 47779,
   chatFontScale: 1,
   uiFontScale: 1,
   glowEffect: "orbit",
@@ -289,6 +295,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
           chatPermissionMode: (settings.chatPermissionMode as "readonly" | "standard" | "full") ?? "standard",
           sandboxDisabled: Boolean(settings.sandboxDisabled),
+          mobileWebEnabled: Boolean(settings.mobileWebEnabled),
+          mobileWebPort: settings.mobileWebPort ?? 47779,
           chatFontScale: settings.chatFontScale ?? LEGACY_CHAT_FONT_SCALE[settings.chatFontLevel ?? 3] ?? 1,
           uiFontScale: settings.uiFontScale ?? 1,
           glowEffect: (settings.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",

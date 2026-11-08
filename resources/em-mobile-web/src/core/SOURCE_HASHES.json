@@ -1,0 +1,129 @@
+{
+  "protocol/types.ts": {
+    "source": "protocol/types.ts",
+    "sha256": "c8edfb0d967e9edc62316fbaf8006b56a8a475e9c0b2e2a7a9b17846ce8c62da",
+    "localSha256": "c8edfb0d967e9edc62316fbaf8006b56a8a475e9c0b2e2a7a9b17846ce8c62da"
+  },
+  "protocol/crypto.ts": {
+    "source": "security/crypto.ts",
+    "sha256": "6c862b49c04f438104b50d3001fb03150d8ca20005721f650b2658f7bc10830d",
+    "localSha256": "08cfd6d42baf1cc0a0000b610a539421612b2a3f0f7c119fdc8ec1c86a869038"
+  },
+  "protocol/remote-result.ts": {
+    "source": "connection/remote-result.ts",
+    "sha256": "c335edeab273cd68b48a8ae51f09b9964f2a0fb224dcb2f6be9c2a87b0843c3f",
+    "localSha256": "c335edeab273cd68b48a8ae51f09b9964f2a0fb224dcb2f6be9c2a87b0843c3f"
+  },
+  "protocol/remote-client.ts": {
+    "source": "connection/remote-client.ts",
+    "sha256": "521580db9266e8cd44608b9dd07d315b6cfd67d08715e8a364e7ad47c17e2f26",
+    "localSha256": "4e04165e86ac1ef9f470b89662bfddbfa90f57726d0980081ec4c5e598cf5963"
+  },
+  "protocol/credential-store.ts": {
+    "source": "security/credential-store.ts",
+    "sha256": "c7c92d4b9eb084898a6f9ff43cf3c4f6455547eddef797775540cec6af42117b",
+    "localSha256": "008725b50eb08c13690c662dd98b2ed401f0558f2176430450fd7937311dbb91"
+  },
+  "core/types.ts": {
+    "source": "types.ts",
+    "sha256": "336ed657a7aa8f57b4062b88af3eabd447593307bd43818e92ded722bc44d097",
+    "localSha256": "e15b92277d26ea8772e7bfe36c72ad0b29c4dd424d623a3b5b145a2aa19bf935"
+  },
+  "core/markdown/parse.ts": {
+    "source": "components/markdown/parse.ts",
+    "sha256": "7a5a6c9cb48076f19e77486e1753ccc7d2370280bc34af2f86a369084e520ed8",
+    "localSha256": "7a5a6c9cb48076f19e77486e1753ccc7d2370280bc34af2f86a369084e520ed8"
+  },
+  "core/ansi.ts": {
+    "source": "session/ansi.ts",
+    "sha256": "018e94b686631ef042c0955435aab8d52b295301a8635d03c7277d3d761e786b",
+    "localSha256": "018e94b686631ef042c0955435aab8d52b295301a8635d03c7277d3d761e786b"
+  },
+  "core/api-errors.ts": {
+    "source": "session/api-errors.ts",
+    "sha256": "2afe854c654b340694e6873ce90c2e880c0ed199433a4adf1b49b52a5644fc3e",
+    "localSha256": "2afe854c654b340694e6873ce90c2e880c0ed199433a4adf1b49b52a5644fc3e"
+  },
+  "core/compacting.ts": {
+    "source": "session/compacting.ts",
+    "sha256": "98208337476790c7a2ec9f99fe8d5ab32351d78ecfbebbaf1e86de174ae15945",
+    "localSha256": "98208337476790c7a2ec9f99fe8d5ab32351d78ecfbebbaf1e86de174ae15945"
+  },
+  "core/diff.ts": {
+    "source": "session/diff.ts",
+    "sha256": "a078257a7141a477d33c2788e913a7d7fe8d4d5a40d01a64aacae6b603729c66",
+    "localSha256": "a078257a7141a477d33c2788e913a7d7fe8d4d5a40d01a64aacae6b603729c66"
+  },
+  "core/messages.ts": {
+    "source": "session/messages.ts",
+    "sha256": "d7f7eaf4fda2050bdeca249d8c70b754cb8682bc6dda3aa51aaa49e2d7a7624d",
+    "localSha256": "d7f7eaf4fda2050bdeca249d8c70b754cb8682bc6dda3aa51aaa49e2d7a7624d"
+  },
+  "core/runtime.ts": {
+    "source": "session/runtime.ts",
+    "sha256": "8be124c1c8cb86fc95b19e1292da1138a424d3462e44ee14e50411626a0b09df",
+    "localSha256": "a1e8ea2333e0c861c736a7675c205df4fa63c51243ea7934fd2db72236b6a136"
+  },
+  "core/session-time.ts": {
+    "source": "session/session-time.ts",
+    "sha256": "46d6053e434025b85e8fcddee5428c8aeab6cee08abbfcf25c24a0848d1219fe",
+    "localSha256": "46d6053e434025b85e8fcddee5428c8aeab6cee08abbfcf25c24a0848d1219fe"
+  },
+  "core/settings-revision.ts": {
+    "source": "session/settings-revision.ts",
+    "sha256": "5f7765fbe9e3faee8090685eb5e2aeaa808cb3f143ba62fcba43dcb423d73670",
+    "localSha256": "5f7765fbe9e3faee8090685eb5e2aeaa808cb3f143ba62fcba43dcb423d73670"
+  },
+  "core/status-hints.ts": {
+    "source": "session/status-hints.ts",
+    "sha256": "4865c0f770472df5a5dc93fa67aa8864511ff971500c01209645db22a850ef01",
+    "localSha256": "4865c0f770472df5a5dc93fa67aa8864511ff971500c01209645db22a850ef01"
+  },
+  "core/stream-frames.ts": {
+    "source": "session/stream-frames.ts",
+    "sha256": "116547b4e4dbf835820ec3b38e50787e98fc929825153ab394ec624f209e95b3",
+    "localSha256": "116547b4e4dbf835820ec3b38e50787e98fc929825153ab394ec624f209e95b3"
+  },
+  "core/system-status.ts": {
+    "source": "session/system-status.ts",
+    "sha256": "1c710005afd46f62cd003ca8325953e08e80b3b744daac2bc4ea25f5e1b44d38",
+    "localSha256": "1c710005afd46f62cd003ca8325953e08e80b3b744daac2bc4ea25f5e1b44d38"
+  },
+  "core/thinking.ts": {
+    "source": "session/thinking.ts",
+    "sha256": "a3c63e076cfb892286658c82561906bbb77fd969a0ef876a765b11f47b9071a7",
+    "localSha256": "a3c63e076cfb892286658c82561906bbb77fd969a0ef876a765b11f47b9071a7"
+  },
+  "core/tools.ts": {
+    "source": "session/tools.ts",
+    "sha256": "19a7fec059b6132d51d423f5da5939cf4d4d2097d64f7c181fe9b602fe98dffc",
+    "localSha256": "19a7fec059b6132d51d423f5da5939cf4d4d2097d64f7c181fe9b602fe98dffc"
+  },
+  "core/turns.ts": {
+    "source": "session/turns.ts",
+    "sha256": "bd5db6f8bf1314c54d7edc62029487d1a73a07068be6083912c79ff81f4fdac6",
+    "localSha256": "bd5db6f8bf1314c54d7edc62029487d1a73a07068be6083912c79ff81f4fdac6"
+  },
+  "core/useRemoteEvents.ts": {
+    "source": "session/useRemoteEvents.ts",
+    "sha256": "a62ba36471c5ba3e9ee7485e1b41d859692e69ccb9d7d3b3b468a3837f7e0b96",
+    "localSha256": "32ebda1627727c4c9ef580eccfcf2ba37699e31b5b46a06853efeee8b1da9c8f"
+  },
+  "core/useSessionActions.ts": {
+    "source": "session/useSessionActions.ts",
+    "sha256": "df281973c258062995ee40057db7a0946439add65a75552b28a559f90ded70fa",
+    "localSha256": "1e4c1cc1814e610cd3d490748b2d5688ce8f51c3b0edc66e736ebc7f45f7ebfb"
+  },
+  "core/attachments.ts": {
+    "source": "session/attachments.ts",
+    "sha256": "531821271f926a531ebdfc54a4004e7f16ff534393c2d7b47b4b928a1fdf373f",
+    "localSha256": "d018156e71895035b0849a802b43be54c160845b0f3493361efdcf8942fa1b59",
+    "rewritten": true
+  },
+  "protocol/pairing.ts": {
+    "source": "connection/pairing-uri.ts",
+    "sha256": "f07e44f355158e2e02cf19f8ebf22b9287062f2da17ba6b1bc416b63d3596452",
+    "localSha256": "f328fefbc6d6e143c47c2b8616a064ea3c08db16a57815944494e265bac686c4",
+    "rewritten": true
+  }
+}

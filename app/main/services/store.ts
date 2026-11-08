@@ -99,6 +99,10 @@ export interface Settings {
   modelParamsMigrated?: boolean;
   /** 模型身份迁移已完成(一次性:旧 id=显示名 + alias=请求标识 → 新 id=请求标识 + name=显示名) */
   modelIdentityMigrated?: boolean;
+  /** 手机浏览器访问：静态 HTTP 服务开关（默认关闭，C5） */
+  mobileWebEnabled?: boolean;
+  /** 手机浏览器访问：HTTP 服务端口（默认 47779，范围 1024-65535，C5） */
+  mobileWebPort?: number;
 }
 
 /** 多色流光分组:一组命名色彩组合 */
@@ -312,6 +316,8 @@ export class Store {
       apiProviders: dropLegacyEncryptedProviderKeys(emData.apiProviders as ApiProvidersData | undefined),
       modelParamsMigrated: emData.modelParamsMigrated as boolean | undefined,
       modelIdentityMigrated: emData.modelIdentityMigrated as boolean | undefined,
+      mobileWebEnabled: (emData.mobileWebEnabled as boolean) ?? false,
+      mobileWebPort: (emData.mobileWebPort as number) ?? 47_779,
     };
   }
 

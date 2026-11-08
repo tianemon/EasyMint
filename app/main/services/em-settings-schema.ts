@@ -95,6 +95,9 @@ export const EM_PATH = {
   // ── providers（供应商 UI 元数据与旧 ID 兼容索引）──
   providerPreferences: "providers.preferences",
   providerLegacyIds: "providers.legacyIds",
+  // ── mobileWeb（手机浏览器访问：静态 HTTP 服务开关与端口）──
+  mobileWebEnabled: "mobileWeb.enabled",
+  mobileWebPort: "mobileWeb.port",
   // ── migration（迁移标记）──
   migrationSchemaVersion: "migration.schemaVersion",
   migrationNativeVersion: "migration.nativeConfigVersion",
@@ -137,6 +140,8 @@ export const SETTINGS_FIELDS = [
   [EM_PATH.skillsManageEnabled, "manageSkillEnabled"],
   [EM_PATH.skillsLearnEnabled, "learnEnabled"],
   [EM_PATH.skillsImportExternal, "importExternalSkills"],
+  [EM_PATH.mobileWebEnabled, "mobileWebEnabled"],
+  [EM_PATH.mobileWebPort, "mobileWebPort"],
   // 迁移记录：由 native-config 写入，但它在 `Settings` 接口内（`getSettings()` 要读给界面），
   // 故归主表——Store 写入时会带上它，两边写的是同一个值，不会打架。
   [EM_PATH.migrationNativeRecord, "nativeConfigMigration"],

@@ -96,6 +96,7 @@ import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
 import { listTodos, addTodo, updateTodo, toggleTodo, removeTodo } from "./services/todo-service";
 import type { RemoteTerminalService } from "./services/remote-terminal-service";
+import { mobileWebController, MOBILE_WEB_MIN_PORT, MOBILE_WEB_MAX_PORT } from "./services/mobile-web-service";
 import { testProvider } from "./services/provider-test";
 import {
   getProviderAuthStatus,
@@ -1097,8 +1098,9 @@ const filePath = p.join(projectPath, "task.json");
   remoteTerminalService.on("error", (error: Error) => {
     broadcast("mobile-terminal:error", { message: error.message });
   });
-  // Windows 防火墙放行提示(连接手机首次监听端口时一次;与项目迁移共用同一条前端提示通道)
-  remoteTerminalService.once("firewall-hint", ({ port }: { port: number }) => {
+  // Windows 防火墙放行提示：连接手机(47778)首次监听、手机网页(47779)首次监听及端口变更后都会发，
+  // 故用 on 而非 once——否则只有第一条能广播出去。
+  remoteTerminalService.on("firewall-hint", ({ port }: { port: number }) => {
     broadcast("device:firewall-hint", { port });
   });
   ipcMain.handle("mobile-terminal:create-offer", () => remoteTerminalService.createPairingOffer());
@@ -1107,6 +1109,18 @@ const filePath = p.join(projectPath, "task.json");
   ipcMain.handle("mobile-terminal:accept-pair", (_e, { requestId }: { requestId: string }) => ({ ok: remoteTerminalService.acceptPair(requestId) }));
   ipcMain.handle("mobile-terminal:reject-pair", (_e, { requestId }: { requestId: string }) => ({ ok: remoteTerminalService.rejectPair(requestId) }));
   ipcMain.handle("mobile-terminal:revoke", (_e, { deviceId }: { deviceId: string }) => ({ ok: remoteTerminalService.revokeDevice(deviceId) }));
+
+  // ── mobile-web:* — 手机浏览器访问：只管静态 HTTP 服务的开关/端口/状态 ──
+  // 配对与设备列表一律复用上面的 mobile-terminal:*，不重造；浏览器设备 deviceId 以 web- 开头。
+  ipcMain.handle("mobile-web:get-status", () => mobileWebController.getStatus());
+  ipcMain.handle("mobile-web:set-enabled", guard(
+    z.object({ enabled: z.boolean() }).loose(),
+    ({ enabled }) => mobileWebController.setEnabled(enabled),
+  ));
+  ipcMain.handle("mobile-web:set-port", guard(
+    z.object({ port: z.number().int().min(MOBILE_WEB_MIN_PORT).max(MOBILE_WEB_MAX_PORT) }).loose(),
+    ({ port }) => mobileWebController.setPort(port),
+  ));
 
   // 启动时:已配对设备自动连接（保持常驻心跳）
   net.startKeepalive();

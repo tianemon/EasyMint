@@ -122,6 +122,8 @@ import { watchProjectWindow } from "./services/window-manager";
 import { SessionCoordinator } from "./services/session-coordinator";
 import { RemoteCommandRouter } from "./services/remote-command-router";
 import { RemoteTerminalService } from "./services/remote-terminal-service";
+import { mobileWebController, stopMobileWebService } from "./services/mobile-web-service";
+import { broadcast } from "./services/ipc-broadcast";
 import { appEventBus } from "./services/app-event-bus";
 import { applyDockIcon } from "./utils/dock-icon";
 import { shutdownWindowsExecutionWorkers } from "./services/sandbox/windows-execution-manager";
@@ -274,6 +276,15 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     const { autoClean } = require("./services/upload-cache");
     autoClean();
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
+    // 手机浏览器访问：装配静态服务控制器并按磁盘开关启停（默认关闭）。
+    // 放在 registerIpcHandlers 之后，确保 firewall-hint 等事件监听已就位再启动服务。
+    mobileWebController.configure({
+      store,
+      remoteTerminalService,
+      broadcast,
+      isWindows: process.platform === "win32",
+    });
+    void mobileWebController.bootstrap();
 
     // 自动更新检测（4 小时一次）+ IPC
     startAutoUpdater();
@@ -516,6 +527,7 @@ async function runQuitCleanup(): Promise<void> {
     sharedServices.remoteTerminalService.close();
   });
   await step("资产预览服务", () => closeAssetPreviews());
+  await step("手机网页静态服务", () => stopMobileWebService());
   await step("运行面板进程", () => { stopAllProcesses("SIGTERM", processPids); });
   await step("命令通道进程", () => { signalTrackedChildren("SIGTERM", trackedChildren); });
 

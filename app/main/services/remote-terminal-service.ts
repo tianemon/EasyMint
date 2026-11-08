@@ -110,7 +110,8 @@ function timingSafeEqualBase64(actual: string, expected: string): boolean {
   }
 }
 
-function lanAddresses(): string[] {
+/** 局域网 IPv4（私有地址段），供手机 WS 配对与手机网页静态服务的 Host/CSP 白名单共用。 */
+export function lanAddresses(): string[] {
   const result = new Set<string>();
   for (const entries of Object.values(os.networkInterfaces())) {
     for (const entry of entries ?? []) {
@@ -122,6 +123,29 @@ function lanAddresses(): string[] {
   }
   return [...result];
 }
+
+/** 只转发手机端首版需要的事件，避免把主进程内部广播或本机路径意外暴露出去。每次连接都重建是浪费。 */
+const FORWARDED_APP_EVENTS = new Set([
+  "agent:stream",
+  // 回合结束的权威信号：桌面端靠它清 busy，手机端靠它清「打断按钮」（turn_end 只在部分路径广播）
+  "agent:exit",
+  "agent:ask-request",
+  "agent:ask-closed",
+  "agent:model-changed",
+  "agent:thinking-level-changed",
+  "agent:context-usage",
+  "agent:context-summarizing",
+  "agent:chat-session",
+  "agent:chat-closed",
+  "agent:remote-settings-changed",
+  "agent:shell-count",
+  "agent:shell-output",
+  "agent:delegation-count",
+  "agent:delegation-init",
+  "agent:delegation-progress",
+  "session:list-changed",
+  "project:open-windows-changed",
+]);
 
 export class RemoteTerminalService extends EventEmitter {
   private server: WebSocketServer | null = null;
@@ -297,28 +321,7 @@ export class RemoteTerminalService extends EventEmitter {
 
   /** 只转发手机端首版需要的事件，避免把主进程内部广播或本机路径意外暴露出去。 */
   forwardAppEvent(event: AppEvent): void {
-    const allowed = new Set([
-      "agent:stream",
-      // 回合结束的权威信号：桌面端靠它清 busy，手机端靠它清「打断按钮」（turn_end 只在部分路径广播）
-      "agent:exit",
-      "agent:ask-request",
-      "agent:ask-closed",
-      "agent:model-changed",
-      "agent:thinking-level-changed",
-      "agent:context-usage",
-      "agent:context-summarizing",
-      "agent:chat-session",
-      "agent:chat-closed",
-      "agent:remote-settings-changed",
-      "agent:shell-count",
-      "agent:shell-output",
-      "agent:delegation-count",
-      "agent:delegation-init",
-      "agent:delegation-progress",
-      "session:list-changed",
-      "project:open-windows-changed",
-    ]);
-    if (!allowed.has(event.channel)) return;
+    if (!FORWARDED_APP_EVENTS.has(event.channel)) return;
     const raw = typeof event.data === "object" && event.data !== null
       ? event.data as Record<string, unknown>
       : {};
@@ -328,30 +331,50 @@ export class RemoteTerminalService extends EventEmitter {
     const baseData = event.channel === "agent:chat-session"
       ? Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "projectPath"))
       : event.data;
+    // 以下脱敏与「哪台设备」无关，提到连接循环外只算一次；但原实现是在循环体内算的，
+    // 循环不执行（零连接）就一次都不算——这里也必须门控，否则畸形载荷（如 tasks 含 null 元素）
+    // 会在零连接时因解构抛异常，与改动前不等价。
+    // shell-count 的 logPath 剥离、delegation-init 的 prompt 剥离、delegation-progress 的
+    // sessionFile/prompt 剥离都与连接无关；而「按订阅会话过滤」依赖 subscribedSessions（每连接不同），
+    // 必须留在循环内（见下方 agent:shell-count / agent:delegation-count 分支）。
+    const hasConnections = this.connections.size > 0;
+    const sanitizedShellItems = hasConnections && event.channel === "agent:shell-count" && Array.isArray(baseData)
+      ? baseData
+          .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+          .map((item) => {
+            const { logPath: _logPath, ...safe } = item;
+            return safe;
+          })
+      : null;
+    const delegationInitData = hasConnections && event.channel === "agent:delegation-init"
+      ? { ...raw, tasks: Array.isArray(raw.tasks) ? raw.tasks.map((item) => {
+          const { prompt: _prompt, ...safe } = item as Record<string, unknown>;
+          return safe;
+        }) : [] }
+      : null;
+    const delegationProgressData = hasConnections && event.channel === "agent:delegation-progress"
+      ? (() => {
+          const progress = typeof raw.progress === "object" && raw.progress !== null ? raw.progress as Record<string, unknown> : {};
+          const { sessionFile: _sessionFile, prompt: _prompt, ...safeProgress } = progress;
+          return { ...raw, progress: safeProgress };
+        })()
+      : null;
     for (const connection of this.connections.values()) {
       const subscribedSessions = this.sessionSubscriptions.get(connection.deviceId) ?? new Set<string>();
       let data = baseData;
-      if (event.channel === "agent:shell-count" && Array.isArray(baseData)) {
-        data = baseData
-          .filter((item) => typeof item === "object" && item !== null && subscribedSessions.has(String((item as { sessionId?: unknown }).sessionId ?? "")))
-          .map((item) => {
-            const { logPath: _logPath, ...safe } = item as Record<string, unknown>;
-            return safe;
-          });
+      if (event.channel === "agent:shell-count") {
+        data = sanitizedShellItems
+          ? sanitizedShellItems.filter((item) => subscribedSessions.has(String(item.sessionId ?? "")))
+          : baseData;
       } else if (event.channel === "agent:delegation-count") {
         const summary = typeof baseData === "object" && baseData !== null ? baseData as Record<string, unknown> : {};
         const tasks = Array.isArray(summary.tasks) ? summary.tasks.filter((item) =>
           typeof item === "object" && item !== null && subscribedSessions.has(String((item as { sessionId?: unknown }).sessionId ?? ""))) : [];
         data = { count: new Set(tasks.map((item) => (item as { delegationId?: unknown }).delegationId)).size, tasks };
       } else if (event.channel === "agent:delegation-init") {
-        data = { ...raw, tasks: Array.isArray(raw.tasks) ? raw.tasks.map((item) => {
-          const { prompt: _prompt, ...safe } = item as Record<string, unknown>;
-          return safe;
-        }) : [] };
+        data = delegationInitData!;
       } else if (event.channel === "agent:delegation-progress") {
-        const progress = typeof raw.progress === "object" && raw.progress !== null ? raw.progress as Record<string, unknown> : {};
-        const { sessionFile: _sessionFile, prompt: _prompt, ...safeProgress } = progress;
-        data = { ...raw, progress: safeProgress };
+        data = delegationProgressData!;
       }
       const sessionAllowed = sessionId && this.sessionSubscriptions.get(connection.deviceId)?.has(sessionId);
       const projectAllowed = projectId && this.projectSubscriptions.get(connection.deviceId)?.has(projectId);

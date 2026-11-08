@@ -1,6 +1,15 @@
 import type { UiLanguageState } from "../shared/i18n/locale";
 import { contextBridge, ipcRenderer } from "electron";
 
+/** 与 main/services/mobile-web-service.ts 的 MobileWebStatus 对齐。 */
+interface MobileWebStatusShape {
+  enabled: boolean;
+  port: number;
+  running: boolean;
+  lanAddresses: string[];
+  onlineWebDevices: number;
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
   window: {
@@ -565,6 +574,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { message: string }) => callback(data);
       ipcRenderer.on("mobile-terminal:error", handler);
       return () => ipcRenderer.removeListener("mobile-terminal:error", handler);
+    },
+  },
+  // ── 手机浏览器访问（静态 HTTP 服务）──
+  mobileWeb: {
+    getStatus: () => ipcRenderer.invoke("mobile-web:get-status") as Promise<MobileWebStatusShape>,
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke("mobile-web:set-enabled", { enabled }) as Promise<MobileWebStatusShape>,
+    setPort: (port: number) => ipcRenderer.invoke("mobile-web:set-port", { port }) as Promise<MobileWebStatusShape>,
+    onStatusChanged: (callback: (status: MobileWebStatusShape) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: MobileWebStatusShape) => callback(data);
+      ipcRenderer.on("mobile-web:status-changed", handler);
+      return () => ipcRenderer.removeListener("mobile-web:status-changed", handler);
     },
   },
   // ── 项目/会话迁移（发送端打包传输 + 接收端恢复） ──

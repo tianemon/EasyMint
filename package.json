@@ -12,11 +12,12 @@
     "dev:isolated": "EASYMINT_HOME=$HOME/.easymint-dev npm run dev",
     "dev:renderer": "node node_modules/vite/bin/vite.js --config app/renderer/vite.config.ts",
     "dev:electron": "npm run build:main && npm run build:preload && node node_modules/electron/cli.js .",
-    "build": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",
-    "build:mac": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
-    "build:linux": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --linux",
-    "build:ci": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
+    "build": "npm run build:mobile-web && npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",
+    "build:mac": "npm run build:mobile-web && npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
+    "build:linux": "npm run build:mobile-web && npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --linux",
+    "build:ci": "npm run build:mobile-web && npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
     "postinstall": "node scripts/patch-pi-config.cjs && node scripts/patch-sandbox-runtime.cjs && node scripts/patch-pi-mcp.cjs",
+    "build:mobile-web": "npm --prefix resources/em-mobile-web run build",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
     "build:main": "node scripts/build.cjs main",
     "build:preload": "node scripts/build.cjs preload",
@@ -161,6 +162,10 @@
       {
         "from": "resources/visual-design",
         "to": "visual-design"
+      },
+      {
+        "from": "resources/em-mobile-web/dist",
+        "to": "em-mobile-web"
       }
     ],
     "mac": {
