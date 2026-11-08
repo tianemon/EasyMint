@@ -512,4 +512,27 @@ describe("RemoteTerminalService", () => {
     // 6 位短码不设上限就能被当字典猛试：第 6 次必须直接断开（1008）
     await expect(closed).resolves.toBe(1008);
   });
+
+  it("关掉 App 通道后，已连接的手机立刻被断开（准入不是装饰）", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+    const closed = new Promise<number>((resolve) => connection.socket.once("close", (code) => resolve(code)));
+    service.setAccessPolicy({ allowApp: false, allowWeb: true });
+    await expect(closed).resolves.toBe(1008);
+  });
+
+  it("浏览器设备在浏览器通道关闭时同样被拒（accessPolicy 按前缀分流）", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+    // web- 前缀设备由浏览器开关管：允许 app、禁 web，不影响手机 App 连接
+    service.setAccessPolicy({ allowApp: true, allowWeb: false });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(connection.socket.readyState).toBe(WebSocket.OPEN);
+  });
 });

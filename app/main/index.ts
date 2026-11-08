@@ -123,6 +123,7 @@ import { SessionCoordinator } from "./services/session-coordinator";
 import { RemoteCommandRouter } from "./services/remote-command-router";
 import { RemoteTerminalService } from "./services/remote-terminal-service";
 import { mobileWebController, stopMobileWebService } from "./services/mobile-web-service";
+import { readPolicy, syncBridge } from "./services/bridge-channel";
 import { broadcast } from "./services/ipc-broadcast";
 import { appEventBus } from "./services/app-event-bus";
 import { applyDockIcon } from "./utils/dock-icon";
@@ -254,11 +255,14 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       remoteTerminalService,
     };
     // 已配对手机应能在应用重启后直接重连；首次使用前不监听额外端口。
-    // 开关关闭的用户一个端口都不占：不监听就不会有入站连接，手机侧表现为「连不上」。
-    if (store.getSettings().mobileAppEnabled !== false && remoteTerminalService.listDevices().length > 0) {
-      void remoteTerminalService.ensureStarted().catch((error: unknown) => {
+    // 端口是两条通道共享的：任一开关开着且已有配对设备时才监听，
+    // 具体该不该听由 syncBridge 按两个开关合算（见 bridge-channel.ts）。
+    if (remoteTerminalService.listDevices().length > 0) {
+      void syncBridge(store, remoteTerminalService).catch((error: unknown) => {
         console.error("[mobile-terminal] 启动失败:", error instanceof Error ? error.message : String(error));
       });
+    } else {
+      remoteTerminalService.setAccessPolicy(readPolicy(store.getSettings()));
     }
     // Seed default Agent templates on first launch
     const { seedDefaults } = require("./services/agent-templates");
@@ -284,6 +288,7 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     mobileWebController.configure({
       store,
       remoteTerminalService,
+      ensureBridge: () => syncBridge(store, remoteTerminalService),
       broadcast,
       isWindows: process.platform === "win32",
     });

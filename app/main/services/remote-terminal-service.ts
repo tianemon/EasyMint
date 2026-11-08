@@ -200,6 +200,11 @@ export class RemoteTerminalService extends EventEmitter {
   private compactOffers = new Map<string, CompactOfferEntry>();
   /** 每条未认证连接试过几次短码（限次防穷举：6 位码不设上限就能当字典试）。 */
   private lookupAttempts = new Map<WebSocket, number>();
+  /**
+   * 设备准入：App 开关管非 web- 设备，浏览器开关管 web- 设备。
+   * 端口是两条通道共享的（浏览器也走 47778），开关的差异只能落在准入上。
+   */
+  private accessPolicy = { allowApp: true, allowWeb: true };
   private pendingPairs = new Map<string, PendingPairRequest>();
   private connections = new Map<WebSocket, AuthenticatedConnection>();
   private devices: StoredMobileDevice[] = [];
@@ -306,6 +311,7 @@ export class RemoteTerminalService extends EventEmitter {
   acceptPair(requestId: string): boolean {
     const pending = this.pendingPairs.get(requestId);
     if (!pending || pending.expiresAt <= Date.now() || pending.socket.readyState !== WebSocket.OPEN) return false;
+    if (!this.isDeviceAllowed(pending.deviceId)) return false;
     clearTimeout(pending.timer);
     this.pendingPairs.delete(requestId);
     this.devices = this.devices.filter((device) => device.id !== pending.deviceId);
@@ -458,6 +464,24 @@ export class RemoteTerminalService extends EventEmitter {
     }
   }
 
+  /**
+   * 更新设备准入并断开不再允许的连接。
+   * 只关掉开关不等于断开：已经连上的设备会在下一次事件里继续收数据，必须主动踢。
+   */
+  setAccessPolicy(policy: { allowApp: boolean; allowWeb: boolean }): void {
+    this.accessPolicy = { ...policy };
+    for (const [socket, connection] of this.connections) {
+      if (this.isDeviceAllowed(connection.deviceId)) continue;
+      this.connections.delete(socket);
+      socket.close(1008, "channel disabled");
+    }
+    this.emit("devices-changed");
+  }
+
+  private isDeviceAllowed(deviceId: string): boolean {
+    return deviceId.startsWith("web-") ? this.accessPolicy.allowWeb : this.accessPolicy.allowApp;
+  }
+
   /** 是否正在监听端口（开关面板用它显示状态；不监听时端口应被真正释放）。 */
   isRunning(): boolean {
     return this.server !== null;
@@ -575,6 +599,10 @@ export class RemoteTerminalService extends EventEmitter {
     const deviceId = typeof message.deviceId === "string" ? message.deviceId.slice(0, 128) : "";
     const deviceName = typeof message.deviceName === "string" ? message.deviceName.slice(0, 80) : "";
     const publicKey = typeof message.publicKey === "string" ? message.publicKey : "";
+    if (deviceId && !this.isDeviceAllowed(deviceId)) {
+      socket.close(1008, "channel disabled");
+      return;
+    }
     const offer = this.offers.get(token);
     if (!offer || !deviceId || !deviceName || !publicKey || offer.expiresAt <= Date.now()) {
       socket.close(1008, "invalid pairing offer");
@@ -620,6 +648,12 @@ export class RemoteTerminalService extends EventEmitter {
     const expected = remoteProof(keys.auth, `hello:${deviceId}:${connectionId}:${nonce}`);
     if (!timingSafeEqualBase64(proof, expected)) {
       socket.close(1008, "authentication failed");
+      return;
+    }
+    // 对应通道的开关关着就不放行：否则「关掉 App 通道」只是不主动监听，
+    // 端口一旦因浏览器通道开着而在听，手机 App 照样能连进来。
+    if (!this.isDeviceAllowed(deviceId)) {
+      socket.close(1008, "channel disabled");
       return;
     }
     for (const [existingSocket, connection] of this.connections) {

@@ -433,6 +433,11 @@ export interface MobileWebStatus {
 
 export interface MobileWebControllerDeps {
   store: Store;
+  /**
+   * 把「47778 是否该监听」对齐到两个开关（共享桥接，见 bridge-channel.ts）。
+   * 网页通道需要它，但不能自己决定端口归属——端口由两条通道共同决定。
+   */
+  ensureBridge?: () => Promise<void>;
   remoteTerminalService: RemoteTerminalService;
   broadcast: (channel: string, data: unknown) => void;
   isWindows: boolean;
@@ -496,14 +501,16 @@ class MobileWebController {
     const d = this.deps!;
     const { port } = this.settings();
     if (!enabled) {
-      // 关闭开关只停 HTTP 服务：保留浏览器配对凭证，且绝不 close 47778（手机 App 的命脉）。
+      // 关闭开关只停 HTTP 服务：保留浏览器配对凭证。
       await stopMobileWebService();
+      // 共享端口要不要跟着关，交给两个开关的合成结果（App 通道还开着就继续听）
+      await d.ensureBridge?.();
       return;
     }
-    // 只起自己的静态页端口。**不碰 47778**：那是「手机 App」通道的开关与端口，
-    // 网页开关越界把它拉起来，会出现「App 显示已关闭、端口却在监听」的假状态。
-    // 浏览器的配对与数据仍依赖 47778，这一点由 getStatus().bridgeReady 如实上报，
-    // 界面据此提示「需先开启手机 App 通道」，而不是偷偷替用户开启。
+    // 47778 是两条通道共享的桥接端口：浏览器要连它、App 也连它，所以这里按需拉起，
+    // 但**是否监听由两条开关共同决定**（bridge-channel 的 syncBridge），不是网页开关独占。
+    // 「关掉 App 通道后 App 仍能连」由服务端的设备准入挡住，而不是靠不监听端口。
+    await d.ensureBridge?.();
     await startMobileWebService({ port });
     // Windows：首次监听（或端口变更后重监听）发一次防火墙提示，复用 device:firewall-hint 通道。
     if (d.isWindows) d.remoteTerminalService.emit("firewall-hint", { port });

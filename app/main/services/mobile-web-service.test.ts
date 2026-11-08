@@ -497,7 +497,7 @@ describe("pair link /pair/<code>.json 端点", () => {
 });
 
 
-it("开网页通道不会越界启动 47778：两个开关各管各的端口", async () => {
+it("开网页通道会让共享桥接端口按需起来（端口共享，不是 App 专属）", async () => {
   const freePort = await new Promise<number>((resolve) => {
     const probe = net.createServer();
     probe.listen(0, "0.0.0.0", () => {
@@ -508,15 +508,16 @@ it("开网页通道不会越界启动 47778：两个开关各管各的端口", a
   });
   const prevRoot = process.env.EM_MOBILE_WEB_ROOT;
   process.env.EM_MOBILE_WEB_ROOT = root;
-  let ensureStartedCalls = 0;
+  let bridgeSyncs = 0;
   let settings: { mobileWebEnabled: boolean; mobileWebPort: number } = { mobileWebEnabled: false, mobileWebPort: freePort };
   mobileWebController.configure({
     store: {
       getSettings: () => ({ ...settings }),
       saveSettings: (next: { mobileWebEnabled: boolean; mobileWebPort: number }) => { settings = { ...next }; },
     },
+    ensureBridge: async () => { bridgeSyncs += 1; },
     remoteTerminalService: {
-      ensureStarted: async () => { ensureStartedCalls += 1; },
+      ensureStarted: async () => {},
       isRunning: () => false,
       emit: () => true,
       listDevices: () => [],
@@ -526,10 +527,10 @@ it("开网页通道不会越界启动 47778：两个开关各管各的端口", a
   } as unknown as MobileWebControllerDeps);
   try {
     await mobileWebController.setEnabled(true);
-    // 网页通道只起自己的 HTTP 端口；47778 归「手机 App」通道，这里一次都不该被拉起
-    expect(ensureStartedCalls).toBe(0);
+    // 浏览器要连 47778，所以网页通道开启时要请求同步共享端口（由两个开关合算）
+    expect(bridgeSyncs).toBeGreaterThan(0);
     expect(mobileWebController.getStatus().running).toBe(true);
-    // 桥接通道没在听 → 如实上报，界面据此提示开 App 通道，而不是偷偷替用户打开
+    // 端口是否真的在听由 remoteTerminalService 决定，这里如实透传
     expect(mobileWebController.getStatus().bridgeReady).toBe(false);
   } finally {
     if (prevRoot === undefined) delete process.env.EM_MOBILE_WEB_ROOT;

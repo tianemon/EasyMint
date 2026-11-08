@@ -97,6 +97,7 @@ import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_
 import { listTodos, addTodo, updateTodo, toggleTodo, removeTodo } from "./services/todo-service";
 import type { RemoteTerminalService } from "./services/remote-terminal-service";
 import { mobileWebController, MOBILE_WEB_MIN_PORT, MOBILE_WEB_MAX_PORT } from "./services/mobile-web-service";
+import { syncBridge } from "./services/bridge-channel";
 import { testProvider } from "./services/provider-test";
 import {
   getProviderAuthStatus,
@@ -1122,13 +1123,9 @@ const filePath = p.join(projectPath, "task.json");
     settings.mobileAppEnabled = enabled;
     store.saveSettings(settings);
     try {
-      if (enabled) {
-        // 「有连接时才真正启用」：开关打开只保证端口在听，配对/命令都仍需双方握手，
-        // 没有设备连接时这条通道不产生任何出站数据（见 forwardAppEvent 的连接循环）。
-        await remoteTerminalService.ensureStarted();
-      } else {
-        remoteTerminalService.close();
-      }
+      // 端口是两条通道共享的：关掉 App 通道不一定要停监听（浏览器还开着就继续听），
+      // 但 App 设备立刻失去准入并被断开。合成逻辑见 bridge-channel.syncBridge。
+      await syncBridge(store, remoteTerminalService);
     } catch (error) {
       // 端口被占等原因起不来：回滚磁盘开关，避免「设置里是开、实际没在听」的半开状态
       const rollback = store.getSettings();

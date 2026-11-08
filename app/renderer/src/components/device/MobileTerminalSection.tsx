@@ -112,7 +112,7 @@ export function MobileTerminalSection(): JSX.Element {
       let webQr = "";
       let webUrl = "";
       const urlHost = targetHost || s.lanAddresses[0] || "";
-      if (s.enabled && s.running && s.bridgeReady && s.lanAddresses.length > 0) {
+      if (s.enabled && s.running && s.lanAddresses.length > 0) {
         // Web 二维码只带 10 位短码：桌面端另起一份独立 offer 登记短码表，
         // 浏览器同源 fetch('/pair/<code>.json') 取配对材料。
         const link = await window.electronAPI.mobileWeb.createPairLink();
@@ -283,7 +283,6 @@ export function MobileTerminalSection(): JSX.Element {
     : qrKind === "web" && !status.enabled ? uiText("ui.MobileWebTab.needEnable")
     : qrKind === "web" && !status.running ? uiText("ui.MobileWebTab.notRunning")
     : qrKind === "web" && status.lanAddresses.length === 0 ? uiText("ui.MobileWebTab.noLan")
-    : qrKind === "web" && !status.bridgeReady ? uiText("ui.MobileWebTab.needEnableApp")
     : qrKind === "app" && !appStatus?.enabled ? uiText("ui.MobileWebTab.needEnableApp")
     : "";
   const qrStale = portChanged || (pairs !== null && status !== null && (pairs.port !== status.port || pairs.host !== host));
@@ -327,11 +326,9 @@ export function MobileTerminalSection(): JSX.Element {
                 ? uiText("ui.MobileWebTab.loading")
                 : !status.enabled
                   ? uiText("ui.MobileTerminalSection.channelOff")
-                  : !status.running
-                    ? uiText("ui.MobileWebTab.stopped")
-                    : status.bridgeReady
-                      ? `${uiText("ui.MobileWebTab.running")} · ${uiText("ui.MobileWebTab.onlineWeb", { v0: status.onlineWebDevices })}`
-                      : uiText("ui.MobileWebTab.needEnableApp")}
+                  : status.running
+                    ? `${uiText("ui.MobileWebTab.running")} · ${uiText("ui.MobileWebTab.onlineWeb", { v0: status.onlineWebDevices })}`
+                    : uiText("ui.MobileWebTab.stopped")}
             </div>
           </div>
           <input
