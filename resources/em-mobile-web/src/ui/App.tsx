@@ -12,6 +12,7 @@ import { createPairingAttempt, pairWithPc } from '../protocol/remote-client';
 import type { PairingAttempt } from '../protocol/remote-client';
 import { pairCodeFromHash, fetchPairingPayload } from '../protocol/pairing';
 import { adoptClientKey } from '../protocol/client-id';
+import { browserDeviceName } from '../core/device-name';
 import { readInstallCredential, stripInstallQuery, syncInstallManifest } from './install-link';
 import type { AskAnswer, ComposerControl, ConnectionStatus, Page } from '../core/types';
 import type { ShellLog } from '../core/types';
@@ -206,7 +207,7 @@ export default function App(): React.ReactElement {
     }
     setPairingBusy(true);
     try {
-      const stored: PcCredential = await pairWithPc(offer, 'EasyMint Web', (code) => setPairCode(code), attempt);
+      const stored: PcCredential = await pairWithPc(offer, browserDeviceName(), (code) => setPairCode(code), attempt);
       const book = await saveDevice(stored);
       setDevices(book.devices);
       setActivePcId(book.activePcId);

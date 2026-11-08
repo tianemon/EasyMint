@@ -1,10 +1,10 @@
 import { appText, uiText, useUiLocale } from "../../lib/i18n";
+import { confirmDialog } from "../ui/ConfirmDialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 
 type Status = Awaited<ReturnType<typeof window.electronAPI.mobileWeb.getStatus>>;
 type Device = Awaited<ReturnType<typeof window.electronAPI.mobileTerminal.listDevices>>[number];
-type Pending = Awaited<ReturnType<typeof window.electronAPI.mobileTerminal.listPending>>[number];
 
 interface QrPair {
   appQr: string;
@@ -62,7 +62,6 @@ export function MobileTerminalSection(): JSX.Element {
   const [host, setHost] = useState("");
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [pending, setPending] = useState<Pending[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [portChanged, setPortChanged] = useState(false);
   const creatingRef = useRef(false);
@@ -82,12 +81,8 @@ export function MobileTerminalSection(): JSX.Element {
 
   const loadDevices = useCallback(async () => {
     try {
-      const [nextDevices, nextPending] = await Promise.all([
-        window.electronAPI.mobileTerminal.listDevices(),
-        window.electronAPI.mobileTerminal.listPending(),
-      ]);
-      setDevices(nextDevices);
-      setPending(nextPending);
+      // 待确认请求由窗口级弹窗自己订阅（面板关着也要能弹），这里只管已配对设备
+      setDevices(await window.electronAPI.mobileTerminal.listDevices());
     } catch { /* 保留上一次结果 */ }
   }, []);
 
@@ -206,19 +201,16 @@ export function MobileTerminalSection(): JSX.Element {
     }
   };
 
-  const finishPair = async (requestId: string, accept: boolean) => {
-    const result = accept
-      ? await window.electronAPI.mobileTerminal.acceptPair(requestId)
-      : await window.electronAPI.mobileTerminal.rejectPair(requestId);
-    if (!result.ok) setError(uiText("ui.MobileWebTab.expired"));
-    await loadDevices();
-    if (accept && result.ok) setPairs(null);
-  };
-
   const revokeAllWeb = async () => {
     const webDevices = devices.filter((d) => d.id.startsWith("web-"));
     if (webDevices.length === 0) return;
-    if (!window.confirm(uiText("ui.MobileWebTab.revokeConfirm", { v0: webDevices.length }))) return;
+    const ok = await confirmDialog({
+      title: uiText("ui.MobileWebTab.revokeAllTitle"),
+      message: uiText("ui.MobileWebTab.revokeConfirm", { v0: webDevices.length }),
+      confirmText: uiText("ui.MobileWebTab.revoke"),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       for (const d of webDevices) await window.electronAPI.mobileTerminal.revoke(d.id);
       await loadDevices();
@@ -364,19 +356,6 @@ export function MobileTerminalSection(): JSX.Element {
         </>
       )}
 
-      {/* 待确认配对 */}
-      {pending.map((request) => (
-        <div key={request.requestId} className="rounded-[var(--radius-lg)] border border-accent/40 bg-accent-soft px-3 py-3">
-          <div className="text-xs font-medium text-text-primary">{request.deviceName} {uiText("ui.MobileWebTab.wantsToConnect")}</div>
-          <div className="text-[length:var(--text-2xs)] text-text-secondary mt-1">{uiText("ui.MobileWebTab.pendingHint")}</div>
-          <div className="font-mono text-xl tracking-[0.25em] text-accent text-center my-2">{request.verificationCode}</div>
-          <div className="flex justify-end gap-2">
-            <button type="button" className="px-3 py-1 text-xs text-text-secondary" onClick={() => void finishPair(request.requestId, false)}>{uiText("ui.MobileWebTab.reject")}</button>
-            <button type="button" className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]" onClick={() => void finishPair(request.requestId, true)}>{uiText("ui.MobileWebTab.confirm")}</button>
-          </div>
-        </div>
-      ))}
-
       {/* 已配对设备 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
@@ -406,9 +385,17 @@ export function MobileTerminalSection(): JSX.Element {
               type="button"
               className="text-[length:var(--text-2xs)] text-text-secondary hover:text-danger shrink-0"
               onClick={() => {
-                if (window.confirm(uiText("ui.MobileTerminalSection.unpair", { v0: device.name }))) {
-                  void window.electronAPI.mobileTerminal.revoke(device.id).then(() => loadDevices());
-                }
+                void (async () => {
+                  const ok = await confirmDialog({
+                    title: uiText("ui.MobileWebTab.revokeTitle"),
+                    message: uiText("ui.MobileTerminalSection.unpair", { v0: device.name }),
+                    confirmText: uiText("ui.MobileWebTab.revoke"),
+                    danger: true,
+                  });
+                  if (!ok) return;
+                  await window.electronAPI.mobileTerminal.revoke(device.id);
+                  await loadDevices();
+                })();
               }}
             >
               {uiText("ui.MobileWebTab.revoke")}

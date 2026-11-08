@@ -133,7 +133,8 @@ test('App：配对失败路径保留验证码，并接出可重试入口', () =>
   assert.ok(runPairCatch, '应能定位 runPair 的 catch 块');
   assert.doesNotMatch(runPairCatch, /setPairCode\(''\)/, '配对失败绝不能清空验证码');
   assert.match(runPairCatch, /setPairError/, '失败应给出错误提示');
-  assert.match(app, /pairWithPc\(offer, 'EasyMint Web', \(code\) => setPairCode\(code\), attempt\)/, '必须复用同一 attempt');
+  assert.match(app, /pairWithPc\(offer, browserDeviceName\(\), \(code\) => setPairCode\(code\), attempt\)/,
+    '必须复用同一 attempt，并用真实设备名上报（电脑上要能认出是哪台手机）');
   assert.match(app, /onRetry=\{pairError && pairCode \? retryPair : undefined\}/, '必须接出重试入口');
 
   const guide = readFileSync(path.join(root, 'src/ui/screens/PairGuideScreen.tsx'), 'utf8');

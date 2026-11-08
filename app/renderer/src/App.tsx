@@ -9,6 +9,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MigrationIncomingModal } from "./components/device/MigrationIncomingModal";
 import { PairRequestModal } from "./components/device/PairRequestModal";
 import { ConfirmHost } from "./components/ui/ConfirmDialog";
+import { MobilePairRequestModal } from "./components/device/MobilePairRequestModal";
 import { ToastHost, toast } from "./components/ui/Toast";
 import { PiExtensionPromptHost } from "./components/settings/PiExtensionPromptHost";
 import { useSettingsStore } from "./stores/settings-store";
@@ -177,6 +178,8 @@ export function App(): JSX.Element {
         </HashRouter>
         {/* 配对请求弹窗(全局,接收端确认) */}
         <PairRequestModal />
+        {/* 手机（App / 浏览器）配对请求：窗口级弹窗，面板关着也能确认 */}
+        <MobilePairRequestModal />
         {/* 全局确认框与轻提示（替换 window.confirm / window.alert 的系统弹窗） */}
         <ConfirmHost />
         <PiExtensionPromptHost />
