@@ -49,6 +49,17 @@ test('产物 JS 不含内联 polyfill 注入痕迹', { skip: !existsSync(htmlPat
   assert.doesNotMatch(html, /<script[^>]*>[\s\S]*?__vitePreload[\s\S]*?<\/script>/, 'polyfill 不得内联进 HTML');
 });
 
+test('产物 JS 走短码查表契约（#p= / pair/<code>.json），旧 #pair= 长载荷已移除', { skip: !existsSync(htmlPath) && '尚未构建' }, () => {
+  const html = readFileSync(htmlPath, 'utf8');
+  const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);
+  const js = jsRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');
+  assert.match(js, /#p=/, '短码 fragment 解析（#p= 10 位）必须进产物');
+  assert.match(js, /pair\//, '同源查表路径 ./pair/ 必须进产物');
+  assert.match(js, /\.json/, '查表 .json 后缀必须进产物');
+  assert.match(js, /二维码已过期，请在电脑上重新生成/, '短码失效文案必须进产物');
+  assert.doesNotMatch(js, /#pair=/, '不得残留旧 #pair= 长载荷解析');
+});
+
 test('首包构造 module Worker 且 Worker 产物真实存在（走 Worker 而非降级直连）', { skip: !existsSync(htmlPath) && '尚未构建' }, () => {
   const html = readFileSync(htmlPath, 'utf8');
   const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);

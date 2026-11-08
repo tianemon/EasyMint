@@ -1113,6 +1113,8 @@ const filePath = p.join(projectPath, "task.json");
   // ── mobile-web:* — 手机浏览器访问：只管静态 HTTP 服务的开关/端口/状态 ──
   // 配对与设备列表一律复用上面的 mobile-terminal:*，不重造；浏览器设备 deviceId 以 web- 开头。
   ipcMain.handle("mobile-web:get-status", () => mobileWebController.getStatus());
+  // 无参：生成独立配对 offer 并登记短码表，只回 {code, expiresAt} 给二维码用。
+  ipcMain.handle("mobile-web:create-pair-link", () => mobileWebController.createPairLink());
   ipcMain.handle("mobile-web:set-enabled", guard(
     z.object({ enabled: z.boolean() }).loose(),
     ({ enabled }) => mobileWebController.setEnabled(enabled),

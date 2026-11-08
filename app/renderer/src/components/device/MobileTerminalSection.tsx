@@ -105,11 +105,12 @@ export function MobileTerminalSection(): JSX.Element {
       let webUrl = "";
       const urlHost = targetHost || s.lanAddresses[0] || "";
       if (s.enabled && s.running && s.lanAddresses.length > 0) {
-        const webOffer = await window.electronAPI.mobileTerminal.createOffer();
-        const payload = webOffer.uri.includes("?payload=") ? webOffer.uri.split("?payload=")[1] : "";
-        webUrl = `http://${urlHost}:${s.port}/#pair=${payload}`;
+        // Web 二维码只带 10 位短码：桌面端另起一份独立 offer 登记短码表，
+        // 浏览器同源 fetch('/pair/<code>.json') 取配对材料。
+        const link = await window.electronAPI.mobileWeb.createPairLink();
+        webUrl = `http://${urlHost}:${s.port}/#p=${link.code}`;
         webQr = await QRCode.toDataURL(webUrl, opts);
-        expiresAt = Math.min(expiresAt, webOffer.expiresAt);
+        expiresAt = Math.min(expiresAt, link.expiresAt);
       }
       setPairs({ appQr, webQr, webUrl, expiresAt, port: s.port, host: urlHost });
       setNow(Date.now());

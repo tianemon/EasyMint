@@ -72,7 +72,7 @@ export function ChatScreen({ title, connection, messages, pendingAsk, onAnswerSu
       <BackgroundBar shells={backgroundShells} agents={backgroundAgents}
         onOpenShellOutput={onOpenShellOutput} onStopShell={onStopShell} onStopAgent={onStopAgent} />
       {pendingAsk && <AskCard ask={pendingAsk} onSubmit={onAnswerSubmit} />}
-      <MintStatus text={mintStatus} icon={mintIcon} running={running} />
+      <MintStatus text={mintStatus} icon={mintIcon} />
     </>
   );
   return (
@@ -80,6 +80,7 @@ export function ChatScreen({ title, connection, messages, pendingAsk, onAnswerSu
       <Header title={title} onBack={onBack} connected={connection === 'connected'} />
       <MessageList messages={messages} running={running} footer={footer} />
       <Composer {...composer} />
+      <div className="chat-fade" aria-hidden="true" />
     </div>
   );
 }

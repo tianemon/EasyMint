@@ -5,7 +5,6 @@ export function AmbientBackground(): React.ReactElement {
       <div className="ambient-blob ambient-green" />
       <div className="ambient-blob ambient-blue" />
       <div className="ambient-blob ambient-cool" />
-      <div className="ambient-grain" />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import type { OpenProject } from '../../protocol/types';
 import { Header } from '../components/Header';
-import { Glass } from '../components/Glass';
 import { Icon } from '../components/icons';
 import { t } from '../i18n';
 
@@ -19,8 +18,9 @@ export function ProjectsScreen({ projects, statusLabel, onBack, onOpenProject }:
       <Header title={t('app.projects')} onBack={onBack} right={<span className="header-status">{statusLabel}</span>} />
       <div className="screen-body">
         {projects.length === 0 && <div className="empty-hint">暂无打开的项目</div>}
-        {projects.map((project) => (
-          <Glass key={project.id} className="list-card">
+        {projects.map((project, index) => (
+          <div key={project.id} className="list-card">
+            {index > 0 && <span className="list-divider" />}
             <button type="button" className="list-card-hit" onClick={() => onOpenProject(project)}>
               <span className="list-card-icon"><Icon name="folder" size={17} /></span>
               <span className="list-card-main">
@@ -29,7 +29,7 @@ export function ProjectsScreen({ projects, statusLabel, onBack, onOpenProject }:
               </span>
               <Icon name="chevron" size={15} />
             </button>
-          </Glass>
+          </div>
         ))}
       </div>
     </div>

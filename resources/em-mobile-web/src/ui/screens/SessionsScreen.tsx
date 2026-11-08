@@ -37,8 +37,8 @@ export function SessionsScreen({ project, connection, sessions, refreshing, onRe
           <Icon name="refresh" size={13} /> {refreshing ? '刷新中…' : '下拉刷新'}
         </button>
         {visible.length === 0 && <div className="empty-hint">暂无会话</div>}
-        {visible.map((session) => (
-          <SessionRow key={session.sessionId} session={session}
+        {visible.map((session, index) => (
+          <SessionRow key={session.sessionId} session={session} first={index === 0}
             onOpen={() => onOpenSession(session)} onMenu={() => onLongPressSession(session)} />
         ))}
         {archived.length > 0 && (

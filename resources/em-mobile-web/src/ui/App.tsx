@@ -10,7 +10,7 @@ import {
 } from '../protocol/credential-store';
 import { createPairingAttempt, pairWithPc } from '../protocol/remote-client';
 import type { PairingAttempt } from '../protocol/remote-client';
-import { pairPayloadFromHash, parsePairingPayload } from '../protocol/pairing';
+import { pairCodeFromHash, fetchPairingPayload } from '../protocol/pairing';
 import type { AskAnswer, ComposerControl, ConnectionStatus, Page } from '../core/types';
 import type { ShellLog } from '../core/types';
 import type { DisplayMessage } from '../core/messages';
@@ -151,12 +151,11 @@ export default function App(): React.ReactElement {
     setError(value instanceof Error ? value.message : String(value));
   }, []);
 
-  // ── 启动：清理 fragment、读凭证、处理 #pair= ────────────────────────────
+  // ── 启动：读凭证、处理 #p= 短码 ──────────────────────────────────────────
   useEffect(() => {
     let alive = true;
-    // C3：加载后立即清除 fragment，避免凭证滞留在地址栏/历史。
-    const payload = pairPayloadFromHash(location.hash);
-    if (payload) history.replaceState(null, '', location.pathname + location.search);
+    // 短码不含密钥材料，保留 fragment：刷新后仍可重试查表；配对成功后才清除。
+    const code = pairCodeFromHash(location.hash);
 
     const boot = async (): Promise<void> => {
       try {
@@ -167,7 +166,7 @@ export default function App(): React.ReactElement {
         if (book.activePcId) setConnection('connecting');
         setPage(book.activePcId ? 'home' : 'scanner');
         setBootReady(true);
-        if (payload) await handlePair(payload);
+        if (code) await handlePair(code);
       } catch (e) {
         // 凭证读取失败也必须放行首帧，否则页面永远停在空白 boot 态（与 RN 版 .finally 同口径）。
         fail(e);
@@ -209,6 +208,8 @@ export default function App(): React.ReactElement {
       const book = await saveDevice(stored);
       setDevices(book.devices);
       setActivePcId(book.activePcId);
+      // 配对成功后才清除短码 fragment：失败/过期时保留，刷新可重试。
+      history.replaceState(null, '', location.pathname + location.search);
       pairOfferRef.current = null;
       pairAttemptRef.current = null;
       setPairCode('');
@@ -223,14 +224,14 @@ export default function App(): React.ReactElement {
     }
   }, []);
 
-  const handlePair = useCallback(async (payload: string): Promise<void> => {
+  const handlePair = useCallback(async (code: string): Promise<void> => {
     setPairCode('');
     setPairError('');
     setPage('scanner');
     let offer: PairingOffer;
     let attempt: PairingAttempt;
     try {
-      offer = parsePairingPayload(payload);
+      offer = await fetchPairingPayload(code);
       attempt = createPairingAttempt(offer);
     } catch (e) {
       setPairError(e instanceof Error ? e.message : String(e));

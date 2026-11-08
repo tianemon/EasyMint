@@ -13,7 +13,10 @@ import {
   getMobileWebStatus,
   mobileWebController,
   MOBILE_WEB_WS_PORT,
+  registerPairOffer,
+  resolvePairOffer,
   type MobileWebControllerDeps,
+  type PairLinkPayload,
 } from "./mobile-web-service";
 
 const LAN_IP = "192.168.1.10";
@@ -311,5 +314,126 @@ describe("MobileWebController", () => {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
       await stopMobileWebService();
     }
+  });
+});
+
+// ── 短码查表端点（S2/S3）────────────────────────────────────────────────────
+function pairPayload(overrides: Partial<PairLinkPayload> = {}): PairLinkPayload {
+  return {
+    version: 1,
+    token: "test-token",
+    pcId: "test-pc",
+    pcName: "Test PC",
+    addresses: [LAN_IP],
+    port: MOBILE_WEB_WS_PORT,
+    publicKey: "test-pubkey",
+    expiresAt: Date.now() + 60_000,
+    ...overrides,
+  };
+}
+
+describe("pair link /pair/<code>.json 端点", () => {
+  it("命中返回与旧 #pair= payload 同形的 8 字段对象、application/json、no-store", async () => {
+    const payload = pairPayload();
+    const { code } = registerPairOffer(payload);
+    await start();
+    const res = await request(port, `/pair/${code}.json`);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/json");
+    expect(res.headers["cache-control"]).toBe("no-store");
+    const body = JSON.parse(res.body);
+    expect(body).toEqual(payload);
+    expect(typeof body.version).toBe("number");
+    expect(typeof body.token).toBe("string");
+    expect(typeof body.pcId).toBe("string");
+    expect(typeof body.pcName).toBe("string");
+    expect(Array.isArray(body.addresses)).toBe(true);
+    expect(typeof body.port).toBe("number");
+    expect(typeof body.publicKey).toBe("string");
+    expect(typeof body.expiresAt).toBe("number");
+  });
+
+  it("短码过期前可重复读（不承担 token 一次性消费语义）", async () => {
+    const { code } = registerPairOffer(pairPayload());
+    await start();
+    expect((await request(port, `/pair/${code}.json`)).status).toBe(200);
+    expect((await request(port, `/pair/${code}.json`)).status).toBe(200);
+  });
+
+  it("格式合法但未登记的 code 返回 404 空体", async () => {
+    await start();
+    const res = await request(port, "/pair/AAAAAAAAAA.json");
+    expect(res.status).toBe(404);
+    expect(res.body).toBe("");
+  });
+
+  it("非法短码（长度/字符不符）一律 404 空体", async () => {
+    await start();
+    for (const p of ["/pair/abc.json", "/pair/abcdefghijk.json", "/pair/abcd!fghij.json"]) {
+      const res = await request(port, p);
+      expect(res.status, p).toBe(404);
+      expect(res.body, p).toBe("");
+    }
+  });
+
+  it("过期短码返回 404 空体", async () => {
+    const { code } = registerPairOffer(pairPayload({ expiresAt: Date.now() - 1_000 }));
+    await start();
+    const res = await request(port, `/pair/${code}.json`);
+    expect(res.status).toBe(404);
+    expect(res.body).toBe("");
+  });
+
+  it("命中端点走既有方法校验：POST 405 且带 Allow", async () => {
+    const { code } = registerPairOffer(pairPayload());
+    await start();
+    const res = await request(port, `/pair/${code}.json`, { method: "POST" });
+    expect(res.status).toBe(405);
+    expect(res.headers.allow).toBe("GET, HEAD");
+  });
+
+  it("命中端点走既有 Host 校验：非白名单 Host 403", async () => {
+    const { code } = registerPairOffer(pairPayload());
+    await start();
+    const res = await request(port, `/pair/${code}.json`, { headers: { Host: `attacker.test:${port}` } });
+    expect(res.status).toBe(403);
+  });
+
+  it("HEAD 命中返回状态与头、无响应体", async () => {
+    const { code } = registerPairOffer(pairPayload());
+    await start();
+    const res = await request(port, `/pair/${code}.json`, { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.body).toBe("");
+    expect(res.headers["content-type"]).toContain("application/json");
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("合法 /pair/ 路径不被越界检测误伤，含编码 .. 仍 404 空体", async () => {
+    const { code } = registerPairOffer(pairPayload());
+    await start();
+    expect((await request(port, `/pair/${code}.json`)).status).toBe(200);
+    for (const p of ["/pair/%2e%2e/outside.json", "/pair/../outside.json"]) {
+      const res = await request(port, p);
+      expect(res.status, p).toBe(404);
+      expect(res.body, p).toBe("");
+    }
+  });
+});
+
+describe("短码表容量 / 过期惰性清理", () => {
+  it("容量上限：连续登记超过上限后最早条目被淘汰、最新条目仍可读", () => {
+    const codes: string[] = [];
+    for (let i = 0; i < 64; i++) codes.push(registerPairOffer(pairPayload()).code);
+    expect(resolvePairOffer(codes[0])).toBeNull();
+    expect(resolvePairOffer(codes[63])).not.toBeNull();
+  });
+
+  it("过期条目惰性清理：过期读返回 null，且不永久占用容量", () => {
+    const expired = registerPairOffer(pairPayload({ expiresAt: Date.now() - 1_000 }));
+    expect(resolvePairOffer(expired.code)).toBeNull();
+    for (let i = 0; i < 40; i++) registerPairOffer(pairPayload({ expiresAt: Date.now() - 1_000 }));
+    const fresh = registerPairOffer(pairPayload());
+    expect(resolvePairOffer(fresh.code)).not.toBeNull();
   });
 });

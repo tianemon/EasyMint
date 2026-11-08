@@ -29,13 +29,12 @@ a { color: var(--accent); }
   display: flex; flex-direction: column;
 }
 .ambient { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--ambient-base); }
-.ambient-blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55; will-change: transform; }
-.ambient-green { width: 78vw; height: 78vw; left: -22vw; top: 8%; background: var(--ambient-green); }
-.ambient-blue { width: 70vw; height: 70vw; right: -26vw; top: 34%; background: var(--ambient-blue); }
-.ambient-cool { width: 62vw; height: 62vw; left: 12vw; bottom: -18vw; background: var(--ambient-cool); }
-.ambient-grain { position: absolute; inset: 0; opacity: .035;
-  background-image: radial-gradient(currentColor 1px, transparent 1px); background-size: 4px 4px; }
-.bg-blue .ambient-green { opacity: .25; } .bg-blue .ambient-blue { opacity: .8; }
+/* 三团大半径径向渐变铺满整页（照 App AmbientBackground 的 SVG 径向渐变），不用 blur(60px) 纯色圆，也不铺噪点 */
+.ambient-blob { position: absolute; inset: 0; will-change: transform; }
+.ambient-green { background: radial-gradient(ellipse 90% 70% at 4% -8%, var(--ambient-green), transparent 72%); opacity: .95; }
+.ambient-blue { background: radial-gradient(ellipse 80% 62% at 102% 2%, var(--ambient-blue), transparent 72%); opacity: .9; }
+.ambient-cool { background: radial-gradient(ellipse 85% 60% at 46% 112%, var(--ambient-cool), transparent 72%); opacity: .85; }
+.bg-blue .ambient-green { opacity: .25; } .bg-blue .ambient-blue { opacity: 1; }
 .bg-neutral .ambient-blob { opacity: .16; }
 
 .screen { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -46,13 +45,13 @@ a { color: var(--accent); }
   border-radius: var(--radius-lg); padding: var(--s2) var(--s3); font-size: var(--fs-xs); margin-top: var(--s3); }
 
 /* ── Header ─────────────────────────────────────── */
-.header { flex: 0 0 auto; height: 48px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-  padding: 0 var(--chat-inset); border-bottom: 1px solid var(--divider); background: var(--chat-panel); }
+.header { flex: 0 0 auto; height: 54px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: 0 var(--chat-inset); background: transparent; }
 .header-side { display: flex; align-items: center; min-width: 0; }
 .header-right { justify-content: flex-end; }
 .header-back { display: flex; align-items: center; gap: 2px; color: var(--accent); font-size: var(--fs-base); }
 .header-title { display: flex; align-items: center; gap: 5px; justify-content: center; min-width: 0;
-  font-size: var(--fs-title); font-weight: 600; color: var(--text-primary); }
+  font-size: var(--fs-title); font-weight: 700; color: var(--text-primary); }
 .header-title.is-clickable { cursor: pointer; }
 .header-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 58vw; }
 .header-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot-gray); flex: 0 0 auto; }
@@ -61,11 +60,20 @@ a { color: var(--accent); }
 .header-status { color: var(--text-muted); font-size: var(--fs-xs); }
 
 /* ── Glass：frosted 用半透明纯色；liquid 是唯一 backdrop-filter 使用点 ── */
-.glass { position: relative; border-radius: 12px; border: 1px solid var(--glass-rim); overflow: hidden; }
+.glass { position: relative; border-radius: var(--radius-lg); border: 1px solid var(--glass-rim); overflow: hidden; }
 .glass-frosted { background: var(--glass-fill-strong); box-shadow: var(--shadow-sm); }
-.glass-liquid { background: var(--liquid-fill); box-shadow: var(--shadow-md); }
-.glass-liquid::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(135deg, var(--glass-sheen), transparent 42%); }
+/* liquid 仅输入卡使用：1px 光学边框 + 顶部高光 + 透镜环（照 App Glass.tsx 的 SVG 分层，CSS 近似） */
+.glass-liquid { background: linear-gradient(135deg, var(--glass-sheen), transparent 42%), var(--liquid-fill);
+  border-color: transparent; box-shadow: var(--shadow-md); }
+/* 顶部 1px 高光 */
+.glass-liquid::before { content: ''; position: absolute; top: 0; left: 12%; right: 12%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--glass-rim), transparent); opacity: .85; }
+/* 1px 光学边框 / 透镜环：radial-gradient 只照亮左上那段弧，mask 裁成 1px 环 */
+.glass-liquid::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  padding: 1px; background: radial-gradient(ellipse at 24% -20%, var(--glass-rim), transparent 55%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude; }
 .glass-fallback.glass-liquid { background: var(--frosted-sheet-fill); }
 .glass-fallback.glass-frosted { background: var(--card); }
 
@@ -92,7 +100,7 @@ a { color: var(--accent); }
 /* ── 配对引导页 ────────────────────────────────── */
 .pair-guide { justify-content: center; align-items: center; }
 .pair-guide-inner { width: 100%; max-width: 420px; padding: var(--s6) var(--s6) var(--s12); text-align: center; }
-.pair-guide-mark { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; margin: 0 auto var(--s4);
+.pair-guide-mark { width: 72px; height: 72px; border-radius: var(--radius-lg); display: grid; place-items: center; margin: 0 auto var(--s4);
   color: var(--floating-action-icon); background: var(--glass-fill-strong); border: 1px solid var(--glass-rim); }
 .pair-guide-title { font-size: var(--fs-xl); margin: 0 0 var(--s3); }
 .pair-guide-body { color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.7; }
@@ -108,25 +116,28 @@ a { color: var(--accent); }
 .pair-retry:disabled { opacity: .5; }
 .pair-guide .pair-code-card { margin-top: var(--s4); }
 
-/* ── 项目 / 会话列表 ───────────────────────────── */
-.list-card { margin-bottom: var(--s2); }
-.list-card-hit { display: flex; align-items: center; gap: var(--s3); width: 100%; padding: var(--s3) var(--s4); text-align: left; }
+/* ── 项目 / 会话列表：铺平纯文本行 + 内缩 hairline（照 App ListRow flat / SessionRow） ── */
+.list-card { position: relative; }
+.list-divider { position: absolute; top: 0; left: var(--chat-inset); right: var(--chat-inset);
+  height: 1px; background: var(--divider); }
+.list-card-hit { display: flex; align-items: center; gap: var(--s3); width: 100%; padding: 14px var(--chat-inset); text-align: left; }
 .list-card-icon { color: var(--accent); }
-.list-card-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.list-card-title { font-size: var(--fs-base); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-card-main { flex: 1; display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.list-card-title { font-size: var(--fs-md); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-card-sub { font-size: var(--fs-xs); color: var(--text-muted); }
 .sessions-body { padding-top: var(--s2); }
 .sessions-refresh { display: flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: var(--fs-xs); margin-bottom: var(--s2); }
-.session-row { display: flex; align-items: stretch; gap: var(--s3); width: 100%; text-align: left;
-  padding: var(--s3) var(--s4); margin-bottom: var(--s2); border-radius: 12px;
-  background: var(--card); border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); color: var(--text-primary); }
-.session-hairline { width: 2px; border-radius: 2px; background: var(--selected-row-border); opacity: .35; flex: 0 0 auto; }
-.session-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.session-title-line { display: flex; align-items: center; gap: 5px; }
-.session-title { font-size: var(--fs-base); font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-time { color: var(--text-muted); font-size: var(--fs-xxs); flex: 0 0 auto; }
-.session-preview { color: var(--text-muted); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-row > svg { align-self: center; color: var(--text-muted); flex: 0 0 auto; }
+.session-row { position: relative; display: flex; align-items: flex-start; gap: var(--s3); width: 100%; text-align: left;
+  padding: 12px var(--chat-inset) 13px; color: var(--text-primary); }
+.session-row:active { background: var(--glass-press); }
+.session-divider { position: absolute; top: 0; left: var(--chat-inset); right: var(--chat-inset);
+  height: 1px; background: var(--divider); }
+.session-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.session-title { font-size: 15px; font-weight: 600; line-height: 20px; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-preview { margin-top: 3px; font-size: 13px; line-height: 18px; color: var(--text-secondary);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.session-time { flex-shrink: 0; padding-top: 3px; font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .archive-link { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: var(--fs-sm); margin-top: var(--s4); }
 .fab { position: absolute; right: var(--chat-inset); bottom: calc(var(--s6) + env(safe-area-inset-bottom));
   width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
@@ -134,20 +145,22 @@ a { color: var(--accent); }
 
 /* ── 聊天区 ────────────────────────────────────── */
 .chat-screen { position: relative; }
+/* 底部渐隐：只跟屏幕底边走、不跟输入卡高度走（App ChatScreen fade height 48） */
+.chat-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; z-index: 0; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--ambient-base)); }
 .message-area { flex: 1; min-height: 0; position: relative; }
 .message-scroll { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; }
-.message-column { max-width: 760px; margin: 0 auto; padding: var(--s4) var(--chat-inset) var(--s6); }
-.msg-row { content-visibility: auto; contain-intrinsic-size: auto 80px; margin-bottom: var(--s4); }
+.message-column { padding: var(--s4) var(--chat-inset) var(--s6); }
+.msg-row { content-visibility: auto; contain-intrinsic-size: auto 80px; margin-bottom: 12px; }
 .message-footer { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s2); }
 .user-bubble-wrap { display: flex; justify-content: flex-end; }
-.user-bubble { max-width: 82%; background: var(--card); border-radius: 14px; padding: var(--s2) var(--s3);
-  color: var(--text-primary); box-shadow: var(--shadow-sm); word-break: break-word; }
-.chat-screen .user-bubble { background: var(--user-bubble-bg); color: var(--user-bubble-text); }
+.user-bubble { max-width: 88%; background: var(--user-bubble-bg); border-radius: var(--radius-lg); padding: 13px;
+  color: var(--user-bubble-text); word-break: break-word; }
 .user-text { white-space: pre-wrap; font-size: var(--fs-base); }
 .user-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .user-attachment { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xxs); background: var(--glass-fill-strong);
   border-radius: var(--radius-lg); padding: 4px 7px; }
-.user-attachment img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; }
+.user-attachment img { width: 46px; height: 46px; object-fit: cover; border-radius: var(--radius-lg); }
 .user-flag { font-size: var(--fs-xxs); opacity: .7; margin-top: 4px; }
 .assistant-plain { white-space: pre-wrap; font-size: var(--fs-base); }
 .plain-preview { white-space: pre-wrap; font-size: var(--fs-base); line-height: 1.65; }
@@ -159,7 +172,7 @@ a { color: var(--accent); }
 .turn { display: flex; flex-direction: column; gap: var(--s2); }
 .turn-fold-head { display: flex; align-items: center; gap: var(--s2); width: 100%; text-align: left;
   color: var(--text-secondary); font-size: var(--fs-xs); padding: 6px var(--s2);
-  border-radius: var(--radius-lg); background: var(--chat-inset); }
+  border-radius: var(--radius-lg); background: var(--chat-inset-tint); }
 .turn-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .turn-duration { color: var(--text-muted); flex: 0 0 auto; }
 .turn-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s infinite; }
@@ -222,7 +235,7 @@ a { color: var(--accent); }
 .md-quote { margin: 0 0 var(--s2); padding-left: var(--s3); border-left: 3px solid var(--chat-divider); color: var(--text-secondary); }
 .md-list { margin: 0 0 var(--s2); padding-left: var(--s6); }
 .md-hr { border: 0; border-top: 1px solid var(--divider); margin: var(--s3) 0; }
-.md-inline-code { background: var(--chat-code); border-radius: 4px; padding: 1px 4px; font-size: .92em;
+.md-inline-code { background: var(--chat-code); border-radius: var(--radius-lg); padding: 1px 4px; font-size: .92em;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .md-image { max-width: 100%; border-radius: var(--radius-lg); }
 .md-image-fallback { color: var(--text-muted); font-size: var(--fs-xs); }
@@ -237,12 +250,13 @@ a { color: var(--accent); }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-code); line-height: 1.55; }
 
 /* ── 状态行 / 提问卡 / 后台条 ─────────────────── */
-.mint-status { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: var(--fs-xs); padding: var(--s1) var(--s2); }
-.mint-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dot-gray); }
-.mint-status-dot.is-running { background: var(--accent); animation: pulse 1.2s infinite; }
-.mint-status-text { flex: 1; }
+.mint-status { display: flex; align-items: center; gap: 7px; min-height: 26px;
+  color: var(--text-secondary); font-size: var(--fs-caption); font-weight: 500; }
+.mint-status-icon { flex: 0 0 auto; width: 16px; text-align: center; }
+.mint-status-icon.is-model { animation: pulse 1.6s ease-in-out infinite; }
+.mint-status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .background-bar { display: flex; flex-direction: column; gap: 4px; padding: var(--s2); border-radius: var(--radius-lg);
-  background: var(--chat-inset); }
+  background: var(--chat-inset-tint); }
 .background-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xxs); color: var(--text-secondary); }
 .background-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .background-state { color: var(--text-muted); } .background-state.is-running { color: var(--accent); }
@@ -255,7 +269,7 @@ a { color: var(--accent); }
 .ask-option { display: flex; gap: var(--s2); align-items: flex-start; text-align: left; padding: var(--s2);
   border-radius: var(--radius-lg); border: 1px solid var(--chip-selected-border); background: var(--chip-bg); }
 .ask-option.is-selected { background: var(--chip-selected-bg); }
-.ask-option-mark { width: 16px; height: 16px; border: 1px solid currentColor; border-radius: 4px; display: grid; place-items: center; flex: 0 0 auto; }
+.ask-option-mark { width: 16px; height: 16px; border: 1px solid currentColor; border-radius: var(--radius-lg); display: grid; place-items: center; flex: 0 0 auto; }
 .ask-option-body { display: flex; flex-direction: column; }
 .ask-option-label { font-size: var(--fs-sm); } .ask-recommended { font-size: var(--fs-xxs); margin-left: 6px; opacity: .75; }
 .ask-option-desc { font-size: var(--fs-xxs); opacity: .8; }
@@ -266,19 +280,19 @@ a { color: var(--accent); }
 .ask-primary { background: var(--accent); color: #fff; border-radius: var(--radius-lg); padding: 6px 16px; font-size: var(--fs-sm); }
 
 /* ── 输入卡（唯一 liquid 玻璃） ───────────────── */
-.composer-wrap { flex: 0 0 auto; padding: var(--s2) var(--chat-inset) var(--s3); position: relative; }
-.composer { padding: var(--s2) var(--s3); }
+.composer-wrap { flex: 0 0 auto; padding: var(--s2) var(--chat-inset) 26px; position: relative; z-index: 1; }
+.composer { padding: var(--s2) var(--s3); border-radius: 24px; }
 .glass-liquid { backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-fallback.glass-liquid { backdrop-filter: none; -webkit-backdrop-filter: none; }
-.composer-input { display: block; width: 100%; min-height: 30px; max-height: 120px; resize: none; border: 0; outline: 0;
+.composer-input { display: block; width: 100%; min-height: 52px; max-height: 120px; resize: none; border: 0; outline: 0;
   background: transparent; color: var(--text-primary); font-size: var(--fs-base); line-height: 1.5; padding: var(--s1) 0; }
 .composer-input::placeholder { color: var(--text-muted); }
-.composer-toolbar { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s1); }
+.composer-toolbar { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s1); min-height: 38px; }
 .composer-tool { color: var(--text-secondary); display: grid; place-items: center; }
 .composer-tool.is-danger { color: var(--permission-on); }
 .composer-spacer { flex: 1; }
 .composer-context { font-size: var(--fs-xxs); color: var(--text-muted); }
-.composer-send { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+.composer-send { width: 32px; height: 32px; border-radius: var(--radius-lg); display: grid; place-items: center;
   background: var(--chip-bg); color: var(--text-muted); transition: transform .12s ease, opacity .12s ease; }
 .composer-send.is-active { background: var(--accent); color: #fff; }
 .composer-send.is-stop { background: var(--danger); color: #fff; }
@@ -288,10 +302,10 @@ a { color: var(--accent); }
 .composer-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s2); }
 .composer-attachment { display: flex; align-items: center; gap: 4px; background: var(--glass-fill-strong);
   border-radius: var(--radius-lg); padding: 3px 6px; font-size: var(--fs-xxs); max-width: 160px; }
-.composer-attachment img { width: 26px; height: 26px; object-fit: cover; border-radius: 5px; }
+.composer-attachment img { width: 26px; height: 26px; object-fit: cover; border-radius: var(--radius-lg); }
 .composer-attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-menu { position: absolute; left: var(--chat-inset); right: var(--chat-inset); bottom: calc(100% - var(--s1));
-  display: flex; flex-wrap: wrap; gap: 6px; padding: var(--s2); border-radius: 12px; z-index: 6;
+  display: flex; flex-wrap: wrap; gap: 6px; padding: var(--s2); border-radius: var(--radius-lg); z-index: 6;
   background: var(--frosted-sheet-fill); border: 1px solid var(--glass-rim); box-shadow: var(--shadow-md); }
 .composer-menu button { display: flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: var(--radius-lg);
   background: var(--chip-bg); font-size: var(--fs-xs); }
@@ -326,15 +340,17 @@ a { color: var(--accent); }
   display: flex; align-items: flex-end; animation: fade-in .16s ease; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .sheet { width: 100%; max-height: 78%; display: flex; flex-direction: column;
-  border-radius: 18px 18px 0 0; background: var(--sheet-bg); color: var(--sheet-text);
+  border-radius: 24px 24px 0 0; background: var(--sheet-bg); color: var(--sheet-text);
   padding-bottom: env(safe-area-inset-bottom); animation: slide-up .2s ease; }
 @keyframes slide-up { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-.sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--divider); margin: var(--s2) auto; }
+.sheet-handle { width: 36px; height: 4px; border-radius: var(--radius-full); background: var(--divider); margin: var(--s2) auto; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: var(--s2) var(--s4); }
 .sheet-title { font-size: var(--fs-base); font-weight: 600; }
 .sheet-close { color: var(--text-muted); }
 .sheet-body { overflow-y: auto; padding: 0 var(--s4) var(--s6); }
-.sheet-row { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--divider); }
+.sheet-row { position: relative; display: flex; align-items: center; gap: var(--s3); padding: 11px var(--chat-inset); }
+.sheet-divider { position: absolute; top: 0; left: var(--chat-inset); right: var(--chat-inset);
+  height: 1px; background: var(--divider); }
 .sheet-row-title { flex: 1; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet-row-action, .sheet-action { color: var(--accent); font-size: var(--fs-sm); }
 .sheet-action { display: flex; align-items: center; gap: 8px; width: 100%; padding: var(--s3); border-radius: var(--radius-lg);
@@ -359,10 +375,6 @@ a { color: var(--accent); }
 .leader-inner h1 { font-size: var(--fs-lg); color: var(--text-primary); }
 .leader-inner p { font-size: var(--fs-sm); }
 
-@media (min-width: 700px) {
-  .message-column, .screen-body { max-width: 760px; margin-left: auto; margin-right: auto; width: 100%; }
-  .header { padding-left: max(var(--chat-inset), calc((100% - 760px) / 2)); padding-right: max(var(--chat-inset), calc((100% - 760px) / 2)); }
-}
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

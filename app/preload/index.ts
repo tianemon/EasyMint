@@ -579,6 +579,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── 手机浏览器访问（静态 HTTP 服务）──
   mobileWeb: {
     getStatus: () => ipcRenderer.invoke("mobile-web:get-status") as Promise<MobileWebStatusShape>,
+    createPairLink: () => ipcRenderer.invoke("mobile-web:create-pair-link") as Promise<{ code: string; expiresAt: number }>,
     setEnabled: (enabled: boolean) => ipcRenderer.invoke("mobile-web:set-enabled", { enabled }) as Promise<MobileWebStatusShape>,
     setPort: (port: number) => ipcRenderer.invoke("mobile-web:set-port", { port }) as Promise<MobileWebStatusShape>,
     onStatusChanged: (callback: (status: MobileWebStatusShape) => void) => {

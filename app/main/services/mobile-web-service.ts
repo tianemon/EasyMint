@@ -19,6 +19,7 @@ import http, { type IncomingMessage, type Server, type ServerResponse } from "no
 import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
+import { randomBytes } from "node:crypto";
 import { app } from "electron";
 import { getResourcesDir } from "../utils/paths";
 import { lanAddresses } from "./remote-terminal-service";
@@ -57,6 +58,72 @@ export function validatePort(port: number): void {
   if (!Number.isInteger(port) || port < MOBILE_WEB_MIN_PORT || port > MOBILE_WEB_MAX_PORT) {
     throw new Error(`Invalid mobile web port: ${port} (expected ${MOBILE_WEB_MIN_PORT}-${MOBILE_WEB_MAX_PORT})`);
   }
+}
+
+// ── 短码查表（配对材料）─────────────────────────────────────────────────────
+// 二维码只携带 10 位短码，浏览器同源 fetch('/pair/<code>.json') 换取配对材料对象。
+// 表只存活于主进程内存：不落盘、不参与 47778 的 token 一次性消费、可重复读直到过期。
+const PAIR_CODE_BYTES = 8;
+const PAIR_CODE_LENGTH = 10;
+const PAIR_CODE_RE = /^[A-Za-z0-9_-]{10}$/;
+const PAIR_PATH_RE = /^\/pair\/([^/]+)\.json$/;
+const PAIR_LINK_TTL_MS = 60_000;
+const PAIR_LINK_MAX_ENTRIES = 32;
+
+/** 与旧 `#pair=` payload 解码后完全同形的 8 字段对象（由 47778 createPairingOffer 生成）。 */
+export interface PairLinkPayload {
+  version: number;
+  token: string;
+  pcId: string;
+  pcName: string;
+  addresses: string[];
+  port: number;
+  publicKey: string;
+  expiresAt: number;
+}
+
+interface PairLinkEntry {
+  payload: PairLinkPayload;
+  expiresAt: number;
+}
+
+const pairLinks = new Map<string, PairLinkEntry>();
+
+/** 惰性清理：仅在新登记时清掉过期条目，不设定时器。 */
+function prunePairLinks(now: number): void {
+  for (const [code, entry] of pairLinks) {
+    if (entry.expiresAt <= now) pairLinks.delete(code);
+  }
+}
+
+/** 登记一份配对材料，返回 10 位短码与过期时间；容量满时淘汰最早登记的有效条目。 */
+export function registerPairOffer(payload: PairLinkPayload): { code: string; expiresAt: number } {
+  const now = Date.now();
+  prunePairLinks(now);
+  if (pairLinks.size >= PAIR_LINK_MAX_ENTRIES) {
+    const oldest = pairLinks.keys().next();
+    if (!oldest.done) pairLinks.delete(oldest.value);
+  }
+  let code: string;
+  do {
+    code = randomBytes(PAIR_CODE_BYTES).toString("base64url").slice(0, PAIR_CODE_LENGTH);
+  } while (pairLinks.has(code));
+  // 短码生命周期与 offer 同步且不超过 60s；取小避免 payload 被写成超长 TTL。
+  const expiresAt = Math.min(payload.expiresAt, now + PAIR_LINK_TTL_MS);
+  pairLinks.set(code, { payload, expiresAt });
+  return { code, expiresAt };
+}
+
+/** 查表：命中且未过期返回配对材料对象，否则 null 并顺手清掉该过期条目。 */
+export function resolvePairOffer(code: string): PairLinkPayload | null {
+  if (!PAIR_CODE_RE.test(code)) return null;
+  const entry = pairLinks.get(code);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    pairLinks.delete(code);
+    return null;
+  }
+  return entry.payload;
 }
 
 // ── 路径与请求校验辅助 ──────────────────────────────────────────────────────
@@ -201,6 +268,26 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
   // 健康检查：204、无响应体、无任何业务信息（连 LAN IP 的 CSP 都不带）。
   if (pathname === "/health") {
     response.writeHead(204, { "X-Content-Type-Options": "nosniff" }).end();
+    return;
+  }
+
+  // 短码查表端点：必须在 /health 之后、resolveStaticFile 之前拦截，否则 `.json` 扩展名
+  // 会被 SPA 回退判 404。前面已过 Host/Origin/Sec-Fetch-Site/方法/越界校验；本分支只返回
+  // 配对材料对象（与旧 #pair= payload 解码后同形），不承载任何业务数据。
+  const pairMatch = PAIR_PATH_RE.exec(pathname);
+  if (pairMatch) {
+    const payload = resolvePairOffer(pairMatch[1]);
+    if (!payload) { reject(response, 404, policy); return; }
+    const body = JSON.stringify(payload);
+    response.writeHead(200, {
+      ...securityHeaders(policy),
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "Content-Length": String(Buffer.byteLength(body)),
+    });
+    // HEAD 与 GET 状态/头一致，但不写响应体。
+    if (request.method === "HEAD") { response.end(); return; }
+    response.end(body);
     return;
   }
 
@@ -363,6 +450,18 @@ class MobileWebController {
       onlineWebDevices: d.remoteTerminalService.listDevices()
         .filter((device) => device.id.startsWith("web-") && device.online).length,
     };
+  }
+
+  /**
+   * 生成一份独立的配对 offer，把其 payload 登记进短码表，只把 10 位短码交给二维码。
+   * 与渲染层单独调的 mobile-terminal:createOffer() 互不复用：两份 offer 各自独立，
+   * 47778 的一次性 token 消费语义不变。
+   */
+  async createPairLink(): Promise<{ code: string; expiresAt: number }> {
+    const offer = await this.deps!.remoteTerminalService.createPairingOffer();
+    const encoded = offer.uri.split("?payload=")[1] ?? "";
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as PairLinkPayload;
+    return registerPairOffer(payload);
   }
 
   private broadcastStatus(): void {

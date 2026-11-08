@@ -1,17 +1,18 @@
 import { useRef } from 'react';
 import type { SessionListItem } from '../../protocol/types';
 import { formatSessionTime } from '../../core/session-time';
-import { Icon } from './icons';
 
-/** 会话行：左侧内缩 hairline 与聊天区 chatInset 对齐；长按/右键打开会话菜单。 */
-export function SessionRow({ session, onOpen, onMenu }: {
+/** 会话行：无边框、无图标的纯文本行，行间用绝对定位、左右内缩 chatInset 的 hairline（照 App SessionRow）。 */
+export function SessionRow({ session, first, onOpen, onMenu }: {
   session: SessionListItem;
+  first?: boolean;
   onOpen: () => void;
   onMenu: () => void;
 }): React.ReactElement {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startPress = (): void => { timer.current = setTimeout(onMenu, 550); };
   const endPress = (): void => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  const preview = session.lastMessage?.replace(/\s+/g, ' ').trim();
   return (
     <button
       type="button"
@@ -25,16 +26,12 @@ export function SessionRow({ session, onOpen, onMenu }: {
       onMouseUp={endPress}
       onMouseLeave={endPress}
     >
-      <span className="session-hairline" />
+      {!first && <span className="session-divider" />}
       <span className="session-main">
-        <span className="session-title-line">
-          {session.pinnedAt && <Icon name="pin" size={12} />}
-          <span className="session-title">{session.title || '新会话'}</span>
-          {session.updatedAt && <span className="session-time">{formatSessionTime(session.updatedAt)}</span>}
-        </span>
-        {session.lastMessage && <span className="session-preview">{session.lastMessage}</span>}
+        <span className="session-title">{session.title || '新会话'}</span>
+        {preview && <span className="session-preview">{preview}</span>}
       </span>
-      <Icon name="chevron" size={15} />
+      {session.updatedAt && <span className="session-time">{formatSessionTime(session.updatedAt)}</span>}
     </button>
   );
 }

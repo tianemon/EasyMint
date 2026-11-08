@@ -108,13 +108,15 @@ test('AAD 错一个字节就解密失败（防篡改）', async () => {
   assert.throws(() => web.decrypt(keys.clientToServer, 'cid', 4, envelope));
 });
 
-test('#pair payload 解析：校验 version / expiresAt / addresses，且 sequence 与 web- deviceId 契约在位', async () => {
+test('#p= 10 位短码解析，且 parsePairingPayload(string) 兼容与 sequence / web- deviceId 契约在位', async () => {
   const web = await loadWebProtocol();
   const offer = { version: 1, token: 'tk', pcId: 'pc1', pcName: 'host.local', addresses: ['192.168.1.5'], port: 47778, publicKey: 'AQID', expiresAt: Date.now() + 60_000 };
   const payload = Buffer.from(JSON.stringify(offer)).toString('base64url');
-  assert.equal(web.pairPayloadFromHash(`#pair=${payload}`), payload);
-  assert.equal(web.pairPayloadFromHash('#pair='), null);
-  assert.equal(web.pairPayloadFromHash('#other=x'), null);
+  assert.equal(web.pairCodeFromHash('#p=Ab3_xyZ9-0'), 'Ab3_xyZ9-0');
+  assert.equal(web.pairCodeFromHash('#p=short'), null, '短码不足 10 位');
+  assert.equal(web.pairCodeFromHash('#p=abcdefghijk'), null, '短码超过 10 位');
+  assert.equal(web.pairCodeFromHash('#pair=legacy'), null, '旧长载荷格式不再识别');
+  assert.equal(web.pairCodeFromHash('#other=x'), null);
   assert.deepEqual(web.parsePairingPayload(payload), offer);
   assert.throws(() => web.parsePairingPayload(Buffer.from(JSON.stringify({ ...offer, version: 2 })).toString('base64url')));
   assert.throws(() => web.parsePairingPayload(Buffer.from(JSON.stringify({ ...offer, expiresAt: 1 })).toString('base64url')));

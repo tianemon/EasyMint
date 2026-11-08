@@ -34,7 +34,7 @@
   --divider: #e5e5e0;
   --black: #000000;
   --chat-panel: rgba(255,255,255,0.28);
-  --chat-inset: rgba(24,46,37,0.055);
+  --chat-inset-tint: rgba(24,46,37,0.055);
   --chat-code: rgba(255,255,255,0.48);
   --chat-divider: rgba(43,68,55,0.14);
   --thinking-body: #e9ece9;
@@ -149,7 +149,7 @@
     --divider: #2c2c2c;
     --black: #000000;
     --chat-panel: rgba(255,255,255,0.045);
-    --chat-inset: rgba(0,0,0,0.14);
+    --chat-inset-tint: rgba(0,0,0,0.14);
     --chat-code: rgba(7,15,20,0.32);
     --chat-divider: rgba(223,234,239,0.10);
     --thinking-body: #171717;
@@ -263,7 +263,7 @@
   --divider: #2c2c2c;
   --black: #000000;
   --chat-panel: rgba(255,255,255,0.045);
-  --chat-inset: rgba(0,0,0,0.14);
+  --chat-inset-tint: rgba(0,0,0,0.14);
   --chat-code: rgba(7,15,20,0.32);
   --chat-divider: rgba(223,234,239,0.10);
   --thinking-body: #171717;
@@ -376,7 +376,7 @@
   --divider: #e5e5e0;
   --black: #000000;
   --chat-panel: rgba(255,255,255,0.28);
-  --chat-inset: rgba(24,46,37,0.055);
+  --chat-inset-tint: rgba(24,46,37,0.055);
   --chat-code: rgba(255,255,255,0.48);
   --chat-divider: rgba(43,68,55,0.14);
   --thinking-body: #e9ece9;

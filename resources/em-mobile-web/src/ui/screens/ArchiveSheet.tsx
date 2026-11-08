@@ -19,8 +19,9 @@ export function ArchiveSheet({ visible, sessions, onClose, onRestore }: {
         </div>
         <div className="sheet-body">
           {sessions.length === 0 && <div className="empty-hint">没有归档的会话</div>}
-          {sessions.map((item) => (
+          {sessions.map((item, index) => (
             <div key={item.sessionId} className="sheet-row">
+              {index > 0 && <span className="sheet-divider" />}
               <span className="sheet-row-title">{item.title || '新会话'}</span>
               <button type="button" className="sheet-row-action" onClick={() => onRestore(item)}>恢复</button>
             </div>

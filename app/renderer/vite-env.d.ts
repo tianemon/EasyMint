@@ -449,6 +449,7 @@ interface ElectronAPI {
   };
   mobileWeb: {
     getStatus: () => Promise<MobileWebStatus>;
+    createPairLink: () => Promise<{ code: string; expiresAt: number }>;
     setEnabled: (enabled: boolean) => Promise<MobileWebStatus>;
     setPort: (port: number) => Promise<MobileWebStatus>;
     onStatusChanged: (callback: (status: MobileWebStatus) => void) => () => void;
