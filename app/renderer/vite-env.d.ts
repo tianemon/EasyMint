@@ -253,6 +253,8 @@ interface MobileWebStatus {
   running: boolean;
   lanAddresses: string[];
   onlineWebDevices: number;
+  /** 47778（手机 App 通道）是否在听：浏览器接入依赖它，网页开关不替它启动 */
+  bridgeReady: boolean;
 }
 
 interface ElectronAPI {
@@ -416,7 +418,28 @@ interface ElectronAPI {
     onOffline: (cb: (d: { id: string }) => void) => () => void;
   };
   mobileTerminal: {
-    createOffer: () => Promise<{
+    getStatus: () => Promise<{
+      enabled: boolean;
+      running: boolean;
+      port: number;
+      paired: number;
+      online: number;
+    }>;
+    setEnabled: (enabled: boolean) => Promise<{
+      enabled: boolean;
+      running: boolean;
+      port: number;
+      paired: number;
+      online: number;
+    }>;
+    setPort: (port: number) => Promise<{
+      enabled: boolean;
+      running: boolean;
+      port: number;
+      paired: number;
+      online: number;
+    }>;
+    createOffer: (host?: string) => Promise<{
       uri: string;
       token: string;
       pcId: string;

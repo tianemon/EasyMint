@@ -96,6 +96,8 @@ export const EM_PATH = {
   providerPreferences: "providers.preferences",
   providerLegacyIds: "providers.legacyIds",
   // ── mobileWeb（手机浏览器访问：静态 HTTP 服务开关与端口）──
+  mobileAppEnabled: "mobileApp.enabled",
+  mobileAppPort: "mobileApp.port",
   mobileWebEnabled: "mobileWeb.enabled",
   mobileWebPort: "mobileWeb.port",
   // ── migration（迁移标记）──
@@ -140,6 +142,8 @@ export const SETTINGS_FIELDS = [
   [EM_PATH.skillsManageEnabled, "manageSkillEnabled"],
   [EM_PATH.skillsLearnEnabled, "learnEnabled"],
   [EM_PATH.skillsImportExternal, "importExternalSkills"],
+  [EM_PATH.mobileAppEnabled, "mobileAppEnabled"],
+  [EM_PATH.mobileAppPort, "mobileAppPort"],
   [EM_PATH.mobileWebEnabled, "mobileWebEnabled"],
   [EM_PATH.mobileWebPort, "mobileWebPort"],
   // 迁移记录：由 native-config 写入，但它在 `Settings` 接口内（`getSettings()` 要读给界面），

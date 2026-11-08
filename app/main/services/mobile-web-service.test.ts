@@ -370,6 +370,7 @@ describe("MobileWebController", () => {
       store,
       remoteTerminalService: {
         ensureStarted: async () => {},
+        isRunning: () => false,
         emit: () => true,
         listDevices: () => [],
       },
@@ -495,6 +496,48 @@ describe("pair link /pair/<code>.json 端点", () => {
   });
 });
 
+
+it("开网页通道不会越界启动 47778：两个开关各管各的端口", async () => {
+  const freePort = await new Promise<number>((resolve) => {
+    const probe = net.createServer();
+    probe.listen(0, "0.0.0.0", () => {
+      const address = probe.address();
+      const chosen = typeof address === "object" && address ? address.port : 0;
+      probe.close(() => resolve(chosen));
+    });
+  });
+  const prevRoot = process.env.EM_MOBILE_WEB_ROOT;
+  process.env.EM_MOBILE_WEB_ROOT = root;
+  let ensureStartedCalls = 0;
+  let settings: { mobileWebEnabled: boolean; mobileWebPort: number } = { mobileWebEnabled: false, mobileWebPort: freePort };
+  mobileWebController.configure({
+    store: {
+      getSettings: () => ({ ...settings }),
+      saveSettings: (next: { mobileWebEnabled: boolean; mobileWebPort: number }) => { settings = { ...next }; },
+    },
+    remoteTerminalService: {
+      ensureStarted: async () => { ensureStartedCalls += 1; },
+      isRunning: () => false,
+      emit: () => true,
+      listDevices: () => [],
+    },
+    broadcast: () => {},
+    isWindows: false,
+  } as unknown as MobileWebControllerDeps);
+  try {
+    await mobileWebController.setEnabled(true);
+    // 网页通道只起自己的 HTTP 端口；47778 归「手机 App」通道，这里一次都不该被拉起
+    expect(ensureStartedCalls).toBe(0);
+    expect(mobileWebController.getStatus().running).toBe(true);
+    // 桥接通道没在听 → 如实上报，界面据此提示开 App 通道，而不是偷偷替用户打开
+    expect(mobileWebController.getStatus().bridgeReady).toBe(false);
+  } finally {
+    if (prevRoot === undefined) delete process.env.EM_MOBILE_WEB_ROOT;
+    else process.env.EM_MOBILE_WEB_ROOT = prevRoot;
+    await stopMobileWebService();
+  }
+});
+
 describe("短码表容量 / 过期惰性清理", () => {
   it("容量上限：连续登记超过上限后最早条目被淘汰、最新条目仍可读", () => {
     const codes: string[] = [];
@@ -510,4 +553,6 @@ describe("短码表容量 / 过期惰性清理", () => {
     const fresh = registerPairOffer(pairPayload());
     expect(resolvePairOffer(fresh.code)).not.toBeNull();
   });
+
+
 });

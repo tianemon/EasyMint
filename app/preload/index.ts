@@ -8,6 +8,8 @@ interface MobileWebStatusShape {
   running: boolean;
   lanAddresses: string[];
   onlineWebDevices: number;
+  /** 47778（手机 App 通道）是否在听：浏览器接入依赖它，网页开关不替它启动 */
+  bridgeReady: boolean;
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -550,7 +552,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
   },
   mobileTerminal: {
-    createOffer: () => ipcRenderer.invoke("mobile-terminal:create-offer"),
+    getStatus: () => ipcRenderer.invoke("mobile-terminal:get-status"),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke("mobile-terminal:set-enabled", { enabled }),
+    setPort: (port: number) => ipcRenderer.invoke("mobile-terminal:set-port", { port }),
+    createOffer: (host?: string) => ipcRenderer.invoke("mobile-terminal:create-offer", { host }),
     listDevices: () => ipcRenderer.invoke("mobile-terminal:list-devices"),
     listPending: () => ipcRenderer.invoke("mobile-terminal:list-pending"),
     acceptPair: (requestId: string) => ipcRenderer.invoke("mobile-terminal:accept-pair", { requestId }) as Promise<{ ok: boolean }>,
@@ -565,9 +570,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = () => callback();
       ipcRenderer.on("mobile-terminal:devices-changed", handler);
       ipcRenderer.on("mobile-terminal:pair-requests-changed", handler);
+      ipcRenderer.on("mobile-terminal:status-changed", handler);
       return () => {
         ipcRenderer.removeListener("mobile-terminal:devices-changed", handler);
         ipcRenderer.removeListener("mobile-terminal:pair-requests-changed", handler);
+        ipcRenderer.removeListener("mobile-terminal:status-changed", handler);
       };
     },
     onError: (callback: (data: { message: string }) => void) => {

@@ -241,8 +241,10 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     const agentService = new AgentService(store);
     const coordinator = new SessionCoordinator(projectService, agentService);
     const commandRouter = new RemoteCommandRouter(coordinator, agentService, store, window);
-    const remoteTerminalService = new RemoteTerminalService((deviceId, command) =>
-      commandRouter.handle(deviceId, command));
+    const remoteTerminalService = new RemoteTerminalService(
+      (deviceId, command) => commandRouter.handle(deviceId, command),
+      { port: store.getSettings().mobileAppPort ?? 47_778 },
+    );
     appEventBus.subscribe((event) => remoteTerminalService.forwardAppEvent(event));
     sharedServices = {
       store,
@@ -252,7 +254,8 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       remoteTerminalService,
     };
     // 已配对手机应能在应用重启后直接重连；首次使用前不监听额外端口。
-    if (remoteTerminalService.listDevices().length > 0) {
+    // 开关关闭的用户一个端口都不占：不监听就不会有入站连接，手机侧表现为「连不上」。
+    if (store.getSettings().mobileAppEnabled !== false && remoteTerminalService.listDevices().length > 0) {
       void remoteTerminalService.ensureStarted().catch((error: unknown) => {
         console.error("[mobile-terminal] 启动失败:", error instanceof Error ? error.message : String(error));
       });

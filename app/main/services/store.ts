@@ -99,6 +99,13 @@ export interface Settings {
   modelParamsMigrated?: boolean;
   /** 模型身份迁移已完成(一次性:旧 id=显示名 + alias=请求标识 → 新 id=请求标识 + name=显示名) */
   modelIdentityMigrated?: boolean;
+  /**
+   * 手机 App 通道（47778 加密 WS）开关。默认开启——老用户机器上已有配对设备，
+   * 默认关掉会表现为「手机突然连不上」。关闭时真正 close 监听，端口被释放。
+   */
+  mobileAppEnabled?: boolean;
+  /** 手机 App 通道端口（默认 47778）。改端口后已配对的手机会连不上，需要重新配对。 */
+  mobileAppPort?: number;
   /** 手机浏览器访问：静态 HTTP 服务开关（默认关闭，C5） */
   mobileWebEnabled?: boolean;
   /** 手机浏览器访问：HTTP 服务端口（默认 47779，范围 1024-65535，C5） */
@@ -316,6 +323,8 @@ export class Store {
       apiProviders: dropLegacyEncryptedProviderKeys(emData.apiProviders as ApiProvidersData | undefined),
       modelParamsMigrated: emData.modelParamsMigrated as boolean | undefined,
       modelIdentityMigrated: emData.modelIdentityMigrated as boolean | undefined,
+      mobileAppEnabled: (emData.mobileAppEnabled as boolean) ?? true,
+      mobileAppPort: (emData.mobileAppPort as number) ?? 47_778,
       mobileWebEnabled: (emData.mobileWebEnabled as boolean) ?? false,
       mobileWebPort: (emData.mobileWebPort as number) ?? 47_779,
     };

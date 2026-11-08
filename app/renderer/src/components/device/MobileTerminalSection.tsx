@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 
 type Status = Awaited<ReturnType<typeof window.electronAPI.mobileWeb.getStatus>>;
+type AppStatus = Awaited<ReturnType<typeof window.electronAPI.mobileTerminal.getStatus>>;
 type Device = Awaited<ReturnType<typeof window.electronAPI.mobileTerminal.listDevices>>[number];
 
 interface QrPair {
@@ -53,9 +54,20 @@ function message(error: unknown): string {
 export function MobileTerminalSection(): JSX.Element {
   useUiLocale();
   const [status, setStatus] = useState<Status | null>(null);
+  const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
+  // 事件回调里要读最新值（status-changed 订阅是挂载时建的），用 ref 避开闭包快照
+  const appStatusRef = useRef<AppStatus | null>(null);
+  const applyAppStatus = useCallback((next: AppStatus) => {
+    appStatusRef.current = next;
+    setAppStatus(next);
+    setAppPortInput(String(next.port));
+  }, []);
   const [error, setError] = useState("");
-  const [portInput, setPortInput] = useState("");
-  const [portError, setPortError] = useState(false);
+  // 端口跟各自的开关放在一起，两条通道互不影响（改端口后已配对的设备都要重连，见提示）
+  const [appPortInput, setAppPortInput] = useState("");
+  const [webPortInput, setWebPortInput] = useState("");
+  const [appPortError, setAppPortError] = useState(false);
+  const [webPortError, setWebPortError] = useState(false);
   const [creating, setCreating] = useState(false);
   const [pairs, setPairs] = useState<QrPair | null>(null);
   const [qrKind, setQrKind] = useState<QrKind>("web");
@@ -65,15 +77,12 @@ export function MobileTerminalSection(): JSX.Element {
   const [devices, setDevices] = useState<Device[]>([]);
   const [portChanged, setPortChanged] = useState(false);
   const creatingRef = useRef(false);
-  const prevPortRef = useRef<number | null>(null);
   const hostRef = useRef("");
   const copiedTimer = useRef<number | null>(null);
 
   const applyStatus = useCallback((s: Status) => {
     setStatus(s);
-    setPortInput(String(s.port));
-    if (prevPortRef.current !== null && prevPortRef.current !== s.port) setPortChanged(true);
-    prevPortRef.current = s.port;
+    setWebPortInput(String(s.port));
     const nextHost = s.lanAddresses.includes(hostRef.current) ? hostRef.current : (s.lanAddresses[0] ?? "");
     hostRef.current = nextHost;
     setHost(nextHost);
@@ -86,28 +95,34 @@ export function MobileTerminalSection(): JSX.Element {
     } catch { /* 保留上一次结果 */ }
   }, []);
 
-  const refreshOffers = useCallback(async (s: Status, targetHost: string) => {
+  const refreshOffers = useCallback(async (s: Status, targetHost: string, appEnabled: boolean) => {
     if (creatingRef.current) return;
     creatingRef.current = true;
     setCreating(true);
     setError("");
     try {
       const opts = { width: 220, margin: 1, errorCorrectionLevel: "L" } as const;
-      const appOffer = await window.electronAPI.mobileTerminal.createOffer();
-      const appQr = await QRCode.toDataURL(appOffer.uri, opts);
-      let expiresAt = appOffer.expiresAt;
+      // 通道关着就不生成对应二维码：createPairingOffer 会顺带 ensureStarted()，
+      // 关掉开关却因为「刷新二维码」把 47778 又听起来，等于开关没生效。
+      const appQr = appEnabled
+        ? await window.electronAPI.mobileTerminal.createOffer(hostRef.current || undefined).then((offer) =>
+            QRCode.toDataURL(offer.uri, opts).then((qr) => ({ qr, expiresAt: offer.expiresAt })))
+        : null;
+      let expiresAt = appQr?.expiresAt ?? 0;
       let webQr = "";
       let webUrl = "";
       const urlHost = targetHost || s.lanAddresses[0] || "";
-      if (s.enabled && s.running && s.lanAddresses.length > 0) {
+      if (s.enabled && s.running && s.bridgeReady && s.lanAddresses.length > 0) {
         // Web 二维码只带 10 位短码：桌面端另起一份独立 offer 登记短码表，
         // 浏览器同源 fetch('/pair/<code>.json') 取配对材料。
         const link = await window.electronAPI.mobileWeb.createPairLink();
         webUrl = `http://${urlHost}:${s.port}/#p=${link.code}`;
         webQr = await QRCode.toDataURL(webUrl, opts);
-        expiresAt = Math.min(expiresAt, link.expiresAt);
+        expiresAt = expiresAt ? Math.min(expiresAt, link.expiresAt) : link.expiresAt;
       }
-      setPairs({ appQr, webQr, webUrl, expiresAt, port: s.port, host: urlHost });
+      setPairs(expiresAt
+        ? { appQr: appQr?.qr ?? "", webQr, webUrl, expiresAt, port: s.port, host: urlHost }
+        : null);
       setNow(Date.now());
     } catch (e) {
       setError(message(e));
@@ -119,9 +134,13 @@ export function MobileTerminalSection(): JSX.Element {
 
   const loadStatus = useCallback(async () => {
     try {
-      const s = await window.electronAPI.mobileWeb.getStatus();
+      const [s, app] = await Promise.all([
+        window.electronAPI.mobileWeb.getStatus(),
+        window.electronAPI.mobileTerminal.getStatus(),
+      ]);
       applyStatus(s);
-      await refreshOffers(s, hostRef.current);
+      applyAppStatus(app);
+      await refreshOffers(s, hostRef.current, app.enabled);
     } catch (e) {
       setError(message(e));
     }
@@ -132,9 +151,12 @@ export function MobileTerminalSection(): JSX.Element {
     void loadDevices();
     const offStatus = window.electronAPI.mobileWeb.onStatusChanged((s) => {
       applyStatus(s);
-      void refreshOffers(s, hostRef.current);
+      void refreshOffers(s, hostRef.current, appStatusRef.current?.enabled ?? false);
     });
-    const offChanged = window.electronAPI.mobileTerminal.onChanged(() => void loadDevices());
+    const offChanged = window.electronAPI.mobileTerminal.onChanged(() => {
+      void loadDevices();
+      void window.electronAPI.mobileTerminal.getStatus().then(applyAppStatus).catch(() => undefined);
+    });
     const offPair = window.electronAPI.mobileTerminal.onPairRequest(() => void loadDevices());
     const offError = window.electronAPI.mobileTerminal.onError(({ message: msg }) => setError(msg));
     return () => {
@@ -149,6 +171,14 @@ export function MobileTerminalSection(): JSX.Element {
     return () => window.clearInterval(timer);
   }, [pairs]);
 
+  // 首帧默认展示「当前开着的那条通道」的二维码：浏览器通道关着时不该先给一张空码
+  const defaultedQrKind = useRef(false);
+  useEffect(() => {
+    if (defaultedQrKind.current || !status || !appStatus) return;
+    defaultedQrKind.current = true;
+    if (!status.enabled && appStatus.enabled) setQrKind("app");
+  }, [status, appStatus]);
+
   const secondsLeft = useMemo(() => pairs ? Math.max(0, Math.ceil((pairs.expiresAt - now) / 1_000)) : 0, [pairs, now]);
 
   const toggleEnabled = async () => {
@@ -157,20 +187,49 @@ export function MobileTerminalSection(): JSX.Element {
     try {
       const next = await window.electronAPI.mobileWeb.setEnabled(!status.enabled);
       applyStatus(next);
-      await refreshOffers(next, hostRef.current);
+      await refreshOffers(next, hostRef.current, appStatusRef.current?.enabled ?? false);
+      if (!next.enabled && qrKind === "web" && appStatusRef.current?.enabled) setQrKind("app");
     } catch (e) {
       setError(message(e));
       void loadStatus();
     }
   };
 
-  const applyPort = async () => {
-    const port = Number(portInput);
-    if (!Number.isInteger(port) || port < 1024 || port > 65535) { setPortError(true); return; }
-    setPortError(false);
+  const toggleAppEnabled = async () => {
+    if (!appStatus) return;
     setError("");
     try {
-      await window.electronAPI.mobileWeb.setPort(port);
+      const next = await window.electronAPI.mobileTerminal.setEnabled(!appStatus.enabled);
+      applyAppStatus(next);
+      const web = status ?? await window.electronAPI.mobileWeb.getStatus();
+      await refreshOffers(web, hostRef.current, next.enabled);
+      // 正在展示的那条被关掉时切到另一条，避免停在「已关闭」的空二维码上
+      if (!next.enabled && qrKind === "app" && web.enabled) setQrKind("web");
+      if (next.enabled && qrKind === "web" && !web.enabled) setQrKind("app");
+    } catch (e) {
+      setError(message(e));
+      void window.electronAPI.mobileTerminal.getStatus().then(applyAppStatus).catch(() => undefined);
+    }
+  };
+
+  /** 端口提交：Enter 或失焦都走这里；非法值只标红、不打断当前监听。 */
+  const applyPort = async (channel: "app" | "web"): Promise<void> => {
+    const raw = channel === "app" ? appPortInput : webPortInput;
+    const current = channel === "app" ? appStatus?.port : status?.port;
+    const port = Number(raw);
+    const invalid = !Number.isInteger(port) || port < 1024 || port > 65535;
+    if (channel === "app") setAppPortError(invalid); else setWebPortError(invalid);
+    if (invalid || port === current) return;
+    setError("");
+    try {
+      if (channel === "app") {
+        applyAppStatus(await window.electronAPI.mobileTerminal.setPort(port));
+        // 端口变了，二维码里的 p= 也失效：立刻按新端口重建，别等用户手点刷新
+        if (status) await refreshOffers(status, hostRef.current, true);
+      } else {
+        await window.electronAPI.mobileWeb.setPort(port);
+      }
+      setPortChanged(true);
     } catch (e) {
       setError(message(e));
       void loadStatus();
@@ -180,13 +239,13 @@ export function MobileTerminalSection(): JSX.Element {
   const changeHost = (next: string) => {
     hostRef.current = next;
     setHost(next);
-    if (status) void refreshOffers(status, next);
+    if (status) void refreshOffers(status, next, appStatusRef.current?.enabled ?? false);
   };
 
   const refreshNow = () => {
     if (!status) return;
     setPortChanged(false);
-    void refreshOffers(status, hostRef.current);
+    void refreshOffers(status, hostRef.current, appStatusRef.current?.enabled ?? false);
   };
 
   const copyLink = async () => {
@@ -224,60 +283,79 @@ export function MobileTerminalSection(): JSX.Element {
     : qrKind === "web" && !status.enabled ? uiText("ui.MobileWebTab.needEnable")
     : qrKind === "web" && !status.running ? uiText("ui.MobileWebTab.notRunning")
     : qrKind === "web" && status.lanAddresses.length === 0 ? uiText("ui.MobileWebTab.noLan")
+    : qrKind === "web" && !status.bridgeReady ? uiText("ui.MobileWebTab.needEnableApp")
+    : qrKind === "app" && !appStatus?.enabled ? uiText("ui.MobileWebTab.needEnableApp")
     : "";
   const qrStale = portChanged || (pairs !== null && status !== null && (pairs.port !== status.port || pairs.host !== host));
 
   return (
     <section className="shrink-0 space-y-2">
-      {/* 标题 + 开关 */}
-      <div className="flex items-center justify-between px-1 gap-2">
-        <div className="min-w-0">
-          <div className="text-xs font-medium text-text-secondary">{uiText("ui.MobileTerminalSection.mobileTerminal")}</div>
-          <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.MobileTerminalSection.thePhoneShowsLiveDesktopDataWithout")}</div>
+      {/* 两条通道：端口与开关放在一起，各管各的（关掉即释放端口） */}
+      <div className="rounded-[var(--radius-lg)] border border-border bg-surface-alt px-3 py-2 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-text-primary">{uiText("ui.MobileTerminalSection.appChannel")}</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5 truncate">
+              {!appStatus
+                ? uiText("ui.MobileWebTab.loading")
+                : !appStatus.enabled
+                  ? uiText("ui.MobileTerminalSection.channelOff")
+                  : appStatus.running
+                    ? `${uiText("ui.MobileWebTab.running")} · ${uiText("ui.MobileTerminalSection.devicesOnline", { v0: appStatus.online })}`
+                    : uiText("ui.MobileWebTab.stopped")}
+            </div>
+          </div>
+          <input
+            className={`w-[64px] px-1.5 py-1 rounded-[var(--radius-lg)] bg-surface border text-center text-[length:var(--text-2xs)] tabular-nums shrink-0 ${appPortError ? "border-danger text-danger" : "border-border text-text-primary"}`}
+            inputMode="numeric"
+            aria-label={`${uiText("ui.MobileTerminalSection.appChannel")} ${uiText("ui.MobileWebTab.portLabel")}`}
+            value={appPortInput}
+            onChange={(e) => { setAppPortInput(e.target.value); setAppPortError(false); }}
+            onBlur={() => void applyPort("app")}
+            onKeyDown={(e) => { if (e.key === "Enter") void applyPort("app"); }}
+          />
+          <Toggle checked={appStatus?.enabled ?? false} onChange={() => void toggleAppEnabled()} disabled={!appStatus} />
         </div>
-        <Toggle checked={status?.enabled ?? false} onChange={() => void toggleEnabled()} disabled={!status} />
+
+        <div className="h-px bg-divider" />
+
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-text-primary">{uiText("ui.MobileTerminalSection.webChannel")}</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5 truncate">
+              {!status
+                ? uiText("ui.MobileWebTab.loading")
+                : !status.enabled
+                  ? uiText("ui.MobileTerminalSection.channelOff")
+                  : !status.running
+                    ? uiText("ui.MobileWebTab.stopped")
+                    : status.bridgeReady
+                      ? `${uiText("ui.MobileWebTab.running")} · ${uiText("ui.MobileWebTab.onlineWeb", { v0: status.onlineWebDevices })}`
+                      : uiText("ui.MobileWebTab.needEnableApp")}
+            </div>
+          </div>
+          <input
+            className={`w-[64px] px-1.5 py-1 rounded-[var(--radius-lg)] bg-surface border text-center text-[length:var(--text-2xs)] tabular-nums shrink-0 ${webPortError ? "border-danger text-danger" : "border-border text-text-primary"}`}
+            inputMode="numeric"
+            aria-label={`${uiText("ui.MobileTerminalSection.webChannel")} ${uiText("ui.MobileWebTab.portLabel")}`}
+            value={webPortInput}
+            onChange={(e) => { setWebPortInput(e.target.value); setWebPortError(false); }}
+            onBlur={() => void applyPort("web")}
+            onKeyDown={(e) => { if (e.key === "Enter") void applyPort("web"); }}
+          />
+          <Toggle checked={status?.enabled ?? false} onChange={() => void toggleEnabled()} disabled={!status} />
+        </div>
       </div>
+
+      {(appPortError || webPortError) && (
+        <div className="text-[length:var(--text-11)] text-danger px-1">{uiText("ui.MobileWebTab.portInvalid")}</div>
+      )}
 
       {status && (
         <>
-          {/* 运行状态 */}
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface-alt px-3 py-2 space-y-1">
-            <div className="flex items-center gap-2 text-[length:var(--text-2xs)]">
-              <span className={`w-2 h-2 rounded-full ${status.running ? "bg-success" : "bg-text-muted/40"}`} />
-              <span className="text-text-secondary">{status.running ? uiText("ui.MobileWebTab.running") : uiText("ui.MobileWebTab.stopped")}</span>
-              <span className="text-text-muted">·</span>
-              <span className="text-text-muted">{uiText("ui.MobileWebTab.portLabel")} {status.port}</span>
-            </div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted truncate">
-              {uiText("ui.MobileWebTab.lanLabel")}: {status.lanAddresses.length > 0 ? status.lanAddresses.join(", ") : uiText("ui.MobileWebTab.noLan")}
-            </div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted">
-              {uiText("ui.MobileWebTab.onlineWeb", { v0: status.onlineWebDevices })}
-            </div>
-          </div>
-
-          {/* 端口：输入框与按钮同行，说明文字放在下方 */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <input
-                className="w-20 px-2 py-1 rounded-[var(--radius-lg)] bg-surface-alt border border-border text-text-primary text-sm shrink-0"
-                inputMode="numeric"
-                aria-label={uiText("ui.MobileWebTab.portLabel")}
-                value={portInput}
-                onChange={(e) => { setPortInput(e.target.value); setPortError(false); }}
-              />
-              <button type="button" className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)] shrink-0" onClick={() => void applyPort()}>
-                {uiText("ui.MobileWebTab.portApply")}
-              </button>
-            </div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted">
-              {uiText("ui.MobileWebTab.portLabel")} · {uiText("ui.MobileWebTab.portHint")}
-            </div>
-          </div>
-          {portError && <div className="text-[length:var(--text-11)] text-danger">{uiText("ui.MobileWebTab.portInvalid")}</div>}
           {qrStale && (
             <div className="rounded-[var(--radius-lg)] border border-accent/40 bg-accent-soft px-3 py-2 text-[length:var(--text-11)] text-text-secondary">
-              {uiText("ui.MobileWebTab.portChangedHint")}
+              {qrKind === "app" ? uiText("ui.MobileTerminalSection.appPortChanged") : uiText("ui.MobileWebTab.portChangedHint")}
             </div>
           )}
 

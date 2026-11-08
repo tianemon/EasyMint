@@ -1103,7 +1103,69 @@ const filePath = p.join(projectPath, "task.json");
   remoteTerminalService.on("firewall-hint", ({ port }: { port: number }) => {
     broadcast("device:firewall-hint", { port });
   });
-  ipcMain.handle("mobile-terminal:create-offer", () => remoteTerminalService.createPairingOffer());
+  /**
+   * 手机 App 通道开关。关闭时真正 close 监听、端口被释放，手机侧表现为连不上；
+   * 打开时立刻重新监听（ensureStarted 幂等）。磁盘开关与运行状态分开存，界面才能区分
+   * 「用户开了但端口被占」。
+   */
+  const mobileAppStatus = () => ({
+    enabled: store.getSettings().mobileAppEnabled !== false,
+    running: remoteTerminalService.isRunning(),
+    port: remoteTerminalService.listeningPortNumber(),
+    paired: remoteTerminalService.listDevices().length,
+    online: remoteTerminalService.listDevices().filter((device) => device.online).length,
+  });
+  ipcMain.handle("mobile-terminal:get-status", () => mobileAppStatus());
+  ipcMain.handle("mobile-terminal:set-enabled", async (_e, { enabled }: { enabled: boolean }) => {
+    const settings = store.getSettings();
+    const prev = settings.mobileAppEnabled !== false;
+    settings.mobileAppEnabled = enabled;
+    store.saveSettings(settings);
+    try {
+      if (enabled) {
+        // 「有连接时才真正启用」：开关打开只保证端口在听，配对/命令都仍需双方握手，
+        // 没有设备连接时这条通道不产生任何出站数据（见 forwardAppEvent 的连接循环）。
+        await remoteTerminalService.ensureStarted();
+      } else {
+        remoteTerminalService.close();
+      }
+    } catch (error) {
+      // 端口被占等原因起不来：回滚磁盘开关，避免「设置里是开、实际没在听」的半开状态
+      const rollback = store.getSettings();
+      rollback.mobileAppEnabled = prev;
+      store.saveSettings(rollback);
+      throw error;
+    }
+    broadcast("mobile-terminal:status-changed", mobileAppStatus());
+    return mobileAppStatus();
+  });
+  ipcMain.handle("mobile-terminal:set-port", async (_e, { port }: { port: number }) => {
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("端口需为 1024–65535 的整数");
+    const settings = store.getSettings();
+    const prev = settings.mobileAppPort ?? 47_778;
+    const wasRunning = remoteTerminalService.isRunning();
+    if (port === prev) return mobileAppStatus();
+    settings.mobileAppPort = port;
+    store.saveSettings(settings);
+    try {
+      await remoteTerminalService.setPort(port);
+    } catch (error) {
+      const rollback = store.getSettings();
+      rollback.mobileAppPort = prev;
+      store.saveSettings(rollback);
+      // 端口被占等：setPort 已经 close 过监听，这里必须把旧端口听起来，
+      // 否则「改端口失败」会顺带把通道关掉，界面停在 running=false 却仍是「已开启」。
+      await remoteTerminalService.setPort(prev).catch(() => undefined);
+      if (wasRunning && !remoteTerminalService.isRunning()) {
+        await remoteTerminalService.ensureStarted().catch(() => undefined);
+      }
+      throw error;
+    }
+    broadcast("mobile-terminal:status-changed", mobileAppStatus());
+    return mobileAppStatus();
+  });
+  ipcMain.handle("mobile-terminal:create-offer", (_e, args?: { host?: string }) =>
+    remoteTerminalService.createPairingOffer(args?.host));
   ipcMain.handle("mobile-terminal:list-devices", () => remoteTerminalService.listDevices());
   ipcMain.handle("mobile-terminal:list-pending", () => remoteTerminalService.listPendingPairs());
   ipcMain.handle("mobile-terminal:accept-pair", (_e, { requestId }: { requestId: string }) => ({ ok: remoteTerminalService.acceptPair(requestId) }));
