@@ -82,6 +82,10 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 /* liquid 仅输入卡使用：背景染色 + 顶部一次高光 + 方向性 1px 光学轮廓 */
 .glass-liquid { background: linear-gradient(135deg, var(--glass-sheen), transparent 42%), var(--liquid-fill);
   border-color: transparent; }
+/* App 的 iOS 玻璃是系统材质，**永远带模糊**；Web 上等价于「不依赖调用方传 blur」。
+   少了这条，没传 blur 的实例（首页加号 FAB）在非折射路径上只剩 20% 染色，
+   表现就是「iOS 是磨砂玻璃、安卓只有一层半透明」。 */
+.glass-liquid { backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-liquid.is-elevated { box-shadow: var(--shadow-md); }
 /* 顶部 1px 高光：整块玻璃只有这一次，不叠加第二层 inset 白边 */
 .glass-liquid::before { content: ''; position: absolute; top: 0; left: 12%; right: 12%; height: 1px; pointer-events: none;
@@ -133,7 +137,11 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
    固定尺寸的玻璃（如 58×58 的悬浮加号）里图标会被顶到左上角而不是居中 */
 .glass-content { position: relative; z-index: 1; width: 100%; height: 100%; }
 .glass-fallback.glass-liquid, .glass-fallback.glass-frosted { backdrop-filter: none; -webkit-backdrop-filter: none; }
-.glass-fallback.glass-liquid { background: var(--frosted-sheet-fill); }
+/* 连 CSS.supports 都说没有 backdrop-filter 的浏览器（部分国产 WebView）：别退成一块 78% 白板，
+   那看起来就是「半透明色块」。仍用「顶部淡纱 + liquid 染色」，至少保住玻璃的层次。 */
+.glass-fallback.glass-liquid {
+  background: linear-gradient(180deg, var(--composer-fill-android) 0%, transparent 100%), var(--liquid-fill);
+}
 .glass-fallback.glass-frosted { background: var(--card); }
 
 /* ── 设备页 / 配对码 ───────────────────────────── */
@@ -282,14 +290,12 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .chat-floating { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom); }
 .message-area { height: 100%; position: relative; }
-/* 滚到标题栏下的内容渐隐：玻璃底边是硬的，正文压在上面时会被「切一半」（上半在栏内、下半在栏外），
-   看起来像字被削掉。用一条贴住栏底的渐隐化开；App 那边是原生模糊把这一段糊住。 */
+/* 这里曾经挂过一条「顶部渐隐」mask（transparent → 黑），用来化开压到标题栏下的正文。
+   但 mask 是**整块滚动区**生效的：栏内那段被抹掉的正文正好在按钮下面，iOS 有 backdrop-filter
+   会把它当底噪去模糊，于是标题栏整条随滚动变亮变暗，看着像「按钮上盖了一层渐隐」。
+   安卓不合成模糊，所以两端表现还不一样。改成不遮罩：正文照常铺到栏下，由标题栏玻璃自己去糊。 */
 .message-scroll {
   height: 100%; overflow-y: auto; overscroll-behavior-y: contain;
-  -webkit-mask-image: linear-gradient(to bottom,
-    transparent calc(var(--msg-top, 62px) - 28px), #000 calc(var(--msg-top, 62px) - 2px));
-  mask-image: linear-gradient(to bottom,
-    transparent calc(var(--msg-top, 62px) - 28px), #000 calc(var(--msg-top, 62px) - 2px));
 }
 /* 消息贴底：内容不足一屏时停在下边（紧贴输入卡上方），与 App 的 inverted 列表一致。
    用首行 margin-top:auto 而不是 justify-content:flex-end —— 后者在内容溢出时会把顶部截掉。 */
@@ -507,10 +513,17 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 @supports (-webkit-touch-callout: none) { .composer-card { margin-bottom: 12px; } }
 .composer-glass { position: absolute; inset: 0; z-index: 0; background: var(--liquid-clear-fill); }
 /* 安卓 / 鸿蒙：这些 WebView 的合成器经常不渲染 backdrop-filter（表现是输入卡彻底隐形，
-   因为 liquidClearFill 在浅色下是全透明、深色只有 5%）。给一层自己的材质，blur 生效时
-   只是把它再磨一层，不生效时也仍然是一块看得见的卡。 */
-html[data-platform="android"] .composer-glass { background: var(--composer-fill-android); }
-html[data-platform="android"] .glass-liquid.has-lens.composer-glass .glass-frost { background: var(--composer-fill-android); }
+   因为 liquidClearFill 在浅色下是全透明、深色只有 5%）。但仍不能铺一块接近实色的白底：
+   55% 白会把模糊、轮廓、折射全盖掉，观感就是「半透明矩形」而不是玻璃。
+   改成「顶部一层淡纱 + 底部只留 liquid 染色」——模糊生效时几乎看不出，不生效时也仍是一块卡。 */
+:is(html[data-platform="android"], html[data-platform="harmony"]) .composer-glass {
+  background: linear-gradient(180deg, var(--composer-fill-android) 0%, transparent 100%), var(--liquid-fill);
+  /* 没有折射带时，玻璃的「厚度」只剩这条贴顶的内高光能表达（::before 的高光是给有折射的实例的） */
+  box-shadow: inset 0 1px 0 var(--glass-rim);
+}
+:is(html[data-platform="android"], html[data-platform="harmony"]) .glass-liquid.has-lens.composer-glass .glass-frost {
+  background: var(--liquid-fill);
+}
 /* 输入卡按 App 传 fill=liquidClearFill / sheen=false：不要整面染色与顶部高光，只保留玻璃轮廓与折射 */
 .glass-liquid.composer-glass::before { display: none; }
 .glass-liquid.has-lens.composer-glass .glass-frost { background: var(--liquid-clear-fill); }

@@ -3,6 +3,8 @@
  *  这里只做「未来若改用 HTTPS 立刻可用」的渐进兼容；当前 HTTP 下安装按钮不出现，
  *  由 platformHint() 给出手动「添加到主屏幕」的平台指引，绝不谎称能自动弹提示。 */
 
+import { detectPlatform } from '../core/platform';
+
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -70,17 +72,19 @@ export function subscribeInstallAvailability(cb: () => void): () => void {
   return () => { listeners.delete(cb); };
 }
 
-/** 平台指引：iOS（含 iPadOS 桌面 UA）走 Safari 分享；Android 走 Chrome 菜单；其它走通用菜单。 */
+/** 平台指引：iOS（含 iPadOS 桌面 UA）走 Safari 分享；Android 走 Chrome 菜单；
+ *  鸿蒙（ArkWeb / 华为浏览器）走浏览器菜单，不写 Chrome（那边没有 Chrome）。 */
 export function platformHint(): string {
   if (isStandalone()) return '';
   if (typeof navigator === 'undefined') return '可通过浏览器菜单把本页添加为快捷方式。';
-  const ua = navigator.userAgent;
-  const iOS = /iPad|iPhone|iPod/.test(ua)
-    || (/Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1);
-  if (iOS) {
+  const platform = detectPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+  if (platform === 'ios') {
     return 'iPhone / iPad：点 Safari 底部「分享」→「添加到主屏幕」；之后从主屏图标打开即为无地址栏全屏。';
   }
-  if (/Android/.test(ua)) {
+  if (platform === 'harmony') {
+    return '鸿蒙：点浏览器底部菜单 →「添加到桌面」。当前是局域网 http 页面，浏览器不会主动弹出安装提示，请手动添加。';
+  }
+  if (platform === 'android') {
     return 'Android：点 Chrome 右上角菜单 →「添加到主屏幕」。当前是局域网 http 页面，浏览器不会主动弹出安装提示，请手动添加。';
   }
   return '可通过浏览器菜单把本页「添加到主屏幕 / 添加快捷方式」。';

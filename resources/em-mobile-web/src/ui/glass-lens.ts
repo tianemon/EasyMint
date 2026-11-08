@@ -15,6 +15,8 @@
  * 这是与 A4 字面「父层保留 blur + 整块径向 mask」的偏离，理由与数据见汇报。
  */
 
+import { detectPlatform, usesLayeredGlass } from '../core/platform';
+
 export const LENS_FILTER_ID = 'em-liquid-lens';
 /**
  * 边缘带的滤镜链：位移在前、磨砂在后。
@@ -88,10 +90,12 @@ export function ensureLensDefs(): void {
  */
 export function supportsLens(): boolean {
   if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
-  // Android / 鸿蒙不做分层：这些 WebView 的合成器在「父层 overflow:hidden+圆角 → 子层
-  // backdrop-filter」这条路径上不一定合成，表现是输入卡完全没有磨砂。直接走整块模糊
-  // （.glass-liquid.is-blur），少一点边缘位移，换来各端观感一致。
-  if (typeof navigator !== 'undefined' && /Android|HarmonyOS|OpenHarmony/i.test(navigator.userAgent)) return false;
+  // 只有 iOS 走分层折射。Android / 鸿蒙不做分层：这些 WebView 的合成器在
+  // 「父层 overflow:hidden+圆角 → 子层 backdrop-filter」这条路径上不一定合成，
+  // 表现是输入卡完全没有磨砂。直接走整块模糊（.glass-liquid 的基础 blur），
+  // 少一点边缘位移，换来各端观感一致。
+  if (typeof navigator !== 'undefined'
+    && !usesLayeredGlass(detectPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0))) return false;
   const url = CSS.supports('backdrop-filter', `url(#${LENS_FILTER_ID})`)
     || CSS.supports('-webkit-backdrop-filter', `url(#${LENS_FILTER_ID})`);
   // backdrop-filter 整体不可用时页面会挂 glass-fallback，此时不应启用折射。

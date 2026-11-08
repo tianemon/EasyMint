@@ -24,6 +24,7 @@ const lens = read('src/ui/glass-lens.ts');
 const glass = read('src/ui/components/Glass.tsx');
 const ambient = read('src/ui/components/AmbientBackground.tsx');
 const main = read('src/main.tsx');
+const platform = read('src/core/platform.ts');
 
 test('index.html：安装入口齐全且仍满足 CSP / 相对路径契约', () => {
   match(html, /<link[^>]+rel="manifest"[^>]+href="\.\/manifest\.webmanifest"/, '删掉或改名 manifest link');
@@ -116,15 +117,21 @@ test('main.tsx：visualViewport 同时监听 resize 与 scroll', () => {
   match(main, /window\.addEventListener\('resize'/, '删掉 window.resize 兜底');
 });
 
-test('平台适配：data-platform 标记 + iOS 高度 + 安卓输入卡材质', () => {
+test('平台适配：data-platform 标记 + iOS 高度 + 安卓/鸿蒙输入卡材质', () => {
   // 少了这个标记，iOS 的 100vh 与安卓的材质都不会生效（两端继续按同一套走）
   match(main, /dataset\.platform\s*=/, '删掉 data-platform 标记');
-  match(main, /Android\|HarmonyOS\|OpenHarmony/, '鸿蒙要并入 android 分支');
+  match(main, /detectPlatform\(/, '平台判定要收在 core/platform.ts，方便用例覆盖各端 UA');
+  // 鸿蒙必须能被单独认出来，否则 ArkWeb（UA 里没有 Android）会掉进 desktop 分支
+  match(platform, /OpenHarmony\|ArkWeb/, '删掉鸿蒙 NEXT（ArkWeb / OpenHarmony）判定');
+  match(platform, /HarmonyOS/, '删掉鸿蒙 2–4（安卓底座）判定');
   // iOS 主屏首帧 dvh 偏小 → 底部黑边，滑动才补；standalone 下 100vh 才是稳定值
   match(css, /html\[data-platform="ios"\]\s+\.app\s*\{[^}]*100vh/, 'iOS 回退到 dvh（首帧会留黑边）');
   // 安卓/鸿蒙的合成器常常不渲染 backdrop-filter，输入卡必须自带材质，否则彻底隐形
-  match(css, /html\[data-platform="android"\]\s+\.composer-glass\s*\{[^}]*--composer-fill-android/, '删掉安卓输入卡材质');
+  match(css, /:is\(html\[data-platform="android"\], html\[data-platform="harmony"\]\)\s+\.composer-glass\s*\{[^}]*--composer-fill-android/,
+    '删掉安卓/鸿蒙输入卡材质');
   must((tokens.match(/--composer-fill-android/g) ?? []).length >= 4, '删掉某个主题下的 --composer-fill-android');
+  // 顶部渐隐的 mask 会把标题栏里那截正文抹掉，iOS 模糊后按钮跟着忽明忽暗 —— 已经删掉，别加回来
+  noMatch(css, /\.message-scroll\s*\{[^}]*mask-image/, '给消息滚动区加回顶部渐隐 mask（iOS 上按钮会忽明忽暗）');
 });
 
 test('glass-lens.ts / Glass.tsx / AmbientBackground.tsx：折射层真实接线', () => {

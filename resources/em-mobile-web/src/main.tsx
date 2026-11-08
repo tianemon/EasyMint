@@ -1,20 +1,20 @@
 import { createRoot } from 'react-dom/client';
 import App from './ui/App';
+import { detectPlatform } from './core/platform';
 import './styles/tokens.css';
 import './styles/app.css';
 
 /**
- * 平台标记：三端在「视口高度」和「玻璃材质」上要分别处理，靠 CSS 的 @supports 分不干净
+ * 平台标记：四端在「视口高度」和「玻璃材质」上要分别处理，靠 CSS 的 @supports 分不干净
  * （Safari 与 Chrome 报的能力几乎一样）。
  *  - ios：主屏 standalone 首帧的 100dvh 会偏小一圈（底部留黑边，滑动一次才补齐，
  *    不滚动的页面永远补不上），要用 100vh；
- *  - android：含鸿蒙。地址栏会变，必须用 dvh；且这些 WebView 的合成器常常不渲染
- *    backdrop-filter，输入卡要自带一层看得见的材质。
+ *  - android / harmony：地址栏会变，必须用 dvh；且这些 WebView 的合成器常常不渲染
+ *    backdrop-filter，输入卡要自带一层看得见的材质。判定细节见 core/platform.ts。
  */
-const platform = /Android|HarmonyOS|OpenHarmony/i.test(navigator.userAgent)
-  ? 'android'
-  : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'desktop';
-document.documentElement.dataset.platform = platform;
+document.documentElement.dataset.platform = detectPlatform(
+  navigator.userAgent, navigator.maxTouchPoints ?? 0,
+);
 
 /**
  * 只在**软键盘**弹出时把可视高度写进 --vvh，输入卡才不会被键盘顶飞。

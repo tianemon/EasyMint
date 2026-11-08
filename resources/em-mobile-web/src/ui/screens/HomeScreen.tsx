@@ -32,7 +32,7 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
     <div className="screen">
       <Header title="设备" right={
         <button type="button" className="header-pill-hit" onClick={onOpenSettings} aria-label="设置">
-          <Glass variant="frosted" radius={13} className="header-pill">
+          <Glass variant="frosted" radius={13} blur className="header-pill">
             <span className="header-pill-inner"><Icon name="settings" size={19} /></span>
           </Glass>
         </button>

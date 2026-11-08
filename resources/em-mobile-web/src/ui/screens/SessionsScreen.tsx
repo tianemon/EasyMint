@@ -29,7 +29,7 @@ export function SessionsScreen({ project, sessions, onOpenArchive, onBack, onSwi
         }
         right={
           <button type="button" className="header-pill-hit" onClick={onOpenArchive} aria-label="归档会话">
-            <Glass variant="frosted" radius={13} className="header-pill">
+            <Glass variant="frosted" radius={13} blur className="header-pill">
               <span className="header-pill-inner"><Icon name="clock" size={19} /></span>
             </Glass>
           </button>
