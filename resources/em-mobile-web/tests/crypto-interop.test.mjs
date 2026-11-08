@@ -122,7 +122,10 @@ test('#p= 10 位短码解析，且 parsePairingPayload(string) 兼容与 sequenc
   assert.throws(() => web.parsePairingPayload(Buffer.from(JSON.stringify({ ...offer, expiresAt: 1 })).toString('base64url')));
 
   const client = readFileSync(path.join(root, 'src/protocol/remote-client.ts'), 'utf8');
-  assert.match(client, /web-\$\{randomId\(\)\}/, 'Web 设备 deviceId 必须带 web- 前缀');
+  assert.match(client, /deviceId\?\. |deviceId\?: string/, '配对尝试应允许外部传入 deviceId');
+  assert.match(client, /webDeviceId\(\)/, 'deviceId 必须来自 client-id 的稳定 key');
+  const clientId = readFileSync(path.join(root, 'src/protocol/client-id.ts'), 'utf8');
+  assert.match(clientId, /return `web-\$\{clientKey\(\)\}`/, 'Web 设备 deviceId 必须带 web- 前缀');
   assert.match(client, /sequence !== this\.receiveSequence \+ 1/, '接收 sequence 必须严格 === 上一个+1');
   assert.match(client, /close\(1008, 'invalid sequence'\)/, '错序必须关闭连接');
 });

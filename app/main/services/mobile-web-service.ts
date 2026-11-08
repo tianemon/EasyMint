@@ -199,6 +199,9 @@ function buildPolicy(ctx: RequestContext): Policy {
     "script-src 'self'",
     "style-src 'self'",
     "img-src 'self' data: blob:",
+    // 主屏安装的 manifest 由页面在本地拼装成 blob:（凭证不出设备），
+    // 不显式放行 blob: 会被 default-src 'self' 挡掉，iOS 主屏启动就拿不到 start_url。
+    "manifest-src 'self' blob:",
     `connect-src ${connectSrc}`,
     "frame-ancestors 'none'",
     "base-uri 'none'",

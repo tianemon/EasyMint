@@ -117,12 +117,14 @@ test('重试复用同一 attempt：验证码恒定、init 的 deviceId/公钥不
   assert.equal(secondCred.sharedSecret, firstCred.sharedSecret, '凭证里的共享密钥必须一致');
 });
 
-test('不同 attempt 生成不同验证码/公钥（反向证明必须复用）', () => {
+test('不同 attempt 生成不同验证码/公钥，但 deviceId 稳定（同一台设备在电脑端只留一条记录）', () => {
   const offer = makeOffer();
   const a = web.createPairingAttempt(offer);
   const b = web.createPairingAttempt(offer);
-  assert.notEqual(a.deviceId, b.deviceId);
+  assert.equal(a.deviceId, b.deviceId, 'deviceId 必须来自本机稳定的 clientKey，重复配对只覆盖同一条记录');
+  assert.match(a.deviceId, /^web-[a-z0-9]{8,32}$/);
   assert.notEqual(a.publicKey, b.publicKey);
+  assert.notEqual(a.code, b.code);
 });
 
 test('App：配对失败路径保留验证码，并接出可重试入口', () => {

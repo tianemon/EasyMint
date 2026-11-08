@@ -90,23 +90,32 @@ a { color: var(--accent); }
    折射贡献从 9988 掉到 199），改由中心磨砂层承接同样的 blur(18px) saturate(1.4)、
    四条边缘带采样原始背景做折射（见 glass-lens.ts 与 tests/glass-render.test.mjs）。 */
 .glass-frost, .glass-lens { display: none; }
+/* 整卡磨砂的兜底路径：Safari/iOS 不支持 backdrop-filter: url()，supportsLens() 为假、
+   不会挂 has-lens，若这里不补一条规则，液态玻璃就只剩 4% 填充 —— 等于整张卡没有背景模糊。
+   强度写死 18px 而不是走 --glass-blur：App 的 intensity=8 是 expo-blur 的口径，
+   换算成 CSS 只有 3px，肉眼看不出模糊。 */
+.glass-liquid.is-blur { backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-liquid.has-lens { backdrop-filter: none; -webkit-backdrop-filter: none; }
-.glass-liquid.has-lens .glass-frost { display: block; position: absolute; inset: 16px; z-index: 0; pointer-events: none;
+.glass-liquid.has-lens .glass-frost { display: block; position: absolute; inset: var(--lens-band, 10px); z-index: 0; pointer-events: none;
   border-radius: calc(var(--glass-radius, 8px) - 2px); background: var(--liquid-fill);
   backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-liquid.has-lens .glass-lens { display: block; position: absolute; z-index: 0; pointer-events: none; }
-/* 四条 16px 边缘带：backdrop-filter 由 glass-lens.ts 用 CSSOM 注入（CSP 不允许内联 style，
+/* 四条边缘带：backdrop-filter 由 glass-lens.ts 用 CSSOM 注入（CSP 不允许内联 style，
    外链 CSS 里的 url(#id) 又会按样式表 URL 解析）。中心留空 → 中心零位移；边缘带 → 集中折射。
-   向内的线性渐隐 mask 让折射强度平滑衰减进中心（实测条带上 mask 不会让滤镜失效）。 */
-.glass-lens-t { left: 0; right: 0; top: 0; height: 16px;
+   向内的线性渐隐 mask 让折射强度平滑衰减进中心（实测条带上 mask 不会让滤镜失效）。
+   宽度由 --lens-band 统一给：磨砂层 inset 必须等于带宽，两者错开就会在卡片上留下一圈没模糊的边
+   ——输入卡只有 100 出头高，16px 的带等于上下各有一条清晰带，看起来就是「只模糊了输入框」。 */
+.glass-lens-t { left: 0; right: 0; top: 0; height: var(--lens-band, 10px);
   -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent); }
-.glass-lens-b { left: 0; right: 0; bottom: 0; height: 16px;
+.glass-lens-b { left: 0; right: 0; bottom: 0; height: var(--lens-band, 10px);
   -webkit-mask-image: linear-gradient(0deg, #000, transparent); mask-image: linear-gradient(0deg, #000, transparent); }
-.glass-lens-l { top: 0; bottom: 0; left: 0; width: 16px;
+.glass-lens-l { top: 0; bottom: 0; left: 0; width: var(--lens-band, 10px);
   -webkit-mask-image: linear-gradient(90deg, #000, transparent); mask-image: linear-gradient(90deg, #000, transparent); }
-.glass-lens-r { top: 0; bottom: 0; right: 0; width: 16px;
+.glass-lens-r { top: 0; bottom: 0; right: 0; width: var(--lens-band, 10px);
   -webkit-mask-image: linear-gradient(270deg, #000, transparent); mask-image: linear-gradient(270deg, #000, transparent); }
-.glass-content { position: relative; z-index: 1; }
+/* liquid 会多包一层内容容器：必须撑满玻璃根，否则子元素的 100% 高度退化成内容高，
+   固定尺寸的玻璃（如 58×58 的悬浮加号）里图标会被顶到左上角而不是居中 */
+.glass-content { position: relative; z-index: 1; width: 100%; height: 100%; }
 .glass-fallback.glass-liquid, .glass-fallback.glass-frosted { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .glass-fallback.glass-liquid { background: var(--frosted-sheet-fill); }
 .glass-fallback.glass-frosted { background: var(--card); }
@@ -127,6 +136,9 @@ a { color: var(--accent); }
 .device-tail { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot-gray); flex: 0 0 auto; }
 .status-dot.is-on { background: var(--success); }
+/* 设备页的连接点用 accent（App HomeScreen 就是这么写的），设置页用 success：
+   深色下 accent 是中性浅灰、success 是绿，两者差别肉眼可见，不能共用一条规则 */
+.status-dot.is-on-accent { background: var(--accent); }
 .status-dot.is-pending { background: var(--warning); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 .home-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -164,15 +176,30 @@ a { color: var(--accent); }
 .pair-retry:disabled { opacity: .5; }
 .pair-guide .pair-code-card { margin-top: var(--s4); }
 
+/* 配对恢复：主屏独立打开或凭证丢失时的入口（手动输入 / 相机扫码） */
+.pair-recovery { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: var(--s4); }
+.pair-recovery-link { color: var(--accent); font-size: var(--fs-sm); }
+.pair-recovery-dot { color: var(--text-muted); }
+.pair-recovery-panel { margin-top: var(--s4); display: flex; flex-direction: column; gap: var(--s2); align-items: stretch; }
+.pair-recovery-input { height: 40px; padding: 0 var(--s3); border-radius: var(--radius-lg);
+  border: 1px solid var(--border); background: var(--input-field); color: var(--text-primary); font-size: var(--fs-sm); }
+.pair-recovery-hint { color: var(--text-muted); font-size: var(--fs-xxs); line-height: 1.6; }
+.pair-recovery-actions { display: flex; gap: var(--s2); justify-content: flex-end; }
+.pair-recovery-cancel { color: var(--text-secondary); font-size: var(--fs-sm); padding: var(--s2) var(--s3); }
+.pair-recovery-submit { display: inline-flex; align-items: center; gap: 5px; padding: var(--s2) var(--s4);
+  border-radius: var(--radius-full); background: var(--accent); color: var(--text-inverse); font-size: var(--fs-sm); font-weight: 600; }
+.pair-scan-video { width: 100%; max-width: 280px; aspect-ratio: 1 / 1; object-fit: cover;
+  border-radius: var(--radius-xl); background: #000; align-self: center; }
+
 /* ── 项目 / 会话列表：铺平纯文本行 + 内缩 hairline（照 App ListRow flat / SessionRow） ── */
 .list-empty { color: var(--text-muted); font-size: var(--fs-sm); text-align: center; margin-top: 80px; padding: 0 var(--chat-inset); }
 .projects-body { padding: 4px 0 20px; }
 .project-row { position: relative; display: flex; align-items: center; gap: var(--s3); width: 100%;
   padding: 14px var(--chat-inset); text-align: left; color: var(--text-primary); }
-.project-row:active { background: var(--glass-press); }
+.project-row:active { background: var(--surface-alt); }
 .project-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s1); }
 .project-row-title { font-size: var(--fs-md); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-row-sub { font-size: var(--fs-xs); line-height: 19px; color: var(--text-muted); }
+.project-row-sub { font-size: var(--fs-sm); line-height: 19px; color: var(--text-muted); }
 .sessions-body { padding: 4px 0 96px; }
 .project-title { display: inline-flex; align-items: center; justify-content: center; gap: 5px; max-width: 100%; }
 .project-title-chevron { display: inline-flex; color: var(--project-chevron); flex: 0 0 auto; }
@@ -487,14 +514,14 @@ a { color: var(--accent); }
   font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-divider { height: .5px; margin: 0 var(--s4); background: var(--divider); }
 .settings-actions { display: flex; align-items: center; height: 48px; }
-.settings-action-btn { flex: 1; height: 48px; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.settings-action-btn { flex: 1; height: 48px; font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
 .settings-action-btn.is-danger { color: var(--danger); }
 .settings-action-divider { width: .5px; height: 18px; background: var(--divider); }
-.settings-empty { font-size: var(--fs-xs); color: var(--text-secondary); }
+.settings-empty { font-size: var(--fs-sm); color: var(--text-secondary); }
 .settings-row { min-height: 52px; padding: 8px var(--s4); display: flex; align-items: center;
-  justify-content: space-between; gap: var(--s3); font-size: 15px; color: var(--text-primary); }
+  justify-content: space-between; gap: var(--s3); font-size: var(--fs-body); color: var(--text-primary); }
 .settings-version { font-size: var(--fs-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.settings-inline-btn { color: var(--accent); font-size: 15px; font-weight: 600; flex: 0 0 auto; }
+.settings-inline-btn { color: var(--accent); font-size: var(--fs-body); font-weight: 600; flex: 0 0 auto; }
 .appearance-slider { width: 100%; }
 .appearance-track { position: relative; display: grid; grid-template-columns: repeat(3, 1fr);
   height: 54px; padding: 4px; overflow: hidden; }

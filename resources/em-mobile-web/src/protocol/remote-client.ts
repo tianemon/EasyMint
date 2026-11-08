@@ -18,6 +18,7 @@ import {
   randomId,
   type SessionKeys,
 } from './crypto';
+import { webDeviceId } from './client-id';
 
 type Status = 'disconnected' | 'connecting' | 'connected';
 type JsonObject = Record<string, unknown>;
@@ -75,13 +76,13 @@ export interface PairingAttempt {
   code: string;
 }
 
-export function createPairingAttempt(offer: PairingOffer): PairingAttempt {
-  const deviceId = `web-${randomId()}`;
+export function createPairingAttempt(offer: PairingOffer, deviceId?: string): PairingAttempt {
+  const id = deviceId ?? webDeviceId();
   const pair = createPairingKeyPair();
   const sharedSecret = computeSharedSecret(pair.secretKey, offer.publicKey);
   const keys = deriveKeys(sharedSecret);
   return {
-    deviceId,
+    deviceId: id,
     publicKey: pair.publicKey,
     sharedSecret,
     keys,

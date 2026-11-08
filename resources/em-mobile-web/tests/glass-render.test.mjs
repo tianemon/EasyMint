@@ -6,10 +6,10 @@
 //  2. 测试页直接内联 src/styles/tokens.css + app.css，复用真实线上 CSS 规则与真实 class 结构；
 //  3. 用本机 Chrome 无头分别截图「无 lens 层」「有 lens 层」「只有 blur 的 lens 层」三种状态，
 //     用 Node 内置 zlib 手写 PNG 解码，按与 team-lead 探针一致的判据逐像素比较：
-//     RGB 绝对差之和 > 12 记为变化，距卡片边 < 28px 记 rim、其余记 center。
+//     RGB 绝对差之和 > 12 记为变化，距卡片边 < 边缘带宽 + 2px 记 rim、其余记 center。
 //       - 核心断言：四条边缘带 vs 无 lens 层，rim 有显著差异、center 无差异；
 //       - 与「只有 blur」对照相比仍要有明显 rim 差异，证明 feDisplacementMap 位移确实生效，
-//         而不只是 backdrop-filter: blur(3px) 带来的模糊。
+//         而不只是 backdrop-filter 里的 blur 带来的模糊（对照组只摘掉 url()，模糊量级与线上一致）。
 //  Chrome 不存在时明确 skip 并打印原因，不恒绿。
 
 import assert from 'node:assert/strict';
@@ -27,6 +27,10 @@ const CHROME = process.env.EM_CHROME_PATH || '/Applications/Google Chrome.app/Co
 const CHROME_MISSING = !existsSync(CHROME);
 const W = 360;
 const H = 260;
+
+// rim 判据区域必须跟着边缘带宽度走：带宽从 16 收到 10 后，仍按 28px 统计会把带外
+// 那圈「本来就不该变」的像素计入分母，比例被稀释成假阴性。
+const BAND_PX = Number((/--lens-band,\s*(\d+)px/.exec(readFileSync(path.join(root, 'src/styles/app.css'), 'utf8')) || [])[1] ?? 16);
 
 // ---- 最小 PNG 解码器：8bit RGB/RGBA，filter 0..4，纯 Node 内置 zlib ----
 function decodePng(buf) {
@@ -81,11 +85,11 @@ function decodePng(buf) {
 
 /**
  * 与 team-lead 探针一致的判据：卡片区域内逐像素算 RGB 绝对差之和 > 12 记为「变化」，
- * 距卡片边 < 28px 记 rim、其余记 center。核心证据是「rim 有显著差异、center 无差异」。
+ * 距卡片边 < 带宽 + 2px 记 rim、其余记 center。核心证据是「rim 有显著差异、center 无差异」。
  */
 function rimCenterDiff(a, b) {
   const card = { x0: 50, y0: 60, x1: 310, y1: 200 };
-  const rimWidth = 28;
+  const rimWidth = BAND_PX + 2;
   let rim = 0;
   let center = 0;
   let rimTotal = 0;
@@ -133,13 +137,15 @@ function page(mode, lens) {
   const tokens = readFileSync(path.join(root, 'src/styles/tokens.css'), 'utf8');
   const app = readFileSync(path.join(root, 'src/styles/app.css'), 'utf8');
   const lensValue = JSON.stringify(lens.LENS_BACKDROP);
+  // 对照组只去掉 url()，模糊与饱和必须与线上完全一致，否则「差异来自位移」这条判据不成立
+  const blurOnlyValue = JSON.stringify(lens.LENS_BACKDROP.replace(/url\([^)]*\)\s*/, ''));
   const apply = {
     // 无 lens 层：四条边缘带全隐藏（等价 Glass.tsx 不挂载折射层）
     off: `bands.forEach(function(b){b.style.display='none';});`,
     // 有 lens 层：与 applyLens() 一样用 CSSOM 给四条边缘带设置 backdrop-filter
     on: `bands.forEach(function(b){b.style.backdropFilter=${lensValue};b.style.setProperty('-webkit-backdrop-filter',${lensValue});});`,
     // 对照组：同样有 lens 层，但只有 blur/saturate、没有 url(#SVG) 位移
-    blur: `bands.forEach(function(b){b.style.backdropFilter='blur(3px) saturate(1.7)';b.style.setProperty('-webkit-backdrop-filter','blur(3px) saturate(1.7)');});`,
+    blur: `bands.forEach(function(b){b.style.backdropFilter=${blurOnlyValue};b.style.setProperty('-webkit-backdrop-filter',${blurOnlyValue});});`,
   }[mode];
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <style>${tokens}\n${app}</style>
@@ -266,7 +272,7 @@ test('Chrome 像素验证：四边缘带 rim 显著变化 / center 无差异，u
 
   t.diagnostic(`四条边缘带 vs 无 lens 层：${fmt(offOn)}`);
   t.diagnostic(`只有 blur vs 完整 url 折射（隔离 url 贡献）：${fmt(blurOn)}`);
-  t.diagnostic(`PNG：${off.width}x${off.height}，${off.ch} 通道，zlib 手写解码；判据 RGB 和>12 / rim<28px`);
+  t.diagnostic(`PNG：${off.width}x${off.height}，${off.ch} 通道，zlib 手写解码；判据 RGB 和>12 / rim<${BAND_PX + 2}px`);
 
   assert.equal(offOn.center, 0, `折射层改变了中心像素，违反「中心稳定」：${fmt(offOn)}`);
   assert.ok(offOn.rim >= offOn.rimTotal * 0.30, `边缘像素变化不足：${fmt(offOn)}`);

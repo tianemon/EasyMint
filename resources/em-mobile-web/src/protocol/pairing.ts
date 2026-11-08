@@ -21,6 +21,17 @@ export function pairCodeFromHash(hash: string): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * 从「整条配对链接」或「裸短码」里取出 10 位短码；取不到返回 null。
+ * 手动输入与网页内扫码两条恢复路径共用同一套判定。
+ */
+export function extractPairCode(input: string): string | null {
+  const text = input.trim();
+  if (/^[A-Za-z0-9_-]{10}$/.test(text)) return text;
+  const hash = /#p=([A-Za-z0-9_-]{10})/.exec(text);
+  return hash ? hash[1] : null;
+}
+
 /** 字段校验（version/token/pcId/pcName/addresses/port/publicKey/expiresAt + 过期 + 空地址），错误文案沿用现有中文。 */
 export function parsePairingObject(value: unknown): PairingOffer {
   if (typeof value !== 'object' || value === null) throw new Error('配对二维码内容不完整');

@@ -16,7 +16,12 @@
  */
 
 export const LENS_FILTER_ID = 'em-liquid-lens';
-export const LENS_BACKDROP = `url(#${LENS_FILTER_ID}) blur(3px) saturate(1.7)`;
+/**
+ * 边缘带的滤镜链：位移在前、磨砂在后。
+ * blur 必须接近中心磨砂层的量级（18px），否则边缘带会留出一圈「比中心清楚」的环——
+ * 位移是几何量（scale 16），先做位移再做 blur 不会削弱折射，只是把折射细节磨平。
+ */
+export const LENS_BACKDROP = `url(#${LENS_FILTER_ID}) blur(12px) saturate(1.6)`;
 
 // 单一数据源：节点规格同时用于 createElementNS 注入和对外暴露的 SVG 标记，
 // 后者供 tests/glass-render.test.mjs 用 esbuild 导入后构造真实浏览器测试页，

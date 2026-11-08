@@ -54,7 +54,7 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
                   <span className="device-main">
                     <span className="device-name">{displayDeviceName(device.pcName)}</span>
                     <span className="device-status-line">
-                      <span className={`status-dot${connected ? ' is-on' : connecting ? ' is-pending' : ''}`} />
+                      <span className={`status-dot${connected ? ' is-on-accent' : connecting ? ' is-pending' : ''}`} />
                       <span className="device-status-text">{connected ? '已连接' : connecting ? '正在连接' : '未连接'}</span>
                       {!!tail && <span className="device-tail">· {tail}</span>}
                     </span>

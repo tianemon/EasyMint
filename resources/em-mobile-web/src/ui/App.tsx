@@ -11,6 +11,8 @@ import {
 import { createPairingAttempt, pairWithPc } from '../protocol/remote-client';
 import type { PairingAttempt } from '../protocol/remote-client';
 import { pairCodeFromHash, fetchPairingPayload } from '../protocol/pairing';
+import { adoptClientKey } from '../protocol/client-id';
+import { readInstallCredential, stripInstallQuery, syncInstallManifest } from './install-link';
 import type { AskAnswer, ComposerControl, ConnectionStatus, Page } from '../core/types';
 import type { ShellLog } from '../core/types';
 import type { DisplayMessage } from '../core/messages';
@@ -147,6 +149,14 @@ export default function App(): React.ReactElement {
 
     const boot = async (): Promise<void> => {
       try {
+        // 主屏图标启动时 start_url 自带凭证（iOS 的 web app 与 Safari 存储分区不同）。
+        // 先收下它再读设备本：store 里可能整份都是空的，这条是唯一来源。
+        const fromLink = readInstallCredential(location.search);
+        if (fromLink) {
+          adoptClientKey(fromLink.deviceId.replace(/^web-/, ''));
+          await saveDevice(fromLink);
+          stripInstallQuery();
+        }
         const book = await loadDevices();
         if (!alive) return;
         setDevices(book.devices);
@@ -168,6 +178,10 @@ export default function App(): React.ReactElement {
 
   // leader 选举：多标签只有一条 WS。
   useEffect(() => electLeader(setIsLeader), []);
+
+  // 主屏安装链接：manifest 的 start_url 必须带上「当前设备」的凭证，切设备后要跟着换。
+  // 没配对时也给一份（不带凭证），否则浏览器会继续用 HTML 里那份静态 manifest。
+  useEffect(() => { syncInstallManifest(credential); }, [credential]);
 
   // /health 探活（契约 C5：只依赖同源静态资源与探活）。
   useEffect(() => {
@@ -467,7 +481,8 @@ export default function App(): React.ReactElement {
   let content: React.ReactNode;
   if (page === 'scanner') content = <PairGuideScreen pairCode={pairCode} error={pairError || error}
     onCancel={devices.length ? goBack : undefined}
-    onRetry={pairError && pairCode ? retryPair : undefined} retrying={pairingBusy} />;
+    onRetry={pairError && pairCode ? retryPair : undefined} retrying={pairingBusy}
+    onSubmitCode={(code) => void handlePair(code)} />;
   else if (busy) content = <div className="screen"><Header title="EasyMint" /><div className="boot loading">正在加载 EasyMint…</div></div>;
   else if (page === 'home') content = <HomeScreen
     devices={devices} activePcId={activePcId} connection={connection}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Glass } from '../components/Glass';
 import { Icon } from '../components/icons';
+import { PairRecovery } from '../components/PairRecovery';
 import { t } from '../i18n';
 import {
   isFullscreenSupported, isFullscreenActive, toggleFullscreen, subscribeFullscreen,
@@ -10,12 +11,13 @@ import {
 } from '../install';
 
 /** 配对引导页（原扫码页）：页面不做相机，扫码交给系统相机；未配对时不显示任何项目/会话信息。 */
-export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying }: {
+export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying, onSubmitCode }: {
   pairCode: string;
   error: string;
   onCancel?: () => void;
   onRetry?: () => void;
   retrying?: boolean;
+  onSubmitCode?: (code: string) => void;
 }): React.ReactElement {
   const pairing = Boolean(pairCode);
   const fsSupported = isFullscreenSupported();
@@ -49,6 +51,9 @@ export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying }
           <div><span>2</span> 用手机相机扫描生成的二维码</div>
           <div><span>3</span> 核对 6 位验证码并在电脑上确认</div>
         </div>
+        {/* 主屏独立打开、或凭证丢失时走这里：系统相机扫码会把页面拉回 Safari，
+            所以必须有一条留在本页内的恢复路径 */}
+        {onSubmitCode && !pairing && <PairRecovery onSubmitCode={onSubmitCode} />}
         {fsSupported && (
           <button type="button" className="pair-guide-fullscreen" onClick={() => { void toggleFullscreen(); }}>
             {fsActive ? '退出全屏' : '全屏显示'}
