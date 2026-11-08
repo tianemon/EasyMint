@@ -555,5 +555,29 @@ describe("短码表容量 / 过期惰性清理", () => {
     expect(resolvePairOffer(fresh.code)).not.toBeNull();
   });
 
+  it("浏览器通道关着时拒绝签发短码（否则会指向一个连不上的配对）", async () => {
+    let settings: { mobileWebEnabled: boolean; mobileWebPort: number } = {
+      mobileWebEnabled: false, mobileWebPort: MOBILE_WEB_WS_PORT,
+    };
+    let offers = 0;
+    mobileWebController.configure({
+      store: {
+        getSettings: () => ({ ...settings }),
+        saveSettings: (next: { mobileWebEnabled: boolean; mobileWebPort: number }) => { settings = { ...next }; },
+      },
+      remoteTerminalService: {
+        // 开关关着就不该走到签发：走到这里等于又把 47778 拉起来了
+        createPairingOffer: async () => { offers += 1; throw new Error("不该被调用"); },
+        ensureStarted: async () => {},
+        isRunning: () => true,
+        emit: () => true,
+        listDevices: () => [],
+      },
+      broadcast: () => {},
+      isWindows: false,
+    } as unknown as MobileWebControllerDeps);
 
+    await expect(mobileWebController.createPairLink()).rejects.toThrow(/浏览器/);
+    expect(offers).toBe(0);
+  });
 });

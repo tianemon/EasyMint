@@ -1139,6 +1139,8 @@ const filePath = p.join(projectPath, "task.json");
   ipcMain.handle("mobile-terminal:set-port", async (_e, { port }: { port: number }) => {
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("端口需为 1024–65535 的整数");
     const settings = store.getSettings();
+    // 两条通道各占一个端口，撞在一起只会得到系统的 EADDRINUSE（英文），提前说清楚
+    if (port === (settings.mobileWebPort ?? 47_779)) throw new Error("两条通道不能使用同一个端口");
     const prev = settings.mobileAppPort ?? 47_778;
     const wasRunning = remoteTerminalService.isRunning();
     if (port === prev) return mobileAppStatus();
@@ -1161,8 +1163,12 @@ const filePath = p.join(projectPath, "task.json");
     broadcast("mobile-terminal:status-changed", mobileAppStatus());
     return mobileAppStatus();
   });
-  ipcMain.handle("mobile-terminal:create-offer", (_e, args?: { host?: string }) =>
-    remoteTerminalService.createPairingOffer(args?.host));
+  ipcMain.handle("mobile-terminal:create-offer", (_e, args?: { host?: string }) => {
+    // App 二维码只属于 App 通道。开关关着还签发，createPairingOffer 内部的 ensureStarted()
+    // 会把刚被开关释放的 47778 又听起来——界面显示「已关闭」、端口却在监听。
+    if (store.getSettings().mobileAppEnabled === false) throw new Error("请先开启手机 App 通道");
+    return remoteTerminalService.createPairingOffer(args?.host);
+  });
   ipcMain.handle("mobile-terminal:list-devices", () => remoteTerminalService.listDevices());
   ipcMain.handle("mobile-terminal:list-pending", () => remoteTerminalService.listPendingPairs());
   ipcMain.handle("mobile-terminal:accept-pair", (_e, { requestId }: { requestId: string }) => ({ ok: remoteTerminalService.acceptPair(requestId) }));

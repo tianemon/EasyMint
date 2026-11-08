@@ -482,10 +482,11 @@ class MobileWebController {
    * 47778 的一次性 token 消费语义不变。
    */
   async createPairLink(): Promise<{ code: string; expiresAt: number }> {
-    // createPairingOffer 内部会 ensureStarted()——若此刻 47778 没在听，那是「手机 App 通道
-    // 关着」，网页开关无权替它启动。这里直接拒绝，让界面去提示开 App 通道。
-    if (!this.deps!.remoteTerminalService.isRunning()) {
-      throw new Error("请先开启手机 App 通道");
+    // 浏览器短码属于浏览器通道：开关关着就不签发。
+    // （端口是否在听不在这里判断——那是两条开关合成的结果，由 createPairingOffer 的
+    //  ensureStarted 自己报错，报出来的原因比「请先开启手机 App 通道」准确。）
+    if (!(this.deps!.store.getSettings().mobileWebEnabled ?? false)) {
+      throw new Error("请先开启手机浏览器通道");
     }
     const offer = await this.deps!.remoteTerminalService.createPairingOffer();
     // 直接用 offer 自带的编码载荷：App 二维码已经不带 payload 了（改短码查表），
@@ -548,6 +549,8 @@ class MobileWebController {
     validatePort(port);
     const d = this.deps!;
     const s = d.store.getSettings();
+    // 与 App 通道的端口撞车：提前拦，别让用户看到系统的 EADDRINUSE
+    if (port === (s.mobileAppPort ?? MOBILE_WEB_WS_PORT)) throw new Error("两条通道不能使用同一个端口");
     const prevPort = s.mobileWebPort ?? MOBILE_WEB_DEFAULT_PORT;
     const enabled = s.mobileWebEnabled ?? false;
     s.mobileWebPort = port;

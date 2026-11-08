@@ -257,6 +257,11 @@ export class RemoteTerminalService extends EventEmitter {
   }
 
   async createPairingOffer(preferredHost?: string): Promise<MobilePairingOffer> {
+    // 两条通道都关时不该有配对能力：这个方法内部会 ensureStarted()，
+    // 放行等于让「点刷新二维码」把刚被开关释放的端口又悄悄听起来。
+    if (!this.accessPolicy.allowApp && !this.accessPolicy.allowWeb) {
+      throw new Error("手机访问已关闭");
+    }
     await this.ensureStarted();
     this.pruneExpired();
     const token = crypto.randomBytes(24).toString("base64url");
@@ -465,17 +470,36 @@ export class RemoteTerminalService extends EventEmitter {
   }
 
   /**
-   * 更新设备准入并断开不再允许的连接。
-   * 只关掉开关不等于断开：已经连上的设备会在下一次事件里继续收数据，必须主动踢。
+   * 更新设备准入并结束不再允许的会话。
+   *
+   * 只关掉开关不等于断开——三类东西都得处理，漏一类就是「开关看着关了、其实还在转」：
+   *  1. 已认证连接（在 connections 里）：会在下一次事件里继续收数据；
+   *  2. **待确认配对**（在 pendingPairs 里，未认证所以不在 connections）：弹窗会继续挂着
+   *     让用户点「允许」，点了却什么也不会发生；
+   *  3. 这两类之外的未认证连接由 handleHello / handlePairInit / handlePairLookup 各自拦。
    */
   setAccessPolicy(policy: { allowApp: boolean; allowWeb: boolean }): void {
+    const unchanged = policy.allowApp === this.accessPolicy.allowApp
+      && policy.allowWeb === this.accessPolicy.allowWeb;
     this.accessPolicy = { ...policy };
+    if (unchanged && this.pendingPairs.size === 0) {
+      // 端口已在监听时 syncBridge 会被反复调用；没变化就别广播 devices-changed，
+      // 否则面板每秒重取一次状态，用户正在输入的端口框会被冲掉。
+      return;
+    }
+    let disconnected = false;
     for (const [socket, connection] of this.connections) {
       if (this.isDeviceAllowed(connection.deviceId)) continue;
       this.connections.delete(socket);
       socket.close(1008, "channel disabled");
+      disconnected = true;
     }
-    this.emit("devices-changed");
+    // 待确认的配对请求同样按通道判定：让手机立刻收到「被拒绝」，而不是等 90 秒超时
+    for (const [requestId, pending] of this.pendingPairs) {
+      if (this.isDeviceAllowed(pending.deviceId)) continue;
+      this.rejectPair(requestId);
+    }
+    if (disconnected) this.emit("devices-changed");
   }
 
   private isDeviceAllowed(deviceId: string): boolean {
@@ -586,6 +610,12 @@ export class RemoteTerminalService extends EventEmitter {
     const code = typeof message.code === "string" ? message.code.trim().toUpperCase() : "";
     const entry = code ? this.compactOffers.get(code) : undefined;
     const offer = entry ? this.offers.get(entry.token) : undefined;
+    // 短码表只服务「App 二维码」（浏览器短码另有一张表），所以这里就该按 App 通道判定：
+    // 开关关着还把公钥和 token 发给对方，等于让它在 init 之前就拿到了配对材料。
+    if (!this.accessPolicy.allowApp) {
+      socket.send(JSON.stringify({ type: "mobile-pair-lookup-failed", reason: "closed" }));
+      return;
+    }
     if (!offer || offer.expiresAt <= Date.now()) {
       socket.send(JSON.stringify({ type: "mobile-pair-lookup-failed", reason: "expired" }));
       return;

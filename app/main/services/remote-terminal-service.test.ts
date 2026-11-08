@@ -535,4 +535,61 @@ describe("RemoteTerminalService", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(connection.socket.readyState).toBe(WebSocket.OPEN);
   });
+
+  it("关闭 App 通道会撤掉待确认的配对请求并断开那条连接", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+
+    // 停在「手机已发起、电脑还没点允许」：这条连接未认证，不在 connections 里
+    const phone = generateRemoteKeyPair();
+    const socket = new WebSocket(`ws://127.0.0.1:${offer.port}`);
+    cleanup.push(() => socket.close());
+    await waitForOpen(socket);
+    const pairRequest = new Promise<MobilePairRequest>((resolve) => service.once("pair-request", resolve));
+    socket.send(JSON.stringify({
+      type: "mobile-pair-init",
+      token: offer.token,
+      deviceId: "phone-1",
+      deviceName: "Test Phone",
+      publicKey: phone.publicKey,
+    }));
+    await pairRequest;
+    expect(service.listPendingPairs()).toHaveLength(1);
+    const closed = new Promise<number>((resolve) => socket.once("close", (code) => resolve(code)));
+
+    service.setAccessPolicy({ allowApp: false, allowWeb: true });
+
+    // 弹窗必须跟着消失：留着它会让人点「允许」，点了什么也不会发生
+    expect(service.listPendingPairs()).toHaveLength(0);
+    await expect(closed).resolves.toBe(1008);
+  });
+
+  it("App 通道关闭时短码查表不返回配对材料", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const code = /c=([A-Z0-9]{6})$/.exec(offer.uri)![1];
+    service.setAccessPolicy({ allowApp: false, allowWeb: true });
+
+    const socket = new WebSocket(`ws://127.0.0.1:${offer.port}`);
+    cleanup.push(() => socket.close());
+    await waitForOpen(socket);
+    const reply = waitForMessage(socket);
+    socket.send(JSON.stringify({ type: "mobile-pair-lookup", code }));
+    // 端口因浏览器通道还开着所以在听，但 App 通道关着就不该把公钥与 token 发出去
+    expect((await reply).type).toBe("mobile-pair-lookup-failed");
+  });
+
+  it("两条通道都关时拒绝签发配对材料（否则刷新二维码会偷偷把端口听起来）", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    service.setAccessPolicy({ allowApp: false, allowWeb: false });
+    expect(service.isRunning()).toBe(false);
+    await expect(service.createPairingOffer()).rejects.toThrow();
+    expect(service.isRunning()).toBe(false);
+  });
 });
