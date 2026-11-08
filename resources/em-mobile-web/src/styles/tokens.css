@@ -65,6 +65,7 @@
   --glass-fill-strong: rgba(255,255,255,0.66);
   --glass-rim: rgba(255,255,255,0.78);
   --glass-sheen: rgba(255,255,255,0.40);
+  --liquid-dark-rim: rgba(0,0,0,0.22);
   --glass-shadow: rgba(14,38,26,0.20);
   --glass-press: rgba(255,255,255,0.50);
   --segment-bg: #ededeb;
@@ -180,6 +181,7 @@
     --glass-fill-strong: rgba(255,255,255,0.06);
     --glass-rim: rgba(255,255,255,0.22);
     --glass-sheen: rgba(255,255,255,0.22);
+  --liquid-dark-rim: rgba(0,0,0,0.42);
     --glass-shadow: rgba(0,0,0,0.55);
     --glass-press: rgba(255,255,255,0.07);
     --segment-bg: #1f1f1f;
@@ -294,6 +296,7 @@
   --glass-fill-strong: rgba(255,255,255,0.06);
   --glass-rim: rgba(255,255,255,0.22);
   --glass-sheen: rgba(255,255,255,0.22);
+  --liquid-dark-rim: rgba(0,0,0,0.42);
   --glass-shadow: rgba(0,0,0,0.55);
   --glass-press: rgba(255,255,255,0.07);
   --segment-bg: #1f1f1f;
@@ -407,6 +410,7 @@
   --glass-fill-strong: rgba(255,255,255,0.66);
   --glass-rim: rgba(255,255,255,0.78);
   --glass-sheen: rgba(255,255,255,0.40);
+  --liquid-dark-rim: rgba(0,0,0,0.22);
   --glass-shadow: rgba(14,38,26,0.20);
   --glass-press: rgba(255,255,255,0.50);
   --segment-bg: #ededeb;

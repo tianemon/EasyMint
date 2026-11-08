@@ -1,19 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AskAnswer } from '../../core/types';
 import type { PendingAsk } from '../../protocol/types';
-import { Icon } from './icons';
-import { t } from '../i18n';
+import { ChevronIcon, Icon, iconSize } from './icons';
 
-/** 提问卡：答案状态完全留在组件内（PC 同款单题导航 + 多选 + depends_on 级联 + 自定义输入）。 */
+/**
+ * Mint 结构化提问卡（聊天区内嵌），与 App AskCard.tsx 同构：
+ * 一次一题、单选自动前进、多选勾选不跳题、‹ n/N › 前后切换、✕ 全部跳过。
+ * 状态全留在组件内，提交只递交已答题。
+ */
 export function AskCard({ ask, onSubmit }: {
   ask: PendingAsk;
   onSubmit: (answers: AskAnswer[] | null) => void;
-}): React.ReactElement {
+}): React.ReactElement | null {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
-  const [custom, setCustom] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const visible = useMemo(
+  const order = useMemo(
     () => ask.questions.filter((question) => {
       const depends = question.depends_on;
       if (!depends) return true;
@@ -21,80 +25,139 @@ export function AskCard({ ask, onSubmit }: {
     }),
     [ask.questions, answers],
   );
-  const question = visible[Math.min(index, visible.length - 1)];
 
-  if (!question) return (
-    <div className="ask-card">
-      <div className="ask-title">等待你的回复</div>
-      <button type="button" className="ask-primary" onClick={() => onSubmit(null)}>{t('app.cancel')}</button>
-    </div>
-  );
+  useEffect(() => {
+    if (index >= order.length) setIndex(Math.max(0, order.length - 1));
+  }, [index, order.length]);
 
-  const selected = answers[question.id] ?? [];
-  const multi = Boolean(question.multi_select);
-  const isLast = index >= visible.length - 1;
+  const question = order[index];
+  const total = order.length;
+  const isLast = index === total - 1;
+  const multi = question?.multi_select === true;
+  const draft = question ? (drafts[question.id] ?? '') : '';
+  const draftNonEmpty = draft.trim().length > 0;
+  const selected = question ? (answers[question.id] ?? []) : [];
 
-  const choose = (value: string): void => {
-    setAnswers((current) => {
-      const prev = current[question.id] ?? [];
-      const next = multi
-        ? (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value])
-        : [value];
-      return { ...current, [question.id]: next };
+  const submit = useCallback((finalAnswers: Record<string, string[]>) => {
+    setSubmitting(true);
+    onSubmit(ask.questions.flatMap((item) => {
+      const values = finalAnswers[item.id];
+      return values && values.length ? [{ questionId: item.id, values }] : [];
+    }));
+  }, [ask.questions, onSubmit]);
+
+  const advance = useCallback((): void => {
+    if (!question || submitting) return;
+    if (isLast) submit(answers);
+    else setIndex((current) => current + 1);
+  }, [answers, isLast, question, submit, submitting]);
+
+  const pick = (value: string): void => {
+    if (!question || submitting) return;
+    const next = { ...answers, [question.id]: [value] };
+    setAnswers(next);
+    setDrafts((prev) => {
+      if (!(question.id in prev)) return prev;
+      const clean = { ...prev };
+      delete clean[question.id];
+      return clean;
     });
-    if (!multi && !isLast) setIndex((value) => value + 1);
+    if (isLast) submit(next);
+    else setIndex((current) => current + 1);
   };
 
-  const submit = (): void => {
-    const customValues = ask.allowCustom && custom.trim() ? [custom.trim()] : [];
-    const result: AskAnswer[] = Object.entries(answers)
-      .map(([questionId, values]) => ({ questionId, values: [...values, ...(questionId === question.id ? customValues : [])] }))
-      .filter((item) => item.values.length > 0);
-    if (!result.some((item) => item.questionId === question.id) && customValues.length) {
-      result.push({ questionId: question.id, values: customValues });
-    }
-    onSubmit(result.length ? result : null);
+  const toggle = (value: string): void => {
+    if (!question || submitting) return;
+    const current = answers[question.id] ?? [];
+    const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+    setAnswers({ ...answers, [question.id]: next });
   };
+
+  const proceedWithDraft = (): void => {
+    if (!question || submitting || !draftNonEmpty) return;
+    const text = draft.trim();
+    const current = answers[question.id] ?? [];
+    const next = { ...answers, [question.id]: current.includes(text) ? current : [...current, text] };
+    setAnswers(next);
+    setDrafts((prev) => {
+      const clean = { ...prev };
+      delete clean[question.id];
+      return clean;
+    });
+    if (isLast) submit(next);
+    else setIndex((current) => current + 1);
+  };
+
+  const skipAll = (): void => {
+    if (submitting) return;
+    setSubmitting(true);
+    onSubmit(null);
+  };
+
+  if (!question) return null;
+  const mainLabel = draftNonEmpty ? '发送' : isLast ? '完成' : '下一题';
 
   return (
     <div className="ask-card">
-      <div className="ask-head">
-        <Icon name="think" size={14} />
-        <span className="ask-title">{t('pi.waitingUser')}</span>
-        {visible.length > 1 && <span className="ask-progress">{index + 1} / {visible.length}</span>}
-      </div>
-      <div className="ask-question">{question.question}</div>
-      <div className="ask-options">
-        {(question.options ?? []).map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className={`ask-option${selected.includes(option.value) ? ' is-selected' : ''}`}
-            onClick={() => choose(option.value)}
-          >
-            <span className="ask-option-mark">{selected.includes(option.value) ? <Icon name="check" size={12} /> : null}</span>
-            <span className="ask-option-body">
-              <span className="ask-option-label">{option.label}{option.recommended && <span className="ask-recommended">推荐</span>}</span>
-              {option.description && <span className="ask-option-desc">{option.description}</span>}
-            </span>
-          </button>
-        ))}
-      </div>
-      {ask.allowCustom && (
-        <input
-          className="ask-custom"
-          value={custom}
-          placeholder="自定义回答…"
-          onChange={(event) => setCustom(event.target.value)}
-        />
-      )}
-      <div className="ask-actions">
-        <button type="button" className="ask-ghost" onClick={() => onSubmit(null)}>{t('app.cancel')}</button>
-        {index > 0 && <button type="button" className="ask-ghost" onClick={() => setIndex((value) => value - 1)}>上一题</button>}
-        <button type="button" className="ask-primary" onClick={isLast ? submit : () => setIndex((value) => value + 1)}>
-          {isLast ? t('app.confirm') : t('common.next')}
+      <div className="ask-nav-row">
+        <button type="button" className="ask-nav-button" aria-label="上一题"
+          disabled={index === 0} onClick={() => setIndex(Math.max(0, index - 1))}>
+          <ChevronIcon size={iconSize.card} direction="left" />
+        </button>
+        <span className="ask-nav-count">{index + 1}/{total}</span>
+        <button type="button" className="ask-nav-button" aria-label={isLast ? '已到最后一题' : '跳过此题'}
+          disabled={isLast} onClick={advance}>
+          <ChevronIcon size={iconSize.card} direction="right" />
+        </button>
+        <button type="button" className="ask-nav-button ask-skip" aria-label="全部跳过（取消提问）" onClick={skipAll}>
+          <Icon name="close" size={iconSize.card} />
         </button>
       </div>
+
+      <div className="ask-question">
+        {question.question}{multi && !question.question.includes('多选') ? '（可多选）' : ''}
+      </div>
+
+      {!!question.options?.length && (
+        <div className="ask-options">
+          {question.options.map((option) => {
+            const active = selected.includes(option.value);
+            return (
+              <button key={option.value} type="button" className={`ask-option${active ? ' is-selected' : ''}`}
+                aria-pressed={active} onClick={() => (multi ? toggle(option.value) : pick(option.value))}>
+                {multi && (
+                  <span className={`ask-checkbox${active ? ' is-active' : ''}`}>
+                    <Icon name="check" size={iconSize.status} />
+                  </span>
+                )}
+                <span className="ask-option-text">
+                  {option.label}{option.description ? `（${option.description}）` : ''}
+                </span>
+                {option.recommended && <span className={`ask-recommended${active ? ' is-active' : ''}`}>推荐</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {ask.allowCustom && (
+        <div className="ask-custom-row">
+          <textarea className="ask-custom-input" rows={1} value={draft} placeholder="输入你的答案…"
+            onChange={(event) => setDrafts((prev) => ({ ...prev, [question.id]: event.target.value }))} />
+          <button type="button" className={`ask-main-button${draftNonEmpty ? ' is-active' : ''}`}
+            aria-label={mainLabel} onClick={draftNonEmpty ? proceedWithDraft : advance}>
+            {mainLabel}
+          </button>
+        </div>
+      )}
+
+      {!ask.allowCustom && (
+        <div className="ask-actions-row">
+          <button type="button" className="ask-main-button" aria-label={mainLabel} onClick={advance}>
+            {mainLabel}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

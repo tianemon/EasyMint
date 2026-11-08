@@ -43,6 +43,20 @@ const PATHS: Record<string, string> = {
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
 };
 
+/** 图标尺寸五档，取值与 App components/icons.tsx 的 iconSize 一致。 */
+export const iconSize = {
+  /** 10：工具卡成功 / 失败状态符 */
+  status: 10,
+  /** 11：后台浮层行的转圈 */
+  pill: 11,
+  /** 12：系统卡 kind 图标、工具执行中转圈 */
+  card: 12,
+  /** 13：工具图标、思考块标识 */
+  tool: 13,
+  /** 14：列表行与导航箭头 */
+  nav: 14,
+} as const;
+
 export function Icon({ name, size = 20, className, style }: {
   name: string; size?: number; className?: string; style?: CSSProperties;
 }): React.ReactElement {
@@ -66,6 +80,23 @@ export function Icon({ name, size = 20, className, style }: {
   );
 }
 
+/**
+ * 外观三档：浅色 sun / 深色 moon / 自动（半圆填充）。
+ * 形状与手机 App components/icons.tsx 的 AppearanceIcon 同源。
+ */
+export function AppearanceIcon({ mode, size = 17 }: {
+  mode: 'light' | 'dark' | 'system'; size?: number;
+}): React.ReactElement {
+  if (mode === 'light' || mode === 'dark') return <Icon name={mode === 'light' ? 'sun' : 'moon'} size={size} />;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.6" />
+      <path d="M12 3.4a8.6 8.6 0 0 0 0 17.2z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function toolIconName(name: string): string {
   const lower = name.toLowerCase();
   if (lower.includes('bash') || lower.includes('command') || lower.includes('shell')) return 'bash';
@@ -76,5 +107,115 @@ export function toolIconName(name: string): string {
   if (lower.includes('web') || lower.includes('fetch') || lower.includes('url')) return 'globe';
   if (lower.includes('image')) return 'image';
   if (lower.includes('ask') || lower.includes('question')) return 'think';
+  if (lower === 'task' || lower.includes('agent')) return 'bot';
   return 'tool';
+}
+
+/** 工具标题图标（默认色 / 尺寸与 App ToolIcon 一致，颜色由 CSS 的 currentColor 继承）。 */
+export function ToolIcon({ name, size = iconSize.tool }: { name: string; size?: number }): React.ReactElement | null {
+  const shape = toolIconName(name);
+  if (!shape) return null;
+  return <Icon name={shape} size={size} className="tool-icon" />;
+}
+
+/** 系统卡头部 kind 图标：委派=bot / 后台命令=终端 / 其余=圆圈感叹号。 */
+export function SystemKindIcon({ kind, size = iconSize.card, color }: {
+  kind: string; size?: number; color?: string;
+}): React.ReactElement {
+  return <Icon name={kind === 'delegation' ? 'bot' : kind === 'shell' ? 'bash' : 'alert'} size={size}
+    className="system-kind-icon" style={color ? { color } : undefined} />;
+}
+
+/** 转圈：App SpinIcon 的浏览器等价物（CSS 旋转，见 .spin-icon）。 */
+export function SpinIcon({ size = iconSize.card, className = '' }: {
+  size?: number; className?: string;
+}): React.ReactElement {
+  return (
+    <svg className={`spin-icon ${className}`.trim()} width={size} height={size} viewBox="0 0 16 16"
+      fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" opacity={0.25} />
+      <path d="M14 8a6 6 0 00-6-6" />
+    </svg>
+  );
+}
+
+/** 折叠箭头（10 视图盒）：收起指向右，展开/返回用 CSS 旋转。 */
+export function ChevronIcon({ size = iconSize.status, direction = 'right', className = '' }: {
+  size?: number; direction?: 'right' | 'down' | 'left'; className?: string;
+}): React.ReactElement {
+  return (
+    <svg className={`chevron-icon is-${direction} ${className}`.trim()} width={size} height={size} viewBox="0 0 10 10"
+      fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 2l3 3-3 3" />
+    </svg>
+  );
+}
+
+/** 发送键图标：普通态是实心纸飞机（14），停止态是红方块（16）。 */
+export function SendIcon({ stop }: { stop: boolean }): React.ReactElement {
+  return (
+    <svg width={stop ? 16 : 14} height={stop ? 16 : 14} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      {stop
+        ? <rect x="3" y="3" width="10" height="10" rx="1" fill="currentColor" />
+        : <path d="M1 1l14 7-14 7 4-7-4-7z" fill="currentColor" />}
+    </svg>
+  );
+}
+
+/**
+ * 模型图标（三点互联 + 连线）：点 a 实心、b/c 描边，与 App/PC 的 ModelGlyph 同一套几何。
+ * 运行时三条点向三角形中心收拢、连线层绕中心同步缩放（SMIL，用户坐标与 SVG 一致，不随图标尺寸失真）。
+ */
+export function ModelGlyph({ size = 15, animated = false }: { size?: number; animated?: boolean }): React.ReactElement {
+  const nodes = [
+    { cx: 5, cy: 12, filled: true, dx: 5.13, dy: 0 },
+    { cx: 19, cy: 5.5, filled: false, dx: -2.57, dy: 3.58 },
+    { cx: 19, cy: 18.5, filled: false, dx: -2.57, dy: -3.58 },
+  ];
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="model-glyph" aria-hidden="true">
+      {nodes.map((node) => (
+        <circle key={`${node.cx}-${node.cy}`} cx={node.cx} cy={node.cy} r={2.6}
+          fill={node.filled ? 'currentColor' : 'none'}>
+          {animated && (
+            <animateTransform attributeName="transform" type="translate" additive="sum"
+              values={`0 0; ${node.dx} ${node.dy}; 0 0`} keyTimes="0;0.5;1" dur="2.4s"
+              calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite" />
+          )}
+        </circle>
+      ))}
+      <g transform="translate(14.33 12)">
+        <g transform="translate(-14.33 -12)">
+          <g>
+            <path d="M7.4 10.9 16.6 6.6" />
+            <path d="M7.4 13.1 16.6 17.4" />
+            <path d="M19 8.1v7.8" />
+            {animated && (
+              <animateTransform attributeName="transform" type="scale"
+                values="1;0.45;1" keyTimes="0;0.5;1" dur="2.4s"
+                calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite" />
+            )}
+          </g>
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+/** 输入卡工具栏图标：模型 / 权限 / 思考等级（颜色由 .composer-tool / .is-danger 控制）。 */
+export function ComposerIcon({ kind, permission }: {
+  kind: 'model' | 'permission' | 'thinking'; permission?: 'readonly' | 'standard' | 'full';
+}): React.ReactElement {
+  if (kind === 'model') return <ModelGlyph size={15} />;
+  if (kind === 'thinking') return <Icon name="think" size={15} />;
+  return (
+    <svg className="composer-permission-icon" width={15} height={15} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      {permission === 'full' && <><path d="M12 8v4" /><path d="M12 16h.01" /></>}
+      {permission === 'readonly' && <><rect x="9" y="11" width="6" height="5" rx="1" /><path d="M10.5 11V9.5a1.5 1.5 0 0 1 3 0V11" /></>}
+      {(permission === 'standard' || !permission) && <path d="m9 12 2 2 4-4" />}
+    </svg>
+  );
 }

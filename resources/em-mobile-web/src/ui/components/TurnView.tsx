@@ -21,13 +21,13 @@ function ThinkingBlock({ text, running }: { text: string; running: boolean }): R
   );
 }
 
-function ProcessItems({ items, running }: { items: ProcessItem[]; running: boolean }): React.ReactElement {
+function ProcessItems({ items, running, live }: { items: ProcessItem[]; running: boolean; live: boolean }): React.ReactElement {
   return (
     <div className="turn-process-items">
       {items.map((item) => {
         if (item.kind === 'thinking') return <ThinkingBlock key={item.key} text={item.text} running={item.running} />;
         if (item.kind === 'commentary') return <MarkdownView key={item.key} text={item.text} />;
-        return <ToolCard key={item.key} tool={item.tool} />;
+        return <ToolCard key={item.key} tool={item.tool} live={live} />;
       })}
       {running && <span className="turn-process-running" />}
     </div>
@@ -51,7 +51,7 @@ export function TurnView({ turn }: { turn: TurnData }): React.ReactElement {
 
   const processBlock = (bounded: boolean): React.ReactElement => (
     <div className={`turn-process${bounded ? ' is-bounded' : ''}${expanded ? ' is-expanded' : ''}`}>
-      {processPieces.map((piece) => <ProcessItems key={piece.key} items={piece.items} running={piece.running} />)}
+      {processPieces.map((piece) => <ProcessItems key={piece.key} items={piece.items} running={piece.running} live={turn.active} />)}
     </div>
   );
 

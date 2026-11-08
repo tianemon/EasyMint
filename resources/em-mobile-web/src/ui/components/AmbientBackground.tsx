@@ -1,4 +1,4 @@
-/** 环境层：让玻璃能透出「有东西」的背景，纯色底会让材质退化成半透明块。 */
+/** 环境层：整页底色 + 三团柔光（照 App AmbientBackground，无纹理层）。 */
 export function AmbientBackground(): React.ReactElement {
   return (
     <div className="ambient" aria-hidden="true">

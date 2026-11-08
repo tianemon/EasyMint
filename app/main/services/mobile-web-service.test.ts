@@ -280,6 +280,80 @@ describe("mobile web static service", () => {
   });
 });
 
+// ── PWA manifest 与桌面图标 ────────────────────────────────────────────────
+describe("PWA manifest 与桌面图标静态资源", () => {
+  const MANIFEST_BODY = JSON.stringify({
+    name: "EasyMint Remote",
+    short_name: "EasyMint",
+    start_url: "/",
+    display: "standalone",
+    icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+  });
+
+  // 自己写产物到注入的临时静态根，不依赖 Web 前端 dist。
+  beforeEach(() => {
+    write("dist/manifest.webmanifest", MANIFEST_BODY);
+    write("dist/icon-192.png", "PNG-192-BYTES");
+    write("dist/icon-512.png", "PNG-512-BYTES");
+    write("dist/apple-touch-icon.png", "PNG-APPLE-TOUCH-BYTES");
+  });
+
+  it("GET /manifest.webmanifest 返回 application/manifest+json、body 原样、no-cache 不带 immutable", async () => {
+    await start();
+    const res = await request(port, "/manifest.webmanifest");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/manifest+json");
+    expect(res.body).toBe(MANIFEST_BODY);
+    expect(res.headers["cache-control"]).toBe("no-cache");
+    expect(res.headers["cache-control"]).not.toContain("immutable");
+  });
+
+  it("GET 图标返回 image/png；apple-touch-icon 不被隐藏文件拦截、同样 no-cache 不带 immutable", async () => {
+    await start();
+    for (const p of ["/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"]) {
+      const res = await request(port, p);
+      expect(res.status, p).toBe(200);
+      expect(res.headers["content-type"], p).toContain("image/png");
+      // apple-touch-icon.png 的 `touch-icon` 段会被哈希正则误命中，需确认未被扣上 immutable。
+      expect(res.headers["cache-control"], p).toBe("no-cache");
+      expect(res.headers["cache-control"], p).not.toContain("immutable");
+    }
+  });
+
+  it("HEAD /manifest.webmanifest 状态与头一致、无响应体", async () => {
+    await start();
+    const get = await request(port, "/manifest.webmanifest");
+    const head = await request(port, "/manifest.webmanifest", { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(head.status).toBe(get.status);
+    expect(head.headers["content-type"]).toBe(get.headers["content-type"]);
+    expect(head.headers["cache-control"]).toBe(get.headers["cache-control"]);
+    expect(head.body).toBe("");
+  });
+
+  it("POST /manifest.webmanifest 走既有方法校验：405 且带 Allow", async () => {
+    await start();
+    const res = await request(port, "/manifest.webmanifest", { method: "POST" });
+    expect(res.status).toBe(405);
+    expect(res.headers.allow).toBe("GET, HEAD");
+  });
+
+  it("命中端点走既有 Host 校验：非白名单 Host 请求 manifest 403", async () => {
+    await start();
+    const res = await request(port, "/manifest.webmanifest", { headers: { Host: `attacker.test:${port}` } });
+    expect(res.status).toBe(403);
+  });
+
+  it("命中端点走既有 Sec-Fetch-Site 校验：cross-site 请求 manifest 403", async () => {
+    await start();
+    const res = await request(port, "/manifest.webmanifest", { headers: { "Sec-Fetch-Site": "cross-site" } });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("MobileWebController", () => {
   it("开启失败（EADDRINUSE）时回滚磁盘开关，设置值与运行态保持一致", async () => {
     // 占用端口，让 startMobileWebService 监听失败

@@ -17,6 +17,8 @@ task-*.png
 !app/renderer/src/assets/mint-avatar-strip*.png
 !assets/avatar/**
 !assets/appicon-*.png
+# 手机网页 PWA 图标是构建输入（public/ 会被 Vite 原样复制），需随源码入库
+!resources/em-mobile-web/public/*.png
 **/.DS_Store
 !assets/screenshots/*.png
 !docs/**/*.png

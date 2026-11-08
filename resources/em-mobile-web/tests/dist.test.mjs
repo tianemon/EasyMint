@@ -73,3 +73,53 @@ test('首包构造 module Worker 且 Worker 产物真实存在（走 Worker 而�
     assert.ok(existsSync(path.join(dist, 'assets', ref)), `Worker 产物不存在：${ref}`);
   }
 });
+
+test('安装到桌面契约：manifest / apple meta / icon 齐全且产物含新能力', { skip: !existsSync(htmlPath) && '尚未构建' }, () => {
+  const html = readFileSync(htmlPath, 'utf8');
+  // 所有 link 都是 ./ 相对路径且文件真实存在（上面的通用断言也会覆盖这些，这里再点名一次）。
+  assert.match(html, /<link[^>]+rel="manifest"[^>]+href="\.\/manifest\.webmanifest"/, '缺 manifest link');
+  assert.ok(existsSync(path.join(dist, 'manifest.webmanifest')), 'dist 缺 manifest.webmanifest');
+  assert.match(html, /rel="apple-touch-icon"[^>]+href="\.\/apple-touch-icon\.png"/, '缺 apple-touch-icon link');
+  assert.ok(existsSync(path.join(dist, 'apple-touch-icon.png')), 'dist 缺 apple-touch-icon.png');
+  assert.match(html, /rel="icon"[^>]+href="\.\/icon-192\.png"/, '缺 icon link');
+  assert.ok(existsSync(path.join(dist, 'icon-192.png')), 'dist 缺 icon-192.png');
+  assert.ok(existsSync(path.join(dist, 'icon-512.png')), 'dist 缺 icon-512.png');
+  // apple / theme meta 齐备；深色 theme-color 取 tokens.css 的 --content 深色值。
+  const metas = [
+    ['apple-mobile-web-app-capable', 'yes'],
+    ['mobile-web-app-capable', 'yes'],
+    ['apple-mobile-web-app-status-bar-style', 'default'],
+    ['apple-mobile-web-app-title', 'EasyMint'],
+  ];
+  for (const [name, content] of metas) {
+    assert.match(html, new RegExp(`<meta name="${name}" content="${content}"`), `缺 meta ${name}`);
+  }
+  assert.match(html, /<meta name="theme-color" content="#141414" media="\(prefers-color-scheme: dark\)"/, '缺深色 theme-color');
+  assert.doesNotMatch(html, /https?:\/\//, 'HTML 不得出现外部绝对 URL');
+  // manifest 关键字段合法，icons 指向真实存在的相对 PNG。
+  const manifest = JSON.parse(readFileSync(path.join(dist, 'manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.name, 'EasyMint', 'manifest.name');
+  assert.equal(manifest.short_name, 'EasyMint', 'manifest.short_name');
+  assert.equal(manifest.display, 'standalone', 'manifest.display 必须 standalone');
+  assert.equal(manifest.start_url, './', 'manifest.start_url 必须 ./');
+  assert.equal(manifest.scope, './', 'manifest.scope 必须 ./');
+  assert.equal(manifest.id, './', 'manifest.id 必须 ./');
+  assert.equal(manifest.orientation, 'any', 'manifest.orientation 必须 any');
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 2, 'manifest.icons 至少两项');
+  for (const icon of manifest.icons) {
+    assert.match(icon.src, /^\.\//, `icon.src 必须相对路径：${icon.src}`);
+    assert.ok(existsSync(path.join(dist, icon.src)), `icon 文件不存在：${icon.src}`);
+    assert.equal(icon.type, 'image/png', `icon.type：${icon.src}`);
+    assert.match(icon.sizes, /^\d+x\d+$/, `icon.sizes 非法：${icon.src}`);
+    assert.match(icon.purpose, /any maskable/, `icon.purpose 必须含 any maskable：${icon.src}`);
+  }
+  // 产物 JS/CSS 含本轮新能力（构建后真实存在，不靠源码语法检测）。
+  const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);
+  const js = jsRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');
+  assert.match(js, /requestFullscreen/, '产物 JS 必须含 Fullscreen API 调用');
+  assert.match(js, /beforeinstallprompt/, '产物 JS 必须含 beforeinstallprompt 兼容');
+  const cssRefs = [...html.matchAll(/href="([^"]+\.css)"/g)].map((m) => m[1]);
+  const css = cssRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');
+  assert.match(css, /backdrop-filter/, '产物 CSS 必须含 backdrop-filter');
+  assert.match(css, /prefers-reduced-transparency/, '产物 CSS 必须含 prefers-reduced-transparency 降级');
+});

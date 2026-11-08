@@ -10,15 +10,21 @@ export function SessionRow({ session, first, onOpen, onMenu }: {
   onMenu: () => void;
 }): React.ReactElement {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startPress = (): void => { timer.current = setTimeout(onMenu, 550); };
-  const endPress = (): void => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  const longPressed = useRef(false);
+  const startPress = (): void => {
+    longPressed.current = false;
+    timer.current = setTimeout(() => { longPressed.current = true; onMenu(); }, 450);
+  };
+  const endPress = (): void => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
   const preview = session.lastMessage?.replace(/\s+/g, ' ').trim();
   return (
     <button
       type="button"
       className="session-row"
-      onClick={() => { if (timer.current) return; onOpen(); }}
-      onContextMenu={(event) => { event.preventDefault(); onMenu(); }}
+      onClick={() => { if (!longPressed.current) onOpen(); }}
       onTouchStart={startPress}
       onTouchEnd={endPress}
       onTouchMove={endPress}
@@ -28,8 +34,8 @@ export function SessionRow({ session, first, onOpen, onMenu }: {
     >
       {!first && <span className="session-divider" />}
       <span className="session-main">
-        <span className="session-title">{session.title || '新会话'}</span>
-        {preview && <span className="session-preview">{preview}</span>}
+        <span className="session-title">{session.title || '未命名会话'}</span>
+        <span className="session-preview">{preview || `${session.messageCount ?? 0} 条消息`}</span>
       </span>
       {session.updatedAt && <span className="session-time">{formatSessionTime(session.updatedAt)}</span>}
     </button>

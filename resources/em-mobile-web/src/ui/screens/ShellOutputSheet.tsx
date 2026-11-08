@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ShellLog } from '../../core/types';
 import { parseAnsi } from '../../core/ansi';
-import { Icon } from '../components/icons';
-import { t } from '../i18n';
+import { AmbientBackground } from '../components/AmbientBackground';
+import { Header } from '../components/Header';
+import { ChevronIcon, SpinIcon, iconSize } from '../components/icons';
 
 type ShellInfo = { id: string; command: string; running: boolean };
 
-/** Shell 输出页：ANSI 解析只在此页做（parseAnsi 与桌面端 ansi-colors.ts 同源）。 */
+/** 渲染上限：日志可达 100KB，只渲染尾部，避免一次铺太多着色段拖慢布局。 */
+const MAX_VIEW_CHARS = 30_000;
+const AT_BOTTOM_PX = 24;
+
+/**
+ * 后台命令输出查看页 —— 对应 App ShellOutputSheet（整屏 pageSheet）：
+ * 打开先加载日志尾部，运行中订阅实时输出；等宽 + ANSI 着色；自动贴底跟随，滚离底部出回底按钮。
+ */
 export function ShellOutputSheet({ visible, shell, loadLog, subscribeChunks, onStop, onClose }: {
   visible: boolean;
   shell: ShellInfo | null;
@@ -17,54 +25,99 @@ export function ShellOutputSheet({ visible, shell, loadLog, subscribeChunks, onS
 }): React.ReactElement | null {
   const [content, setContent] = useState('');
   const [truncated, setTruncated] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const followTail = useRef(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const shellId = shell?.id ?? null;
 
   useEffect(() => {
-    if (!visible || !shell) return;
+    if (!visible || !shellId) return;
     let alive = true;
+    followTail.current = true;
+    setAwayFromBottom(false);
     setContent('');
-    void loadLog(shell.id).then((log) => {
+    setTruncated(false);
+    setLoading(true);
+    void loadLog(shellId).then((log) => {
       if (!alive) return;
-      setContent(log.content);
+      // 拼在已到的实时块前面：readLog 是网络往返，期间到的块更新
+      setContent((current) => log.content + current);
       setTruncated(log.truncated);
-    }).catch(() => undefined);
-    const off = subscribeChunks((shellId, chunk) => {
-      if (shellId !== shell.id) return;
-      setContent((current) => `${current}${chunk}`.slice(-200_000));
+    }).catch(() => undefined).finally(() => { if (alive) setLoading(false); });
+    const off = subscribeChunks((id, chunk) => {
+      if (id !== shellId) return;
+      setContent((current) => current + chunk);
     });
     return () => { alive = false; off(); };
-  }, [visible, shell, loadLog, subscribeChunks]);
+    // loadLog / subscribeChunks 由 App 提供，标识稳定；只在打开或切换命令时重载
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, shellId]);
 
-  const lines = useMemo(() => content.split('\n'), [content]);
+  const visibleText = content.length > MAX_VIEW_CHARS ? content.slice(-MAX_VIEW_CHARS) : content;
+  const clipped = content.length > MAX_VIEW_CHARS;
+  const running = !!shell?.running;
+
+  useEffect(() => {
+    if (!visible || !followTail.current) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [visibleText, visible]);
+
+  const onScroll = (): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_PX;
+    followTail.current = bottom;
+    setAwayFromBottom(!bottom);
+  };
+
+  const scrollToBottom = (): void => {
+    followTail.current = true;
+    setAwayFromBottom(false);
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  };
+
   if (!visible || !shell) return null;
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet shell-sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="sheet-head">
-          <span className="sheet-title">{t('app.shellOutput')}</span>
-          <button type="button" className="sheet-close" onClick={onClose}><Icon name="close" size={16} /></button>
+    <div className="shell-page">
+      <AmbientBackground />
+      <div className="shell-page-content">
+        <Header title={shell.command} onBack={onClose} right={running
+          ? <button type="button" className="shell-stop" onClick={() => onStop(shell.id)}>停止</button>
+          : undefined} />
+        <div className="shell-status-row">
+          {running && <SpinIcon size={iconSize.card} className="shell-status-spin" />}
+          <span className="shell-status-text">{running ? '运行中' : '已结束'}</span>
         </div>
-        <div className="shell-command">{shell.command}</div>
-        {truncated && <div className="shell-truncated">仅显示日志尾部</div>}
-        <div className="shell-output">
-          {lines.map((line, index) => (
-            <div key={index} className="shell-line">
-              {parseAnsi(line).map((segment, i) => (
-                <span key={i} style={{
-                  color: segment.color, backgroundColor: segment.background,
-                  fontWeight: segment.bold ? 600 : undefined,
-                }}>{segment.text || ' '}</span>
-              ))}
-            </div>
-          ))}
-          {shell.running && <div className="shell-cursor" />}
+        {(truncated || clipped) && <div className="shell-truncated">日志较大，仅显示最近输出</div>}
+        <div className="shell-output" ref={scrollRef} onScroll={onScroll}>
+          {loading
+            ? <div className="shell-placeholder">读取输出…</div>
+            : visibleText
+              ? (
+                <div className="shell-output-text">
+                  {visibleText.split('\n').map((line, index) => (
+                    <div key={index} className="shell-line">
+                      {parseAnsi(line).map((segment, i) => (
+                        <span key={i} style={{
+                          color: segment.color, backgroundColor: segment.background,
+                          fontWeight: segment.bold ? 600 : undefined,
+                        }}>{segment.text || ' '}</span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )
+              : <div className="shell-placeholder">{running ? '等待输出…' : '(无输出)'}</div>}
         </div>
-        {shell.running && (
-          <button type="button" className="sheet-action is-danger" onClick={() => onStop(shell.id)}>
-            <Icon name="stop" size={15} /> {t('app.stop')}
-          </button>
-        )}
       </div>
+      {awayFromBottom && (
+        <button type="button" className="shell-to-bottom" aria-label="回到底部" onClick={scrollToBottom}>
+          <ChevronIcon size={iconSize.nav} direction="down" />
+        </button>
+      )}
     </div>
   );
 }

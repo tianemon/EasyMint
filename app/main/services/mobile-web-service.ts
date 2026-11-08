@@ -39,6 +39,7 @@ const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8", ".txt": "text/plain; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif", ".ico": "image/x-icon",
   ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
@@ -141,7 +142,12 @@ function publicPath(root: string, target: string): boolean {
 
 /** 形如 `index-BxK2pQ9v.js` / `logo.abcd1234.png`：带内容哈希，可长缓存 immutable。 */
 function isHashedAsset(file: string): boolean {
-  return /[-._][A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(path.basename(file));
+  const base = path.basename(file).toLowerCase();
+  // PWA 清单与桌面图标是固定文件名、需及时更新，且 apple-touch-icon.png 的 `touch-icon`
+  // 段会被下方哈希正则误命中。显式排除这些名字，而非收紧正则：Vite 的 base64 内容哈希
+  // 本身可能含连字符，收紧会让真实带哈希的资源一并失去 immutable 长缓存。
+  if (/^(manifest\.webmanifest|icon-\d+\.png|apple-touch-icon\.png)$/.test(base)) return false;
+  return /[-._][A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(base);
 }
 
 function parseHost(header: string | undefined): { hostname: string; port: string } | null {

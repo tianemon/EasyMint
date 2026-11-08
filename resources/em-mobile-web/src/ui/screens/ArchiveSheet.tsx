@@ -1,7 +1,8 @@
 import type { SessionListItem } from '../../protocol/types';
-import { Icon } from '../components/icons';
-import { t } from '../i18n';
+import { formatSessionTime } from '../../core/session-time';
+import { Glass } from '../components/Glass';
 
+/** 归档会话弹层：抓手 + 「已归档 / N 个会话」+ 行内「恢复」按钮。 */
 export function ArchiveSheet({ visible, sessions, onClose, onRestore }: {
   visible: boolean;
   sessions: SessionListItem[];
@@ -11,23 +12,28 @@ export function ArchiveSheet({ visible, sessions, onClose, onRestore }: {
   if (!visible) return null;
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="sheet-handle" />
-        <div className="sheet-head">
-          <span className="sheet-title">{t('app.archive')}</span>
-          <button type="button" className="sheet-close" onClick={onClose}><Icon name="close" size={16} /></button>
+      <Glass variant="frosted" radius={24} blur intensity={44} className="archive-sheet">
+        <div className="archive-sheet-inner" onClick={(event) => event.stopPropagation()}>
+          <div className="sheet-grip" />
+          <div className="archive-head">
+            <span className="archive-title">已归档</span>
+            <span className="archive-count">{sessions.length} 个会话</span>
+          </div>
+          <div className="archive-list">
+            {sessions.length === 0 && <div className="archive-empty">没有已归档的会话</div>}
+            {sessions.map((item, index) => (
+              <div key={item.sessionId} className="archive-row">
+                {index > 0 && <span className="archive-divider" />}
+                <div className="archive-row-main">
+                  <div className="archive-row-title">{item.title || '未命名会话'}</div>
+                  <div className="archive-row-time">归档于 {formatSessionTime(item.archivedAt ?? item.updatedAt)}</div>
+                </div>
+                <button type="button" className="archive-restore" onClick={() => onRestore(item)}>恢复</button>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="sheet-body">
-          {sessions.length === 0 && <div className="empty-hint">没有归档的会话</div>}
-          {sessions.map((item, index) => (
-            <div key={item.sessionId} className="sheet-row">
-              {index > 0 && <span className="sheet-divider" />}
-              <span className="sheet-row-title">{item.title || '新会话'}</span>
-              <button type="button" className="sheet-row-action" onClick={() => onRestore(item)}>恢复</button>
-            </div>
-          ))}
-        </div>
-      </div>
+      </Glass>
     </div>
   );
 }

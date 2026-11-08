@@ -1,34 +1,58 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { DisplayMessage } from '../../core/messages';
 import { buildRows } from '../../core/turns';
 import type { DisplayRow } from '../../core/turns';
 import { describeProcessItem } from '../../core/tools';
-import { Icon } from './icons';
+import { MintStatus } from './MintStatus';
 import { SystemCard } from './SystemCard';
 import { TurnView } from './TurnView';
-import { t } from '../i18n';
+
+const USER_MAX_LINES = 12;
+const CHARS_PER_LINE = 18;
+const AT_BOTTOM_PX = 24;
+
+function needsScroll(text: string): boolean {
+  let lines = 0;
+  for (const paragraph of text.split('\n')) {
+    lines += Math.max(1, Math.ceil(paragraph.length / CHARS_PER_LINE));
+    if (lines > USER_MAX_LINES) return true;
+  }
+  return false;
+}
 
 function UserBubble({ message }: { message: DisplayMessage }): React.ReactElement {
+  const [expanded, setExpanded] = useState(false);
   const attachments = message.attachments ?? [];
+  const long = !!message.text && needsScroll(message.text);
+  const flags = !!message.outOfContext || !!message.imageStripped || !!message.imagesPathOnly;
   return (
     <div className="user-bubble-wrap">
       <div className="user-bubble">
-        {message.text && <div className="user-text">{message.text}</div>}
         {attachments.length > 0 && (
           <div className="user-attachments">
-            {attachments.map((item) => (
-              <div key={item.id} className="user-attachment">
-                {item.kind === 'image' && item.data
-                  ? <img src={`data:${item.mimeType ?? 'image/jpeg'};base64,${item.data}`} alt={item.name} />
-                  : <><Icon name={item.kind === 'image' ? 'image' : 'doc'} size={13} /><span>{item.name}</span></>}
-              </div>
-            ))}
+            {attachments.map((item) => item.kind === 'image' && item.data
+              ? <img key={item.id} className="user-attachment-image"
+                src={`data:${item.mimeType ?? 'image/jpeg'};base64,${item.data}`} alt={item.name} />
+              : <div key={item.id} className="user-attachment-doc"><span>{item.name}</span></div>)}
           </div>
         )}
-        {message.outOfContext && <div className="user-flag">已退出上下文</div>}
-        {message.imagesPathOnly && <div className="user-flag">图片仅传路径</div>}
+        {!!message.text && (
+          <div className={`user-text${long && !expanded ? ' is-clamped' : ''}`}>{message.text}</div>
+        )}
+        {long && (
+          <button type="button" className="user-expand" onClick={() => setExpanded((value) => !value)}>
+            {expanded ? '收起' : '展开全文'}
+          </button>
+        )}
       </div>
+      {flags && (
+        <div className="user-badges">
+          {!!message.outOfContext && <span className="user-badge">已退出上下文</span>}
+          {!!message.imageStripped && !message.outOfContext && <span className="user-badge">历史图片已整理</span>}
+          {!!message.imagesPathOnly && <span className="user-badge">图片仅传路径</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -41,68 +65,78 @@ function Row({ row }: { row: DisplayRow }): React.ReactElement {
   return <div className="assistant-plain">{message.text ?? ''}</div>;
 }
 
-/** 消息列：普通文档流 + scrollTop 贴底判定 + 未贴底「新消息」按钮 + 行级 content-visibility。 */
-export function MessageList({ messages, running, footer }: {
+export function MessageList({ messages, running, tail, askId, statusText, statusIcon,
+  bottomInset = 0, topInset = 0 }: {
   messages: DisplayMessage[];
   running: boolean;
-  footer?: ReactNode;
+  tail?: ReactNode;
+  askId?: string;
+  statusText?: string;
+  statusIcon?: string;
+  bottomInset?: number;
+  topInset?: number;
 }): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
-  const [hasNew, setHasNew] = useState(false);
-  const lastSignature = useRef('');
+  const forceBottom = useRef(false);
 
-  // messages 为「最新在前」，buildRows 同样最新在前；普通文档流要 oldest-first，故反转。
+  // 最新在前 → 文档流要 oldest-first
   const rows = useMemo(
     () => buildRows(messages, running, describeProcessItem).slice().reverse(),
     [messages, running],
   );
+  // 状态行只在没有正在跑的过程时出现（有 live 过程由回合行承担）
+  const liveTurn = rows.find((row) => row.kind === 'turn' && row.turn.active);
+  const showStatus = !!statusText && !(liveTurn?.kind === 'turn' && liveTurn.turn.processCount > 0);
 
   const signature = `${messages.length}:${messages[0]?.id ?? ''}:${messages[0]?.streaming ? 1 : 0}`;
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (signature !== lastSignature.current) {
-      if (!atBottom) setHasNew(true);
-      lastSignature.current = signature;
-    }
-    if (!atBottom) return;
-    // turn_end 后 Markdown 富渲染切换与贴底都在 rAF 内完成，避免中间帧抖动。
+    if (!askId) return;
+    forceBottom.current = true;
+    setAtBottom(true);
     const handle = requestAnimationFrame(() => {
-      const node = scrollRef.current;
-      if (node) node.scrollTop = node.scrollHeight;
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+      forceBottom.current = false;
     });
     return () => cancelAnimationFrame(handle);
-  }, [signature, rows, atBottom]);
+  }, [askId]);
+
+  useLayoutEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    if (!atBottom && !forceBottom.current) return;
+    const handle = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+      forceBottom.current = false;
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [signature, rows, atBottom, bottomInset, statusText]);
 
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_PX;
     setAtBottom(bottom);
-    if (bottom) setHasNew(false);
   };
 
-  const jumpToBottom = (): void => {
-    const el = scrollRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    setHasNew(false);
-    setAtBottom(true);
-  };
+  const vars = {
+    '--msg-top': `${topInset + 8}px`,
+    '--msg-bottom': `${bottomInset + 12}px`,
+  } as CSSProperties;
 
   return (
-    <div className="message-area">
+    <div className="message-area" style={vars}>
       <div className="message-scroll" ref={scrollRef} onScroll={onScroll}>
         <div className="message-column">
           {rows.map((row) => <div className="msg-row" key={row.key}><Row row={row} /></div>)}
-          {footer && <div className="message-footer">{footer}</div>}
+          <div className="message-tail">
+            {tail}
+            {showStatus && <MintStatus text={statusText!} icon={statusIcon} />}
+          </div>
         </div>
       </div>
-      {hasNew && !atBottom && (
-        <button type="button" className="new-messages" onClick={jumpToBottom}>
-          <Icon name="chevronDown" size={13} /> {t('ui.ChatPanel.newMessages')}
-        </button>
-      )}
     </div>
   );
 }

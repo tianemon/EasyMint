@@ -1,12 +1,11 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PermissionMode } from '../../protocol/types';
 import type { ModelCapabilities } from '../../protocol/types';
 import type { AttachmentKind, DraftAttachment } from '../../core/attachments';
 import type { ComposerControl } from '../../core/types';
 import { THINKING_LABELS } from '../../core/thinking';
 import { Glass } from './Glass';
-import { Icon } from './icons';
-import { t } from '../i18n';
+import { ComposerIcon, Icon, SendIcon, SpinIcon, iconSize } from './icons';
 
 export type ComposerProps = {
   draft: string;
@@ -34,86 +33,86 @@ export type ComposerProps = {
   onRemoveAttachment: (id: string) => void;
 };
 
-/** 输入卡：全站唯一 liquid 玻璃（backdrop-filter 只此一处）。运行中且有内容=发送(steer)，仅运行中且空输入=打断。 */
+const PERMISSION_OPTIONS = [['readonly', '只读'], ['standard', '标准'], ['full', '完全访问']] as const;
+const ATTACHMENT_OPTIONS = [['image', '图片'], ['doc', '文档']] as const;
+
+// 上下文使用率环：与 App Composer 同一几何（20×20 / r=8 / stroke 2.5 / 12 点起画）
+const RING_SIZE = 20;
+const RING_R = 8;
+const RING_STROKE = 2.5;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R;
+
+function formatTokenWindow(tokens: number): string {
+  if (tokens >= 1_000_000) return `${Number((tokens / 1_000_000).toFixed(2))}M`;
+  if (tokens % 1000 === 0) return `${tokens / 1000}K`;
+  if (tokens % 1024 === 0) return `${tokens / 1024}K`;
+  return `${Math.floor(tokens / 1000)}K`;
+}
+
+function contextTip(percent: number | null, windowTokens: number | null): string {
+  if (windowTokens === null) return percent === null ? '上下文用量暂未上报' : `上下文使用率 ${Math.round(percent)}%`;
+  const windowLabel = formatTokenWindow(windowTokens);
+  return percent === null ? `上下文窗口 ${windowLabel} · 用量暂未上报` : `上下文窗口 ${windowLabel} · 已用 ${Math.round(percent)}%`;
+}
+
+/** 输入卡：多行输入 + 工具栏（权限/模型/思考/上下文圆环/发送）+ 卡内工具菜单。 */
 export function Composer(props: ComposerProps): React.ReactElement {
   const {
-    draft, attachments, running, compacting, hasSession, permission, permissionLabel, thinking,
-    thinkingOptions, model, provider, contextPercent, control,
+    draft, attachments, running, compacting, hasSession, permission, thinking,
+    thinkingOptions, model, provider, contextPercent, contextWindow, control,
     onDraftChange, onControlChange, onSend, onStop, onSelectModel, onSelectPermission,
     onSelectThinking, onPickAttachments, onRemoveAttachment,
   } = props;
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const disabled = compacting;
-  const hasText = draft.trim().length > 0;
-  const isStop = running && !hasText;
-
+  const [showContextTip, setShowContextTip] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hasContent = draft.trim().length > 0 || attachments.length > 0;
+  const showStop = !compacting && running && hasSession && !hasContent;
+  const sendDisabled = compacting || (!showStop && !hasContent);
+  const tipText = contextTip(contextPercent, contextWindow);
   const toggle = (next: ComposerControl): void => onControlChange(control === next ? null : next);
 
+  // 自动增高：52 起步、130 封顶；草稿被清空（发送后）也能缩回去。
+  useEffect(() => {
+    const node = inputRef.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${Math.min(130, Math.max(52, node.scrollHeight))}px`;
+  }, [draft]);
+
   const submit = (): void => {
-    if (disabled) return;
-    if (isStop) onStop();
-    else if (hasText || attachments.length) onSend();
+    if (compacting) return;
+    if (showStop) onStop();
+    else if (hasContent) onSend();
   };
 
   return (
     <div className="composer-wrap">
-      {control && (
-        <div className="composer-menu">
-          {control === 'attachment' && (
-            <>
-              <button type="button" onClick={() => { onPickAttachments('image'); onControlChange(null); }}>
-                <Icon name="image" size={14} /> 图片
-              </button>
-              <button type="button" onClick={() => { onPickAttachments('doc'); onControlChange(null); }}>
-                <Icon name="doc" size={14} /> 文档
-              </button>
-            </>
-          )}
-          {control === 'permission' && (['readonly', 'standard', 'full'] as PermissionMode[]).map((mode) => (
-            <button key={mode} type="button" className={permission === mode ? 'is-selected' : ''}
-              onClick={() => { onSelectPermission(mode); onControlChange(null); }}>
-              {mode === 'readonly' ? '只读' : mode === 'full' ? '完全访问' : '标准'}
-            </button>
-          ))}
-          {control === 'thinking' && thinkingOptions.map((level) => (
-            <button key={level} type="button" className={thinking === level ? 'is-selected' : ''}
-              onClick={() => { onSelectThinking(level); onControlChange(null); }}>
-              {THINKING_LABELS[level] ?? level}
-            </button>
-          ))}
-          {control === 'model' && (provider?.models ?? []).map((item) => (
-            <button key={item.id} type="button" className={(model || provider?.currentModel) === item.id ? 'is-selected' : ''}
-              onClick={() => { onSelectModel(item.id); onControlChange(null); }}>
-              {item.name}
-            </button>
-          ))}
-          {control === 'model' && !provider && <div className="composer-menu-empty">暂无可用模型</div>}
-        </div>
-      )}
+      <div className="composer-card">
+        <Glass variant="liquid" blur radius={24} intensity={8} elevated={false} className="composer-glass" />
 
-      <Glass variant="liquid" className="composer">
         {attachments.length > 0 && (
           <div className="composer-attachments">
             {attachments.map((item) => (
               <div key={item.id} className="composer-attachment">
-                {item.kind === 'image' && item.previewUrl
-                  ? <img src={item.previewUrl} alt={item.name} />
-                  : <Icon name="doc" size={14} />}
-                <span className="composer-attachment-name">{item.name}</span>
-                <button type="button" onClick={() => onRemoveAttachment(item.id)} aria-label="移除附件">
-                  <Icon name="close" size={11} />
+                {item.kind === 'image' && (item.previewUrl || item.data)
+                  ? <img src={item.previewUrl ?? `data:${item.mimeType};base64,${item.data}`} alt={item.name} />
+                  : <span className="composer-attachment-name">{item.name}</span>}
+                <button type="button" className="composer-attachment-remove"
+                  aria-label={`移除 ${item.name}`} onClick={() => onRemoveAttachment(item.id)}>
+                  <Icon name="close" size={10} />
                 </button>
               </div>
             ))}
           </div>
         )}
+
         <textarea
-          ref={textareaRef}
+          ref={inputRef}
           className="composer-input"
           value={draft}
           rows={1}
-          placeholder={disabled ? t('ui.ChatPanel.compactingSession') : t('app.composerPlaceholder')}
-          disabled={disabled}
+          placeholder={compacting ? '正在整理上下文，请稍候' : running ? '输入以引导当前任务…' : '给 EasyMint 发送消息…'}
+          disabled={compacting}
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -122,41 +121,107 @@ export function Composer(props: ComposerProps): React.ReactElement {
             }
           }}
         />
+
         <div className="composer-toolbar">
-          <button type="button" className="composer-tool" onClick={() => toggle('attachment')} aria-label="添加附件">
-            <Icon name="clip" size={19} />
-          </button>
-          <button type="button" className={`composer-tool${permission === 'full' ? ' is-danger' : ''}`}
-            onClick={() => toggle('permission')} aria-label="权限">
-            <Icon name="shield" size={18} />
-          </button>
-          <button type="button" className="composer-tool" onClick={() => toggle('model')} aria-label="模型">
-            <Icon name="model" size={18} />
-          </button>
-          <button type="button" className="composer-tool" onClick={() => toggle('thinking')} aria-label="思考等级">
-            <Icon name="think" size={18} />
+          <button type="button" className={`composer-tool${control === 'attachment' ? ' is-active' : ''}`}
+            aria-label="添加附件" onClick={() => toggle('attachment')}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
           </button>
           <span className="composer-spacer" />
-          {contextPercent !== null && <span className="composer-context">{Math.round(contextPercent)}%</span>}
-          <button
-            type="button"
-            className={`composer-send${isStop ? ' is-stop' : ''}${(hasText || attachments.length || isStop) ? ' is-active' : ''}`}
-            onClick={submit}
-            disabled={disabled || (!hasText && attachments.length === 0 && !isStop)}
-            aria-label={isStop ? '打断' : '发送'}
-          >
-            <Icon name={isStop ? 'stop' : 'send'} size={18} />
+          <button type="button"
+            className={`composer-tool composer-tool-control${permission === 'full' ? ' is-danger' : ''}${control === 'permission' ? ' is-active' : ''}`}
+            aria-label={`选择权限，当前 ${props.permissionLabel}`} onClick={() => toggle('permission')}>
+            <ComposerIcon kind="permission" permission={permission} />
+          </button>
+          <button type="button"
+            className={`composer-tool composer-tool-control${control === 'model' ? ' is-active' : ''}`}
+            aria-label={`选择模型，当前 ${model || provider?.currentModel || '默认'}`} onClick={() => toggle('model')}>
+            <ComposerIcon kind="model" />
+          </button>
+          <button type="button"
+            className={`composer-tool composer-tool-control${control === 'thinking' ? ' is-active' : ''}`}
+            aria-label={`选择思考等级，当前 ${THINKING_LABELS[thinking] ?? thinking}`} onClick={() => toggle('thinking')}>
+            <ComposerIcon kind="thinking" />
+          </button>
+          <button type="button" className="composer-context" aria-label={tipText}
+            onClick={() => setShowContextTip((value) => !value)}>
+            <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} className="composer-context-ring">
+              <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none"
+                stroke="var(--surface-hover)" strokeWidth={RING_STROKE} />
+              <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none"
+                stroke="var(--accent)" strokeWidth={RING_STROKE} strokeLinecap="round"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={contextPercent === null ? RING_CIRCUMFERENCE : RING_CIRCUMFERENCE * (1 - contextPercent / 100)} />
+            </svg>
+          </button>
+          <button type="button" className={`composer-send${showStop ? ' is-stop' : ''}`}
+            disabled={sendDisabled} aria-label={showStop ? '打断' : '发送'}
+            onClick={() => (showStop ? onStop() : onSend())}>
+            <SendIcon stop={showStop} />
           </button>
         </div>
-        {hasSession && (
-          <div className="composer-meta">
-            <span>{permissionLabel}</span>
-            <span>·</span>
-            <span>{THINKING_LABELS[thinking] ?? thinking}</span>
-            {model && <><span>·</span><span className="composer-model">{model}</span></>}
+
+        {showContextTip && <div className="context-tip"><span>{tipText}</span></div>}
+
+        {control === 'attachment' && (
+          <div className="composer-attachment-menu">
+            {ATTACHMENT_OPTIONS.map(([kind, label]) => (
+              <button key={kind} type="button" className="composer-attachment-option"
+                onClick={() => { onControlChange(null); onPickAttachments(kind); }}>
+                <Icon name={kind} size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
           </div>
         )}
-      </Glass>
+
+        {control === 'model' && (
+          <div className="composer-menu">
+            <div className="composer-menu-title">{provider?.name ?? '当前供应商'}</div>
+            {(provider?.models ?? []).map((item) => (
+              <button key={item.id} type="button" className="composer-option"
+                onClick={() => { onSelectModel(item.id); onControlChange(null); }}>
+                <span>{item.name}</span>
+                {model === item.id && <Icon name="check" size={iconSize.nav} className="composer-check" />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {control === 'permission' && (
+          <div className="composer-menu">
+            {PERMISSION_OPTIONS.map(([value, label]) => (
+              <button key={value} type="button" className="composer-option"
+                onClick={() => { onSelectPermission(value); onControlChange(null); }}>
+                <span>{label}</span>
+                {permission === value && <Icon name="check" size={iconSize.nav} className="composer-check" />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {control === 'thinking' && (
+          <div className="composer-menu">
+            {thinkingOptions.map((level) => (
+              <button key={level} type="button" className="composer-option"
+                onClick={() => { onSelectThinking(level); onControlChange(null); }}>
+                <span>{THINKING_LABELS[level] ?? level}</span>
+                {thinking === level && <Icon name="check" size={iconSize.nav} className="composer-check" />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {compacting && (
+          <div className="composer-compact-mask">
+            <SpinIcon size={iconSize.card} className="composer-compact-spin" />
+            <span>正在整理上下文，请稍候…</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

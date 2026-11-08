@@ -32,7 +32,6 @@ import { electLeader } from '../transport/leader';
 import { AmbientBackground } from './components/AmbientBackground';
 import { Header } from './components/Header';
 import { Icon } from './components/icons';
-import type { BackgroundPreset } from './components/BackgroundPills';
 import { HomeScreen } from './screens/HomeScreen';
 import { PairGuideScreen } from './screens/PairGuideScreen';
 import { ProjectsScreen } from './screens/ProjectsScreen';
@@ -50,15 +49,6 @@ const HEALTH_PATH = 'health';
 
 export default function App(): React.ReactElement {
   const { mode: themeMode, setMode: setThemeMode } = useTheme();
-  const [background, setBackground] = useState<BackgroundPreset>(() => {
-    try { const value = localStorage.getItem('easymint.background'); return value === 'blue' || value === 'neutral' ? value : 'mint'; }
-    catch { return 'mint'; }
-  });
-  const changeBackground = useCallback((value: BackgroundPreset) => {
-    setBackground(value);
-    try { localStorage.setItem('easymint.background', value); } catch { /* 忽略 */ }
-  }, []);
-
   const [page, setPage] = useState<Page>('scanner');
   const [devices, setDevices] = useState<StoredDevice[]>([]);
   const [activePcId, setActivePcId] = useState<string | null>(null);
@@ -67,8 +57,6 @@ export default function App(): React.ReactElement {
   const [bootReady, setBootReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingPcId, setPendingPcId] = useState<string | null>(null);
-  const [pulling, setPulling] = useState(false);
-  const [reloading, setReloading] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [pairCode, setPairCode] = useState('');
   const [pairError, setPairError] = useState('');
@@ -482,24 +470,17 @@ export default function App(): React.ReactElement {
     onRetry={pairError && pairCode ? retryPair : undefined} retrying={pairingBusy} />;
   else if (busy) content = <div className="screen"><Header title="EasyMint" /><div className="boot loading">正在加载 EasyMint…</div></div>;
   else if (page === 'home') content = <HomeScreen
-    devices={devices} activePcId={activePcId} connection={connection} refreshing={pulling}
+    devices={devices} activePcId={activePcId} connection={connection}
     pairCode={pairCode} error={error}
-    onRefresh={() => {
-      if (connection !== 'connected') { void client?.connect().catch(fail); return; }
-      setPulling(true);
-      void refreshHomeSessions().finally(() => setPulling(false));
-    }}
     onOpenDevice={(device) => void openDevice(device)}
     onAddDevice={() => setPage('scanner')}
     onOpenSettings={() => setPage('settings')} />;
   else if (page === 'settings') content = <SettingsScreen device={credential} connection={connection}
-    themeMode={themeMode} background={background} onThemeMode={setThemeMode} onBackground={changeBackground}
+    themeMode={themeMode} onThemeMode={setThemeMode}
     onBack={() => setPage('home')} onRepair={() => setPage('scanner')} onForget={forgetPc} />;
   else if (page === 'projects') content = <ProjectsScreen projects={projects} statusLabel={statusLabel}
     onBack={() => setPage('home')} onOpenProject={(item) => void refreshSessions(item)} />;
-  else if (page === 'sessions') content = <SessionsScreen project={project} connection={connection} sessions={sessions}
-    refreshing={reloading}
-    onRefresh={() => { setReloading(true); void reloadSessions().finally(() => setReloading(false)); }}
+  else if (page === 'sessions') content = <SessionsScreen project={project} sessions={sessions}
     onOpenArchive={() => setArchiveOpen(true)} onBack={goBack} onSwitchProject={() => void refreshProjects()}
     onOpenSession={(item) => void actions.openSession(item)} onLongPressSession={openSessionMenu}
     onNewSession={() => void actions.startNewSession()} />;
@@ -512,7 +493,7 @@ export default function App(): React.ReactElement {
     running={running} mintStatus={mintStatus} mintIcon={mintIcon} composer={composer} onBack={goBack} />;
 
   return (
-    <div className={`app bg-${background}`}>
+    <div className="app">
       <AmbientBackground />
       <div className="app-shell">
         {content}

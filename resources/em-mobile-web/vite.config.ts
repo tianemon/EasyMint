@@ -1,9 +1,13 @@
 import { defineConfig } from 'vite';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const vendorNoble = fileURLToPath(new URL('./vendor/@noble', import.meta.url));
+// 版本号取桌面端 package.json（App 设置页「关于」显示 expo.version，Web 对齐同一发布版本）
+const desktopVersion = (JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
+) as { version?: string }).version ?? '0.0.0';
 
 // 网络不可用时 @noble/ciphers / @noble/curves 从手机 App 仓库 vendor 到本项目，
 // 用 alias 指向本地副本（版本锁 2.4.0，与桌面端 remote-crypto 字节级一致）。
@@ -18,6 +22,7 @@ const alias: Record<string, string> = useVendor
 
 export default defineConfig({
   base: './',
+  define: { __EM_VERSION__: JSON.stringify(desktopVersion) },
   // 产物全部落到 dist/，桌面端 extraResources 直接映射该目录（契约 C1）。
   build: {
     outDir: 'dist',

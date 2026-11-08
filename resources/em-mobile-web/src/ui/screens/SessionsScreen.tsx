@@ -1,17 +1,14 @@
 import type { OpenProject, SessionListItem } from '../../protocol/types';
-import type { ConnectionStatus } from '../../core/types';
 import { Header } from '../components/Header';
+import { Glass } from '../components/Glass';
 import { SessionRow } from '../components/SessionRow';
 import { Icon } from '../components/icons';
-import { t } from '../i18n';
 
-export function SessionsScreen({ project, connection, sessions, refreshing, onRefresh,
-  onOpenArchive, onBack, onSwitchProject, onOpenSession, onLongPressSession, onNewSession }: {
+/** 二级：某个项目的会话列表（照 App SessionsScreen）。 */
+export function SessionsScreen({ project, sessions, onOpenArchive, onBack, onSwitchProject,
+  onOpenSession, onLongPressSession, onNewSession }: {
   project: OpenProject | null;
-  connection: ConnectionStatus;
   sessions: SessionListItem[];
-  refreshing: boolean;
-  onRefresh: () => void;
   onOpenArchive: () => void;
   onBack: () => void;
   onSwitchProject: () => void;
@@ -20,36 +17,38 @@ export function SessionsScreen({ project, connection, sessions, refreshing, onRe
   onNewSession: () => void;
 }): React.ReactElement {
   const visible = sessions.filter((item) => !item.archivedAt);
-  const archived = sessions.filter((item) => item.archivedAt);
   return (
     <div className="screen">
       <Header
-        title={project?.name ?? t('app.sessions')}
-        onTitleClick={onSwitchProject}
-        showTitleChevron
-        connected={connection === 'connected'}
         onBack={onBack}
-        rightLabel={t('app.settings')}
-        onRight={onOpenArchive}
+        title={
+          <button type="button" className="project-title" onClick={onSwitchProject} aria-label="切换项目">
+            <span className="project-title-chevron"><Icon name="chevronDown" size={14} /></span>
+            <span className="project-title-text">{project?.name ?? '选择项目'}</span>
+          </button>
+        }
+        right={
+          <button type="button" className="header-pill-hit" onClick={onOpenArchive} aria-label="归档会话">
+            <Glass variant="frosted" radius={13} className="header-pill">
+              <span className="header-pill-inner"><Icon name="clock" size={19} /></span>
+            </Glass>
+          </button>
+        }
       />
       <div className="screen-body sessions-body">
-        <button type="button" className="sessions-refresh" onClick={onRefresh} disabled={refreshing}>
-          <Icon name="refresh" size={13} /> {refreshing ? '刷新中…' : '下拉刷新'}
-        </button>
-        {visible.length === 0 && <div className="empty-hint">暂无会话</div>}
+        {visible.length === 0 && <div className="list-empty">当前项目还没有会话</div>}
         {visible.map((session, index) => (
           <SessionRow key={session.sessionId} session={session} first={index === 0}
             onOpen={() => onOpenSession(session)} onMenu={() => onLongPressSession(session)} />
         ))}
-        {archived.length > 0 && (
-          <button type="button" className="archive-link" onClick={onOpenArchive}>
-            <Icon name="archive" size={14} /> {t('app.archive')}（{archived.length}）
-          </button>
-        )}
       </div>
-      <button type="button" className="fab" onClick={onNewSession} aria-label={t('app.newSession')}>
-        <Icon name="plusChat" size={24} />
-      </button>
+      {project && (
+        <button type="button" className="fab" onClick={onNewSession} aria-label="新建会话">
+          <Glass variant="liquid" radius={29} className="fab-glass">
+            <span className="fab-inner"><Icon name="plusChat" size={24} /></span>
+          </Glass>
+        </button>
+      )}
     </div>
   );
 }
