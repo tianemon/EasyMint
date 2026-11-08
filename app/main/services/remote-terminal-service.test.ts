@@ -12,7 +12,7 @@ import {
   pairingCode,
   remoteProof,
 } from "./remote-crypto";
-import { RemoteTerminalService, type MobilePairRequest } from "./remote-terminal-service";
+import { RemoteTerminalService, unpackPairingPayload, type MobilePairRequest } from "./remote-terminal-service";
 import { appEventBus } from "./app-event-bus";
 
 const cleanup: Array<() => void> = [];
@@ -419,5 +419,97 @@ describe("RemoteTerminalService", () => {
       data: { tasks: [null] },
       emittedAt: Date.now(),
     })).not.toThrow();
+  });
+
+  it("关闭通道必须真正释放端口：close 后同端口能被重新占用", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    await service.ensureStarted();
+    expect(service.isRunning()).toBe(true);
+    const port = service.listeningPortNumber();
+    service.close();
+    expect(service.isRunning()).toBe(false);
+
+    // 再用同一端口起一个新实例：起得来 = 上一个监听确实释放了（否则 EADDRINUSE）
+    const again = new RemoteTerminalService(vi.fn(), { port, pairedFile: path.join(dir, "paired2.json") });
+    cleanup.push(() => again.close());
+    await again.ensureStarted();
+    expect(again.listeningPortNumber()).toBe(port);
+  });
+
+  it("同一实例 close 后可以重新 ensureStarted（开关来回切换）", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    await service.ensureStarted();
+    service.close();
+    expect(service.isRunning()).toBe(false);
+    await service.ensureStarted();
+    expect(service.isRunning()).toBe(true);
+    // port:0 每次重新监听会拿到新的临时端口，这里只证明「能再起来」，端口复用由上一个用例证明
+    expect(service.listeningPortNumber()).toBeGreaterThan(0);
+  });
+
+  it("短码二维码：手机连上来用短码换完整载荷，码里不含公钥", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+
+    const offer = await service.createPairingOffer("192.168.1.8");
+    // 二维码只带地址/端口/6 位短码——公钥与 token 都不能出现在码里，否则模块数翻倍
+    expect(offer.uri).toMatch(/^easymint:\/\/pair\?h=192\.168\.1\.8&p=\d+&c=[A-Z0-9]{6}$/);
+    expect(offer.uri.length).toBeLessThan(70);
+    expect(offer.uri).not.toContain(offer.publicKey);
+
+    const code = /c=([A-Z0-9]{6})$/.exec(offer.uri)![1];
+    const socket = new WebSocket(`ws://127.0.0.1:${offer.port}`);
+    cleanup.push(() => socket.close());
+    await waitForOpen(socket);
+    const reply = waitForMessage(socket);
+    socket.send(JSON.stringify({ type: "mobile-pair-lookup", code }));
+    const message = await reply;
+    expect(message.type).toBe("mobile-pair-offer");
+    const payload = unpackPairingPayload(String(message.payload));
+    expect(payload.token).toBe(offer.token);
+    expect(payload.publicKey).toBe(offer.publicKey);
+    expect(payload.port).toBe(offer.port);
+  });
+
+  it("短码查表：未知短码回 lookup-failed，且不消耗真实短码", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+
+    const bad = new WebSocket(`ws://127.0.0.1:${offer.port}`);
+    cleanup.push(() => bad.close());
+    await waitForOpen(bad);
+    const failed = waitForMessage(bad);
+    bad.send(JSON.stringify({ type: "mobile-pair-lookup", code: "ZZZZZZ" }));
+    expect((await failed).type).toBe("mobile-pair-lookup-failed");
+
+    // 查表失败不影响真实短码：同一条连接再查一次仍能拿到载荷
+    const code = /c=([A-Z0-9]{6})$/.exec(offer.uri)![1];
+    const okReply = waitForMessage(bad);
+    bad.send(JSON.stringify({ type: "mobile-pair-lookup", code }));
+    expect((await okReply).type).toBe("mobile-pair-offer");
+  });
+
+  it("短码查表限次：同一连接试错超过 5 次即被断开", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+
+    const socket = new WebSocket(`ws://127.0.0.1:${offer.port}`);
+    cleanup.push(() => socket.close());
+    await waitForOpen(socket);
+    const closed = new Promise<number>((resolve) => socket.once("close", (code) => resolve(code)));
+    for (let i = 0; i < 6; i += 1) {
+      socket.send(JSON.stringify({ type: "mobile-pair-lookup", code: "ZZZZZZ" }));
+    }
+    // 6 位短码不设上限就能被当字典猛试：第 6 次必须直接断开（1008）
+    await expect(closed).resolves.toBe(1008);
   });
 });

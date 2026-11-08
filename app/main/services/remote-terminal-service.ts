@@ -40,6 +40,43 @@ interface StoredMobileDevice {
   lastSeen: number;
 }
 
+/**
+ * 配对二维码载荷：紧凑数组形态（顺序即协议）。
+ * 只带**一个地址**——用户在面板上选了哪个 IP，二维码就指哪个；多网卡全塞进去会让
+ * 二维码显著变密，而扫码那一刻只会连其中一个。
+ */
+export function packPairingPayload(offer: {
+  token: string; pcId: string; pcName: string; addresses: string[]; port: number;
+  publicKey: string; expiresAt: number;
+}): unknown[] {
+  return [
+    REMOTE_PROTOCOL_VERSION, offer.token, offer.pcId, offer.pcName,
+    offer.addresses, offer.port, offer.publicKey, offer.expiresAt,
+  ];
+}
+
+/** 兼容读：数组（新）与对象（旧桌面版）都能解出同一组字段。 */
+export function unpackPairingPayload(encoded: string): {
+  version: number; token: string; pcId: string; pcName: string; addresses: string[];
+  port: number; publicKey: string; expiresAt: number;
+} {
+  const value: unknown = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  if (Array.isArray(value)) {
+    const [version, token, pcId, pcName, addresses, port, publicKey, expiresAt] = value;
+    return {
+      version: Number(version), token: String(token), pcId: String(pcId), pcName: String(pcName),
+      addresses: Array.isArray(addresses) ? addresses.map(String) : [],
+      port: Number(port), publicKey: String(publicKey), expiresAt: Number(expiresAt),
+    };
+  }
+  const item = value as Record<string, unknown>;
+  return {
+    version: Number(item.version), token: String(item.token), pcId: String(item.pcId),
+    pcName: String(item.pcName), addresses: Array.isArray(item.addresses) ? item.addresses.map(String) : [],
+    port: Number(item.port), publicKey: String(item.publicKey), expiresAt: Number(item.expiresAt),
+  };
+}
+
 export interface MobileDeviceSummary {
   id: string;
   name: string;
@@ -50,6 +87,8 @@ export interface MobileDeviceSummary {
 
 export interface MobilePairingOffer {
   uri: string;
+  /** 完整载荷的 base64url（网页短码链路要把它登记进同源查表，不走二维码） */
+  payload: string;
   token: string;
   pcId: string;
   pcName: string;
@@ -69,6 +108,12 @@ export interface MobilePairRequest {
 
 interface PairingOfferState extends MobilePairingOffer {
   privateKey: crypto.ECDH;
+}
+
+/** App 二维码短码：只活 60 秒，扫到后由手机连上来换取完整 offer。 */
+interface CompactOfferEntry {
+  token: string;
+  expiresAt: number;
 }
 
 interface PendingPairRequest extends MobilePairRequest {
@@ -151,6 +196,10 @@ export class RemoteTerminalService extends EventEmitter {
   private server: WebSocketServer | null = null;
   private startPromise: Promise<void> | null = null;
   private offers = new Map<string, PairingOfferState>();
+  /** App 二维码短码 → offer token。手机扫到码后连上来用它换完整 offer。 */
+  private compactOffers = new Map<string, CompactOfferEntry>();
+  /** 每条未认证连接试过几次短码（限次防穷举：6 位码不设上限就能当字典试）。 */
+  private lookupAttempts = new Map<WebSocket, number>();
   private pendingPairs = new Map<string, PendingPairRequest>();
   private connections = new Map<WebSocket, AuthenticatedConnection>();
   private devices: StoredMobileDevice[] = [];
@@ -163,7 +212,8 @@ export class RemoteTerminalService extends EventEmitter {
 
   constructor(
     private readonly commandHandler: RemoteCommandHandler,
-    private readonly options: { port?: number; pairedFile?: string } = {},
+    // port 需要在变端口时改写（setPort 先 close 再换值），所以不能是 readonly
+    private options: { port?: number; pairedFile?: string } = {},
   ) {
     super();
     this.pcId = crypto.createHash("sha256").update(`${os.hostname()}:${os.userInfo().username}`).digest("hex").slice(0, 32);
@@ -201,34 +251,40 @@ export class RemoteTerminalService extends EventEmitter {
     return this.startPromise;
   }
 
-  async createPairingOffer(): Promise<MobilePairingOffer> {
+  async createPairingOffer(preferredHost?: string): Promise<MobilePairingOffer> {
     await this.ensureStarted();
     this.pruneExpired();
     const token = crypto.randomBytes(24).toString("base64url");
     const pair = generateRemoteKeyPair();
     const offer: PairingOfferState = {
       uri: "",
+      payload: "",
       token,
       pcId: this.pcId,
       pcName: os.hostname(),
-      addresses: lanAddresses(),
+      // 只带选中那个地址：多网卡全塞进二维码会显著变密，而扫码时只会连其中一个
+      addresses: preferredHost ? [preferredHost] : lanAddresses(),
       port: this.listeningPort(),
       publicKey: pair.publicKey,
       expiresAt: Date.now() + OFFER_TTL_MS,
       privateKey: pair.privateKey,
     };
-    const encoded = Buffer.from(JSON.stringify({
-      version: REMOTE_PROTOCOL_VERSION,
-      token: offer.token,
-      pcId: offer.pcId,
-      pcName: offer.pcName,
-      addresses: offer.addresses,
-      port: offer.port,
-      publicKey: offer.publicKey,
-      expiresAt: offer.expiresAt,
-    }), "utf8").toString("base64url");
-    offer.uri = `easymint://pair?payload=${encoded}`;
+    // 载荷用**紧凑数组**而不是对象：二维码里每多一个字节，模块就多一行，扫起来更吃力。
+    // 字段名('version'/'addresses'…) 与引号在这里纯属开销，去掉后 base64 长度少约三成。
+    // 顺序即协议：[version, token, pcId, pcName, addresses, port, publicKey, expiresAt]。
+    // App 侧解析同时兼容旧的对象形态（老版本桌面生成的码仍可扫）。
+    const encoded = Buffer.from(JSON.stringify(packPairingPayload(offer)), "utf8").toString("base64url");
+    offer.payload = encoded;
     this.offers.set(token, offer);
+    // 二维码只放「地址 + 端口 + 6 位短码」：完整载荷（公钥 44 + token 32 + pcId 32 …）
+    // 塞进码里会让模块数翻倍，比浏览器二维码密一倍，扫起来明显更吃力。
+    // 手机扫到后连上来用短码换完整载荷（见 handlePairLookup），通道仍是 47778，不依赖网页服务。
+    const host = offer.addresses[0] ?? "";
+    // 没有局域网地址就生成不出能扫的码（`h=` 空值会让手机判成「不是配对二维码」）。
+    // 这里直接失败，界面显示「没有可用的局域网地址」，比给一张坏码清楚。
+    if (!host) return Promise.reject(new Error("电脑没有可用的局域网地址"));
+    const code = this.registerCompactOffer(token, offer.expiresAt);
+    offer.uri = `easymint://pair?h=${encodeURIComponent(host)}&p=${offer.port}&c=${code}`;
     return this.publicOffer(offer);
   }
 
@@ -402,14 +458,50 @@ export class RemoteTerminalService extends EventEmitter {
     }
   }
 
+  /** 是否正在监听端口（开关面板用它显示状态；不监听时端口应被真正释放）。 */
+  isRunning(): boolean {
+    return this.server !== null;
+  }
+
+  /** 对外暴露实际端口（未监听时退回配置值，界面拿它显示「将使用 47778」）。 */
+  listeningPortNumber(): number {
+    return this.listeningPort();
+  }
+
+  /**
+   * 换端口：先释放旧监听，再按新端口重新起来。
+   * 已配对手机凭证里存的是旧端口，换端口后它们连不上——界面上要提示重新配对，
+   * 这里不替用户做迁移。
+   */
+  async setPort(port: number): Promise<void> {
+    if (this.options.port === port) return;
+    const wasRunning = this.isRunning();
+    this.close();
+    this.options.port = port;
+    if (wasRunning) await this.ensureStarted();
+  }
+
+  /**
+   * 停止监听并断开所有连接。可重复调用；之后再 ensureStarted() 能重新起来。
+   * 订阅表一并清空：订阅只对「当前这条连接」有意义，留着旧集合会让重连后的设备
+   * 收到它已经关掉的会话的事件。
+   */
   close(): void {
     for (const pending of this.pendingPairs.values()) clearTimeout(pending.timer);
     this.pendingPairs.clear();
     this.offers.clear();
+    this.compactOffers.clear();
+    this.lookupAttempts.clear();
     for (const socket of this.connections.keys()) socket.close(1001, "server shutdown");
     this.connections.clear();
+    this.projectSubscriptions.clear();
+    this.sessionSubscriptions.clear();
+    this.subscriptionVersions.clear();
+    this.lastSessionSelection.clear();
     this.server?.close();
+    // close() 只发起关闭，句柄仍在；置空后才能重新 ensureStarted（否则会提前 return）
     this.server = null;
+    this.startPromise = null;
   }
 
   private handleConnection(socket: WebSocket): void {
@@ -424,6 +516,8 @@ export class RemoteTerminalService extends EventEmitter {
       const connection = this.connections.get(socket);
       if (connection) {
         void this.handleAuthenticatedMessage(connection, message);
+      } else if (message.type === "mobile-pair-lookup") {
+        this.handlePairLookup(socket, message);
       } else if (message.type === "mobile-pair-init") {
         this.handlePairInit(socket, message);
       } else if (message.type === "mobile-hello") {
@@ -433,6 +527,7 @@ export class RemoteTerminalService extends EventEmitter {
       }
     });
     socket.on("close", () => {
+      this.lookupAttempts.delete(socket);
       const connection = this.connections.get(socket);
       if (connection) {
         this.connections.delete(socket);
@@ -445,6 +540,33 @@ export class RemoteTerminalService extends EventEmitter {
         this.emit("pair-requests-changed");
       }
     });
+  }
+
+  /**
+   * App 二维码的短码查表：手机扫到 `easymint://pair?h=&p=&c=` 后，连上 ws 发一条
+   * `mobile-pair-lookup`，这里把完整载荷回给它。载荷里仍是**一次性 token**，
+   * 手机拿到后再发 `mobile-pair-init`（同一连接），配对语义与长码完全一致。
+   * 只回载荷、不消耗短码：手机可能因为没收到响应而重试，消费放在 init 那一步。
+   */
+  private handlePairLookup(socket: WebSocket, message: Record<string, unknown>): void {
+    this.pruneExpired();
+    // 短码只有 6 位：不设上限的话，一个连接可以在这 60 秒里把码表当字典猛试。
+    // 正常手机只发一次，5 次足够覆盖重试。
+    const attempts = (this.lookupAttempts.get(socket) ?? 0) + 1;
+    this.lookupAttempts.set(socket, attempts);
+    if (attempts > 5) {
+      this.lookupAttempts.delete(socket);
+      socket.close(1008, "too many pairing lookups");
+      return;
+    }
+    const code = typeof message.code === "string" ? message.code.trim().toUpperCase() : "";
+    const entry = code ? this.compactOffers.get(code) : undefined;
+    const offer = entry ? this.offers.get(entry.token) : undefined;
+    if (!offer || offer.expiresAt <= Date.now()) {
+      socket.send(JSON.stringify({ type: "mobile-pair-lookup-failed", reason: "expired" }));
+      return;
+    }
+    socket.send(JSON.stringify({ type: "mobile-pair-offer", payload: offer.payload }));
   }
 
   private handlePairInit(socket: WebSocket, message: Record<string, unknown>): void {
@@ -688,10 +810,25 @@ export class RemoteTerminalService extends EventEmitter {
     try { fs.chmodSync(file, 0o600); } catch { /* Windows 不支持 POSIX 权限，忽略 */ }
   }
 
+  /** 6 位短码，去掉 0/O/1/I 等易混字符：用户可能得照着念/手输。 */
+  private registerCompactOffer(token: string, expiresAt: number): string {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      code = Array.from(crypto.randomBytes(6), (byte) => alphabet[byte % alphabet.length]).join("");
+      if (!this.compactOffers.has(code)) break;
+    }
+    this.compactOffers.set(code, { token, expiresAt });
+    return code;
+  }
+
   private pruneExpired(): void {
     const now = Date.now();
     for (const [token, offer] of this.offers) {
       if (offer.expiresAt <= now) this.offers.delete(token);
+    }
+    for (const [code, entry] of this.compactOffers) {
+      if (entry.expiresAt <= now || !this.offers.has(entry.token)) this.compactOffers.delete(code);
     }
     for (const [requestId, pending] of this.pendingPairs) {
       if (pending.expiresAt <= now) this.rejectPair(requestId);

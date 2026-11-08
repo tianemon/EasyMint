@@ -18,6 +18,7 @@ import { realpath, stat } from "node:fs/promises";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { unpackPairingPayload } from "./remote-terminal-service";
 import { pipeline } from "node:stream/promises";
 import { randomBytes } from "node:crypto";
 import { app } from "electron";
@@ -423,6 +424,11 @@ export interface MobileWebStatus {
   running: boolean;
   lanAddresses: string[];
   onlineWebDevices: number;
+  /**
+   * 47778（手机 App 通道）是否在听。浏览器的配对与数据都走那条通道，
+   * 这里只如实上报依赖状态，**不替用户把它启动起来**——两个开关各管各的端口。
+   */
+  bridgeReady: boolean;
 }
 
 export interface MobileWebControllerDeps {
@@ -448,7 +454,10 @@ class MobileWebController {
   getStatus(): MobileWebStatus {
     const d = this.deps;
     if (!d) {
-      return { enabled: false, port: MOBILE_WEB_DEFAULT_PORT, running: false, lanAddresses: [], onlineWebDevices: 0 };
+      return {
+        enabled: false, port: MOBILE_WEB_DEFAULT_PORT, running: false,
+        lanAddresses: [], onlineWebDevices: 0, bridgeReady: false,
+      };
     }
     const { enabled, port } = this.settings();
     return {
@@ -458,6 +467,7 @@ class MobileWebController {
       lanAddresses: lanAddresses(),
       onlineWebDevices: d.remoteTerminalService.listDevices()
         .filter((device) => device.id.startsWith("web-") && device.online).length,
+      bridgeReady: d.remoteTerminalService.isRunning(),
     };
   }
 
@@ -467,10 +477,15 @@ class MobileWebController {
    * 47778 的一次性 token 消费语义不变。
    */
   async createPairLink(): Promise<{ code: string; expiresAt: number }> {
+    // createPairingOffer 内部会 ensureStarted()——若此刻 47778 没在听，那是「手机 App 通道
+    // 关着」，网页开关无权替它启动。这里直接拒绝，让界面去提示开 App 通道。
+    if (!this.deps!.remoteTerminalService.isRunning()) {
+      throw new Error("请先开启手机 App 通道");
+    }
     const offer = await this.deps!.remoteTerminalService.createPairingOffer();
-    const encoded = offer.uri.split("?payload=")[1] ?? "";
-    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as PairLinkPayload;
-    return registerPairOffer(payload);
+    // 直接用 offer 自带的编码载荷：App 二维码已经不带 payload 了（改短码查表），
+    // 再按 uri 去切字符串会拿到空串。
+    return registerPairOffer(unpackPairingPayload(offer.payload));
   }
 
   private broadcastStatus(): void {
@@ -485,10 +500,10 @@ class MobileWebController {
       await stopMobileWebService();
       return;
     }
-    // 开关开启时确保 47778 WS 已启动（已启动时 ensureStarted 直接返回，不会起两个服务）；
-    // 其失败只记日志，不阻断静态页照常提供。
-    try { await d.remoteTerminalService.ensureStarted(); }
-    catch (error) { console.warn("[mobile-web] 47778 WS start failed:", (error as Error).message); }
+    // 只起自己的静态页端口。**不碰 47778**：那是「手机 App」通道的开关与端口，
+    // 网页开关越界把它拉起来，会出现「App 显示已关闭、端口却在监听」的假状态。
+    // 浏览器的配对与数据仍依赖 47778，这一点由 getStatus().bridgeReady 如实上报，
+    // 界面据此提示「需先开启手机 App 通道」，而不是偷偷替用户开启。
     await startMobileWebService({ port });
     // Windows：首次监听（或端口变更后重监听）发一次防火墙提示，复用 device:firewall-hint 通道。
     if (d.isWindows) d.remoteTerminalService.emit("firewall-hint", { port });
