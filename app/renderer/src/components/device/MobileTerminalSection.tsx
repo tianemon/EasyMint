@@ -2,6 +2,7 @@ import { appText, uiText, useUiLocale } from "../../lib/i18n";
 import { confirmDialog } from "../ui/ConfirmDialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { nextQrKind, type QrKind } from "./qr-kind";
 
 type Status = Awaited<ReturnType<typeof window.electronAPI.mobileWeb.getStatus>>;
 type AppStatus = Awaited<ReturnType<typeof window.electronAPI.mobileTerminal.getStatus>>;
@@ -15,8 +16,6 @@ interface QrPair {
   port: number;
   host: string;
 }
-
-type QrKind = "web" | "app";
 
 function relativeTime(timestamp: number): string {
   const diff = Math.max(0, Date.now() - timestamp);
@@ -181,6 +180,11 @@ export function MobileTerminalSection(): JSX.Element {
 
   const secondsLeft = useMemo(() => pairs ? Math.max(0, Math.ceil((pairs.expiresAt - now) / 1_000)) : 0, [pairs, now]);
 
+  /** 两个开关共用同一条页签规则（见 qr-kind.ts）：打开即切过去，关掉正看着的那条才退走。 */
+  const syncQrKindAfterToggle = (toggled: QrKind, enabled: boolean, otherEnabled: boolean): void => {
+    setQrKind((current) => nextQrKind(current, toggled, enabled, otherEnabled));
+  };
+
   const toggleEnabled = async () => {
     if (!status) return;
     setError("");
@@ -188,7 +192,7 @@ export function MobileTerminalSection(): JSX.Element {
       const next = await window.electronAPI.mobileWeb.setEnabled(!status.enabled);
       applyStatus(next);
       await refreshOffers(next, hostRef.current, appStatusRef.current?.enabled ?? false);
-      if (!next.enabled && qrKind === "web" && appStatusRef.current?.enabled) setQrKind("app");
+      syncQrKindAfterToggle("web", next.enabled, appStatusRef.current?.enabled ?? false);
     } catch (e) {
       setError(message(e));
       void loadStatus();
@@ -203,9 +207,7 @@ export function MobileTerminalSection(): JSX.Element {
       applyAppStatus(next);
       const web = status ?? await window.electronAPI.mobileWeb.getStatus();
       await refreshOffers(web, hostRef.current, next.enabled);
-      // 正在展示的那条被关掉时切到另一条，避免停在「已关闭」的空二维码上
-      if (!next.enabled && qrKind === "app" && web.enabled) setQrKind("web");
-      if (next.enabled && qrKind === "web" && !web.enabled) setQrKind("app");
+      syncQrKindAfterToggle("app", next.enabled, web.enabled);
     } catch (e) {
       setError(message(e));
       void window.electronAPI.mobileTerminal.getStatus().then(applyAppStatus).catch(() => undefined);
