@@ -175,6 +175,36 @@ interface RequestContext {
   lanAddressesFn: () => string[];
   hostname: string;
   wsPort: number;
+  /**
+   * 现场签发一份配对材料（页面内「开始配对」用）。
+   * 用回调而不是直接塞服务实例：静态服务只该知道「给我一份材料」，不参与配对状态机。
+   */
+  createPairingPayload?: () => Promise<PairLinkPayload>;
+}
+
+/** 页面内配对：每 IP 每分钟 5 次、全局每分钟 30 次。 */
+const PAIR_NEW_WINDOW_MS = 60_000;
+const PAIR_NEW_PER_IP = 5;
+const PAIR_NEW_GLOBAL = 30;
+const pairNewHits = new Map<string, number[]>();
+/** 上面这张表自身的上限：IP 再多也不能无限增长。 */
+const PAIR_NEW_MAX_IPS = 64;
+
+function takePairNewBudget(ip: string): boolean {
+  const now = Date.now();
+  const recent = (pairNewHits.get(ip) ?? []).filter((at) => now - at < PAIR_NEW_WINDOW_MS);
+  if (recent.length >= PAIR_NEW_PER_IP) { pairNewHits.set(ip, recent); return false; }
+  let total = 0;
+  for (const [key, hits] of pairNewHits) {
+    const alive = hits.filter((at) => now - at < PAIR_NEW_WINDOW_MS);
+    if (alive.length) { pairNewHits.set(key, alive); total += alive.length; }
+    else pairNewHits.delete(key);
+  }
+  if (total >= PAIR_NEW_GLOBAL) return false;
+  if (!pairNewHits.has(ip) && pairNewHits.size >= PAIR_NEW_MAX_IPS) return false;
+  recent.push(now);
+  pairNewHits.set(ip, recent);
+  return true;
 }
 
 interface Policy {
@@ -284,6 +314,29 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
   // 短码查表端点：必须在 /health 之后、resolveStaticFile 之前拦截，否则 `.json` 扩展名
   // 会被 SPA 回退判 404。前面已过 Host/Origin/Sec-Fetch-Site/方法/越界校验；本分支只返回
   // 配对材料对象（与旧 #pair= payload 解码后同形），不承载任何业务数据。
+  // 页面内「开始配对」：浏览器已经在访问本服务，直接现场签发一份材料。
+  // 为什么需要它：iOS 从主屏启动时 URL 里的 `#p=` 会丢（manifest 的 start_url 也会覆盖），
+  // 于是「添加主屏」之后页面上根本没有短码可用。扫码只负责「打开页面」，配对由按钮触发。
+  // 前面已过 Host / Origin / Sec-Fetch-Site 校验；这里再按 IP + 全局限流。
+  if (pathname === "/pair/new.json") {
+    const ip = request.socket.remoteAddress ?? "unknown";
+    if (!takePairNewBudget(ip)) { reject(response, 429, policy); return; }
+    if (!ctx.createPairingPayload) { reject(response, 503, policy); return; }
+    let payload: PairLinkPayload;
+    try { payload = await ctx.createPairingPayload(); }
+    catch { reject(response, 503, policy); return; }
+    const body = JSON.stringify(payload);
+    response.writeHead(200, {
+      ...securityHeaders(policy),
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "Content-Length": String(Buffer.byteLength(body)),
+    });
+    if (request.method === "HEAD") { response.end(); return; }
+    response.end(body);
+    return;
+  }
+
   const pairMatch = PAIR_PATH_RE.exec(pathname);
   if (pairMatch) {
     const payload = resolvePairOffer(pairMatch[1]);
@@ -340,6 +393,8 @@ export interface StartMobileWebOptions {
   hostname?: string;
   /** 注入 WS 端口（CSP connect-src 用），默认 47778。 */
   wsPort?: number;
+  /** 页面内「开始配对」时现场签发配对材料；不传则该端点返回 503。 */
+  createPairingPayload?: () => Promise<PairLinkPayload>;
 }
 
 export interface MobileWebServiceStatus {
@@ -352,6 +407,8 @@ let current: { server: Server; port: number; staticRoot: string } | null = null;
 
 /** 启停一律经此入口：若已有服务会先停掉再重新监听（端口变更即复用此路径）。错误明确抛出，不静默降级。 */
 export async function startMobileWebService(opts: StartMobileWebOptions = {}): Promise<MobileWebServiceStatus> {
+  // 重启服务即重置配对限流：开关一次、换个端口，配额不该被上一次会话拖住
+  pairNewHits.clear();
   const port = opts.port ?? MOBILE_WEB_DEFAULT_PORT;
   validatePort(port);
   const staticRoot = opts.staticRoot ?? resolveMobileWebStaticRoot();
@@ -381,6 +438,7 @@ export async function startMobileWebService(opts: StartMobileWebOptions = {}): P
     lanAddressesFn: opts.lanAddresses ?? lanAddresses,
     hostname: opts.hostname ?? os.hostname(),
     wsPort: opts.wsPort ?? MOBILE_WEB_WS_PORT,
+    createPairingPayload: opts.createPairingPayload,
   };
   const server = http.createServer((request, response) => {
     void handleRequest(request, response, ctx).catch(() => {
@@ -481,6 +539,12 @@ class MobileWebController {
    * 与渲染层单独调的 mobile-terminal:createOffer() 互不复用：两份 offer 各自独立，
    * 47778 的一次性 token 消费语义不变。
    */
+  /** 页面内配对：现场签发一份材料，不登记短码（手机拿到就用，无需再换）。 */
+  async issuePairingPayload(): Promise<PairLinkPayload> {
+    const offer = await this.deps!.remoteTerminalService.createPairingOffer();
+    return unpackPairingPayload(offer.payload);
+  }
+
   async createPairLink(): Promise<{ code: string; expiresAt: number }> {
     // 浏览器短码属于浏览器通道：开关关着就不签发。
     // （端口是否在听不在这里判断——那是两条开关合成的结果，由 createPairingOffer 的
@@ -512,7 +576,7 @@ class MobileWebController {
     // 但**是否监听由两条开关共同决定**（bridge-channel 的 syncBridge），不是网页开关独占。
     // 「关掉 App 通道后 App 仍能连」由服务端的设备准入挡住，而不是靠不监听端口。
     await d.ensureBridge?.();
-    await startMobileWebService({ port });
+    await startMobileWebService({ port, createPairingPayload: () => this.issuePairingPayload() });
     // Windows：首次监听（或端口变更后重监听）发一次防火墙提示，复用 device:firewall-hint 通道。
     if (d.isWindows) d.remoteTerminalService.emit("firewall-hint", { port });
   }
@@ -558,7 +622,7 @@ class MobileWebController {
     if (enabled) {
       const wasRunning = getMobileWebStatus().running;
       try {
-        await startMobileWebService({ port });
+        await startMobileWebService({ port, createPairingPayload: () => this.issuePairingPayload() });
         if (d.isWindows) d.remoteTerminalService.emit("firewall-hint", { port });
       } catch (error) {
         // EADDRINUSE 等失败：回滚磁盘端口并尽量恢复旧监听，明确把错误抛给界面，不静默换端口。

@@ -231,6 +231,88 @@ describe("mobile web static service", () => {
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
+  it("页面内配对端点：返回一份新的配对材料（不依赖 URL 里的短码）", async () => {
+    await startMobileWebService({
+      staticRoot: root, port, lanAddresses: () => [LAN_IP], hostname: "testhost",
+      createPairingPayload: async () => ({
+        version: 1, token: "token-1", pcId: "pc-1", pcName: "Mac",
+        addresses: [LAN_IP], port: 47_778, publicKey: "pub-1", expiresAt: Date.now() + 60_000,
+      }),
+    });
+    const response = await request(port, "/pair/new.json", { headers: { "Sec-Fetch-Site": "same-origin" } });
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    const payload = JSON.parse(response.body) as Record<string, unknown>;
+    // 与 /pair/<code>.json 同形的 8 字段：手机直接拿它 init，不需要再换基短码
+    expect(Object.keys(payload).sort()).toEqual(
+      ["addresses", "expiresAt", "pcId", "pcName", "port", "publicKey", "token", "version"],
+    );
+  });
+
+  it("配对端点没有签发能力时返回 503，而不是挂住", async () => {
+    await startMobileWebService({ staticRoot: root, port, lanAddresses: () => [LAN_IP], hostname: "testhost" });
+    const response = await request(port, "/pair/new.json", { headers: { "Sec-Fetch-Site": "same-origin" } });
+    expect(response.status).toBe(503);
+  });
+
+  it("配对端点按 IP 限流：连续请求第 6 次起 429", async () => {
+    await startMobileWebService({
+      staticRoot: root, port, lanAddresses: () => [LAN_IP], hostname: "testhost",
+      createPairingPayload: async () => ({
+        version: 1, token: "t", pcId: "p", pcName: "Mac",
+        addresses: [LAN_IP], port: 47_778, publicKey: "k", expiresAt: Date.now() + 60_000,
+      }),
+    });
+    const call = () => request(port, "/pair/new.json", { headers: { "Sec-Fetch-Site": "same-origin" } });
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i += 1) statuses.push((await call()).status);
+    // 这条路径等于「谁都能让电脑弹一次确认框」：一个窗口内最多 5 次，第 6 次起 429。
+    // 配额随服务启动重置，所以这里可以精确断言。
+    expect(statuses.slice(0, 5)).toEqual([200, 200, 200, 200, 200]);
+    expect(statuses[5]).toBe(429);
+  });
+
+  it("页面内配对端点：返回一份新的配对材料（不依赖 URL 里的短码）", async () => {
+    await startMobileWebService({
+      staticRoot: root, port, lanAddresses: () => [LAN_IP], hostname: "testhost",
+      createPairingPayload: async () => ({
+        version: 1, token: "token-1", pcId: "pc-1", pcName: "Mac",
+        addresses: [LAN_IP], port: 47_778, publicKey: "pub-1", expiresAt: Date.now() + 60_000,
+      }),
+    });
+    const response = await request(port, "/pair/new.json", { headers: { "Sec-Fetch-Site": "same-origin" } });
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    const payload = JSON.parse(response.body) as Record<string, unknown>;
+    // 与 /pair/<code>.json 同形的 8 字段：手机直接拿它 init，不需要再换基短码
+    expect(Object.keys(payload).sort()).toEqual(
+      ["addresses", "expiresAt", "pcId", "pcName", "port", "publicKey", "token", "version"],
+    );
+  });
+
+  it("配对端点没有签发能力时返回 503，而不是挂住", async () => {
+    await startMobileWebService({ staticRoot: root, port, lanAddresses: () => [LAN_IP], hostname: "testhost" });
+    const response = await request(port, "/pair/new.json", { headers: { "Sec-Fetch-Site": "same-origin" } });
+    expect(response.status).toBe(503);
+  });
+
+  it("配对端点按 IP 限流：连续请求第 6 次起 429", async () => {
+    await startMobileWebService({
+      staticRoot: root, port, lanAddresses: () => [LAN_IP], hostname: "testhost",
+      createPairingPayload: async () => ({
+        version: 1, token: "t", pcId: "p", pcName: "Mac",
+        addresses: [LAN_IP], port: 47_778, publicKey: "k", expiresAt: Date.now() + 60_000,
+      }),
+    });
+    const call = () => request(port, "/pair/new.json", { headers: { "Sec-Fetch-Site": "same-origin" } });
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i += 1) statuses.push((await call()).status);
+    // 这条路径等于「谁都能让电脑弹一次确认框」：一个窗口内最多 5 次，第 6 次起 429。
+    // 配额随服务启动重置，所以这里可以精确断言。
+    expect(statuses.slice(0, 5)).toEqual([200, 200, 200, 200, 200]);
+    expect(statuses[5]).toBe(429);
+  });
+
   it("端口占用 / 非法端口 / 缺产物目录都明确报错，不静默降级", async () => {
     // 非 1024-65535 的整数
     await expect(startMobileWebService({ staticRoot: root, port: 80 })).rejects.toThrow(/Invalid mobile web port/);
