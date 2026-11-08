@@ -16,12 +16,12 @@
   },
   "protocol/remote-client.ts": {
     "source": "connection/remote-client.ts",
-    "sha256": "521580db9266e8cd44608b9dd07d315b6cfd67d08715e8a364e7ad47c17e2f26",
-    "localSha256": "c95241a85b369c9e7f8302039284ca5c91731e6cfcee1420ea388b3db9d0be3a"
+    "sha256": "6783d6014c2cad33b965c2111a0a016e984875c995ceeba8a37827e17966d877",
+    "localSha256": "674d2d7ec04c134bf746edbd65b26636f49c3ca86c96d66489dded6052364aba"
   },
   "protocol/credential-store.ts": {
     "source": "security/credential-store.ts",
-    "sha256": "c7c92d4b9eb084898a6f9ff43cf3c4f6455547eddef797775540cec6af42117b",
+    "sha256": "bc856d00d5684b646596f42705d2d19b6ff677ddd8f21feefac1ef0ab36357df",
     "localSha256": "008725b50eb08c13690c662dd98b2ed401f0558f2176430450fd7937311dbb91"
   },
   "core/types.ts": {
@@ -122,8 +122,8 @@
   },
   "protocol/pairing.ts": {
     "source": "connection/pairing-uri.ts",
-    "sha256": "f07e44f355158e2e02cf19f8ebf22b9287062f2da17ba6b1bc416b63d3596452",
-    "localSha256": "c4f07480d0c5a8990d88023b7d43db556fe96e97e1d10dbb9ee9eb5df09ed874",
+    "sha256": "2dfb64eae3ad2578d13ac3d42f95661999b0545b8e9011289cda81b1a94d665a",
+    "localSha256": "6713c39757b0b44b48df37d3c22ffaac8f797695c04286c88a2a723f895c05e1",
     "rewritten": true
   }
 }

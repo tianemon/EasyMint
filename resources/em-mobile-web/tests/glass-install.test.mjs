@@ -33,7 +33,9 @@ test('index.html：安装入口齐全且仍满足 CSP / 相对路径契约', () 
   for (const [name, value] of [
     ['apple-mobile-web-app-capable', 'yes'],
     ['mobile-web-app-capable', 'yes'],
-    ['apple-mobile-web-app-status-bar-style', 'default'],
+    // black-translucent：内容延伸到状态栏下方，由 env(safe-area-inset-top) 留白。
+    // （default 会让 iOS 在状态栏下方硬切一条底色，主屏上看就是「顶部没适配」。）
+    ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
     ['apple-mobile-web-app-title', 'EasyMint'],
   ]) {
     match(html, new RegExp(`<meta name="${name}" content="${value}"`), `删掉 <meta name="${name}">`);
@@ -57,7 +59,9 @@ test('manifest：display / start_url / scope / id / icons 合法', () => {
     match(icon.src, /^\.\//, '把某个 icon.src 改成绝对 URL');
     must(icon.type === 'image/png', '把某个 icon.type 改掉');
     match(icon.sizes, /^\d+x\d+$/, '把某个 icon.sizes 改坏');
-    match(icon.purpose, /any maskable/, '删掉 purpose 里的 any maskable');
+    // 图标现在是满版的品牌图（四角已补底），不能声明 maskable——
+    // maskable 会让系统按圆形/圆角安全区裁剪，图标内容会被切掉一块。
+    must(icon.purpose === 'any', '把 purpose 改回 any maskable（满版图标会被裁）');
   }
 });
 
@@ -67,6 +71,10 @@ test('app.css：磨砂 / 液态折射 / 方向性轮廓 / 降级真实存在', (
   match(css, /\.glass-frosted\.is-blur\s*\{[^}]*blur\(18px\)\s*saturate\(1\.1\)/, '删掉 .glass-frosted.is-blur 的 backdrop-filter');
   match(css, /\.glass-liquid\.has-lens\s*\{[^}]*backdrop-filter:\s*none/, '删掉 has-lens 关掉父层整体模糊的规则');
   match(css, /\.glass-liquid\.has-lens\s+\.glass-frost\s*\{[^}]*blur\(18px\)\s*saturate\(1\.4\)/, '删掉中心磨砂层的 blur(18px)');
+  // 磨砂层必须盖满整张卡：一旦内缩（inset: var(--lens-band)），Safari 上边缘那圈既没有位移
+  // 也没有模糊，卡片看起来就是「只模糊了中间输入框那一块」。
+  match(css, /\.glass-liquid\.has-lens\s+\.glass-frost\s*\{[^}]*inset:\s*0[;}]/,
+    '把磨砂层内缩回 inset: var(--lens-band)（边缘会露出一圈清晰的边）');
   must((css.match(/\.glass-lens-[tbrl]\s*\{/g) ?? []).length === 4, '删掉一条边缘带 CSS');
   must((css.match(/\.glass-lens-[tbrl]\s*\{[^}]*mask-image:\s*linear-gradient/g) ?? []).length === 4,
     '删掉边缘带向内的线性渐隐 mask');

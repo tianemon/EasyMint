@@ -27,9 +27,12 @@ export function pairCodeFromHash(hash: string): string | null {
  */
 export function extractPairCode(input: string): string | null {
   const text = input.trim();
-  if (/^[A-Za-z0-9_-]{10}$/.test(text)) return text;
-  const hash = /#p=([A-Za-z0-9_-]{10})/.exec(text);
-  return hash ? hash[1] : null;
+  const fromHash = /[#?]p=([A-Za-z0-9]{10})/.exec(text);
+  if (fromHash) return fromHash[1].toUpperCase();
+  // 电脑端把码显示成 5-5 分组（ABCDE-FGHIJ），手输/粘贴带横杠也要认；
+  // 统一去掉非字母数字再判断，服务端 lookup 同样会 toUpperCase。
+  const compact = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return /^[A-Z0-9]{10}$/.test(compact) ? compact : null;
 }
 
 /** 字段校验（version/token/pcId/pcName/addresses/port/publicKey/expiresAt + 过期 + 空地址），错误文案沿用现有中文。 */

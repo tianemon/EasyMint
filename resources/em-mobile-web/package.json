@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node tools/generate-icons.mjs && vite build",
+    "build": "node tools/brand-icons.mjs && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/**/*.test.mjs"
@@ -15,6 +15,7 @@
     "@noble/curves": "2.4.0",
     "@noble/hashes": "2.4.0",
     "base64-js": "1.5.1",
+    "jsqr": "^1.4.0",
     "marked": "18.0.13",
     "react": "19.3.0",
     "react-dom": "19.3.0"

@@ -6,7 +6,7 @@
  *
  * 读取顺序：本机 localStorage → 内存。localStorage 被禁用时退到内存（本次会话内仍稳定）。
  * iOS「添加到主屏幕」的独立 web app 与 Safari 分属不同的存储分区，所以在那边这里通常是空的；
- * 那种情况由 `install-link.ts` 把 deviceId 随 start_url 带过去并回填。
+ * 现在不再需要从外部接管：先添加到主屏、再从主屏配对，deviceId 本来就在这个容器里生成。
  */
 const KEY = 'easymint.web.client.v1';
 

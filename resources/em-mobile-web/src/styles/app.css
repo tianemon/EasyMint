@@ -96,8 +96,12 @@ a { color: var(--accent); }
    换算成 CSS 只有 3px，肉眼看不出模糊。 */
 .glass-liquid.is-blur { backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-liquid.has-lens { backdrop-filter: none; -webkit-backdrop-filter: none; }
-.glass-liquid.has-lens .glass-frost { display: block; position: absolute; inset: var(--lens-band, 10px); z-index: 0; pointer-events: none;
-  border-radius: calc(var(--glass-radius, 8px) - 2px); background: var(--liquid-fill);
+/* 磨砂层必须**盖住整张卡**（inset: 0）。
+   之前它内缩了 var(--lens-band)，把边缘让给折射带；可 Safari 的 CSS.supports('url()') 会返回 true、
+   实际却不渲染 url() 滤镜，于是边缘那一圈既没有位移也没有模糊——卡片看起来「只模糊了中间那块」。
+   现在中心与边缘都由这一层负责模糊，折射带只做叠加（有真折射的浏览器上位移仍然可见）。 */
+.glass-liquid.has-lens .glass-frost { display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  border-radius: inherit; background: var(--liquid-fill);
   backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-liquid.has-lens .glass-lens { display: block; position: absolute; z-index: 0; pointer-events: none; }
 /* 四条边缘带：backdrop-filter 由 glass-lens.ts 用 CSSOM 注入（CSP 不允许内联 style，
@@ -161,14 +165,28 @@ a { color: var(--accent); }
 .pair-guide-mark { width: 72px; height: 72px; border-radius: var(--radius-lg); display: grid; place-items: center; margin: 0 auto var(--s4);
   color: var(--floating-action-icon); background: var(--glass-fill-strong); border: 1px solid var(--glass-rim); }
 .pair-guide-title { font-size: var(--fs-xl); margin: 0 0 var(--s3); }
-.pair-guide-body { color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.7; }
+.pair-guide-body { color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.7; overflow-wrap: anywhere; }
 .pair-guide-steps { margin-top: var(--s6); text-align: left; display: flex; flex-direction: column; gap: var(--s2);
   color: var(--text-secondary); font-size: var(--fs-xs); }
 .pair-guide-steps div { display: flex; align-items: center; gap: var(--s2); }
 .pair-guide-steps span { width: 18px; height: 18px; border-radius: 50%; background: var(--chip-selected-bg); color: var(--accent);
   display: grid; place-items: center; font-size: var(--fs-xxs); flex: 0 0 auto; }
+/* 安装引导：扫码打开后的第一屏。主按钮是「开始配对」，安装是建议不是门槛 */
+.install-steps { margin-top: var(--s4); }
+/* 每条提示是一整段说明，不是「序号 + 短语」：必须 block 排，否则 flex 行里的长英文/中文
+   不换行会直接顶出屏幕（截图里右侧被裁就是这个原因）。 */
+.install-steps div { display: block; line-height: 1.55; overflow-wrap: anywhere; }
+.install-steps div::before { content: '·'; margin-right: 6px; color: var(--text-muted); }
+.pair-install-btn { display: block; width: 100%; margin-top: var(--s4); height: 44px; border-radius: var(--radius-lg);
+  background: var(--surface-hover); color: var(--text-primary); font-size: var(--fs-sm); font-weight: 600; }
+.pair-start-btn { display: block; width: 100%; margin-top: var(--s3); height: 46px; border-radius: var(--radius-lg);
+  background: var(--accent); color: var(--text-inverse); font-size: var(--fs-body); font-weight: 600; }
+/* 拍照扫码的 input 只做触发器，不进布局 */
+.pair-scan-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .pair-guide-back { color: var(--accent); margin-top: var(--s6); font-size: var(--fs-sm); }
 .pair-guide-fullscreen { display: block; color: var(--accent); margin: var(--s4) auto 0; font-size: var(--fs-sm); }
+/* 从主屏打开时已经是全屏，这个按钮没有意义 */
+@media (display-mode: standalone) { .pair-guide-fullscreen { display: none; } }
 .pair-guide-install-hint { color: var(--text-muted); font-size: var(--fs-xxs); line-height: 1.6; margin: var(--s3) auto 0; max-width: 320px; }
 .pair-retry { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   margin-top: var(--s3); padding: var(--s2) var(--s4); border-radius: var(--radius-full);

@@ -2,119 +2,110 @@
  * 未配对 / 连接失效时的恢复入口。
  *
  * 两条路：
- *  1. 手动输入——电脑端二维码下面那串 10 位短码，或整条配对链接直接粘进来；
- *  2. 相机扫码——只在安全上下文（https / localhost）里可用。局域网 http 下
- *     `navigator.mediaDevices` 根本不存在，此时不渲染按钮，改成一句说明，
- *     免得用户点了没反应还以为坏了。
+ *  1. 拍照扫码——`<input type="file" accept="image/*" capture="environment">` 调系统相机拍一张，
+ *     在页面内用纯 JS 解码。**这条路不依赖安全上下文**：局域网 http 下 `getUserMedia` 与
+ *     `BarcodeDetector` 都不存在（之前就是这么写的，iPhone 上必然不可用），而拍照 + 本地解码
+ *     只需要 `<input>` 与 canvas。
+ *  2. 手动输入——电脑端二维码下面那串 10 位配对码（带不带 5-5 的分组横杠都认），或整条链接。
+ *
+ * 为什么不用实时取景：局域网 http 拿不到相机流；而且拍照一帧就够解一个静态二维码。
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import jsQR from 'jsqr';
 import { extractPairCode } from '../../protocol/pairing';
 import { Icon } from './icons';
 
-type DetectedBarcode = { rawValue: string };
-type BarcodeDetectorLike = { detect: (source: HTMLVideoElement) => Promise<DetectedBarcode[]> };
-type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
+/** 解码前把照片缩到这个边长内：手机原图 4000px 直接解会卡住主线程好几秒。 */
+const MAX_SIDE = 1280;
 
-function cameraAvailable(): boolean {
-  return typeof navigator !== 'undefined' && !!navigator.mediaDevices
-    && typeof navigator.mediaDevices.getUserMedia === 'function';
+async function decodeImageFile(file: File): Promise<string | null> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const { data } = context.getImageData(0, 0, width, height);
+  // dontInvert：深色背景的码很少见，跳过反色尝试省一半时间
+  const found = jsQR(data, width, height, { inversionAttempts: 'dontInvert' });
+  return found ? found.data : null;
 }
 
 export function PairRecovery({ onSubmitCode }: { onSubmitCode: (code: string) => void }): React.ReactElement {
-  const [mode, setMode] = useState<'idle' | 'manual' | 'camera'>('idle');
+  const [mode, setMode] = useState<'idle' | 'manual'>('idle');
   const [value, setValue] = useState('');
-  const [scanError, setScanError] = useState('');
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const canScan = cameraAvailable();
+  const [hint, setHint] = useState('');
+  const [decoding, setDecoding] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const stopCamera = useCallback((): void => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  }, []);
-
-  useEffect(() => () => stopCamera(), [stopCamera]);
-
-  // 相机：能拿到 BarcodeDetector 才真的扫；否则明确告知不支持，不假装在工作
-  useEffect(() => {
-    if (mode !== 'camera') return;
-    const Detector = (globalThis as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
-    if (!Detector) { setScanError('这个浏览器不支持网页内扫码，请用系统相机扫描电脑上的二维码'); return; }
-    let stopped = false;
-    let timer = 0;
-    const detector = new Detector({ formats: ['qr_code'] });
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        if (stopped) { stream.getTracks().forEach((track) => track.stop()); return; }
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (!video) return;
-        video.srcObject = stream;
-        await video.play();
-        const tick = async (): Promise<void> => {
-          if (stopped || !videoRef.current) return;
-          try {
-            const found = await detector.detect(videoRef.current);
-            const code = found.length ? extractPairCode(found[0].rawValue) : null;
-            if (code) { stopCamera(); onSubmitCode(code); return; }
-          } catch { /* 单帧识别失败继续下一帧 */ }
-          timer = window.setTimeout(() => { void tick(); }, 350);
-        };
-        void tick();
-      } catch (e) {
-        setScanError(e instanceof Error && e.name === 'NotAllowedError'
-          ? '没有相机权限，请在浏览器设置里允许后重试'
-          : '打不开相机，请改用系统相机扫码');
+  const handleFile = async (file: File | undefined): Promise<void> => {
+    if (!file) return;
+    setDecoding(true);
+    setHint('');
+    try {
+      const raw = await decodeImageFile(file);
+      const code = raw ? extractPairCode(raw) : null;
+      if (!code) {
+        setHint('这张照片里没识别到配对二维码，对着电脑屏幕再拍一次试试');
+        return;
       }
-    })();
-    return () => { stopped = true; window.clearTimeout(timer); stopCamera(); };
-  }, [mode, onSubmitCode, stopCamera]);
+      onSubmitCode(code);
+    } catch {
+      setHint('照片读取失败，请重拍或改用手动输入');
+    } finally {
+      setDecoding(false);
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  };
 
   const submit = (): void => {
     const code = extractPairCode(value);
-    if (!code) { setScanError('没识别到有效的配对码，请重新复制'); return; }
-    setScanError('');
+    if (!code) { setHint('没识别到有效的配对码，请重新输入'); return; }
+    setHint('');
     onSubmitCode(code);
   };
 
   if (mode === 'idle') {
     return (
       <div className="pair-recovery">
+        <button type="button" className="pair-recovery-link" onClick={() => fileInput.current?.click()}>
+          {decoding ? '正在识别…' : '拍照扫码'}
+        </button>
+        <span className="pair-recovery-dot">·</span>
         <button type="button" className="pair-recovery-link" onClick={() => setMode('manual')}>手动输入配对码</button>
-        {canScan && (
-          <>
-            <span className="pair-recovery-dot">·</span>
-            <button type="button" className="pair-recovery-link" onClick={() => setMode('camera')}>相机扫码</button>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  if (mode === 'camera') {
-    return (
-      <div className="pair-recovery-panel">
-        <video ref={videoRef} className="pair-scan-video" muted playsInline />
-        {scanError
-          ? <div className="pair-recovery-hint">{scanError}</div>
-          : <div className="pair-recovery-hint">把电脑上的二维码放进取景框</div>}
-        <button type="button" className="pair-recovery-cancel"
-          onClick={() => { stopCamera(); setScanError(''); setMode('idle'); }}>取消</button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="pair-scan-file"
+          onChange={(event) => { void handleFile(event.target.files?.[0]); }}
+        />
+        {hint && <div className="pair-recovery-hint">{hint}</div>}
       </div>
     );
   }
 
   return (
     <div className="pair-recovery-panel">
-      <input className="pair-recovery-input" value={value} inputMode="text" autoComplete="off"
-        placeholder="粘贴配对链接，或输入 10 位配对码"
+      <input
+        className="pair-recovery-input"
+        value={value}
+        inputMode="text"
+        autoComplete="off"
+        placeholder="输入 10 位配对码（如 ABCDE-FGHIJ）"
         onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter') submit(); }} />
-      {scanError && <div className="pair-recovery-hint">{scanError}</div>}
+        onKeyDown={(event) => { if (event.key === 'Enter') submit(); }}
+      />
+      {hint && <div className="pair-recovery-hint">{hint}</div>}
       <div className="pair-recovery-actions">
         <button type="button" className="pair-recovery-cancel"
-          onClick={() => { setScanError(''); setMode('idle'); }}>取消</button>
+          onClick={() => { setHint(''); setMode('idle'); }}>取消</button>
         <button type="button" className="pair-recovery-submit" onClick={submit}>
           <Icon name="check" size={13} /> 连接
         </button>

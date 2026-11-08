@@ -11,9 +11,7 @@ import {
 import { createPairingAttempt, pairWithPc } from '../protocol/remote-client';
 import type { PairingAttempt } from '../protocol/remote-client';
 import { pairCodeFromHash, fetchPairingPayload } from '../protocol/pairing';
-import { adoptClientKey } from '../protocol/client-id';
 import { browserDeviceName } from '../core/device-name';
-import { readInstallCredential, stripInstallQuery, syncInstallManifest } from './install-link';
 import type { AskAnswer, ComposerControl, ConnectionStatus, Page } from '../core/types';
 import type { ShellLog } from '../core/types';
 import type { DisplayMessage } from '../core/messages';
@@ -63,6 +61,13 @@ export default function App(): React.ReactElement {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [pairCode, setPairCode] = useState('');
   const [pairError, setPairError] = useState('');
+  /**
+   * URL 里带来、但还没消费的短码。
+   * 不自动消费是有意的：主屏 web app 与浏览器是**两个存储分区**，只有「先添加到主屏、
+   * 再从主屏打开」配出来的凭证才落在主屏容器里。自动开配会把用户钉在浏览器分区里，
+   * 于是每次从主屏打开都要重扫一次。
+   */
+  const [pendingCode, setPendingCode] = useState('');
   const [pairingBusy, setPairingBusy] = useState(false);
   const [error, setError] = useState('');
   const [projects, setProjects] = useState<OpenProject[]>([]);
@@ -150,14 +155,9 @@ export default function App(): React.ReactElement {
 
     const boot = async (): Promise<void> => {
       try {
-        // 主屏图标启动时 start_url 自带凭证（iOS 的 web app 与 Safari 存储分区不同）。
-        // 先收下它再读设备本：store 里可能整份都是空的，这条是唯一来源。
-        const fromLink = readInstallCredential(location.search);
-        if (fromLink) {
-          adoptClientKey(fromLink.deviceId.replace(/^web-/, ''));
-          await saveDevice(fromLink);
-          stripInstallQuery();
-        }
+        // 不再从 URL 收凭证：iOS 的主屏 web app 有独立存储分区，唯一可靠的做法是
+        // **先添加到主屏、再从主屏打开配对**，让凭证一开始就落在主屏容器里。
+        // （之前把凭证压进 manifest 的 start_url，iOS 添加时并不接受这个 Blob manifest。）
         const book = await loadDevices();
         if (!alive) return;
         setDevices(book.devices);
@@ -165,7 +165,8 @@ export default function App(): React.ReactElement {
         if (book.activePcId) setConnection('connecting');
         setPage(book.activePcId ? 'home' : 'scanner');
         setBootReady(true);
-        if (code) await handlePair(code);
+        // 已配对就别再消费这个码：扫一次码就重配一次，会把已有凭证顶掉
+        if (code && !book.activePcId) setPendingCode(code);
       } catch (e) {
         // 凭证读取失败也必须放行首帧，否则页面永远停在空白 boot 态（与 RN 版 .finally 同口径）。
         fail(e);
@@ -179,10 +180,6 @@ export default function App(): React.ReactElement {
 
   // leader 选举：多标签只有一条 WS。
   useEffect(() => electLeader(setIsLeader), []);
-
-  // 主屏安装链接：manifest 的 start_url 必须带上「当前设备」的凭证，切设备后要跟着换。
-  // 没配对时也给一份（不带凭证），否则浏览器会继续用 HTML 里那份静态 manifest。
-  useEffect(() => { syncInstallManifest(credential); }, [credential]);
 
   // /health 探活（契约 C5：只依赖同源静态资源与探活）。
   useEffect(() => {
@@ -246,6 +243,14 @@ export default function App(): React.ReactElement {
     setPairCode(attempt.code);
     await runPair(offer, attempt);
   }, [runPair]);
+
+  /** 用户点「开始配对」：此刻才真正查表 + 发起配对，让凭证落在当前（主屏）容器里。 */
+  const startPendingPair = useCallback(() => {
+    const code = pendingCode;
+    if (!code) return;
+    setPendingCode('');
+    void handlePair(code);
+  }, [pendingCode, handlePair]);
 
   const retryPair = useCallback(() => {
     const offer = pairOfferRef.current;
@@ -481,6 +486,7 @@ export default function App(): React.ReactElement {
 
   let content: React.ReactNode;
   if (page === 'scanner') content = <PairGuideScreen pairCode={pairCode} error={pairError || error}
+    hasPendingCode={Boolean(pendingCode)} onStartPair={startPendingPair}
     onCancel={devices.length ? goBack : undefined}
     onRetry={pairError && pairCode ? retryPair : undefined} retrying={pairingBusy}
     onSubmitCode={(code) => void handlePair(code)} />;

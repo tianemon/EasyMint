@@ -221,6 +221,8 @@ export class RemoteClient {
         socket.send(JSON.stringify({
           type: 'mobile-hello',
           deviceId: this.credential.deviceId,
+          // 电脑端按它刷新设备名
+          deviceName: this.credential.deviceName,
           connectionId: this.connectionId,
           nonce,
           proof: proof(this.keys.auth, `hello:${this.credential.deviceId}:${this.connectionId}:${nonce}`),
