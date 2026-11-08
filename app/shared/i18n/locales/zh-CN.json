@@ -2151,6 +2151,7 @@
   "ui.MobileWebTab.online": "在线",
   "ui.MobileWebTab.offline": "离线",
   "ui.MobileWebTab.revoke": "撤销",
+  "ui.MobileWebTab.renameDevice": "改名",
   "ui.MobileWebTab.revokeAll": "撤销所有浏览器设备",
   "ui.MobileWebTab.revokeConfirm": "确定撤销全部 {{v0}} 台浏览器设备？",
   "ui.MobileWebTab.revokeAllTitle": "撤销全部浏览器设备",
@@ -2160,6 +2161,7 @@
   "ui.MobileWebTab.actionFailed": "操作失败：",
   "ui.MobileWebTab.loading": "加载中…",
   "ui.MobileWebTab.copyLink": "复制链接",
+  "ui.MobileWebTab.pairCodeLabel": "配对码（可在手机上手动输入）",
   "ui.MobileWebTab.copied": "已复制",
   "ui.MobileWebTab.lanSelect": "扫码地址"
 }

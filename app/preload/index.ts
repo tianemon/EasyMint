@@ -561,6 +561,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     acceptPair: (requestId: string) => ipcRenderer.invoke("mobile-terminal:accept-pair", { requestId }) as Promise<{ ok: boolean }>,
     rejectPair: (requestId: string) => ipcRenderer.invoke("mobile-terminal:reject-pair", { requestId }) as Promise<{ ok: boolean }>,
     revoke: (deviceId: string) => ipcRenderer.invoke("mobile-terminal:revoke", { deviceId }) as Promise<{ ok: boolean }>,
+    rename: (deviceId: string, name: string) =>
+      ipcRenderer.invoke("mobile-terminal:rename-device", { deviceId, name }) as Promise<{ ok: boolean }>,
     onPairRequest: (callback: (data: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("mobile-terminal:pair-request", handler);

@@ -3,6 +3,7 @@ import { confirmDialog } from "../ui/ConfirmDialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { nextQrKind, type QrKind } from "./qr-kind";
+import { formatPairCode } from "./pair-code";
 
 type Status = Awaited<ReturnType<typeof window.electronAPI.mobileWeb.getStatus>>;
 type AppStatus = Awaited<ReturnType<typeof window.electronAPI.mobileTerminal.getStatus>>;
@@ -17,6 +18,8 @@ interface QrPair {
   port: number;
   /** 生成时的 App 端口（二维码里 p= 的那个，与浏览器端口无关） */
   appPort: number;
+  /** 浏览器配对短码：手输/复制用，和二维码里的是同一个 */
+  webCode: string;
   host: string;
 }
 
@@ -87,6 +90,8 @@ export function MobileTerminalSection(): JSX.Element {
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [devices, setDevices] = useState<Device[]>([]);
+  /** 正在改名的设备（内联输入）：设备名是配对时写死的，iOS 又只能拿到型号，得给个改的口子 */
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
   const creatingRef = useRef(false);
   const hostRef = useRef("");
   const copiedTimer = useRef<number | null>(null);
@@ -133,6 +138,7 @@ export function MobileTerminalSection(): JSX.Element {
       let expiresAt = appQr?.expiresAt ?? 0;
       let webQr = "";
       let webUrl = "";
+      let webCode = "";
       let webError = "";
       const urlHost = targetHost || s.lanAddresses[0] || "";
       if (s.enabled && s.running && s.lanAddresses.length > 0) {
@@ -140,6 +146,7 @@ export function MobileTerminalSection(): JSX.Element {
         // 浏览器同源 fetch('/pair/<code>.json') 取配对材料。
         try {
           const link = await window.electronAPI.mobileWeb.createPairLink();
+          webCode = link.code;
           webUrl = `http://${urlHost}:${s.port}/#p=${link.code}`;
           webQr = await QRCode.toDataURL(webUrl, opts);
           expiresAt = expiresAt ? Math.min(expiresAt, link.expiresAt) : link.expiresAt;
@@ -149,7 +156,7 @@ export function MobileTerminalSection(): JSX.Element {
       }
       setPairs(expiresAt
         ? {
-            appQr: appQr?.qr ?? "", webQr, webUrl, expiresAt,
+            appQr: appQr?.qr ?? "", webQr, webUrl, webCode, expiresAt,
             port: s.port, appPort: appStatusRef.current?.port ?? 0, host: urlHost,
           }
         : null);
@@ -294,6 +301,19 @@ export function MobileTerminalSection(): JSX.Element {
       setCopied(true);
       if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
       copiedTimer.current = window.setTimeout(() => setCopied(false), 2_000);
+    } catch (e) {
+      setError(message(e));
+    }
+  };
+
+  const commitRename = async (): Promise<void> => {
+    const target = renaming;
+    setRenaming(null);
+    const next = target?.value.trim() ?? "";
+    if (!target || !next) return;
+    try {
+      await window.electronAPI.mobileTerminal.rename(target.id, next);
+      await loadDevices();
     } catch (e) {
       setError(message(e));
     }
@@ -458,9 +478,16 @@ export function MobileTerminalSection(): JSX.Element {
                     {uiText("ui.MobileWebTab.expiresIn", { v0: secondsLeft })}
                   </div>
                 </div>
-                {qrKind === "web" && pairs?.webUrl && (
-                  <div className="space-y-1">
-                    <div className="text-[length:var(--text-2xs)] text-text-muted break-all">{pairs.webUrl}</div>
+                {qrKind === "web" && pairs?.webCode && (
+                  <div className="space-y-1.5">
+                    {/* 明文码是给「相机扫不出 / 已经装到主屏」的人手输用的：
+                        只有二维码的话，用户得从一长串 URL 里抠出 10 位，等于没有这条路 */}
+                    <div className="text-[length:var(--text-2xs)] text-text-muted text-center">
+                      {uiText("ui.MobileWebTab.pairCodeLabel")}
+                    </div>
+                    <div className="font-mono text-lg tracking-[0.18em] text-text-primary text-center select-text tabular-nums">
+                      {formatPairCode(pairs.webCode)}
+                    </div>
                     <button
                       type="button"
                       className="w-full px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface-hover text-text-secondary"
@@ -468,6 +495,7 @@ export function MobileTerminalSection(): JSX.Element {
                     >
                       {copied ? uiText("ui.MobileWebTab.copied") : uiText("ui.MobileWebTab.copyLink")}
                     </button>
+                    <div className="text-[length:var(--text-2xs)] text-text-muted break-all">{pairs.webUrl}</div>
                   </div>
                 )}
               </>
@@ -495,16 +523,38 @@ export function MobileTerminalSection(): JSX.Element {
           <div key={device.id} className="flex items-center gap-2.5 rounded-[var(--radius-lg)] border border-border bg-surface px-3 py-2.5">
             <span className={`w-2 h-2 rounded-full ${device.online ? "bg-success" : "bg-text-muted/40"}`} />
             <div className="min-w-0 flex-1">
-              <div className="text-xs text-text-primary truncate">
-                {device.name}
-                <span className="text-[length:var(--text-2xs)] text-text-muted ml-1.5">
-                  {device.id.startsWith("web-") ? uiText("ui.MobileWebTab.deviceBrowser") : uiText("ui.MobileWebTab.deviceApp")}
-                </span>
-              </div>
+              {renaming?.id === device.id ? (
+                <input
+                  autoFocus
+                  maxLength={40}
+                  value={renaming.value}
+                  onChange={(e) => setRenaming({ id: device.id, value: e.target.value })}
+                  onBlur={() => void commitRename()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void commitRename();
+                    if (e.key === "Escape") setRenaming(null);
+                  }}
+                  className="w-full px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-surface-alt border border-border text-text-primary text-xs"
+                />
+              ) : (
+                <div className="text-xs text-text-primary truncate">
+                  {device.name}
+                  <span className="text-[length:var(--text-2xs)] text-text-muted ml-1.5">
+                    {device.id.startsWith("web-") ? uiText("ui.MobileWebTab.deviceBrowser") : uiText("ui.MobileWebTab.deviceApp")}
+                  </span>
+                </div>
+              )}
               <div className="text-[length:var(--text-2xs)] text-text-muted">
                 {device.online ? uiText("ui.MobileWebTab.online") : uiText("ui.DevicePanel.offline", { v0: relativeTime(device.lastSeen) })}
               </div>
             </div>
+            <button
+              type="button"
+              className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary shrink-0"
+              onClick={() => setRenaming({ id: device.id, value: device.name })}
+            >
+              {uiText("ui.MobileWebTab.renameDevice")}
+            </button>
             <button
               type="button"
               className="text-[length:var(--text-2xs)] text-text-secondary hover:text-danger shrink-0"

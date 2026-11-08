@@ -1171,6 +1171,8 @@ const filePath = p.join(projectPath, "task.json");
   });
   ipcMain.handle("mobile-terminal:list-devices", () => remoteTerminalService.listDevices());
   ipcMain.handle("mobile-terminal:list-pending", () => remoteTerminalService.listPendingPairs());
+  ipcMain.handle("mobile-terminal:rename-device", (_e, { deviceId, name }: { deviceId: string; name: string }) =>
+    ({ ok: remoteTerminalService.renameDevice(deviceId, name) }));
   ipcMain.handle("mobile-terminal:accept-pair", (_e, { requestId }: { requestId: string }) => ({ ok: remoteTerminalService.acceptPair(requestId) }));
   ipcMain.handle("mobile-terminal:reject-pair", (_e, { requestId }: { requestId: string }) => ({ ok: remoteTerminalService.rejectPair(requestId) }));
   ipcMain.handle("mobile-terminal:revoke", (_e, { deviceId }: { deviceId: string }) => ({ ok: remoteTerminalService.revokeDevice(deviceId) }));

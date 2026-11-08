@@ -2151,6 +2151,7 @@
   "ui.MobileWebTab.online": "Online",
   "ui.MobileWebTab.offline": "Offline",
   "ui.MobileWebTab.revoke": "Revoke",
+  "ui.MobileWebTab.renameDevice": "Rename",
   "ui.MobileWebTab.revokeAll": "Revoke all browser devices",
   "ui.MobileWebTab.revokeConfirm": "Revoke all {{v0}} browser devices?",
   "ui.MobileWebTab.revokeAllTitle": "Revoke all browser devices",
@@ -2160,6 +2161,7 @@
   "ui.MobileWebTab.actionFailed": "Action failed: ",
   "ui.MobileWebTab.loading": "Loading…",
   "ui.MobileWebTab.copyLink": "Copy link",
+  "ui.MobileWebTab.pairCodeLabel": "Pairing code (can be typed on the phone)",
   "ui.MobileWebTab.copied": "Copied",
   "ui.MobileWebTab.lanSelect": "Address"
 }

@@ -26,6 +26,11 @@ import { emHome } from "../utils/paths";
 
 const DEFAULT_PORT = 47_778;
 const OFFER_TTL_MS = 60_000;
+/**
+ * App 二维码短码寿命。要覆盖「扫码 → 添加到主屏幕 → 从主屏打开 → 点开始配对」这段人工操作，
+ * 60 秒根本不够。短码本身不是凭据：查表时现场签发 offer，真正的一次性消费在 init。
+ */
+const COMPACT_CODE_TTL_MS = 30 * 60_000;
 const PAIR_REQUEST_TTL_MS = 60_000;
 const MAX_CONNECTIONS = 8;
 // 附件命令经历「文件 base64 → 加密包再次 base64」，15 MB 原始附件最终约 27 MB。
@@ -112,8 +117,12 @@ interface PairingOfferState extends MobilePairingOffer {
 
 /** App 二维码短码：只活 60 秒，扫到后由手机连上来换取完整 offer。 */
 interface CompactOfferEntry {
-  token: string;
+  /** 手机连回来用的地址（地址在生成二维码时就定了，与后续端口变化无关）。 */
+  host: string;
+  /** 短码寿命：要等用户走完「添加到主屏幕」，60 秒根本不够。 */
   expiresAt: number;
+  /** 这个短码签发过的 offer token；配对成功后据此把短码作废。 */
+  tokens: Set<string>;
 }
 
 interface PendingPairRequest extends MobilePairRequest {
@@ -256,14 +265,11 @@ export class RemoteTerminalService extends EventEmitter {
     return this.startPromise;
   }
 
-  async createPairingOffer(preferredHost?: string): Promise<MobilePairingOffer> {
-    // 两条通道都关时不该有配对能力：这个方法内部会 ensureStarted()，
-    // 放行等于让「点刷新二维码」把刚被开关释放的端口又悄悄听起来。
-    if (!this.accessPolicy.allowApp && !this.accessPolicy.allowWeb) {
-      throw new Error("手机访问已关闭");
-    }
-    await this.ensureStarted();
-    this.pruneExpired();
+  /**
+   * 生成一份完整 offer（不注册短码、不管端口）。
+   * 二维码路径与短码查表路径共用它：查表要「现场签发」，字段口径必须完全一致。
+   */
+  private buildOffer(preferredHost?: string): PairingOfferState {
     const token = crypto.randomBytes(24).toString("base64url");
     const pair = generateRemoteKeyPair();
     const offer: PairingOfferState = {
@@ -283,17 +289,30 @@ export class RemoteTerminalService extends EventEmitter {
     // 字段名('version'/'addresses'…) 与引号在这里纯属开销，去掉后 base64 长度少约三成。
     // 顺序即协议：[version, token, pcId, pcName, addresses, port, publicKey, expiresAt]。
     // App 侧解析同时兼容旧的对象形态（老版本桌面生成的码仍可扫）。
-    const encoded = Buffer.from(JSON.stringify(packPairingPayload(offer)), "utf8").toString("base64url");
-    offer.payload = encoded;
+    offer.payload = Buffer.from(JSON.stringify(packPairingPayload(offer)), "utf8").toString("base64url");
     this.offers.set(token, offer);
+    return offer;
+  }
+
+  async createPairingOffer(preferredHost?: string): Promise<MobilePairingOffer> {
+    // 两条通道都关时不该有配对能力：这个方法内部会 ensureStarted()，
+    // 放行等于让「点刷新二维码」把刚被开关释放的端口又悄悄听起来。
+    if (!this.accessPolicy.allowApp && !this.accessPolicy.allowWeb) {
+      throw new Error("手机访问已关闭");
+    }
+    await this.ensureStarted();
+    this.pruneExpired();
+    const offer = this.buildOffer(preferredHost);
     // 二维码只放「地址 + 端口 + 6 位短码」：完整载荷（公钥 44 + token 32 + pcId 32 …）
     // 塞进码里会让模块数翻倍，比浏览器二维码密一倍，扫起来明显更吃力。
-    // 手机扫到后连上来用短码换完整载荷（见 handlePairLookup），通道仍是 47778，不依赖网页服务。
     const host = offer.addresses[0] ?? "";
-    // 没有局域网地址就生成不出能扫的码（`h=` 空值会让手机判成「不是配对二维码」）。
-    // 这里直接失败，界面显示「没有可用的局域网地址」，比给一张坏码清楚。
-    if (!host) return Promise.reject(new Error("电脑没有可用的局域网地址"));
-    const code = this.registerCompactOffer(token, offer.expiresAt);
+    if (!host) {
+      // 没有局域网地址就生成不出能扫的码（`h=` 空值会让手机判成「不是配对二维码」）。
+      // 这里直接失败，界面显示「没有可用的局域网地址」，比给一张坏码清楚。
+      this.offers.delete(offer.token);
+      throw new Error("电脑没有可用的局域网地址");
+    }
+    const code = this.registerCompactOffer(host, offer.token);
     offer.uri = `easymint://pair?h=${encodeURIComponent(host)}&p=${offer.port}&c=${code}`;
     return this.publicOffer(offer);
   }
@@ -334,6 +353,10 @@ export class RemoteTerminalService extends EventEmitter {
       proof: remoteProof(pending.keys.auth, `pair-accepted:${pending.token}:${pending.deviceId}`),
     }));
     pending.socket.close(1000, "paired");
+    // 用过的短码一并作废：它 30 分钟内都有效，不作废就等于留了一个还能再配一次的口子
+    for (const [code, entry] of this.compactOffers) {
+      if (entry.tokens.has(pending.token)) this.compactOffers.delete(code);
+    }
     this.emit("devices-changed");
     return true;
   }
@@ -348,6 +371,18 @@ export class RemoteTerminalService extends EventEmitter {
       pending.socket.close(1008, "pairing rejected");
     }
     this.emit("pair-requests-changed");
+    return true;
+  }
+
+  /** 本机给设备改名（只影响这台电脑上的显示，不写回手机）。 */
+  renameDevice(deviceId: string, name: string): boolean {
+    const next = name.trim().slice(0, 80);
+    const device = this.devices.find((item) => item.id === deviceId);
+    if (!device || !next) return false;
+    if (device.name === next) return true;
+    device.name = next;
+    this.saveDevices();
+    this.emit("devices-changed");
     return true;
   }
 
@@ -609,17 +644,21 @@ export class RemoteTerminalService extends EventEmitter {
     }
     const code = typeof message.code === "string" ? message.code.trim().toUpperCase() : "";
     const entry = code ? this.compactOffers.get(code) : undefined;
-    const offer = entry ? this.offers.get(entry.token) : undefined;
     // 短码表只服务「App 二维码」（浏览器短码另有一张表），所以这里就该按 App 通道判定：
     // 开关关着还把公钥和 token 发给对方，等于让它在 init 之前就拿到了配对材料。
     if (!this.accessPolicy.allowApp) {
       socket.send(JSON.stringify({ type: "mobile-pair-lookup-failed", reason: "closed" }));
       return;
     }
-    if (!offer || offer.expiresAt <= Date.now()) {
+    if (!entry || entry.expiresAt <= Date.now()) {
       socket.send(JSON.stringify({ type: "mobile-pair-lookup-failed", reason: "expired" }));
       return;
     }
+    // **现场签发**：手机扫到码后要先「添加到主屏幕」再点开始配对，中间可能过了几分钟，
+    // 最初那份 offer（10 分钟）早该换了。短码在这里只当配对会话的索引，
+    // 真正的凭据是这一刻生成的 token + 公钥，有效期从这一刻算。
+    const offer = this.buildOffer(entry.host);
+    entry.tokens.add(offer.token);
     socket.send(JSON.stringify({ type: "mobile-pair-offer", payload: offer.payload }));
   }
 
@@ -685,6 +724,14 @@ export class RemoteTerminalService extends EventEmitter {
     if (!this.isDeviceAllowed(deviceId)) {
       socket.close(1008, "channel disabled");
       return;
+    }
+    // 每次连接都同步一次名字：设备名是配对那一刻写死的，改了名 / 换了型号，
+    // 不重新配对就永远是旧值（iOS 又只能拿到型号，用户很可能自己起名）。
+    const reportedName = typeof message.deviceName === "string" ? message.deviceName.trim().slice(0, 80) : "";
+    if (reportedName && reportedName !== device.name) {
+      device.name = reportedName;
+      this.saveDevices();
+      this.emit("devices-changed");
     }
     for (const [existingSocket, connection] of this.connections) {
       if (connection.deviceId === deviceId) existingSocket.close(1000, "replaced by new connection");
@@ -875,14 +922,18 @@ export class RemoteTerminalService extends EventEmitter {
   }
 
   /** 6 位短码，去掉 0/O/1/I 等易混字符：用户可能得照着念/手输。 */
-  private registerCompactOffer(token: string, expiresAt: number): string {
+  private registerCompactOffer(host: string, token: string): string {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
     for (let attempt = 0; attempt < 8; attempt += 1) {
       code = Array.from(crypto.randomBytes(6), (byte) => alphabet[byte % alphabet.length]).join("");
       if (!this.compactOffers.has(code)) break;
     }
-    this.compactOffers.set(code, { token, expiresAt });
+    this.compactOffers.set(code, {
+      host,
+      expiresAt: Date.now() + COMPACT_CODE_TTL_MS,
+      tokens: new Set([token]),
+    });
     return code;
   }
 
@@ -892,7 +943,7 @@ export class RemoteTerminalService extends EventEmitter {
       if (offer.expiresAt <= now) this.offers.delete(token);
     }
     for (const [code, entry] of this.compactOffers) {
-      if (entry.expiresAt <= now || !this.offers.has(entry.token)) this.compactOffers.delete(code);
+      if (entry.expiresAt <= now) this.compactOffers.delete(code);
     }
     for (const [requestId, pending] of this.pendingPairs) {
       if (pending.expiresAt <= now) this.rejectPair(requestId);

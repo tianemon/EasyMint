@@ -466,6 +466,7 @@ interface ElectronAPI {
     acceptPair: (requestId: string) => Promise<{ ok: boolean }>;
     rejectPair: (requestId: string) => Promise<{ ok: boolean }>;
     revoke: (deviceId: string) => Promise<{ ok: boolean }>;
+    rename: (deviceId: string, name: string) => Promise<{ ok: boolean }>;
     onPairRequest: (callback: (data: unknown) => void) => () => void;
     onChanged: (callback: () => void) => () => void;
     onError: (callback: (data: { message: string }) => void) => () => void;

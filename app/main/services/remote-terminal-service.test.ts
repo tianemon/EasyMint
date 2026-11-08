@@ -471,9 +471,35 @@ describe("RemoteTerminalService", () => {
     const message = await reply;
     expect(message.type).toBe("mobile-pair-offer");
     const payload = unpackPairingPayload(String(message.payload));
-    expect(payload.token).toBe(offer.token);
-    expect(payload.publicKey).toBe(offer.publicKey);
+    // 载荷是查表这一刻**现场签发**的：地址与端口沿用二维码里的，
+    // token/公钥必然是最新那对（最初那份已经用于生成二维码，用户可能隔几分钟才点配对）
+    expect(payload.addresses).toEqual(["192.168.1.8"]);
     expect(payload.port).toBe(offer.port);
+    expect(payload.pcId).toBe(offer.pcId);
+    expect(payload.token).not.toBe(offer.token);
+    expect(payload.publicKey).not.toBe(offer.publicKey);
+  });
+
+  it("同一短码可反复查表：每次现场签发新 offer（要把「添加到主屏幕」的时间等进去）", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const code = /c=([A-Z0-9]{6})$/.exec(offer.uri)![1];
+
+    const tokens = new Set<string>();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const socket = new WebSocket(`ws://127.0.0.1:${offer.port}`);
+      cleanup.push(() => socket.close());
+      await waitForOpen(socket);
+      const reply = waitForMessage(socket);
+      socket.send(JSON.stringify({ type: "mobile-pair-lookup", code }));
+      const message = await reply;
+      expect(message.type).toBe("mobile-pair-offer");
+      tokens.add(unpackPairingPayload(String(message.payload)).token);
+    }
+    // 两次都是可用的不同 token：用户先装到主屏、再回来配对，短码不能因为「用过一次」就废
+    expect(tokens.size).toBe(2);
   });
 
   it("短码查表：未知短码回 lookup-failed，且不消耗真实短码", async () => {
