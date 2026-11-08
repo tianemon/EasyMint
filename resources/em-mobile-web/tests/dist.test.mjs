@@ -88,7 +88,8 @@ test('安装到桌面契约：manifest / apple meta / icon 齐全且产物含新
   const metas = [
     ['apple-mobile-web-app-capable', 'yes'],
     ['mobile-web-app-capable', 'yes'],
-    ['apple-mobile-web-app-status-bar-style', 'default'],
+    // 主屏内容要延伸到状态栏下方（再用 safe-area 留白）；default 会在顶部切一条硬底色带
+    ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
     ['apple-mobile-web-app-title', 'EasyMint'],
   ];
   for (const [name, content] of metas) {
@@ -111,7 +112,8 @@ test('安装到桌面契约：manifest / apple meta / icon 齐全且产物含新
     assert.ok(existsSync(path.join(dist, icon.src)), `icon 文件不存在：${icon.src}`);
     assert.equal(icon.type, 'image/png', `icon.type：${icon.src}`);
     assert.match(icon.sizes, /^\d+x\d+$/, `icon.sizes 非法：${icon.src}`);
-    assert.match(icon.purpose, /any maskable/, `icon.purpose 必须含 any maskable：${icon.src}`);
+    // 图标是满版品牌图：声明 maskable 会被系统按安全区裁掉边缘内容
+    assert.equal(icon.purpose, 'any', `icon.purpose 必须为 any：${icon.src}`);
   }
   // 产物 JS/CSS 含本轮新能力（构建后真实存在，不靠源码语法检测）。
   const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);

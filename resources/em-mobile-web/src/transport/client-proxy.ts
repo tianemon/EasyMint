@@ -15,6 +15,7 @@ type WorkerMessage = {
   status?: ConnectionStatus;
   events?: Array<{ event: RemoteEvent; envelope: RemoteEnvelope }>;
   requestId?: string;
+  revoked?: boolean;
   ok?: boolean;
   data?: unknown;
   error?: { message: string; code?: string };
@@ -32,6 +33,7 @@ export class TransportClient implements RemoteClientLike {
   private statusListeners = new Set<(status: ConnectionStatus) => void>();
   private eventListeners = new Set<(event: RemoteEvent, envelope: RemoteEnvelope) => void>();
   private resumeListeners = new Set<() => void>();
+  private revokedListeners = new Set<() => void>();
   private pending = new Map<string, Pending>();
   private encodePending = new Map<string, {
     resolve: (value: DraftAttachment[]) => void;
@@ -65,6 +67,11 @@ export class TransportClient implements RemoteClientLike {
   onEvent(listener: (event: RemoteEvent, envelope: RemoteEnvelope) => void): () => void {
     this.eventListeners.add(listener);
     return () => this.eventListeners.delete(listener);
+  }
+
+  onPairingRevoked(listener: () => void): () => void {
+    this.revokedListeners.add(listener);
+    return () => this.revokedListeners.delete(listener);
   }
 
   /** 恢复可见 / 重连后重取快照（App 注册）。 */
@@ -149,6 +156,9 @@ export class TransportClient implements RemoteClientLike {
       case 'status':
         if (message.status) for (const listener of this.statusListeners) listener(message.status);
         break;
+      case 'revoked':
+        for (const listener of this.revokedListeners) listener();
+        break;
       case 'events':
         for (const item of message.events ?? []) {
           for (const listener of this.eventListeners) listener(item.event, item.envelope);
@@ -191,6 +201,7 @@ export class TransportClient implements RemoteClientLike {
     const direct = new RemoteClient(this.credential);
     direct.onStatus((status) => { for (const listener of this.statusListeners) listener(status); });
     direct.onEvent((event, envelope) => { for (const listener of this.eventListeners) listener(event, envelope); });
+    direct.onPairingRevoked(() => { for (const listener of this.revokedListeners) listener(); });
     this.direct = direct;
     void direct.connect().catch(() => undefined);
   }

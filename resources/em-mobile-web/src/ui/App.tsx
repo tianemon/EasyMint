@@ -153,6 +153,14 @@ export default function App(): React.ReactElement {
     // 短码不含密钥材料，保留 fragment：刷新后仍可重试查表；配对成功后才清除。
     const code = pairCodeFromHash(location.hash);
 
+    // 首帧兜底：IndexedDB 被节流、Worker 未就绪等都可能让 loadDevices 迟迟不返回，
+    // 而 bootReady=false 的渲染是空白 div —— 用户看到的就是「打开什么都没有」。
+    // 2.5 秒还没就绪就先放行到配对页（那时再读不出凭证，也至少有个入口）。
+    const guard = window.setTimeout(() => {
+      if (!alive) return;
+      setBootReady(true);
+    }, 2_500);
+
     const boot = async (): Promise<void> => {
       try {
         // 不再从 URL 收凭证：iOS 的主屏 web app 有独立存储分区，唯一可靠的做法是
@@ -171,10 +179,12 @@ export default function App(): React.ReactElement {
         // 凭证读取失败也必须放行首帧，否则页面永远停在空白 boot 态（与 RN 版 .finally 同口径）。
         fail(e);
         if (alive) setBootReady(true);
+      } finally {
+        window.clearTimeout(guard);
       }
     };
     void boot();
-    return () => { alive = false; };
+    return () => { alive = false; window.clearTimeout(guard); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -269,7 +279,25 @@ export default function App(): React.ReactElement {
     const offResume = next.onResume(() => {
       void refreshHomeSessionsRef.current?.();
     });
-    return () => { offStatus(); offResume(); next.dispose(); };
+    // 电脑端撤销了这台设备：清掉本地凭证并回到配对页。
+    // 不清的话，页面会一直认为「已配对」，进设备列表却什么都连不上（电脑上也没有这条记录了）。
+    const offRevoked = next.onPairingRevoked(() => {
+      void (async () => {
+        try {
+          const book = await removeDevice(credential.pcId);
+          setDevices(book.devices);
+          setActivePcId(book.activePcId);
+          setProject(null);
+          setSessions([]);
+          // 还有别的电脑就回设备列表，一台都不剩才去配对页
+          setPage(book.activePcId ? 'home' : 'scanner');
+          setError('这台电脑上的配对已失效，请重新扫码配对');
+        } catch (e) {
+          fail(e);
+        }
+      })();
+    });
+    return () => { offStatus(); offResume(); offRevoked(); next.dispose(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credential, isLeader]);
 
@@ -472,7 +500,7 @@ export default function App(): React.ReactElement {
   }), [activeModelProvider, attachments, compacting, composerControl, composerHandlers, contextUsage.maxTokens,
     contextUsage.percent, draft, model, permission, permissionLabel, running, session, thinking, thinkingOptions]);
 
-  if (!bootReady) return <div className="boot" />;
+  if (!bootReady) return <div className="boot loading">正在打开 EasyMint…</div>;
   if (isLeader === false) return (
     <div className="screen leader-blocked">
       <AmbientBackground />

@@ -146,6 +146,14 @@ export async function pairWithPc(
   });
 }
 
+/** 电脑端明确拒绝了这台设备：凭证已失效，重连再多次也没用，必须重新配对。 */
+export class PairingRevokedError extends Error {
+  constructor(readonly reason: string) {
+    super('这台电脑上的配对已失效，请重新扫码配对');
+    this.name = 'PairingRevokedError';
+  }
+}
+
 export class RemoteClient {
   private socket: WebSocket | null = null;
   private keys: SessionKeys;
@@ -161,10 +169,17 @@ export class RemoteClient {
     timer: ReturnType<typeof setTimeout>;
   }>();
   private statusListeners = new Set<(status: Status) => void>();
+  private revokedListeners = new Set<() => void>();
   private eventListeners = new Set<(event: RemoteEvent, envelope: RemoteEnvelope) => void>();
 
   constructor(private readonly credential: PcCredential) {
     this.keys = deriveKeys(base64.decode(credential.sharedSecret));
+  }
+
+  /** 配对被电脑端撤销：上层要清掉本地凭证并回到配对页，而不是继续重连。 */
+  onPairingRevoked(listener: () => void): () => void {
+    this.revokedListeners.add(listener);
+    return () => this.revokedListeners.delete(listener);
   }
 
   onStatus(listener: (status: Status) => void): () => void {
@@ -218,6 +233,19 @@ export class RemoteClient {
           clearTimeout(timer);
           reject(new Error('连接认证失败'));
         };
+        // 服务端拒绝时会主动 close(1008, reason)。注意区分原因：
+        //   unknown device / authentication failed → 这台设备的凭证已经不在电脑上了（被撤销/换了配对）
+        //   channel disabled → 用户只是关了开关，凭证仍然有效，别删
+        // 不识别这一条的话，撤销后手机会无限重连，界面一直停在「已配对」的空设备列表上。
+        socket.onclose = (event) => {
+          clearTimeout(timer);
+          const reason = event.reason ?? '';
+          if (event.code === 1008 && (reason === 'unknown device' || reason === 'authentication failed')) {
+            reject(new PairingRevokedError(reason));
+            return;
+          }
+          reject(new Error('连接认证失败'));
+        };
         socket.send(JSON.stringify({
           type: 'mobile-hello',
           deviceId: this.credential.deviceId,
@@ -232,13 +260,19 @@ export class RemoteClient {
       socket.close();
       this.socket = null;
       this.emitStatus('disconnected');
+      if (error instanceof PairingRevokedError) {
+        // 不排重连：凭证已经不在电脑上了，重试只会一直撞 1008
+        this.intentionalClose = true;
+        for (const listener of this.revokedListeners) listener();
+        throw error;
+      }
       this.scheduleReconnect();
       throw error;
     }
 
     socket.onmessage = (event) => this.handleMessage(event);
     socket.onerror = () => undefined;
-    socket.onclose = () => this.handleClose();
+    socket.onclose = (event) => this.handleClose(event);
     this.reconnectAttempt = 0;
     this.emitStatus('connected');
   }
@@ -324,10 +358,16 @@ export class RemoteClient {
     }
   }
 
-  private handleClose(): void {
+  private handleClose(event?: { code?: number; reason?: string }): void {
     this.socket = null;
     this.rejectPending(new Error('与电脑的连接已中断'));
     this.emitStatus('disconnected');
+    // 正连着的时候电脑端点了「撤销」：立刻按凭证失效处理，别等重连再撞一次 unknown device
+    if (event?.code === 1008 && event.reason === 'device revoked') {
+      this.intentionalClose = true;
+      for (const listener of this.revokedListeners) listener();
+      return;
+    }
     this.scheduleReconnect();
   }
 

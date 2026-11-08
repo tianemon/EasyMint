@@ -8,6 +8,8 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
  */
 export interface RemoteClientLike {
   onStatus(listener: (status: ConnectionStatus) => void): () => void;
+  /** 电脑端撤销了这台设备（凭证失效）：上层要清凭证回配对页，而不是继续重连。 */
+  onPairingRevoked?(listener: () => void): () => void;
   onEvent(listener: (event: RemoteEvent, envelope: RemoteEnvelope) => void): () => void;
   connect(): Promise<void>;
   close(): void;
