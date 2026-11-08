@@ -13,7 +13,10 @@ interface QrPair {
   webQr: string;
   webUrl: string;
   expiresAt: number;
+  /** 生成时的浏览器端口（HTTP 页与 webUrl 里的那个） */
   port: number;
+  /** 生成时的 App 端口（二维码里 p= 的那个，与浏览器端口无关） */
+  appPort: number;
   host: string;
 }
 
@@ -56,10 +59,20 @@ export function MobileTerminalSection(): JSX.Element {
   const [appStatus, setAppStatus] = useState<AppStatus | null>(null);
   // 事件回调里要读最新值（status-changed 订阅是挂载时建的），用 ref 避开闭包快照
   const appStatusRef = useRef<AppStatus | null>(null);
+  /**
+   * 上次回填到输入框的端口值。
+   * `devices-changed` / `pair-requests-changed` / `status-changed` 都会触发 applyAppStatus，
+   * 无条件 setState 会把用户正在输入的端口冲掉（配对请求一来，输入框内容就没了）。
+   * 只在端口真的变化时才回填，既保住编辑中的内容，也不会丢掉外部改端口的同步。
+   */
+  const appPortRef = useRef<number | null>(null);
   const applyAppStatus = useCallback((next: AppStatus) => {
     appStatusRef.current = next;
     setAppStatus(next);
-    setAppPortInput(String(next.port));
+    if (appPortRef.current !== next.port) {
+      appPortRef.current = next.port;
+      setAppPortInput(String(next.port));
+    }
   }, []);
   const [error, setError] = useState("");
   // 端口跟各自的开关放在一起，两条通道互不影响（改端口后已配对的设备都要重连，见提示）
@@ -74,14 +87,17 @@ export function MobileTerminalSection(): JSX.Element {
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [devices, setDevices] = useState<Device[]>([]);
-  const [portChanged, setPortChanged] = useState(false);
   const creatingRef = useRef(false);
   const hostRef = useRef("");
   const copiedTimer = useRef<number | null>(null);
 
+  const webPortRef = useRef<number | null>(null);
   const applyStatus = useCallback((s: Status) => {
     setStatus(s);
-    setWebPortInput(String(s.port));
+    if (webPortRef.current !== s.port) {
+      webPortRef.current = s.port;
+      setWebPortInput(String(s.port));
+    }
     const nextHost = s.lanAddresses.includes(hostRef.current) ? hostRef.current : (s.lanAddresses[0] ?? "");
     hostRef.current = nextHost;
     setHost(nextHost);
@@ -101,29 +117,48 @@ export function MobileTerminalSection(): JSX.Element {
     setError("");
     try {
       const opts = { width: 220, margin: 1, errorCorrectionLevel: "L" } as const;
-      // 通道关着就不生成对应二维码：createPairingOffer 会顺带 ensureStarted()，
+      // 两条通道各自成码、各自兜错：App 通道取不到局域网地址时，不该连带把浏览器二维码也弄没。
+      // 通道关着就不生成对应码：createPairingOffer 会顺带 ensureStarted()，
       // 关掉开关却因为「刷新二维码」把 47778 又听起来，等于开关没生效。
-      const appQr = appEnabled
-        ? await window.electronAPI.mobileTerminal.createOffer(hostRef.current || undefined).then((offer) =>
-            QRCode.toDataURL(offer.uri, opts).then((qr) => ({ qr, expiresAt: offer.expiresAt })))
-        : null;
+      let appQr: { qr: string; expiresAt: number } | null = null;
+      let appError = "";
+      if (appEnabled) {
+        try {
+          const offer = await window.electronAPI.mobileTerminal.createOffer(hostRef.current || undefined);
+          appQr = { qr: await QRCode.toDataURL(offer.uri, opts), expiresAt: offer.expiresAt };
+        } catch (e) {
+          appError = message(e);
+        }
+      }
       let expiresAt = appQr?.expiresAt ?? 0;
       let webQr = "";
       let webUrl = "";
+      let webError = "";
       const urlHost = targetHost || s.lanAddresses[0] || "";
       if (s.enabled && s.running && s.lanAddresses.length > 0) {
         // Web 二维码只带 10 位短码：桌面端另起一份独立 offer 登记短码表，
         // 浏览器同源 fetch('/pair/<code>.json') 取配对材料。
-        const link = await window.electronAPI.mobileWeb.createPairLink();
-        webUrl = `http://${urlHost}:${s.port}/#p=${link.code}`;
-        webQr = await QRCode.toDataURL(webUrl, opts);
-        expiresAt = expiresAt ? Math.min(expiresAt, link.expiresAt) : link.expiresAt;
+        try {
+          const link = await window.electronAPI.mobileWeb.createPairLink();
+          webUrl = `http://${urlHost}:${s.port}/#p=${link.code}`;
+          webQr = await QRCode.toDataURL(webUrl, opts);
+          expiresAt = expiresAt ? Math.min(expiresAt, link.expiresAt) : link.expiresAt;
+        } catch (e) {
+          webError = message(e);
+        }
       }
       setPairs(expiresAt
-        ? { appQr: appQr?.qr ?? "", webQr, webUrl, expiresAt, port: s.port, host: urlHost }
+        ? {
+            appQr: appQr?.qr ?? "", webQr, webUrl, expiresAt,
+            port: s.port, appPort: appStatusRef.current?.port ?? 0, host: urlHost,
+          }
         : null);
+      setError(appError || webError);
       setNow(Date.now());
     } catch (e) {
+      // 生成失败时清掉旧码：留着上一轮的码，用户会以为它对应现在的端口/地址，
+      // 扫下去连不上还找不到原因。
+      setPairs(null);
       setError(message(e));
     } finally {
       creatingRef.current = false;
@@ -226,12 +261,15 @@ export function MobileTerminalSection(): JSX.Element {
     try {
       if (channel === "app") {
         applyAppStatus(await window.electronAPI.mobileTerminal.setPort(port));
-        // 端口变了，二维码里的 p= 也失效：立刻按新端口重建，别等用户手点刷新
-        if (status) await refreshOffers(status, hostRef.current, true);
+        // 端口变了，二维码里的 p= 也失效：立刻按新端口重建，别等用户手点刷新。
+        // 第三个参数读通道状态而不是写死 true——通道关着时改端口不该顺手生成 App 码。
+        if (status) await refreshOffers(status, hostRef.current, appStatusRef.current?.enabled ?? false);
       } else {
-        await window.electronAPI.mobileWeb.setPort(port);
+        const next = await window.electronAPI.mobileWeb.setPort(port);
+        applyStatus(next);
+        // 浏览器端口也写进了 webUrl，同样要立刻重建
+        await refreshOffers(next, hostRef.current, appStatusRef.current?.enabled ?? false);
       }
-      setPortChanged(true);
     } catch (e) {
       setError(message(e));
       void loadStatus();
@@ -246,7 +284,6 @@ export function MobileTerminalSection(): JSX.Element {
 
   const refreshNow = () => {
     if (!status) return;
-    setPortChanged(false);
     void refreshOffers(status, hostRef.current, appStatusRef.current?.enabled ?? false);
   };
 
@@ -280,14 +317,24 @@ export function MobileTerminalSection(): JSX.Element {
     }
   };
 
-  const currentQr = pairs && secondsLeft > 0 ? (qrKind === "web" ? pairs.webQr : pairs.appQr) : "";
+  // 通道关着就不展示它的码：留着上一轮的码，扫下去只会在 init 被 1008 拒掉，
+  // 用户看到的却是「一张好好的二维码」。
+  const currentChannelEnabled = qrKind === "web" ? (status?.enabled ?? false) : (appStatus?.enabled ?? false);
+  const currentQr = pairs && secondsLeft > 0 && currentChannelEnabled
+    ? (qrKind === "web" ? pairs.webQr : pairs.appQr)
+    : "";
   const blockedReason = !status ? uiText("ui.MobileWebTab.loading")
     : qrKind === "web" && !status.enabled ? uiText("ui.MobileWebTab.needEnable")
     : qrKind === "web" && !status.running ? uiText("ui.MobileWebTab.notRunning")
     : qrKind === "web" && status.lanAddresses.length === 0 ? uiText("ui.MobileWebTab.noLan")
     : qrKind === "app" && !appStatus?.enabled ? uiText("ui.MobileWebTab.needEnableApp")
     : "";
-  const qrStale = portChanged || (pairs !== null && status !== null && (pairs.port !== status.port || pairs.host !== host));
+  // 只表示「手上的码与当前配置不一致」：端口/地址变了却没重建。改端口后会自动重建，
+  // 所以正常情况下它是 false——之前用独立的 portChanged 状态，导致码已经是新的还常驻提示刷新。
+  const qrStale = pairs !== null && status !== null
+    && (pairs.port !== status.port
+      || pairs.appPort !== (appStatus?.port ?? 0)
+      || pairs.host !== host);
 
   return (
     <section className="shrink-0 space-y-2">
@@ -354,7 +401,7 @@ export function MobileTerminalSection(): JSX.Element {
         <>
           {qrStale && (
             <div className="rounded-[var(--radius-lg)] border border-accent/40 bg-accent-soft px-3 py-2 text-[length:var(--text-11)] text-text-secondary">
-              {qrKind === "app" ? uiText("ui.MobileTerminalSection.appPortChanged") : uiText("ui.MobileWebTab.portChangedHint")}
+              {uiText("ui.MobileWebTab.portChangedHint")}
             </div>
           )}
 

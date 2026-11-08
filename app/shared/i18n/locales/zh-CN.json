@@ -548,7 +548,6 @@
   "ui.MobileTerminalSection.appChannel": "手机 App",
   "ui.MobileTerminalSection.webChannel": "手机浏览器",
   "ui.MobileTerminalSection.channelOff": "已关闭",
-  "ui.MobileTerminalSection.appPortChanged": "端口已改，手机需重新配对",
   "ui.MobileTerminalSection.devicesOnline": "{{v0}} 台在线",
   "ui.MobileWebTab.needEnableApp": "请先开启手机 App 通道",
   "ui.MobileTerminalSection.starting": "开启中…",

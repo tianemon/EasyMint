@@ -548,7 +548,6 @@
   "ui.MobileTerminalSection.appChannel": "Phone app",
   "ui.MobileTerminalSection.webChannel": "Phone browser",
   "ui.MobileTerminalSection.channelOff": "Off",
-  "ui.MobileTerminalSection.appPortChanged": "Port changed — re-pair the phone",
   "ui.MobileTerminalSection.devicesOnline": "{{v0}} online",
   "ui.MobileWebTab.needEnableApp": "Turn on the phone app channel first",
   "ui.MobileTerminalSection.starting": "Starting…",
