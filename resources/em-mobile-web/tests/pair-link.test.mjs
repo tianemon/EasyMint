@@ -102,20 +102,20 @@ test('parsePairingPayload(string) 旧长载荷兼容仍在', () => {
   assert.throws(() => web.parsePairingPayload('!!!'), /配对二维码内容不完整/);
 });
 
-// ── App 启动 / 成功清 fragment（静态源码断言，无 DOM 环境） ─────────────────
-test('App：加载后保留 #p= fragment，仅 runPair 成功分支清除', () => {
+// ── App 配对入口（静态源码断言，无 DOM 环境） ─────────────────
+test('App：配对改由页面内签发，不再依赖 URL 里的 #p=', () => {
   const app = readFileSync(path.join(root, 'src/ui/App.tsx'), 'utf8');
-  assert.match(app, /const code = pairCodeFromHash\(location\.hash\);/, '启动改读短码');
-  assert.doesNotMatch(app, /if \(payload\) history\.replaceState/, '加载后不得立即清 fragment');
+  // iOS 从主屏启动会丢掉 #p=：只要配对依赖它，主屏那一次就永远配不上
+  assert.doesNotMatch(app, /pairCodeFromHash/, '不应再从 hash 读短码');
+  assert.match(app, /requestPairingPayload\(\)/, '「开始配对」要现场向电脑端要材料');
   assert.doesNotMatch(app, /pairPayloadFromHash|#pair=/, '不得残留旧长载荷解析');
 
-  // runPair 的 try（成功）分支里必须清 fragment，catch 里不得清
+  // 手输那条路仍然走短码查表
+  assert.match(app, /await fetchPairingPayload\(code\)/, 'handlePair 先查表再 createPairingAttempt');
+
+  // 配对成功后清掉残留的 fragment（扫码打开时 URL 里仍带着 #p=）
   const runPair = /const runPair = useCallback[\s\S]*?\n  \}, \[\]\);/.exec(app)?.[0] ?? '';
   assert.ok(runPair, '应能定位 runPair 块');
   const success = /try \{([\s\S]*?)\} catch/.exec(runPair)?.[1] ?? '';
-  const failure = /catch \(e\) \{([\s\S]*?)\} finally/.exec(runPair)?.[1] ?? '';
-  assert.match(success, /history\.replaceState\(null, '', location\.pathname \+ location\.search\)/, '成功分支清除短码 fragment');
-  assert.doesNotMatch(failure, /replaceState/, '失败分支不得清除（刷新可重试）');
-
-  assert.match(app, /await fetchPairingPayload\(code\)/, 'handlePair 先查表再 createPairingAttempt');
+  assert.match(success, /history\.replaceState\(null, '', location\.pathname \+ location\.search\)/, '成功分支清掉残留 fragment');
 });

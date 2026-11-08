@@ -49,7 +49,9 @@ test('index.html：安装入口齐全且仍满足 CSP / 相对路径契约', () 
 
 test('manifest：display / start_url / scope / id / icons 合法', () => {
   must(manifest.display === 'standalone', '把 display 改成 browser');
-  must(manifest.start_url === './', '把 start_url 改成 / 或绝对路径');
+  // 不写 start_url：iOS 会用它覆盖「添加时的当前 URL」，把 #p= 短码丢掉；
+  // 缺省时浏览器（含 iOS）用文档地址作为启动地址，主屏打开才会带着扫码时的参数。
+  must(!('start_url' in manifest), '写回 start_url（主屏启动会丢掉 #p= 短码）');
   must(manifest.scope === './', '把 scope 改成绝对路径');
   must(manifest.id === './', '把 id 改成绝对路径');
   must(manifest.name === 'EasyMint' && manifest.short_name === 'EasyMint', '改掉 name / short_name');

@@ -123,7 +123,7 @@
   "protocol/pairing.ts": {
     "source": "connection/pairing-uri.ts",
     "sha256": "2dfb64eae3ad2578d13ac3d42f95661999b0545b8e9011289cda81b1a94d665a",
-    "localSha256": "6713c39757b0b44b48df37d3c22ffaac8f797695c04286c88a2a723f895c05e1",
+    "localSha256": "7932de0673173a5507c1592f82dbe33cc198d647f054c480a44852a3e36cce5b",
     "rewritten": true
   }
 }

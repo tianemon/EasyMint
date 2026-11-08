@@ -2,7 +2,6 @@
   "name": "EasyMint",
   "short_name": "EasyMint",
   "id": "./",
-  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

@@ -181,8 +181,9 @@ a { color: var(--accent); }
   background: var(--surface-hover); color: var(--text-primary); font-size: var(--fs-sm); font-weight: 600; }
 .pair-start-btn { display: block; width: 100%; margin-top: var(--s3); height: 46px; border-radius: var(--radius-lg);
   background: var(--accent); color: var(--text-inverse); font-size: var(--fs-body); font-weight: 600; }
-/* 拍照扫码的 input 只做触发器，不进布局 */
-.pair-scan-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* 手动输入是兜底入口，做成按钮才看得出可点 */
+.pair-recovery-btn { margin-top: var(--s4); padding: 8px 18px; border-radius: var(--radius-full);
+  border: 1px solid var(--border); color: var(--text-secondary); font-size: var(--fs-sm); }
 .pair-guide-back { color: var(--accent); margin-top: var(--s6); font-size: var(--fs-sm); }
 .pair-guide-fullscreen { display: block; color: var(--accent); margin: var(--s4) auto 0; font-size: var(--fs-sm); }
 /* 从主屏打开时已经是全屏，这个按钮没有意义 */

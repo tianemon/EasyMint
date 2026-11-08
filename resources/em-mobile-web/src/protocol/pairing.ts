@@ -67,6 +67,31 @@ export function parsePairingPayload(payload: string): PairingOffer {
 }
 
 /** 短码查表：同源相对路径 GET ./pair/<code>.json，成功后按对象校验。 */
+/**
+ * 页面内「开始配对」：让电脑端现场签发一份配对材料。
+ *
+ * 这样配对就不依赖 URL 里的短码——iOS 从主屏启动会把 `#p=` 丢掉（manifest 的 start_url
+ * 也会覆盖启动地址），扫码只负责「打开页面 + 添加到主屏幕」这一件事。
+ * 能拿到材料不等于配上了：仍需在电脑上人工确认那 6 位验证码。
+ */
+export async function requestPairingPayload(): Promise<PairingOffer> {
+  let response: Response;
+  try {
+    response = await fetch('./pair/new.json', { cache: 'no-store' });
+  } catch {
+    throw new Error('连不上电脑，请确认手机与电脑在同一网络');
+  }
+  if (response.status === 429) throw new Error('尝试次数过多，请稍后再试');
+  if (!response.ok) throw new Error('电脑端暂时无法配对，请确认手机访问已开启');
+  let value: unknown;
+  try {
+    value = await response.json();
+  } catch {
+    throw new Error('电脑返回的配对信息不完整');
+  }
+  return parsePairingObject(value);
+}
+
 export async function fetchPairingPayload(code: string): Promise<PairingOffer> {
   let response: Response;
   try {

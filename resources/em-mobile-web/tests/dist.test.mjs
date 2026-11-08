@@ -49,11 +49,13 @@ test('产物 JS 不含内联 polyfill 注入痕迹', { skip: !existsSync(htmlPat
   assert.doesNotMatch(html, /<script[^>]*>[\s\S]*?__vitePreload[\s\S]*?<\/script>/, 'polyfill 不得内联进 HTML');
 });
 
-test('产物 JS 走短码查表契约（#p= / pair/<code>.json），旧 #pair= 长载荷已移除', { skip: !existsSync(htmlPath) && '尚未构建' }, () => {
+test('产物 JS：配对走页面内签发 /pair/new.json，手输仍保留 pair/<code>.json', { skip: !existsSync(htmlPath) && '尚未构建' }, () => {
   const html = readFileSync(htmlPath, 'utf8');
   const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);
   const js = jsRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');
-  assert.match(js, /#p=/, '短码 fragment 解析（#p= 10 位）必须进产物');
+  // 主路径：页面自己向电脑端要一份材料（不依赖 URL 里的短码）
+  assert.match(js, /pair\/new\.json/, '页面内签发路径必须进产物');
+  // 兜底路径：手输 10 位码仍走同源查表
   assert.match(js, /pair\//, '同源查表路径 ./pair/ 必须进产物');
   assert.match(js, /\.json/, '查表 .json 后缀必须进产物');
   assert.match(js, /二维码已过期，请在电脑上重新生成/, '短码失效文案必须进产物');
@@ -102,7 +104,8 @@ test('安装到桌面契约：manifest / apple meta / icon 齐全且产物含新
   assert.equal(manifest.name, 'EasyMint', 'manifest.name');
   assert.equal(manifest.short_name, 'EasyMint', 'manifest.short_name');
   assert.equal(manifest.display, 'standalone', 'manifest.display 必须 standalone');
-  assert.equal(manifest.start_url, './', 'manifest.start_url 必须 ./');
+  // 不写 start_url：iOS 主屏启动会用它覆盖当前 URL，把 #p= 短码丢掉
+  assert.ok(!('start_url' in manifest), 'manifest 不应包含 start_url');
   assert.equal(manifest.scope, './', 'manifest.scope 必须 ./');
   assert.equal(manifest.id, './', 'manifest.id 必须 ./');
   assert.equal(manifest.orientation, 'any', 'manifest.orientation 必须 any');

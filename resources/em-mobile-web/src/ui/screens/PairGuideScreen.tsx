@@ -7,85 +7,94 @@ import {
   isFullscreenSupported, isFullscreenActive, toggleFullscreen, subscribeFullscreen,
 } from '../fullscreen';
 import {
-  canPromptInstall, promptInstall, platformHint, subscribeInstallAvailability,
+  canPromptInstall, promptInstall, subscribeInstallAvailability,
 } from '../install';
 
-/** 配对引导页（原扫码页）：页面不做相机，扫码交给系统相机；未配对时不显示任何项目/会话信息。 */
-export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying, onSubmitCode, hasPendingCode, onStartPair }: {
+/** 是否已从主屏幕启动（standalone）：此时不必再提示「添加到主屏幕」。 */
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return nav.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches === true;
+}
+
+/**
+ * 未配对页。
+ *
+ * 两条分支：
+ *  - 配对进行中（pairCode 非空）：显示 6 位验证码，等电脑端确认；
+ *  - 未开始：安装引导 + 「开始配对」。
+ *
+ * 「开始配对」**不依赖 URL 里的短码**：点按钮时向电脑端现场要一份配对材料
+ * （`/pair/new.json`）。iOS 从主屏启动会丢掉 `#p=`（manifest 的 start_url 也会覆盖启动地址），
+ * 所以扫码只负责「打开页面 + 添加到主屏幕」，配对由这个按钮触发。
+ */
+export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying, onSubmitCode, onStartPair }: {
   pairCode: string;
   error: string;
   onCancel?: () => void;
   onRetry?: () => void;
   retrying?: boolean;
   onSubmitCode?: (code: string) => void;
-  /** URL 里带着还没消费的短码：先给安装引导，用户点「开始配对」才真正开配 */
-  hasPendingCode?: boolean;
   onStartPair?: () => void;
 }): React.ReactElement {
   const pairing = Boolean(pairCode);
+  const standalone = isStandalone();
   const fsSupported = isFullscreenSupported();
   const [fsActive, setFsActive] = useState(isFullscreenActive);
   const [canInstall, setCanInstall] = useState(canPromptInstall);
   useEffect(() => subscribeFullscreen(() => setFsActive(isFullscreenActive())), []);
   useEffect(() => subscribeInstallAvailability(() => setCanInstall(canPromptInstall())), []);
-  const hint = platformHint();
+
   return (
     <div className="screen pair-guide">
       <div className="pair-guide-inner">
         <div className="pair-guide-mark"><Icon name="plusChat" size={38} /></div>
         <h1 className="pair-guide-title">
-          {pairing ? t('app.pairCodeTitle') : hasPendingCode ? t('app.installTitle') : t('app.pairGuideTitle')}
+          {pairing ? t('app.pairCodeTitle') : standalone ? t('app.pairStartTitle') : t('app.installTitle')}
         </h1>
+
         {pairing ? (
           <Glass className="pair-code-card">
             <div className="pair-code-value">{pairCode}</div>
             <div className="pair-code-hint">{t('app.pairWaiting')}</div>
             <div className="pair-code-hint">{t('app.pairCodeHint')}</div>
           </Glass>
-        ) : hasPendingCode ? (
+        ) : (
           <>
-            <p className="pair-guide-body">{t('app.installBody')}</p>
-            <div className="pair-guide-steps install-steps">
-              <div>{t('app.installGeneric')}</div>
-              <div>{t('app.installIos')}</div>
-              <div>{t('app.installAndroid')}</div>
-            </div>
-            {canInstall && (
+            <p className="pair-guide-body">
+              {standalone ? t('app.pairStartBody') : t('app.installBody')}
+            </p>
+            {!standalone && (
+              <div className="pair-guide-steps install-steps">
+                <div>{t('app.installGeneric')}</div>
+                <div>{t('app.installChrome')}</div>
+                <div>{t('app.installSafari')}</div>
+              </div>
+            )}
+            {!standalone && canInstall && (
               <button type="button" className="pair-install-btn" onClick={() => { void promptInstall(); }}>
                 {t('app.installPrimary')}
               </button>
             )}
-            <button type="button" className="pair-start-btn" onClick={onStartPair}>
+            <button type="button" className="pair-start-btn" onClick={onStartPair} disabled={!onStartPair}>
               {t('app.startPairing')}
             </button>
           </>
-        ) : (
-          <p className="pair-guide-body">{t('app.pairGuideBody')}</p>
         )}
+
         {error && <div className="error-banner"><Icon name="alert" size={14} /> {error}</div>}
         {onRetry && (
           <button type="button" className="pair-retry" onClick={onRetry} disabled={retrying}>
             <Icon name="refresh" size={14} /> {retrying ? '正在重试…' : '重试连接'}
           </button>
         )}
-        {!hasPendingCode && (
-          <div className="pair-guide-steps">
-            <div><span>1</span> 在电脑端 EasyMint「设置」里开启手机访问</div>
-            <div><span>2</span> 用手机相机扫描生成的二维码</div>
-            <div><span>3</span> 核对 6 位验证码并在电脑上确认</div>
-          </div>
-        )}
-        {/* 主屏独立打开、或凭证丢失时走这里：系统相机扫码会把页面拉回 Safari，
-            所以必须有一条留在本页内的恢复路径 */}
-        {onSubmitCode && !pairing && <PairRecovery onSubmitCode={onSubmitCode} />}
-        {fsSupported && (
+        {/* 手动输入是兜底：电脑端面板上有 10 位明文配对码 */}
+        {!pairing && onSubmitCode && <PairRecovery onSubmitCode={onSubmitCode} />}
+        {fsSupported && !standalone && (
           <button type="button" className="pair-guide-fullscreen" onClick={() => { void toggleFullscreen(); }}>
             {fsActive ? '退出全屏' : '全屏显示'}
           </button>
         )}
-        {!hasPendingCode && (canInstall
-          ? <button type="button" className="pair-guide-fullscreen" onClick={() => { void promptInstall(); }}>安装到桌面</button>
-          : hint && <p className="pair-guide-install-hint">{hint}</p>)}
         {onCancel && <button type="button" className="pair-guide-back" onClick={onCancel}>{t('app.back')}</button>}
       </div>
     </div>

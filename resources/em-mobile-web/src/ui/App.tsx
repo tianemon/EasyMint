@@ -10,7 +10,7 @@ import {
 } from '../protocol/credential-store';
 import { createPairingAttempt, pairWithPc } from '../protocol/remote-client';
 import type { PairingAttempt } from '../protocol/remote-client';
-import { pairCodeFromHash, fetchPairingPayload } from '../protocol/pairing';
+import { fetchPairingPayload, requestPairingPayload } from '../protocol/pairing';
 import { browserDeviceName } from '../core/device-name';
 import type { AskAnswer, ComposerControl, ConnectionStatus, Page } from '../core/types';
 import type { ShellLog } from '../core/types';
@@ -61,13 +61,6 @@ export default function App(): React.ReactElement {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [pairCode, setPairCode] = useState('');
   const [pairError, setPairError] = useState('');
-  /**
-   * URL 里带来、但还没消费的短码。
-   * 不自动消费是有意的：主屏 web app 与浏览器是**两个存储分区**，只有「先添加到主屏、
-   * 再从主屏打开」配出来的凭证才落在主屏容器里。自动开配会把用户钉在浏览器分区里，
-   * 于是每次从主屏打开都要重扫一次。
-   */
-  const [pendingCode, setPendingCode] = useState('');
   const [pairingBusy, setPairingBusy] = useState(false);
   const [error, setError] = useState('');
   const [projects, setProjects] = useState<OpenProject[]>([]);
@@ -150,8 +143,6 @@ export default function App(): React.ReactElement {
   // ── 启动：读凭证、处理 #p= 短码 ──────────────────────────────────────────
   useEffect(() => {
     let alive = true;
-    // 短码不含密钥材料，保留 fragment：刷新后仍可重试查表；配对成功后才清除。
-    const code = pairCodeFromHash(location.hash);
 
     // 首帧兜底：IndexedDB 被节流、Worker 未就绪等都可能让 loadDevices 迟迟不返回，
     // 而 bootReady=false 的渲染是空白 div —— 用户看到的就是「打开什么都没有」。
@@ -173,8 +164,6 @@ export default function App(): React.ReactElement {
         if (book.activePcId) setConnection('connecting');
         setPage(book.activePcId ? 'home' : 'scanner');
         setBootReady(true);
-        // 已配对就别再消费这个码：扫一次码就重配一次，会把已有凭证顶掉
-        if (code && !book.activePcId) setPendingCode(code);
       } catch (e) {
         // 凭证读取失败也必须放行首帧，否则页面永远停在空白 boot 态（与 RN 版 .finally 同口径）。
         fail(e);
@@ -254,13 +243,31 @@ export default function App(): React.ReactElement {
     await runPair(offer, attempt);
   }, [runPair]);
 
-  /** 用户点「开始配对」：此刻才真正查表 + 发起配对，让凭证落在当前（主屏）容器里。 */
-  const startPendingPair = useCallback(() => {
-    const code = pendingCode;
-    if (!code) return;
-    setPendingCode('');
-    void handlePair(code);
-  }, [pendingCode, handlePair]);
+  /**
+   * 用户点「开始配对」：让电脑端现场签发一份配对材料。
+   *
+   * **不看 URL 里的短码**。扫码只负责「打开页面 + 添加到主屏幕」；iOS 从主屏启动会把
+   * `#p=` 丢掉，如果配对依赖它，主屏那一次就永远配不上。页面既然已经访问到电脑端，
+   * 直接要一份材料就行。凭证落在**当前这个容器**里，所以从主屏配出来能一直用。
+   */
+  const startPendingPair = useCallback(async (): Promise<void> => {
+    setPairCode('');
+    setPairError('');
+    setPage('scanner');
+    setPairingBusy(true);
+    try {
+      const offer = await requestPairingPayload();
+      const attempt = createPairingAttempt(offer);
+      pairOfferRef.current = offer;
+      pairAttemptRef.current = attempt;
+      setPairCode(attempt.code);
+      await runPair(offer, attempt);
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPairingBusy(false);
+    }
+  }, [runPair]);
 
   const retryPair = useCallback(() => {
     const offer = pairOfferRef.current;
@@ -514,7 +521,7 @@ export default function App(): React.ReactElement {
 
   let content: React.ReactNode;
   if (page === 'scanner') content = <PairGuideScreen pairCode={pairCode} error={pairError || error}
-    hasPendingCode={Boolean(pendingCode)} onStartPair={startPendingPair}
+    onStartPair={() => void startPendingPair()}
     onCancel={devices.length ? goBack : undefined}
     onRetry={pairError && pairCode ? retryPair : undefined} retrying={pairingBusy}
     onSubmitCode={(code) => void handlePair(code)} />;
