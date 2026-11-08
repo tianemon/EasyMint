@@ -62,6 +62,7 @@
   --glass-fill: rgba(255,255,255,0.28);
   --liquid-fill: rgba(228,234,242,0.20);
   --liquid-clear-fill: rgba(0,0,0,0);
+  --composer-fill-android: rgba(255,255,255,0.55);
   --glass-fill-strong: rgba(255,255,255,0.66);
   --glass-rim: rgba(255,255,255,0.78);
   --glass-sheen: rgba(255,255,255,0.40);
@@ -178,6 +179,7 @@
     --glass-fill: rgba(255,255,255,0.10);
     --liquid-fill: rgba(255,255,255,0.04);
     --liquid-clear-fill: rgba(0,0,0,0.05);
+    --composer-fill-android: rgba(255,255,255,0.08);
     --glass-fill-strong: rgba(255,255,255,0.06);
     --glass-rim: rgba(255,255,255,0.22);
     --glass-sheen: rgba(255,255,255,0.22);
@@ -293,6 +295,7 @@
   --glass-fill: rgba(255,255,255,0.10);
   --liquid-fill: rgba(255,255,255,0.04);
   --liquid-clear-fill: rgba(0,0,0,0.05);
+  --composer-fill-android: rgba(255,255,255,0.08);
   --glass-fill-strong: rgba(255,255,255,0.06);
   --glass-rim: rgba(255,255,255,0.22);
   --glass-sheen: rgba(255,255,255,0.22);
@@ -407,6 +410,7 @@
   --glass-fill: rgba(255,255,255,0.28);
   --liquid-fill: rgba(228,234,242,0.20);
   --liquid-clear-fill: rgba(0,0,0,0);
+  --composer-fill-android: rgba(255,255,255,0.55);
   --glass-fill-strong: rgba(255,255,255,0.66);
   --glass-rim: rgba(255,255,255,0.78);
   --glass-sheen: rgba(255,255,255,0.40);

@@ -22,6 +22,11 @@ a { color: var(--accent); }
 /* 高度默认取「工具栏收起后的整屏」（100vh），与安装到主屏一致；
    软键盘弹出时 main.tsx 用 --vvh 写入可视高度来收缩，输入卡才不会被顶飞。 */
 .app { height: 100vh; height: 100dvh; height: var(--vvh, 100dvh); position: relative; overflow: hidden; background: var(--content); }
+/* iOS 从主屏启动时，首帧的 dvh 会比真实屏幕小一圈（底部露一条黑边，手指划一下才补齐，
+   不滚动的页面则永远补不上）。standalone 下 100vh 才是稳定值；Safari 标签页仍用 dvh，
+   那样地址栏收放才对得上。 */
+html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
+@media (display-mode: browser) { html[data-platform="ios"] .app { height: var(--vvh, 100dvh); } }
 .app-shell {
   position: relative; z-index: 1; height: 100%;
   /* 上下安全区不在这里留：内容要铺到屏幕边缘，由各页面自己处理（标题栏 padding-top、
@@ -501,6 +506,11 @@ a { color: var(--accent); }
    Android / 鸿蒙没有底部安全区，26 就是全部间距，不要动。 */
 @supports (-webkit-touch-callout: none) { .composer-card { margin-bottom: 12px; } }
 .composer-glass { position: absolute; inset: 0; z-index: 0; background: var(--liquid-clear-fill); }
+/* 安卓 / 鸿蒙：这些 WebView 的合成器经常不渲染 backdrop-filter（表现是输入卡彻底隐形，
+   因为 liquidClearFill 在浅色下是全透明、深色只有 5%）。给一层自己的材质，blur 生效时
+   只是把它再磨一层，不生效时也仍然是一块看得见的卡。 */
+html[data-platform="android"] .composer-glass { background: var(--composer-fill-android); }
+html[data-platform="android"] .glass-liquid.has-lens.composer-glass .glass-frost { background: var(--composer-fill-android); }
 /* 输入卡按 App 传 fill=liquidClearFill / sheen=false：不要整面染色与顶部高光，只保留玻璃轮廓与折射 */
 .glass-liquid.composer-glass::before { display: none; }
 .glass-liquid.has-lens.composer-glass .glass-frost { background: var(--liquid-clear-fill); }

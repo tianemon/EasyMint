@@ -4,12 +4,25 @@ import './styles/tokens.css';
 import './styles/app.css';
 
 /**
+ * 平台标记：三端在「视口高度」和「玻璃材质」上要分别处理，靠 CSS 的 @supports 分不干净
+ * （Safari 与 Chrome 报的能力几乎一样）。
+ *  - ios：主屏 standalone 首帧的 100dvh 会偏小一圈（底部留黑边，滑动一次才补齐，
+ *    不滚动的页面永远补不上），要用 100vh；
+ *  - android：含鸿蒙。地址栏会变，必须用 dvh；且这些 WebView 的合成器常常不渲染
+ *    backdrop-filter，输入卡要自带一层看得见的材质。
+ */
+const platform = /Android|HarmonyOS|OpenHarmony/i.test(navigator.userAgent)
+  ? 'android'
+  : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'desktop';
+document.documentElement.dataset.platform = platform;
+
+/**
  * 只在**软键盘**弹出时把可视高度写进 --vvh，输入卡才不会被键盘顶飞。
  *
  * 不能无条件用 visualViewport.height 当布局高度：浏览器工具栏收起/展开时它也会变，
  * 于是页面比屏幕矮一截，底部露出一条 html 底色（深色下就是一道 #141414 横带），
- * 安装到主屏后又因为那次采样停留在旧值而一直短 48px。没有键盘时交给 100vh，
- * 它等于「工具栏收起后的整屏高度」，与主屏全屏一致。
+ * 安装到主屏后又因为那次采样停留在旧值而一直短 48px。没有键盘时交给 CSS
+ * （iOS 100vh / 其它 dvh，见 app.css 的 html[data-platform] 规则）。
  */
 function syncViewport(): void {
   const viewport = window.visualViewport;

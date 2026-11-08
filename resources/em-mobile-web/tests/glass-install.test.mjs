@@ -116,6 +116,17 @@ test('main.tsx：visualViewport 同时监听 resize 与 scroll', () => {
   match(main, /window\.addEventListener\('resize'/, '删掉 window.resize 兜底');
 });
 
+test('平台适配：data-platform 标记 + iOS 高度 + 安卓输入卡材质', () => {
+  // 少了这个标记，iOS 的 100vh 与安卓的材质都不会生效（两端继续按同一套走）
+  match(main, /dataset\.platform\s*=/, '删掉 data-platform 标记');
+  match(main, /Android\|HarmonyOS\|OpenHarmony/, '鸿蒙要并入 android 分支');
+  // iOS 主屏首帧 dvh 偏小 → 底部黑边，滑动才补；standalone 下 100vh 才是稳定值
+  match(css, /html\[data-platform="ios"\]\s+\.app\s*\{[^}]*100vh/, 'iOS 回退到 dvh（首帧会留黑边）');
+  // 安卓/鸿蒙的合成器常常不渲染 backdrop-filter，输入卡必须自带材质，否则彻底隐形
+  match(css, /html\[data-platform="android"\]\s+\.composer-glass\s*\{[^}]*--composer-fill-android/, '删掉安卓输入卡材质');
+  must((tokens.match(/--composer-fill-android/g) ?? []).length >= 4, '删掉某个主题下的 --composer-fill-android');
+});
+
 test('glass-lens.ts / Glass.tsx / AmbientBackground.tsx：折射层真实接线', () => {
   match(lens, /feTurbulence/, '删掉 feTurbulence');
   match(lens, /feDisplacementMap/, '删掉 feDisplacementMap（只剩模糊，不是折射）');
