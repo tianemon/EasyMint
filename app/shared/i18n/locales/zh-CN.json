@@ -2108,7 +2108,6 @@
   "ui.AccountUsage.noSnapshot": "暂无历史数据",
   "ui.AccountUsage.refreshing": "刷新中…",
   "ui.AccountUsage.refresh": "刷新",
-  "settings.mobile": "手机网页",
   "ui.MobileWebTab.title": "手机浏览器访问",
   "ui.MobileWebTab.subtitle": "开启后用手机浏览器扫码即可访问；可与手机 App 同时连接。",
   "ui.MobileWebTab.enableLabel": "开启手机浏览器访问",
@@ -2130,7 +2129,7 @@
   "ui.MobileWebTab.appQrTitle": "手机 App",
   "ui.MobileWebTab.appQrHint": "用 EasyMint App 扫码连接",
   "ui.MobileWebTab.webQrTitle": "浏览器",
-  "ui.MobileWebTab.webQrHint": "用手机浏览器扫码打开",
+  "ui.MobileWebTab.webQrHint": "相机扫码，浏览器打开",
   "ui.MobileWebTab.qrAltApp": "手机 App 配对二维码",
   "ui.MobileWebTab.qrAltWeb": "浏览器访问二维码",
   "ui.MobileWebTab.expiresIn": "{{v0}} 秒后过期",
@@ -2151,5 +2150,8 @@
   "ui.MobileWebTab.noDevices": "暂无已配对设备",
   "ui.MobileWebTab.portChangedHint": "端口已变更，请重新扫码",
   "ui.MobileWebTab.actionFailed": "操作失败：",
-  "ui.MobileWebTab.loading": "加载中…"
+  "ui.MobileWebTab.loading": "加载中…",
+  "ui.MobileWebTab.copyLink": "复制链接",
+  "ui.MobileWebTab.copied": "已复制",
+  "ui.MobileWebTab.lanSelect": "扫码地址"
 }

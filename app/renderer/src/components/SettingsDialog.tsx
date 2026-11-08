@@ -9,9 +9,8 @@ import { PluginsTab } from "./settings/PluginsTab";
 import { AgentTab } from "./settings/AgentTab";
 import { ProvidersTab } from "./settings/ProvidersTab";
 import { AboutTab } from "./settings/AboutTab";
-import { MobileWebTab } from "./settings/MobileWebTab";
 
-export type SettingsTab = "general" | "appearance" | "plugins" | "providers" | "agent" | "mobile" | "about";
+export type SettingsTab = "general" | "appearance" | "plugins" | "providers" | "agent" | "about";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -27,7 +26,6 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "providers", label: "settings.providers" },
   { id: "plugins", label: "settings.plugins" },
   { id: "agent", label: "settings.agent" },
-  { id: "mobile", label: "settings.mobile" },
   { id: "about", label: "settings.about" },
 ];
 
@@ -107,8 +105,6 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
             <AgentTab />
           ) : activeTab === "providers" ? (
             <ProvidersTab />
-          ) : activeTab === "mobile" ? (
-            <MobileWebTab />
           ) : activeTab === "about" ? (
             <AboutTab />
           ) : null}

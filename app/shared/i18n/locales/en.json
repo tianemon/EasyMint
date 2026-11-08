@@ -2108,7 +2108,6 @@
   "ui.AccountUsage.noSnapshot": "No saved snapshot",
   "ui.AccountUsage.refreshing": "Refreshing…",
   "ui.AccountUsage.refresh": "Refresh",
-  "settings.mobile": "Mobile web",
   "ui.MobileWebTab.title": "Mobile browser access",
   "ui.MobileWebTab.subtitle": "Scan with a phone browser to connect; works alongside the mobile app.",
   "ui.MobileWebTab.enableLabel": "Enable mobile browser access",
@@ -2130,7 +2129,7 @@
   "ui.MobileWebTab.appQrTitle": "Mobile app",
   "ui.MobileWebTab.appQrHint": "Scan with the EasyMint app",
   "ui.MobileWebTab.webQrTitle": "Browser",
-  "ui.MobileWebTab.webQrHint": "Scan with a mobile browser",
+  "ui.MobileWebTab.webQrHint": "Scan with camera, open in browser",
   "ui.MobileWebTab.qrAltApp": "Mobile app pairing QR code",
   "ui.MobileWebTab.qrAltWeb": "Browser access QR code",
   "ui.MobileWebTab.expiresIn": "Expires in {{v0}}s",
@@ -2151,5 +2150,8 @@
   "ui.MobileWebTab.noDevices": "No paired devices",
   "ui.MobileWebTab.portChangedHint": "Port changed, please re-scan the QR code",
   "ui.MobileWebTab.actionFailed": "Action failed: ",
-  "ui.MobileWebTab.loading": "Loading…"
+  "ui.MobileWebTab.loading": "Loading…",
+  "ui.MobileWebTab.copyLink": "Copy link",
+  "ui.MobileWebTab.copied": "Copied",
+  "ui.MobileWebTab.lanSelect": "Address"
 }
