@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import type { StoredDevice } from '../../protocol/credential-store';
 import { displayDeviceName } from '../../protocol/credential-store';
 import type { ConnectionStatus } from '../../core/types';
@@ -7,9 +6,6 @@ import { Header } from '../components/Header';
 import { Glass } from '../components/Glass';
 import { AppearanceSlider } from '../components/AppearanceSlider';
 import { t } from '../i18n';
-import {
-  isFullscreenSupported, isFullscreenActive, toggleFullscreen, subscribeFullscreen,
-} from '../fullscreen';
 
 /**
  * 设置页（照 App SettingsScreen）：三组「外观 / 电脑 / 关于」，没有环境背景、服务端口、提示文案。
@@ -28,10 +24,7 @@ export function SettingsScreen({ device, connection, themeMode, onThemeMode,
   const status = connection === 'connected' ? '已连接' : connection === 'connecting' ? '正在连接' : '未连接';
   const dot = connection === 'connected' ? ' is-on' : connection === 'connecting' ? ' is-pending' : '';
   const ip = device?.addresses.find((address) => /^\d+\./.test(address)) ?? device?.addresses[0];
-  const [fullscreen, setFullscreen] = useState(isFullscreenActive);
-  const fsSupported = isFullscreenSupported();
 
-  useEffect(() => subscribeFullscreen(() => setFullscreen(isFullscreenActive())), []);
 
   return (
     <div className="screen">
@@ -72,17 +65,6 @@ export function SettingsScreen({ device, connection, themeMode, onThemeMode,
             <span>版本</span>
             <span className="settings-version">{__EM_VERSION__}</span>
           </div>
-          {fsSupported && (
-            <>
-              <div className="settings-divider" />
-              <div className="settings-row">
-                <span>全屏</span>
-                <button type="button" className="settings-inline-btn" onClick={() => { void toggleFullscreen(); }}>
-                  {fullscreen ? '退出全屏' : '进入全屏'}
-                </button>
-              </div>
-            </>
-          )}
         </Glass>
       </div>
     </div>

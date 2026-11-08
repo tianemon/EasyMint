@@ -4,9 +4,6 @@ import { Icon } from '../components/icons';
 import { PairRecovery } from '../components/PairRecovery';
 import { t } from '../i18n';
 import {
-  isFullscreenSupported, isFullscreenActive, toggleFullscreen, subscribeFullscreen,
-} from '../fullscreen';
-import {
   canPromptInstall, promptInstall, subscribeInstallAvailability,
 } from '../install';
 
@@ -39,10 +36,7 @@ export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying, 
 }): React.ReactElement {
   const pairing = Boolean(pairCode);
   const standalone = isStandalone();
-  const fsSupported = isFullscreenSupported();
-  const [fsActive, setFsActive] = useState(isFullscreenActive);
   const [canInstall, setCanInstall] = useState(canPromptInstall);
-  useEffect(() => subscribeFullscreen(() => setFsActive(isFullscreenActive())), []);
   useEffect(() => subscribeInstallAvailability(() => setCanInstall(canPromptInstall())), []);
 
   return (
@@ -90,11 +84,6 @@ export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying, 
         )}
         {/* 手动输入是兜底：电脑端面板上有 10 位明文配对码 */}
         {!pairing && onSubmitCode && <PairRecovery onSubmitCode={onSubmitCode} />}
-        {fsSupported && !standalone && (
-          <button type="button" className="pair-guide-fullscreen" onClick={() => { void toggleFullscreen(); }}>
-            {fsActive ? '退出全屏' : '全屏显示'}
-          </button>
-        )}
         {onCancel && <button type="button" className="pair-guide-back" onClick={onCancel}>{t('app.back')}</button>}
       </div>
     </div>

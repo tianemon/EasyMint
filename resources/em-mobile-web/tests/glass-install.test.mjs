@@ -1,4 +1,4 @@
-// 静态契约校验（真玻璃 / 全屏 / 安装到桌面）。
+// 静态契约校验（真玻璃 / 安装到桌面）。
 // 每条断言都带「破坏后应失败」说明：这些说明不是注释装饰，而是用来反向验证测试不恒绿——
 // 实证见本轮工作记录：临时改坏 manifest.display、删掉 apple meta，对应断言确实变红后精确改回。
 import assert from 'node:assert/strict';
@@ -19,7 +19,6 @@ const html = read('index.html');
 const manifest = JSON.parse(read('public/manifest.webmanifest'));
 const css = read('src/styles/app.css');
 const tokens = read('src/styles/tokens.css');
-const fullscreen = read('src/ui/fullscreen.ts');
 const install = read('src/ui/install.ts');
 const lens = read('src/ui/glass-lens.ts');
 const glass = read('src/ui/components/Glass.tsx');
@@ -98,15 +97,6 @@ test('tokens.css：四个变量块都补齐方向性暗线，且不再有环境�
   match(tokens, /--liquid-dark-rim:\s*rgba\(0,0,0,0\.42\)/, '把深色暗线强度改错');
 });
 
-test('fullscreen.ts：能力检测 / 切换 / 订阅齐全且不引第三方', () => {
-  match(fullscreen, /fullscreenEnabled/, '删掉 fullscreenEnabled 检测（iOS 会误判为支持）');
-  match(fullscreen, /requestFullscreen/, '删掉 requestFullscreen 调用');
-  match(fullscreen, /exitFullscreen/, '删掉退出全屏分支');
-  match(fullscreen, /fullscreenchange/, '删掉 fullscreenchange 订阅');
-  match(fullscreen, /webkitfullscreenchange/, '删掉 webkit 前缀订阅');
-  match(fullscreen, /catch\s*\{/, '去掉 reject 捕获（失败时会抛异常）');
-  noMatch(fullscreen, /from\s+['"][^'".]/, '引入一个第三方依赖');
-});
 
 test('install.ts：渐进兼容 + 平台指引，不谎称能自动弹安装提示', () => {
   match(install, /beforeinstallprompt/, '删掉 beforeinstallprompt 监听');
@@ -120,11 +110,10 @@ test('install.ts：渐进兼容 + 平台指引，不谎称能自动弹安装提�
   noMatch(install, /from\s+['"][^'".]/, '引入一个第三方依赖');
 });
 
-test('main.tsx：visualViewport 同时监听 resize 与 scroll，全屏切换派发 resize', () => {
+test('main.tsx：visualViewport 同时监听 resize 与 scroll', () => {
   match(main, /visualViewport\?\.addEventListener\('resize'/, '删掉 visualViewport.resize 监听');
   match(main, /visualViewport\?\.addEventListener\('scroll'/, '删掉 visualViewport.scroll 监听（键盘平移会错位）');
   match(main, /window\.addEventListener\('resize'/, '删掉 window.resize 兜底');
-  match(main, /fullscreenchange/, '删掉全屏切换后的 --vvh 重算');
 });
 
 test('glass-lens.ts / Glass.tsx / AmbientBackground.tsx：折射层真实接线', () => {

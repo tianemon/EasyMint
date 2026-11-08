@@ -124,7 +124,8 @@ test('安装到桌面契约：manifest / apple meta / icon 齐全且产物含新
   // 产物 JS/CSS 含本轮新能力（构建后真实存在，不靠源码语法检测）。
   const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);
   const js = jsRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');
-  assert.match(js, /requestFullscreen/, '产物 JS 必须含 Fullscreen API 调用');
+  // 全屏入口已下线（移动端全屏会把页面切横屏，与 App 体验不符）
+  assert.doesNotMatch(js, /requestFullscreen/, '产物里不应再有全屏调用');
   assert.match(js, /beforeinstallprompt/, '产物 JS 必须含 beforeinstallprompt 兼容');
   const cssRefs = [...html.matchAll(/href="([^"]+\.css)"/g)].map((m) => m[1]);
   const css = cssRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');

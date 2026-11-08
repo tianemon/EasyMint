@@ -23,11 +23,6 @@ window.visualViewport?.addEventListener('resize', syncViewport);
 // 软键盘弹出时页面可能被平移而只触发 scroll，同样重算 --vvh，避免输入卡错位。
 window.visualViewport?.addEventListener('scroll', syncViewport);
 window.addEventListener('resize', syncViewport);
-// 全屏切换后可视高度会变，但不一定触发 visualViewport.resize：按同样的 resize 派发重算 --vvh，
-// 避免 100dvh / var(--vvh) 在全屏态下错位。
-const onFullscreenChange = (): void => { window.dispatchEvent(new Event('resize')); };
-document.addEventListener('fullscreenchange', onFullscreenChange);
-document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
 const root = document.getElementById('root');
 if (root) createRoot(root).render(<App />);
