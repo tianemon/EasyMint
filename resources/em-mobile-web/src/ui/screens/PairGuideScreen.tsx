@@ -47,8 +47,8 @@ export function PairGuideScreen({ pairCode, error, onCancel, onRetry, retrying, 
             <p className="pair-guide-body">{t('app.installBody')}</p>
             <div className="pair-guide-steps install-steps">
               <div>{t('app.installGeneric')}</div>
-              <div>{t('app.installChrome')}</div>
-              <div>{t('app.installSafari')}</div>
+              <div>{t('app.installIos')}</div>
+              <div>{t('app.installAndroid')}</div>
             </div>
             {canInstall && (
               <button type="button" className="pair-install-btn" onClick={() => { void promptInstall(); }}>

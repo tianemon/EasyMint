@@ -170,11 +170,9 @@
   "app.newSession": "新会话",
   "app.archive": "归档",
   "app.pairGuideTitle": "请用电脑上的二维码打开",
-  "app.installTitle": "先添加到主屏幕",
-  "app.installBody": "添加后从主屏打开就不用再扫码。现在配对也能用，只是下次打开还要再扫一次。",
-  "app.installGeneric": "在浏览器菜单里找到「添加到主屏幕」或「发送到桌面」",
-  "app.installChrome": "Chrome：右上角 ⋯（iOS 上是分享按钮）→ 添加到主屏幕",
-  "app.installSafari": "Safari：底部 分享 → 添加到主屏幕",
+  "app.installTitle": "建议先添加到主屏幕",
+  "app.installBody": "添加到主屏幕后，从主屏幕启动无需再次扫描二维码。当前亦可直接完成配对，但下次访问时需重新扫描。",
+  "app.installGeneric": "请在浏览器菜单中选择「添加到主屏幕」（部分浏览器显示为「发送到桌面」）。",
   "app.startPairing": "开始配对",
   "app.installPrimary": "添加到主屏幕",
   "app.pairGuideBody": "在 EasyMint 桌面端「设置」中开启手机访问，扫描生成的二维码即可连接。",
@@ -205,5 +203,7 @@
   "common.back": "返回",
   "common.cancel": "取消",
   "common.confirm": "确认",
-  "common.close": "关闭"
+  "common.close": "关闭",
+  "app.installIos": "iOS：Safari 点击底部工具栏的「分享」按钮，Chrome 点击地址栏右侧的「分享」按钮，随后选择「添加到主屏幕」。",
+  "app.installAndroid": "Android（Chrome）：点击右上角的「更多」菜单，选择「添加到主屏幕」。"
 }
