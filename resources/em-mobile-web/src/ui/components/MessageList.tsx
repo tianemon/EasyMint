@@ -74,7 +74,8 @@ export function MessageList({ messages, running, tail, askId, statusText, status
   statusText?: string;
   statusIcon?: string;
   bottomInset?: number;
-  topInset?: number;
+  /** 数字按 px；字符串原样用于 calc（聊天页要带上 env(safe-area-inset-top)） */
+  topInset?: number | string;
 }): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -122,7 +123,7 @@ export function MessageList({ messages, running, tail, askId, statusText, status
   };
 
   const vars = {
-    '--msg-top': `${topInset + 8}px`,
+    '--msg-top': typeof topInset === 'number' ? `${topInset + 8}px` : `calc(${topInset} + 8px)`,
     '--msg-bottom': `${bottomInset + 12}px`,
   } as CSSProperties;
 

@@ -115,9 +115,12 @@ test('安装到桌面契约：manifest / apple meta / icon 齐全且产物含新
     assert.ok(existsSync(path.join(dist, icon.src)), `icon 文件不存在：${icon.src}`);
     assert.equal(icon.type, 'image/png', `icon.type：${icon.src}`);
     assert.match(icon.sizes, /^\d+x\d+$/, `icon.sizes 非法：${icon.src}`);
-    // 图标是满版品牌图：声明 maskable 会被系统按安全区裁掉边缘内容
-    assert.equal(icon.purpose, 'any', `icon.purpose 必须为 any：${icon.src}`);
+    // any = 满版图；maskable = 安卓主屏（同色底 + 内容缩在安全区里）
+    assert.ok(['any', 'maskable'].includes(icon.purpose), `icon.purpose 非法：${icon.src}`);
+    if (icon.purpose === 'maskable') assert.ok(existsSync(path.join(dist, icon.src)), `maskable 图标不存在：${icon.src}`);
   }
+  const manifestIcons = JSON.parse(readFileSync(path.join(dist, 'manifest.webmanifest'), 'utf8')).icons ?? [];
+  assert.ok(manifestIcons.some((icon) => icon.purpose === 'maskable'), '产物 manifest 缺 maskable 图标');
   // 产物 JS/CSS 含本轮新能力（构建后真实存在，不靠源码语法检测）。
   const jsRefs = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1]);
   const js = jsRefs.map((ref) => readFileSync(path.join(dist, ref), 'utf8')).join('\n');

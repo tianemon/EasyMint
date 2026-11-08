@@ -19,7 +19,9 @@ a { color: var(--accent); }
 .boot.loading { font-size: var(--fs-sm); }
 
 /* ── 应用壳 / 环境层 ────────────────────────────── */
-.app { height: 100dvh; height: var(--vvh, 100dvh); position: relative; overflow: hidden; background: var(--content); }
+/* 高度默认取「工具栏收起后的整屏」（100vh），与安装到主屏一致；
+   软键盘弹出时 main.tsx 用 --vvh 写入可视高度来收缩，输入卡才不会被顶飞。 */
+.app { height: 100vh; height: var(--vvh, 100vh); position: relative; overflow: hidden; background: var(--content); }
 .app-shell {
   position: relative; z-index: 1; height: 100%;
   padding-top: env(safe-area-inset-top);
@@ -101,7 +103,8 @@ a { color: var(--accent); }
    实际却不渲染 url() 滤镜，于是边缘那一圈既没有位移也没有模糊——卡片看起来「只模糊了中间那块」。
    现在中心与边缘都由这一层负责模糊，折射带只做叠加（有真折射的浏览器上位移仍然可见）。 */
 .glass-liquid.has-lens .glass-frost { display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  border-radius: inherit; background: var(--liquid-fill);
+  /* 磨砂层在 border 以内，圆角要比外框小 1px，否则它会在描边内侧再露一圈浅色弧（看起来像双边框） */
+  border-radius: calc(var(--glass-radius, 8px) - 1px); background: var(--liquid-fill);
   backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
 .glass-liquid.has-lens .glass-lens { display: block; position: absolute; z-index: 0; pointer-events: none; }
 /* 四条边缘带：backdrop-filter 由 glass-lens.ts 用 CSSOM 注入（CSP 不允许内联 style，
@@ -251,7 +254,15 @@ a { color: var(--accent); }
 .system-kind-icon { color: var(--tool-title); flex: 0 0 auto; }
 
 /* ── 聊天区（列表铺满整页，标题栏与底部浮层叠在上面） ── */
-.chat-screen { position: relative; overflow: hidden; }
+/* 聊天页要铺到屏幕的物理边缘：标题栏玻璃得盖住状态栏、底部渐隐得盖住 Home 条。
+   而 .app-shell 给所有页面统一留了安全区，这里抵消掉，改由页面内部按需留白
+   （顶部给标题栏 padding-top，底部给浮层 padding-bottom）。 */
+.chat-screen {
+  position: relative; overflow: hidden;
+  margin-top: calc(-1 * env(safe-area-inset-top));
+  margin-bottom: calc(-1 * env(safe-area-inset-bottom));
+  height: calc(100% + env(safe-area-inset-top) + env(safe-area-inset-bottom));
+}
 .chat-blur-target { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 /* 底部渐隐：只贴屏幕最底那条窄带，三段 0% / 30% / 100%（App ChatScreen fade height 48） */
 .chat-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; z-index: 1; pointer-events: none;
@@ -259,15 +270,28 @@ a { color: var(--accent); }
     color-mix(in srgb, var(--ambient-base) 0%, transparent) 0%,
     color-mix(in srgb, var(--ambient-base) 5%, transparent) 30%,
     color-mix(in srgb, var(--ambient-base) 95%, transparent) 100%); }
-/* 标题栏：整条磨砂玻璃铺满 topBar，透明 Header 叠在上面 */
-.chat-topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 3; }
+/* 标题栏：整条磨砂玻璃铺满 topBar（含状态栏那条），透明 Header 叠在下方 */
+.chat-topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding-top: env(safe-area-inset-top); }
 .chat-topbar-glass { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .chat-topbar .header { position: relative; z-index: 1; }
 .chat-topbar-fill { position: absolute; inset: 0; border-radius: 0; }
-.chat-floating { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column; }
+.chat-floating { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom); }
 .message-area { height: 100%; position: relative; }
-.message-scroll { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; }
-.message-column { padding: var(--msg-top, 62px) var(--chat-inset) var(--msg-bottom, 150px); }
+/* 滚到标题栏下的内容渐隐：玻璃底边是硬的，正文压在上面时会被「切一半」（上半在栏内、下半在栏外），
+   看起来像字被削掉。用一条贴住栏底的渐隐化开；App 那边是原生模糊把这一段糊住。 */
+.message-scroll {
+  height: 100%; overflow-y: auto; overscroll-behavior-y: contain;
+  -webkit-mask-image: linear-gradient(to bottom,
+    transparent calc(var(--msg-top, 62px) - 28px), #000 calc(var(--msg-top, 62px) - 2px));
+  mask-image: linear-gradient(to bottom,
+    transparent calc(var(--msg-top, 62px) - 28px), #000 calc(var(--msg-top, 62px) - 2px));
+}
+/* 消息贴底：内容不足一屏时停在下边（紧贴输入卡上方），与 App 的 inverted 列表一致。
+   用首行 margin-top:auto 而不是 justify-content:flex-end —— 后者在内容溢出时会把顶部截掉。 */
+.message-column { min-height: 100%; display: flex; flex-direction: column;
+  padding: var(--msg-top, 62px) var(--chat-inset) var(--msg-bottom, 150px); }
+.message-column > .msg-row:first-child { margin-top: auto; }
 .msg-row { content-visibility: auto; contain-intrinsic-size: auto 80px; margin-bottom: 12px; }
 .message-tail { display: flex; flex-direction: column; }
 .user-bubble-wrap { display: flex; flex-direction: column; align-items: flex-end; }
@@ -285,16 +309,21 @@ a { color: var(--accent); }
 .user-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; justify-content: flex-end; }
 .user-badge { padding: 2px 6px; border-radius: var(--radius-full); background: var(--surface-alt);
   color: var(--text-secondary); font-size: var(--fs-xxs); }
-.assistant-plain { white-space: pre-wrap; font-size: var(--fs-base); line-height: 1.65; }
-.plain-preview { white-space: pre-wrap; font-size: var(--fs-base); line-height: 1.65; }
+.assistant-plain { white-space: pre-wrap; font-size: var(--fs-body); line-height: 22px; }
+.plain-preview { white-space: pre-wrap; font-size: var(--fs-body); line-height: 22px; }
 
 /* ── 回合三态 ──────────────────────────────────── */
 .turn { display: flex; flex-direction: column; gap: var(--s2); }
-.turn-fold-head { display: flex; align-items: center; gap: var(--s2); width: 100%; text-align: left;
-  color: var(--text-secondary); font-size: var(--fs-xs); padding: 6px var(--s2);
-  border-radius: var(--radius-lg); background: var(--chat-inset-tint); }
-.turn-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.turn-duration { color: var(--text-muted); flex: 0 0 auto; }
+/* 已结束：App 只给一行「用时 X分钟 Y秒 ›」——不着底色、不带图标、不重复过程摘要
+   （摘要只在运行中出现，见 .turn-proc-head）。之前这里铺了一块 chatInsetTint，
+   在深色下就是一条突兀的灰底卡片。 */
+.turn-fold-head { display: flex; align-items: center; gap: 4px; align-self: flex-start; max-width: 100%;
+  padding: 4px 0; text-align: left; color: var(--text-muted); font-size: var(--fs-caption); }
+/* 运行中：工具图标 + 过程摘要 + 呼吸点，同 App ProcessSummary（12 号 600，颜色 toolTitle） */
+.turn-proc-head { display: flex; align-items: center; gap: 6px; align-self: flex-start; max-width: 100%;
+  padding: 3px 0; text-align: left; color: var(--tool-title); font-size: var(--fs-caption); font-weight: 600; }
+.turn-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn-duration { color: inherit; flex: 0 0 auto; }
 .turn-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s infinite; }
 .turn-process { display: flex; flex-direction: column; gap: var(--s2); }
 .turn-process.is-bounded { max-height: 240px; overflow: hidden;
@@ -302,7 +331,8 @@ a { color: var(--accent); }
 .turn-process.is-expanded.is-bounded { max-height: none; -webkit-mask-image: none; mask-image: none; }
 .turn-process-items { display: flex; flex-direction: column; gap: var(--s2); }
 .turn-process-running { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s infinite; }
-.turn-usage { color: var(--text-muted); font-size: var(--fs-xxs); text-align: right; }
+/* App TurnView.meta：12 号、左对齐、上 2 下 4（不是右对齐的 10 号小字） */
+.turn-usage { color: var(--text-muted); font-size: var(--fs-caption); margin-top: 2px; margin-bottom: 4px; }
 
 /* ── 工具卡 / diff（融入气泡式：无独立卡片描边，标题行中性灰） ── */
 .tool-card { margin-top: 4px; margin-bottom: 2px; align-self: stretch; }
@@ -377,7 +407,8 @@ a { color: var(--accent); }
 .thinking-body { white-space: pre-wrap; color: var(--text-secondary); font-size: var(--fs-xs); padding: var(--s2) 0; }
 
 /* ── Markdown ──────────────────────────────────── */
-.markdown { font-size: var(--fs-base); line-height: 1.7; word-break: break-word; }
+/* 与 App MarkdownView 段落一致：14 / 22（不是 15 / 1.7——那会让整段比 App 松一档） */
+.markdown { font-size: var(--fs-body); line-height: 22px; word-break: break-word; }
 .md-paragraph { margin: 0 0 var(--s2); }
 .md-heading { margin: var(--s3) 0 var(--s2); line-height: 1.35; }
 .md-quote { margin: 0 0 var(--s2); padding-left: var(--s3); border-left: 3px solid var(--chat-divider); color: var(--text-secondary); }
@@ -388,8 +419,11 @@ a { color: var(--accent); }
 .md-image { max-width: 100%; border-radius: var(--radius-lg); }
 .md-image-fallback { color: var(--text-muted); font-size: var(--fs-xs); }
 .md-table-wrap { overflow-x: auto; margin-bottom: var(--s2); }
-.md-table { border-collapse: collapse; font-size: var(--fs-xs); }
-.md-table th, .md-table td { border: 1px solid var(--border-light); padding: 4px 8px; text-align: left; }
+/* App 的表格只有每格下边一条发丝线，没有竖线也没有外框（整张网格看着像 HTML 默认样式） */
+.md-table { border-collapse: collapse; font-size: var(--fs-body); width: 100%; }
+.md-table th, .md-table td { border: 0; border-bottom: 1px solid var(--chat-divider);
+  padding: 4px; text-align: left; line-height: 20px; }
+.md-table th { font-weight: 600; }
 .code-block { border-radius: var(--radius-lg); overflow: hidden; margin-bottom: var(--s2); border: 1px solid var(--border-light); }
 .code-block-head { display: flex; align-items: center; justify-content: space-between; padding: 4px var(--s3);
   background: var(--code-block-header); font-size: var(--fs-xxs); color: var(--text-muted); }

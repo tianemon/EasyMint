@@ -147,7 +147,7 @@ function isHashedAsset(file: string): boolean {
   // PWA 清单与桌面图标是固定文件名、需及时更新，且 apple-touch-icon.png 的 `touch-icon`
   // 段会被下方哈希正则误命中。显式排除这些名字，而非收紧正则：Vite 的 base64 内容哈希
   // 本身可能含连字符，收紧会让真实带哈希的资源一并失去 immutable 长缓存。
-  if (/^(manifest\.webmanifest|icon-\d+\.png|apple-touch-icon\.png)$/.test(base)) return false;
+  if (/^(manifest\.webmanifest|(?:maskable-)?icon-\d+\.png|apple-touch-icon\.png)$/.test(base)) return false;
   return /[-._][A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(base);
 }
 

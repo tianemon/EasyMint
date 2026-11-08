@@ -60,11 +60,11 @@ export function TurnView({ turn }: { turn: TurnData }): React.ReactElement {
       {mode === 'running' && (
         <>
           {turn.processCount > 0 && (
-            <button type="button" className="turn-fold-head" onClick={() => setExpanded((value) => !value)}>
-              <Icon name={toolIconName(turn.iconName)} size={14} />
+            <button type="button" className="turn-proc-head" onClick={() => setExpanded((value) => !value)}>
+              <Icon name={toolIconName(turn.iconName)} size={13} />
               <span className="turn-summary">{turn.summary}</span>
               <span className="turn-live-dot" />
-              <Icon name={expanded ? 'chevronDown' : 'chevron'} size={12} />
+              <Icon name={expanded ? 'chevronDown' : 'chevron'} size={11} />
             </button>
           )}
           {expanded && processBlock(true)}
@@ -73,11 +73,11 @@ export function TurnView({ turn }: { turn: TurnData }): React.ReactElement {
 
       {mode === 'folded' && (
         <>
+          {/* App 的折叠行只有「用时 X分钟 Y秒 ›」：过程摘要仅在运行中出现，
+              结束后不再重复（否则同一句话会在正文上方再占一条带底色的行） */}
           <button type="button" className="turn-fold-head" onClick={() => setExpanded((value) => !value)}>
-            <Icon name={toolIconName(turn.iconName)} size={14} />
-            <span className="turn-summary">{turn.summary}</span>
-            {duration && <span className="turn-duration">{duration}</span>}
-            <Icon name={expanded ? 'chevronDown' : 'chevron'} size={12} />
+            <span className="turn-duration">{duration}</span>
+            <Icon name={expanded ? 'chevronDown' : 'chevron'} size={11} />
           </button>
           {expanded && processBlock(true)}
         </>

@@ -61,9 +61,9 @@ test('manifest：display / start_url / scope / id / icons 合法', () => {
     match(icon.src, /^\.\//, '把某个 icon.src 改成绝对 URL');
     must(icon.type === 'image/png', '把某个 icon.type 改掉');
     match(icon.sizes, /^\d+x\d+$/, '把某个 icon.sizes 改坏');
-    // 图标现在是满版的品牌图（四角已补底），不能声明 maskable——
-    // maskable 会让系统按圆形/圆角安全区裁剪，图标内容会被切掉一块。
-    must(icon.purpose === 'any', '把 purpose 改回 any maskable（满版图标会被裁）');
+    // 满版品牌图给 any；Android 主屏那套另给 maskable（同色底 + 78% 内容）。
+    // 两者不能合成 "any maskable"：同一个文件同时当满版和 maskable，安全区一裁就露馅。
+    must(icon.purpose === 'any' || icon.purpose === 'maskable', '把 purpose 改回 any maskable（满版图会被裁）');
   }
 });
 

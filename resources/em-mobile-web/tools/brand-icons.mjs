@@ -178,10 +178,42 @@ function resize({ width, height, data }, size) {
   return { width: size, height: size, data: out };
 }
 
+/**
+ * maskable：Android 会把主屏图标裁成圆形/圆角，安全区只有直径 80%。
+ * 不声明 maskable 时 Chrome 会自己垫一层白底再把整张图缩小一圈——那正是
+ * 「安卓主屏图标比 App 小一圈」的来源。这里把整张图缩到 78% 铺在同色底上：
+ * mark 落在安全区内，四角是纯背景色，被裁掉也看不出接缝。
+ */
+function maskable(icon, size, scale = 0.78) {
+  const canvas = Buffer.alloc(size * size * 4);
+  const [r, g, b] = [icon.data[0], icon.data[1], icon.data[2]];
+  for (let i = 0; i < size * size; i += 1) {
+    canvas[i * 4] = r; canvas[i * 4 + 1] = g; canvas[i * 4 + 2] = b; canvas[i * 4 + 3] = 255;
+  }
+  const inner = Math.round(size * scale);
+  const art = resize(icon, inner);
+  const offset = Math.floor((size - inner) / 2);
+  for (let y = 0; y < inner; y += 1) {
+    for (let x = 0; x < inner; x += 1) {
+      const src = (y * inner + x) * 4;
+      const dst = ((y + offset) * size + (x + offset)) * 4;
+      canvas[dst] = art.data[src];
+      canvas[dst + 1] = art.data[src + 1];
+      canvas[dst + 2] = art.data[src + 2];
+      canvas[dst + 3] = 255;
+    }
+  }
+  return canvas;
+}
+
 const source = decodePng(readFileSync(SOURCE));
 const flat = flattenCorners(source);
 for (const [name, size] of [['apple-touch-icon.png', 180], ['icon-192.png', 192], ['icon-512.png', 512]]) {
   const scaled = resize(flat, size);
   writeFileSync(path.join(outDir, name), encodePng(size, size, scaled.data));
   console.log(`${name} ${size}x${size}`);
+}
+for (const [name, size] of [['maskable-192.png', 192], ['maskable-512.png', 512]]) {
+  writeFileSync(path.join(outDir, name), encodePng(size, size, maskable(flat, size)));
+  console.log(`${name} ${size}x${size} (maskable)`);
 }

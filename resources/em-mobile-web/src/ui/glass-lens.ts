@@ -88,6 +88,10 @@ export function ensureLensDefs(): void {
  */
 export function supportsLens(): boolean {
   if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+  // Android 不做分层：那边「父层 overflow:hidden+圆角 → 子层 backdrop-filter」这条路径
+  // 在部分机器上不合成，表现是输入卡完全没有磨砂。Android 直接走整块模糊（.glass-liquid.is-blur），
+  // 少一点边缘位移，换来两端观感一致。
+  if (typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)) return false;
   const url = CSS.supports('backdrop-filter', `url(#${LENS_FILTER_ID})`)
     || CSS.supports('-webkit-backdrop-filter', `url(#${LENS_FILTER_ID})`);
   // backdrop-filter 整体不可用时页面会挂 glass-fallback，此时不应启用折射。
