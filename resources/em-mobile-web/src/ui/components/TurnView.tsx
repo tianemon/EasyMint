@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ProcessItem, TurnPiece, TurnView as TurnData } from '../../core/turns';
 import { formatTurnDuration, turnMode } from '../../core/turns';
 import { formatUsage } from '../../core/messages';
-import { Icon, toolIconName } from './icons';
+import { Icon, ToolIcon } from './icons';
 import { ToolCard } from './ToolCard';
 import { MarkdownView } from './markdown/MarkdownView';
 
@@ -61,7 +61,7 @@ export function TurnView({ turn }: { turn: TurnData }): React.ReactElement {
         <>
           {turn.processCount > 0 && (
             <button type="button" className="turn-proc-head" onClick={() => setExpanded((value) => !value)}>
-              <Icon name={toolIconName(turn.iconName)} size={13} />
+              <ToolIcon name={turn.iconName} size={13} />
               <span className="turn-summary">{turn.summary}</span>
               <span className="turn-live-dot" />
               <Icon name={expanded ? 'chevronDown' : 'chevron'} size={11} />

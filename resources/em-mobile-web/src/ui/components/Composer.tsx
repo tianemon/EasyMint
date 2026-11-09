@@ -5,7 +5,7 @@ import type { AttachmentKind, DraftAttachment } from '../../core/attachments';
 import type { ComposerControl } from '../../core/types';
 import { THINKING_LABELS } from '../../core/thinking';
 import { Glass } from './Glass';
-import { ComposerIcon, Icon, SendIcon, SpinIcon, iconSize } from './icons';
+import { AttachmentKindIcon, ComposerIcon, Icon, SendIcon, SpinIcon, iconSize } from './icons';
 
 export type ComposerProps = {
   draft: string;
@@ -152,7 +152,7 @@ export function Composer(props: ComposerProps): React.ReactElement {
               <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none"
                 stroke="rgba(185, 193, 191, .62)" strokeWidth={RING_STROKE} />
               <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none"
-                stroke="var(--accent)" strokeWidth={RING_STROKE} strokeLinecap="round"
+                stroke="#16a34a" strokeWidth={RING_STROKE} strokeLinecap="round"
                 strokeDasharray={RING_CIRCUMFERENCE}
                 strokeDashoffset={contextPercent === null ? RING_CIRCUMFERENCE : RING_CIRCUMFERENCE * (1 - contextPercent / 100)} />
             </svg>
@@ -171,7 +171,7 @@ export function Composer(props: ComposerProps): React.ReactElement {
             {ATTACHMENT_OPTIONS.map(([kind, label]) => (
               <button key={kind} type="button" className="composer-attachment-option"
                 onClick={() => { onControlChange(null); onPickAttachments(kind); }}>
-                <Icon name={kind} size={15} />
+                <AttachmentKindIcon kind={kind} />
                 <span>{label}</span>
               </button>
             ))}
