@@ -71,7 +71,7 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .glass-frosted { background: var(--glass-fill-strong);
   border-color: var(--glass-rim);
   border-color: color-mix(in srgb, var(--glass-rim) 50%, transparent); }
-.glass-frosted.is-blur { backdrop-filter: blur(8px) saturate(1.1);  }
+.glass-frosted.is-blur { backdrop-filter: blur(6px) saturate(1.1);  }
 /* rim="none"：整条磨砂标题栏不画光学边与高光 */
 .glass.rim-none { border-color: transparent; }
 .glass.rim-none::before, .glass.rim-none::after { display: none; }

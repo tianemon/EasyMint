@@ -8,7 +8,7 @@ test('production frosted CSS retains the standard property alongside the Safari 
   const css=readdirSync(assets).filter(f=>f.endsWith('.css')).map(f=>readFileSync(path.join(assets,f),'utf8')).join('\n');
   const rule=css.match(/\.glass-frosted\.is-blur\{([^}]+)\}/)?.[1];
   assert.ok(rule,'缺少实际磨砂样式');
-  assert.match(rule,/blur\(8px\)/,'所有磨砂应统一为 8px');
+  assert.match(rule,/blur\(6px\)/,'所有磨砂应统一为 6px');
   assert.doesNotMatch(css,/is-blur-tuned/,'不应存在单独覆盖的模糊强度');
   assert.match(rule,/(?<!-)backdrop-filter:/,'压缩后丢失标准属性，Chromium 磨砂会失效');
   assert.match(rule,/-webkit-backdrop-filter:/,'缺少旧版 Safari 兼容属性');
