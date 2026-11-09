@@ -19,6 +19,9 @@ export function deviceNameFromUserAgent(userAgent: string, platformHint?: string
 }
 
 function platformName(ua: string, hint?: string): string {
+  // 鸿蒙必须先判：鸿蒙 2–4 的 UA 里同时有 Android 与 HarmonyOS/HMSCore（当时电脑上就会显示成安卓），
+  // 鸿蒙 5 NEXT 换成 ArkWeb（OpenHarmony + ArkWeb，没有 Android 字样）。
+  if (/HarmonyOS|OpenHarmony|ArkWeb|HMSCore/i.test(ua)) return '鸿蒙';
   // 先把 iPadOS 的「桌面模式」认出来：它的 UA 长成 Macintosh，但触点数 > 1
   if (/iPad/.test(ua) || (/Macintosh/.test(ua) && isIPadOS())) return 'iPad';
   if (/iPhone|iPod/.test(ua)) return 'iPhone';

@@ -63,7 +63,7 @@ export function ChatScreen({ title, messages, pendingAsk, onAnswerSubmit,
         <MessageList messages={messages} running={running} tail={tail}
           // 顶部留白 = 标题栏 54 + 状态栏（页面已铺到屏幕顶，标题栏玻璃从 y=0 开始）
           askId={pendingAsk?.requestId} bottomInset={floatingHeight}
-          topInset="calc(54px + env(safe-area-inset-top))"
+          topInset="calc(54px + var(--safe-top, env(safe-area-inset-top)))"
           statusText={running ? mintStatus : ''} statusIcon={mintIcon} />
         <div className="chat-fade" aria-hidden="true" />
       </div>

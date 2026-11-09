@@ -9,6 +9,14 @@ const desktopVersion = (JSON.parse(
   readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
 ) as { version?: string }).version ?? '0.0.0';
 
+/** 构建标记：手机端「设置 → 关于」直接读它，用来确认手机跑的是哪一次构建（排除缓存/旧包）。 */
+const buildStamp = (() => {
+  const now = new Date();
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} `
+    + `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+})();
+
 // 网络不可用时 @noble/ciphers / @noble/curves 从手机 App 仓库 vendor 到本项目，
 // 用 alias 指向本地副本（版本锁 2.4.0，与桌面端 remote-crypto 字节级一致）。
 const useVendor = existsSync(`${vendorNoble}/ciphers`) && existsSync(`${vendorNoble}/curves`);
@@ -22,7 +30,7 @@ const alias: Record<string, string> = useVendor
 
 export default defineConfig({
   base: './',
-  define: { __EM_VERSION__: JSON.stringify(desktopVersion) },
+  define: { __EM_VERSION__: JSON.stringify(desktopVersion), __EM_BUILD__: JSON.stringify(buildStamp) },
   // 产物全部落到 dist/，桌面端 extraResources 直接映射该目录（契约 C1）。
   build: {
     outDir: 'dist',

@@ -1,8 +1,33 @@
 import { createRoot } from 'react-dom/client';
 import App from './ui/App';
 import { detectPlatform } from './core/platform';
+import { BUILD_STAMP } from './core/build-info';
 import './styles/tokens.css';
 import './styles/app.css';
+
+/** 构建标记也挂到 <html>，远程调试/排查「手机跑的是哪一次构建」时不用点进设置页。 */
+document.documentElement.dataset.build = BUILD_STAMP;
+
+/**
+ * 顶部安全区兜底：刘海机在主屏 web app 里 `env(safe-area-inset-top)` 正常是 47/59，
+ * 但个别启动路径（从主屏恢复、旧版 WebKit、某些套壳浏览器）会返回 0 —— 那时标题栏直接
+ * 顶到状态栏下面，观感就是「返回按钮被上方的东西盖住、顶部一片渐隐」。
+ * 这里量一次真实值：真的取不到才用 47 兜底，取到就什么都不做（不改现有布局）。
+ */
+function syncSafeTop(): void {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top);'
+    + 'visibility:hidden;pointer-events:none';
+  document.body.appendChild(probe);
+  const inset = probe.getBoundingClientRect().height;
+  probe.remove();
+  if (inset > 0) return;
+  const standalone = (window.matchMedia?.('(display-mode: standalone)').matches ?? false)
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const notched = /iPhone|iPod/.test(navigator.userAgent) && window.screen.height >= 780;
+  if (standalone && notched) document.documentElement.style.setProperty('--safe-top', '47px');
+}
+syncSafeTop();
 
 /**
  * 平台标记仅用于视口与安装指引；各平台统一使用浏览器磨砂

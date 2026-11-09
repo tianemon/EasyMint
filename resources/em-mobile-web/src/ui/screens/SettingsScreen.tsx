@@ -24,8 +24,6 @@ export function SettingsScreen({ device, connection, themeMode, onThemeMode,
   const status = connection === 'connected' ? '已连接' : connection === 'connecting' ? '正在连接' : '未连接';
   const dot = connection === 'connected' ? ' is-on' : connection === 'connecting' ? ' is-pending' : '';
   const ip = device?.addresses.find((address) => /^\d+\./.test(address)) ?? device?.addresses[0];
-
-
   return (
     <div className="screen">
       <Header title={t('app.settings')} onBack={onBack} />

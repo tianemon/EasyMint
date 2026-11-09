@@ -29,7 +29,7 @@ export function PairRequestModal(): JSX.Element | null {
 
   return (
     <Modal overlayClassName="bg-black/40 modal-overlay" overlayClose={false} onClose={() => void rejectPair()}>
-      <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card" style={{ width: 380 }}>
+      <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card overflow-hidden" style={{ width: 380 }}>
         <div className="px-6 pt-5 pb-2 bg-[var(--color-surface-alt)]">
           <h2 className="text-base font-semibold text-text-primary">{uiText("ui.PairRequestModal.connectionRequest")}</h2>
         </div>

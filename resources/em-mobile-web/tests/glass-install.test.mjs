@@ -98,6 +98,12 @@ test('main.tsx：visualViewport 同时监听 resize 与 scroll', () => {
   match(main, /window\.addEventListener\('resize'/, '删掉 window.resize 兜底');
 });
 
+test('构建标记：手机能自证跑的是哪一次构建', () => {
+  // 网页由桌面端静态托管，改完重新 build 就换包；但主屏 web app 是恢复式启动，
+  // 不重新加载文档时看起来就像「改了没生效」。没有这个标记，只能靠猜。
+  match(read('vite.config.ts'), /__EM_BUILD__/, '删掉构建标记注入');
+  match(main, /dataset\.build\s*=/, '删掉 <html data-build>（远程排查时读不到）');
+});
 
 test('平台适配：data-platform 标记 + iOS 高度 + 安卓/鸿蒙输入卡材质', () => {
   // 少了这个标记，iOS 的 100vh 与安卓的材质都不会生效（两端继续按同一套走）
@@ -111,7 +117,11 @@ test('平台适配：data-platform 标记 + iOS 高度 + 安卓/鸿蒙输入卡�
   noMatch(glass, /supportsLens/, '不应恢复按 UA 禁用材质');
   // 顶部渐隐的 mask 会把标题栏里那截正文抹掉，iOS 模糊后按钮跟着忽明忽暗 —— 已经删掉，别加回来
   noMatch(css, /\.message-scroll\s*\{[^}]*mask-image/, '给消息滚动区加回顶部渐隐 mask（iOS 上按钮会忽明忽暗）');
-
+  // 顶部安全区兜底：env() 取不到时（主屏恢复/套壳浏览器）标题栏会顶到状态栏下面，
+  // 观感就是「返回按钮被盖住」。CSS 侧必须走可覆盖变量，兜底才有地方写。
+  match(css, /\.chat-topbar\s*\{[^}]*padding-top:\s*var\(--safe-top, env\(safe-area-inset-top\)\)/,
+    '标题栏 padding-top 改回裸 env(safe-area-inset-top)（兜底失效）');
+  match(main, /syncSafeTop/, '删掉顶部安全区兜底');
 });
 
 test('设置关于只显示版本号', () => {

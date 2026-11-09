@@ -51,9 +51,9 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
   border-radius: var(--radius-lg); padding: var(--s2) var(--s3); font-size: var(--fs-xs); margin-top: var(--s3); }
 
 /* ── Header：左右各固定 88，标题居中（照 App Header） ── */
-.header { flex: 0 0 auto; height: calc(54px + var(--header-safe-top, env(safe-area-inset-top)));
+.header { flex: 0 0 auto; height: calc(54px + var(--header-safe-top, var(--safe-top, env(safe-area-inset-top))));
   display: flex; align-items: center;
-  padding: var(--header-safe-top, env(safe-area-inset-top)) var(--chat-inset) 0; background: transparent; }
+  padding: var(--header-safe-top, var(--safe-top, env(safe-area-inset-top))) var(--chat-inset) 0; background: transparent; }
 /* 外层容器已经留过状态栏高度（聊天页标题栏、输出查看页整屏） */
 .chat-topbar .header, .shell-page .header { --header-safe-top: 0px; }
 .header-side { display: flex; align-items: center; width: 88px; min-width: 0; flex: 0 0 88px; }
@@ -247,10 +247,15 @@ html[data-theme="light"] .composer-glass.has-fine-contour::before {
     color-mix(in srgb, var(--ambient-base) 5%, transparent) 30%,
     color-mix(in srgb, var(--ambient-base) 95%, transparent) 100%); }
 /* 标题栏：整条磨砂玻璃铺满 topBar（含状态栏那条），透明 Header 叠在下方 */
-.chat-topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding-top: env(safe-area-inset-top); }
+.chat-topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  padding-top: var(--safe-top, env(safe-area-inset-top)); }
 .chat-topbar-glass { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .chat-topbar .header { position: relative; z-index: 1; }
-.chat-topbar-fill { position: absolute; inset: 0; border-radius: 0; }
+.chat-topbar-fill { position: absolute; inset: 0; border-radius: 0;
+  /* 标题栏不能铺 --glass-fill-strong（浅色 66% 白）：那是一块白纱，按钮等于坐在纱上，
+     下方正文一滚，整条栏的亮度跟着变——观感就是「按钮被渐隐盖住」。
+     改成 --glass-fill（浅 28% / 深 10%）+ 模糊，接近 iOS 系统工具栏的材质。 */
+  background: var(--glass-fill); }
 .chat-floating { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column;
   padding-bottom: 0; }
 .message-area { height: 100%; position: relative; }
@@ -604,7 +609,7 @@ html[data-theme="light"] .composer-glass.has-fine-contour::before {
 
 /* Shell 输出页：整屏面板（pageSheet 的浏览器等价物），自带环境层 */
 .shell-page { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
-  padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+  padding-top: var(--safe-top, env(safe-area-inset-top)); padding-bottom: env(safe-area-inset-bottom);
   background: var(--ambient-base); animation: slide-up .22s ease; }
 .shell-page .ambient { z-index: 0; }
 .shell-page-content { position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; flex-direction: column; }
