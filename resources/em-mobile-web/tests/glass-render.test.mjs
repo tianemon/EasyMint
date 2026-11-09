@@ -76,7 +76,7 @@ test('scrolling list used directly as source keeps mirror positions in scroll co
  scroller.append(...column.children);column.remove();scroller.scrollTop=400;
  const stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();
  const viewport=f.surface.querySelector('.liquid-dom-viewport'),row=viewport.querySelector('[data-index="11"]');
- assert.ok(row);assert.equal(row.style.top,'1100px');assert.match(viewport.firstElementChild.style.transform,/-400px/);
+ assert.ok(row);assert.equal(row.style.top,'1100px');assert.equal(viewport.firstElementChild.style.top,'0px');assert.match(viewport.firstElementChild.style.transform,/-400px/);
  scroller.scrollTop=500;scroller.dispatchEvent(new f.state.Event('scroll'));f.flush();
- assert.ok(viewport.querySelector('[data-index="12"]'));stop();
+ assert.ok(viewport.querySelector('[data-index="12"]'));assert.equal(viewport.firstElementChild.style.top,'0px');assert.match(viewport.firstElementChild.style.transform,/-500px/);stop();
 });

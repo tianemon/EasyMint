@@ -190,7 +190,7 @@ class MirrorGroup {
       if (!source || !sourceRect || !scrollRect || !scroller) { state.viewport.style.display = 'none'; continue; }
       updateStyles(state.viewport, { display: 'block', left: `${scrollRect.left - rootRect.left}px`, top: `${scrollRect.top - rootRect.top}px`, width: `${scroller.clientWidth}px`, height: `${scroller.clientHeight}px` });
       if (state.column.className !== source.className) state.column.className = source.className;
-      updateStyles(state.column, { position: 'absolute', display: 'block', flex: 'none', minHeight: '0', padding: '0', margin: '0', overflow: 'visible', width: `${sourceRect.width}px`, height: `${source.scrollHeight}px`, left: `${sourceRect.left - scrollRect.left + scroller.scrollLeft}px`, top: `${sourceRect.top - scrollRect.top + scroller.scrollTop}px`, transform: `translate(${-scroller.scrollLeft}px,${-scroller.scrollTop}px)` });
+      updateStyles(state.column, { position: 'absolute', display: 'block', flex: 'none', minHeight: '0', padding: '0', margin: '0', overflow: 'visible', width: `${sourceRect.width}px`, height: `${source.scrollHeight}px`, left: `${source === scroller ? 0 : sourceRect.left - scrollRect.left + scroller.scrollLeft}px`, top: `${source === scroller ? 0 : sourceRect.top - scrollRect.top + scroller.scrollTop}px`, transform: `translate(${-scroller.scrollLeft}px,${-scroller.scrollTop}px)` });
       const active = new Set<HTMLElement>();
       for (const item of this.items) {
         const top = sourceRect.top + item.y - (source === scroller ? scroller.scrollTop : 0);
