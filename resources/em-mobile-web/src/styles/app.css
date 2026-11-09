@@ -207,18 +207,16 @@ html[data-theme="light"] .composer-glass.has-fine-contour::after {
 html[data-theme="light"] .composer-glass.has-fine-contour::before {
   content: ''; position: absolute; z-index: 2; top: 0; bottom: 0;
   left: calc(var(--glass-radius) + 2px); right: calc(var(--glass-radius) + 2px); pointer-events: none;
-  background: linear-gradient(to bottom, rgba(255,255,255,.96) 0, rgba(255,255,255,.72) 1px,
-    rgba(255,255,255,.20) 3px, transparent 7px, transparent calc(100% - 7px),
-    rgba(255,255,255,.20) calc(100% - 3px), rgba(255,255,255,.72) calc(100% - 1px), rgba(255,255,255,.96) 100%);
+  background: linear-gradient(to bottom, rgba(255,255,255,.96), rgba(255,255,255,.28) 3px, transparent 8px) top / 100% 8px no-repeat,
+    linear-gradient(to top, rgba(255,255,255,.96), rgba(255,255,255,.28) 3px, transparent 8px) bottom / 100% 8px no-repeat;
   -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
   mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
 @media (prefers-color-scheme: light) {
   html:not([data-theme]) .composer-glass.has-fine-contour::before {
     content: ''; position: absolute; z-index: 2; top: 0; bottom: 0;
     left: calc(var(--glass-radius) + 2px); right: calc(var(--glass-radius) + 2px); pointer-events: none;
-    background: linear-gradient(to bottom, rgba(255,255,255,.96) 0, rgba(255,255,255,.72) 1px,
-      rgba(255,255,255,.20) 3px, transparent 7px, transparent calc(100% - 7px),
-      rgba(255,255,255,.20) calc(100% - 3px), rgba(255,255,255,.72) calc(100% - 1px), rgba(255,255,255,.96) 100%);
+    background: linear-gradient(to bottom, rgba(255,255,255,.96), rgba(255,255,255,.28) 3px, transparent 8px) top / 100% 8px no-repeat,
+      linear-gradient(to top, rgba(255,255,255,.96), rgba(255,255,255,.28) 3px, transparent 8px) bottom / 100% 8px no-repeat;
     -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
     mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
 }
