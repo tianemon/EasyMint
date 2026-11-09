@@ -475,6 +475,7 @@ html[data-theme="light"] .composer-glass.has-fine-contour::before {
 .composer-wrap { flex: 0 0 auto; }
 .composer-card { position: relative; margin: 0 var(--chat-inset) 10px; padding: var(--s1); border-radius: 24px; }
 .composer-glass { position: absolute; inset: 0; z-index: 0; }
+.glass-frosted.is-blur.composer-glass { backdrop-filter: blur(12px) saturate(1.1); }
 /* 注意：这里**不能**给玻璃或它的祖先加 transform / will-change / filter —— 那会让内层
    backdrop-filter 只能采样到这一层自己的背景，模糊等于什么都没糊上。上一轮加的
    `transform: translateZ(0)` 就是反效果，已删。 */
