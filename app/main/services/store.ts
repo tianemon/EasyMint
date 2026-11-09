@@ -104,6 +104,8 @@ export interface Settings {
    * 默认关掉会表现为「手机突然连不上」。关闭时真正 close 监听，端口被释放。
    */
   mobileAppEnabled?: boolean;
+  /** 是否已关闭或使用过连接手机指引。 */
+  mobileConnectionGuideDismissed?: boolean;
   /** 手机 App 通道端口（默认 47778）。改端口后已配对的手机会连不上，需要重新配对。 */
   mobileAppPort?: number;
   /** 手机浏览器访问：静态 HTTP 服务开关（默认关闭，C5） */
@@ -324,6 +326,7 @@ export class Store {
       modelParamsMigrated: emData.modelParamsMigrated as boolean | undefined,
       modelIdentityMigrated: emData.modelIdentityMigrated as boolean | undefined,
       mobileAppEnabled: (emData.mobileAppEnabled as boolean) ?? true,
+      mobileConnectionGuideDismissed: emData.mobileConnectionGuideDismissed === true,
       mobileAppPort: (emData.mobileAppPort as number) ?? 47_778,
       mobileWebEnabled: (emData.mobileWebEnabled as boolean) ?? false,
       mobileWebPort: (emData.mobileWebPort as number) ?? 47_779,

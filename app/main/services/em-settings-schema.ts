@@ -97,6 +97,7 @@ export const EM_PATH = {
   providerLegacyIds: "providers.legacyIds",
   // ── mobileWeb（手机浏览器访问：静态 HTTP 服务开关与端口）──
   mobileAppEnabled: "mobileApp.enabled",
+  mobileConnectionGuideDismissed: "mobileApp.connectionGuideDismissed",
   mobileAppPort: "mobileApp.port",
   mobileWebEnabled: "mobileWeb.enabled",
   mobileWebPort: "mobileWeb.port",
@@ -143,6 +144,7 @@ export const SETTINGS_FIELDS = [
   [EM_PATH.skillsLearnEnabled, "learnEnabled"],
   [EM_PATH.skillsImportExternal, "importExternalSkills"],
   [EM_PATH.mobileAppEnabled, "mobileAppEnabled"],
+  [EM_PATH.mobileConnectionGuideDismissed, "mobileConnectionGuideDismissed"],
   [EM_PATH.mobileAppPort, "mobileAppPort"],
   [EM_PATH.mobileWebEnabled, "mobileWebEnabled"],
   [EM_PATH.mobileWebPort, "mobileWebPort"],

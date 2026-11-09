@@ -663,6 +663,7 @@ interface ElectronAPI {
       activeStatusGroupLight?: string;
       activeStatusGroupDark?: string;
       apiProviders?: import("@shared/platform-presets").ApiProvidersData;
+      mobileConnectionGuideDismissed?: boolean;
       mobileWebEnabled?: boolean;
       mobileWebPort?: number;
     }>;

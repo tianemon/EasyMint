@@ -529,15 +529,16 @@ html[data-platform="win32"] {
 .sb-drag-strip { height: 35px; flex-shrink: 0; position: relative; }
 /* One-time hint anchored above the toolbox entry. */
 .mobile-connection-guide { position: absolute; z-index: var(--z-index-float); bottom: 56px; right: 12px; width: 264px; max-width: calc(100% - 24px);
-  padding: 16px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface);
-  box-shadow: 0 12px 32px rgba(0,0,0,.16); color: var(--color-text-primary); }
+  padding: 14px; border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent); border-radius: var(--radius-lg);
+  box-shadow: 0 10px 28px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.14); color: var(--color-text-primary); }
 .mobile-connection-guide::after { content: ''; position: absolute; right: 47px; bottom: -6px; width: 10px; height: 10px;
-  transform: rotate(45deg); background: var(--color-surface); border-right: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+  transform: rotate(45deg); background: color-mix(in oklab, var(--glass-base, var(--color-surface-elevated)) 65%, transparent);
+  backdrop-filter: blur(20px); border-right: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent); }
 .mobile-connection-guide-title { padding-right: 24px; font-size: 14px; font-weight: 650; }
-.mobile-connection-guide p { margin: 7px 0 13px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.mobile-connection-guide p { margin: 6px 0 11px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
 .mobile-connection-guide-close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: var(--radius-lg); font-size: 19px; color: var(--color-text-muted); }
 .mobile-connection-guide-close:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
-.mobile-connection-guide-open { position: relative; z-index: 1; padding: 7px 12px; border-radius: var(--radius-lg); background: var(--color-accent); color: var(--color-text-inverse); font-size: 12px; font-weight: 600; }
+.mobile-connection-guide-open { position: relative; z-index: 1; padding: 5px 9px; border-radius: var(--radius-lg); background: var(--color-accent); color: var(--color-text-inverse); font-size: 11px; font-weight: 600; }
 
 /* 自绘窗口按钮容器：显式 no-drag（CSS 类比内联 style 更可靠，防止被下方拖拽区拦截点击） */
 .window-controls { -webkit-app-region: no-drag; }

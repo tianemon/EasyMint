@@ -95,3 +95,15 @@ describe("分组数组的落盘", () => {
     expect(saved.map((g: { id: string }) => g.id)).toEqual(["custom-1", "custom-2"]);
   });
 });
+
+
+it("连接手机指引状态落盘并在重启后保持", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-guide-")); dirs.push(dir);
+  const first = new Store(dir); expect(first.getSettings().mobileConnectionGuideDismissed).toBe(false);
+  first.saveSettings({ ...first.getSettings(), mobileConnectionGuideDismissed: true });
+  const second = new Store(dir); expect(second.getSettings().mobileConnectionGuideDismissed).toBe(true);
+  const disk = JSON.parse(fs.readFileSync(path.join(dir, "em-settings.json"), "utf8"));
+  expect(disk.mobileApp.connectionGuideDismissed).toBe(true);
+  second.saveSettings({ ...second.getSettings(), contextThreshold: 72 });
+  expect(new Store(dir).getSettings().mobileConnectionGuideDismissed).toBe(true);
+});

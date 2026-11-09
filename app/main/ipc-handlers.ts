@@ -800,6 +800,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     else if (key === "apiProviders") await config.saveProviders(value);
     else if (key === "chatThinkingLevel") await config.setThinkingLevel(value);
     else if (key === "model") await config.setDefaultModel(z.string().min(1).parse(value));
+    else if (key === "mobileConnectionGuideDismissed") {
+      const settings = store.getSettings();
+      settings.mobileConnectionGuideDismissed = z.boolean().parse(value);
+      store.saveSettings(settings);
+    }
     else {
       const settings = store.getSettings();
       (settings as unknown as Record<string, unknown>)[key] = value;
