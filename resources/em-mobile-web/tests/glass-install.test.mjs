@@ -66,11 +66,10 @@ test('manifest：display / start_url / scope / id / icons 合法', () => {
   }
 });
 
-test('DOM mirror keeps optical blur layered with refraction and preserves CSS fallback', () => {
-  match(css, /data-liquid-backend="dom-mirror"/, '移除 DOM 镜像材质样式');
+test('手机 Web 仅使用普通磨砂且保留降低透明度回退', () => {
+  match(css, /\.glass-frosted\.is-blur\s*\{[^}]*backdrop-filter:\s*blur/, '移除磨砂');
   match(css, /prefers-reduced-transparency/, '移除降低透明度回退');
-  match(glass, /registerLiquidGlass/, '移除镜像渲染器接线');
-  noMatch(glass, /supportsLens|applyLens|data-lens-band/, '重新使用旧的噪声折射路径');
+  noMatch(glass, /registerLiquidGlass|glass-dom-mirror/, '恢复液态渲染器');
 });
 
 test('tokens.css：四个变量块都补齐方向性暗线，且不再有环境细线变量', () => {
@@ -113,4 +112,18 @@ test('平台适配：data-platform 标记 + iOS 高度 + 安卓/鸿蒙输入卡�
   // 顶部渐隐的 mask 会把标题栏里那截正文抹掉，iOS 模糊后按钮跟着忽明忽暗 —— 已经删掉，别加回来
   noMatch(css, /\.message-scroll\s*\{[^}]*mask-image/, '给消息滚动区加回顶部渐隐 mask（iOS 上按钮会忽明忽暗）');
 
+});
+
+test('设置关于只显示版本号', () => {
+  const settings = read('src/ui/screens/SettingsScreen.tsx');
+  const about = settings.split('<div className="settings-group-label">关于</div>')[1]?.split('</Glass>')[0];
+  assert.ok(about); match(about, /__EM_VERSION__/, '缺少版本号');
+  noMatch(about, /BUILD_STAMP|毛玻璃|平台|构建|navigator\.userAgent/, '关于区出现版本号以外的调试信息');
+});
+
+test('设置和归档入口保留点击区域但不包玻璃容器', () => {
+  for (const [file, label] of [['src/ui/screens/HomeScreen.tsx', '设置'], ['src/ui/screens/SessionsScreen.tsx', '归档会话']]) {
+    const source = read(file); const button = source.match(new RegExp(`<button[^>]*aria-label="${label}"[\\s\\S]*?</button>`))?.[0];
+    assert.ok(button, `找不到${label}按钮`); match(button, /header-pill-hit/, '丢失点击区域'); noMatch(button, /<Glass/, '按钮仍包着玻璃容器');
+  }
 });

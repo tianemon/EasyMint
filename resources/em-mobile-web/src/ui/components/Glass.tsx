@@ -1,15 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { registerLiquidGlass } from '../glass-dom-mirror';
 import type { CSSProperties, ReactNode } from 'react';
 
 
-/** CSS.supports 不支持 backdrop-filter 时降级成半透明纯色，不残留失效材质。 */
-export const supportsBackdrop = typeof CSS !== 'undefined'
-  && typeof CSS.supports === 'function'
-  && (CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)'));
-
 type GlassProps = {
-  variant?: 'frosted' | 'liquid';
+  variant?: 'frosted';
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
@@ -28,26 +21,16 @@ type GlassProps = {
 export function Glass({
   variant = 'frosted', className = '', style, children, radius = 8, blur = true, intensity, elevated = false, rim = 'gradient',
 }: GlassProps): React.ReactElement {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const liquid = variant === 'liquid';
-  useEffect(() => {
-    if (!liquid || !rootRef.current) return;
-    return registerLiquidGlass(rootRef.current);
-  }, [liquid, blur]);
-
   const vars = { '--glass-radius': `${radius}px` } as CSSProperties;
   if (intensity !== undefined) (vars as Record<string, string>)['--glass-blur'] = `${Math.max(2, Math.round(intensity * 0.43))}px`;
   const tuned = blur && intensity !== undefined;
 
   return (
     <div
-      ref={rootRef}
-      data-liquid-glass={liquid ? "" : undefined}
-      data-liquid-blur={liquid ? (blur ? 2.5 : 0.2) : undefined}
-      className={`glass glass-${variant}${blur ? ' is-blur' : ''}${tuned ? ' is-blur-tuned' : ''}${elevated ? ' is-elevated' : ''}${rim === 'none' ? ' rim-none' : ''}${supportsBackdrop ? '' : ' glass-fallback'} ${className}`}
+      className={`glass glass-${variant}${blur ? ' is-blur' : ''}${tuned ? ' is-blur-tuned' : ''}${elevated ? ' is-elevated' : ''}${rim === 'none' ? ' rim-none' : ''} ${className}`}
       style={{ ...vars, ...style }}
     >
-      {liquid ? <div className="glass-content">{children}</div> : children}
+      {children}
     </div>
   );
 }

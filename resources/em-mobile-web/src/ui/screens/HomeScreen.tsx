@@ -32,9 +32,7 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
     <div className="screen">
       <Header title="设备" right={
         <button type="button" className="header-pill-hit" onClick={onOpenSettings} aria-label="设置">
-          <Glass variant="frosted" blur radius={13} className="header-pill">
-            <span className="header-pill-inner"><Icon name="settings" size={19} /></span>
-          </Glass>
+          <span className="header-pill-inner"><Icon name="settings" size={19} /></span>
         </button>
       } />
       <div className="screen-body home-body">
@@ -75,7 +73,7 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
       </div>
       {devices.length > 0 && (
         <button type="button" className="fab" onClick={onAddDevice} aria-label="添加设备">
-          <Glass variant="liquid" radius={29} className="fab-glass">
+          <Glass variant="frosted" radius={29} className="fab-glass">
             <span className="fab-inner"><Icon name="plus" size={22} /></span>
           </Glass>
         </button>

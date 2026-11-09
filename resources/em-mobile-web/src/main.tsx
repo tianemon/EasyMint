@@ -5,7 +5,7 @@ import './styles/tokens.css';
 import './styles/app.css';
 
 /**
- * 平台标记仅用于视口与安装指引；液态玻璃统一使用实时 DOM 镜像，磨砂在折射滤镜内部叠加
+ * 平台标记仅用于视口与安装指引；各平台统一使用浏览器磨砂
  * （Safari 与 Chrome 报的能力几乎一样）。
  *  - ios：主屏 standalone 首帧的 100dvh 会偏小一圈（底部留黑边，滑动一次才补齐，
  *    不滚动的页面永远补不上），要用 100vh；

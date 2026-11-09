@@ -1701,13 +1701,12 @@
         "resources/visual-design/liquid-template-preset.json",
         "resources/visual-design/liquid-app-preset.json"
       ],
-      "mobileWebRenderer": "resources/em-mobile-web/src/ui/glass-dom-mirror.ts",
-      "mobileWebOptics": "app/shared/visual-design/liquid-dom-optics.mjs",
       "approvedDemos": "design-assets/labs/liquid-glass",
       "previewCommand": "node scripts/preview-liquid-glass.mjs",
       "nativeParity": false,
       "mobileWebBusinessDeviceAcceptance": "pending",
-      "blurComposition": "Backdrop blur before liquid refraction; foreground controls stay clear"
+      "blurComposition": "Backdrop blur before liquid refraction; foreground controls stay clear",
+      "mobileWebMaterial": "frosted-only"
     },
     "appearanceOptionSizing": "Matched triggers and option tiles",
     "motionScope": "Keep current entry unchanged. Future motion studies should be peer templates, not per-style variants.",

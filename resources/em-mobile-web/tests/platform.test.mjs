@@ -19,7 +19,7 @@ const UA = {
   windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
 };
 
-test('detectPlatform：iOS 走 100vh + 分层折射', () => {
+test('detectPlatform：iOS 视口适配', () => {
   assert.equal(detectPlatform(UA.iosSafari), 'ios', '破坏后应失败：iPhone Safari 认成桌面端（高度会退回 dvh）');
   assert.equal(detectPlatform(UA.iosChrome), 'ios', '破坏后应失败：iOS Chrome（CriOS）漏判');
   // iPadOS 13+ 默认桌面 UA，只能靠触点数区分
@@ -38,7 +38,7 @@ test('detectPlatform：安卓 / 鸿蒙各自归位，鸿蒙优先于安卓', () 
   assert.equal(detectPlatform(UA.windows), 'desktop', '破坏后应失败：Windows 被当成移动端');
 });
 
-test('材质口径：所有平台都允许使用统一渲染器', () => {
+test('材质口径：平台标记仅用于布局', () => {
   assert.equal(isMobileShell('android'), true, '破坏后应失败：安卓不再吃移动壳补丁');
   assert.equal(isMobileShell('harmony'), true, '破坏后应失败：鸿蒙不再吃移动壳补丁（输入卡会只剩染色）');
   assert.equal(isMobileShell('ios'), false, '破坏后应失败：iOS 被算进移动壳补丁');

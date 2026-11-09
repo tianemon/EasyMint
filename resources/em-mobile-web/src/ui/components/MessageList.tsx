@@ -140,7 +140,7 @@ export function MessageList({ messages, running, tail, askId, statusText, status
     <div className="message-area" style={vars}>
       <div className="message-scroll" ref={scrollRef} onScroll={onScroll}>
         <div className="message-column">
-          {rows.map((row) => <div className="msg-row" data-liquid-row="" key={row.key}><Row row={row} /></div>)}
+          {rows.map((row) => <div className="msg-row" key={row.key}><Row row={row} /></div>)}
           <div className="message-tail">
             {tail}
             {showStatus && <MintStatus text={statusText!} icon={statusIcon} />}

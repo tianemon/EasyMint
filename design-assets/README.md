@@ -137,7 +137,7 @@
 
 ## 当前液态玻璃入口
 
-已确认的 WebGL、DOM 镜像及 Android 参数对照演示统一位于 `design-assets/labs/liquid-glass/`；生成命令为 `node scripts/preview-liquid-glass.mjs`。正式模板继续使用共享 WebGL 材质，手机 Web 使用实时 DOM 镜像。被替代的比较实验和生成脚本已移除。
+已确认的 WebGL、DOM 镜像及 Android 参数对照演示统一位于 `design-assets/labs/liquid-glass/`；生成命令为 `node scripts/preview-liquid-glass.mjs`。正式模板继续使用共享 WebGL 材质，手机 Web 统一使用普通磨砂。被替代的比较实验和生成脚本已移除。
 
 ## 2026-10-24：从组件目录改为完整场景
 

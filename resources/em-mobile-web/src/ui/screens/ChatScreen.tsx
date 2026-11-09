@@ -10,7 +10,6 @@ import type { ComposerProps } from '../components/Composer';
 import { AskCard } from '../components/AskCard';
 import { BackgroundPills } from '../components/BackgroundPills';
 import { Glass } from '../components/Glass';
-import { GlassDiagnostics } from '../components/GlassDiagnostics';
 
 export type ChatShell = { id: string; command: string };
 
@@ -76,7 +75,6 @@ export function ChatScreen({ title, messages, pendingAsk, onAnswerSubmit,
         <Header title={title} onBack={onBack} />
       </div>
 
-      <GlassDiagnostics />
       <div className="chat-floating" ref={floatingRef}>
         <BackgroundPills shells={backgroundShells} agents={backgroundAgents}
           onOpenShellOutput={onOpenShellOutput} onStopShell={onStopShell} onStopAgent={onStopAgent} />
