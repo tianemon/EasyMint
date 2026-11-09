@@ -70,7 +70,7 @@ export function ChatScreen({ title, messages, pendingAsk, onAnswerSubmit,
 
       <div className="chat-topbar">
         <div className="chat-topbar-glass" aria-hidden="true">
-          <Glass blur radius={0} intensity={42} elevated={false} rim="none" className="chat-topbar-fill" />
+          <Glass blur radius={0} elevated={false} rim="none" className="chat-topbar-fill" />
         </div>
         <Header title={title} onBack={onBack} />
       </div>

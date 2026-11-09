@@ -12,7 +12,7 @@ export function ArchiveSheet({ visible, sessions, onClose, onRestore }: {
   if (!visible) return null;
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <Glass variant="frosted" radius={24} blur intensity={44} className="archive-sheet">
+      <Glass variant="frosted" radius={24} blur className="archive-sheet">
         <div className="archive-sheet-inner" onClick={(event) => event.stopPropagation()}>
           <div className="sheet-grip" />
           <div className="archive-head">

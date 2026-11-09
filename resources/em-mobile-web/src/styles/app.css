@@ -71,9 +71,7 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .glass-frosted { background: var(--glass-fill-strong);
   border-color: var(--glass-rim);
   border-color: color-mix(in srgb, var(--glass-rim) 50%, transparent); }
-.glass-frosted.is-blur { backdrop-filter: blur(18px) saturate(1.1);  }
-/* App 的 intensity 口径：换算成 CSS px（42 ≈ 18px），只影响显式传 intensity 的实例 */
-.glass-frosted.is-blur.is-blur-tuned { backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.1);  }
+.glass-frosted.is-blur { backdrop-filter: blur(8px) saturate(1.1);  }
 /* rim="none"：整条磨砂标题栏不画光学边与高光 */
 .glass.rim-none { border-color: transparent; }
 .glass.rim-none::before, .glass.rim-none::after { display: none; }
@@ -475,7 +473,6 @@ html[data-theme="light"] .composer-glass.has-fine-contour::before {
 .composer-wrap { flex: 0 0 auto; }
 .composer-card { position: relative; margin: 0 var(--chat-inset) 10px; padding: var(--s1); border-radius: 24px; }
 .composer-glass { position: absolute; inset: 0; z-index: 0; }
-.glass-frosted.is-blur.composer-glass { backdrop-filter: blur(8px) saturate(1.1); }
 /* 注意：这里**不能**给玻璃或它的祖先加 transform / will-change / filter —— 那会让内层
    backdrop-filter 只能采样到这一层自己的背景，模糊等于什么都没糊上。上一轮加的
    `transform: translateZ(0)` 就是反效果，已删。 */
