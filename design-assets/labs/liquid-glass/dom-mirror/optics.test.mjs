@@ -32,3 +32,13 @@ test('refraction tapers into the stationary face and zero gain disables all offs
 test('8-bit map centering compensation removes its half-unit neutral bias',()=>{
  const scale=31,neutral=128,offset=scale*(neutral/255-.5)-scale/510;near(offset,0);
 });
+
+test('accepted contour keeps the middle clear with horizontal light and lateral dark edges',async()=>{
+ const {renderContour}=await import('../../../../app/shared/visual-design/liquid-dom-optics.mjs');let image;
+ const canvas={width:0,height:0,getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(value){image=value}})};
+ renderContour(canvas,100,60,16,{resolution:2});
+ const pixel=(x,y)=>[...image.data.slice((y*canvas.width+x)*4,(y*canvas.width+x)*4+4)];
+ assert.equal(pixel(100,60)[3],0);
+ const top=pixel(100,1),side=pixel(1,60);
+ assert.ok(top[3]>0&&top[0]>200,'top should be bright');assert.ok(side[3]>0&&side[0]<30,'side should be dark');
+});

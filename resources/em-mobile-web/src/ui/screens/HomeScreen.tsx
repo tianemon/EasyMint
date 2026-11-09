@@ -73,7 +73,7 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
       </div>
       {devices.length > 0 && (
         <button type="button" className="fab" onClick={onAddDevice} aria-label="添加设备">
-          <Glass variant="frosted" radius={29} className="fab-glass">
+          <Glass variant="frosted" contour radius={29} className="fab-glass">
             <span className="fab-inner"><Icon name="plus" size={22} /></span>
           </Glass>
         </button>

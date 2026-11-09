@@ -42,7 +42,7 @@ export function SessionsScreen({ project, sessions, onOpenArchive, onBack, onSwi
       </div>
       {project && (
         <button type="button" className="fab" onClick={onNewSession} aria-label="新建会话">
-          <Glass variant="frosted" radius={29} className="fab-glass">
+          <Glass variant="frosted" contour radius={29} className="fab-glass">
             <span className="fab-inner"><Icon name="plusChat" size={24} /></span>
           </Glass>
         </button>

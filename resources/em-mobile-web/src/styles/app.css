@@ -189,11 +189,10 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .fab { position: absolute; right: 28px; bottom: calc(34px + env(safe-area-inset-bottom)); width: 58px; height: 58px; display: block; z-index: 5; }
 .fab-glass { width: 58px; height: 58px; }
 .fab-inner { display: grid; place-items: center; width: 100%; height: 100%; color: var(--floating-action-icon); }
-/* Subtle top and bottom highlights on the frosted composer and floating buttons. */
-.composer-glass::after, .fab-glass::after { content: ''; position: absolute; inset: 0; z-index: 1;
-  border: .5px solid transparent; border-top-color: rgba(255,255,255,.48);
-  border-bottom-color: rgba(255,255,255,.48); border-radius: inherit; pointer-events: none; }
-
+/* Match the accepted SDF contour while leaving the frosted backdrop live. */
+.glass.has-fine-contour { border: 0; }
+.glass-fine-contour { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+@media (prefers-reduced-transparency: reduce) { .glass-fine-contour { display: none; } }
 
 /* ── 图标动效 ─────────────────────────────────── */
 .spin-icon { animation: spin .9s linear infinite; color: var(--accent); flex: 0 0 auto; }
