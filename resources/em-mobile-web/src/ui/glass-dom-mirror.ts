@@ -179,7 +179,7 @@ class MirrorGroup {
       const blur = Number(state.node.dataset.liquidBlur ?? 2.5), key = [box.width, box.height, radius, blur, devicePixelRatio, mode].join(':');
       try {
         if (state.geometry !== key) {
-          if (mode !== 'frost') renderFilter(state.filter, box.width, box.height, radius, { blur }, { bands: 3, monochrome: mode === 'no-dispersion' });
+          if (mode !== 'frost') renderFilter(state.filter, box.width, box.height, radius, { blur }, { bands: 3, monochrome: mode === 'no-dispersion', edgeOnly: mode === 'edge' });
           state.optics.style.filter = mode === 'frost' ? `blur(${blur}px)` : `url("#${state.filter.id}")`;
           renderContour(state.contour, box.width, box.height, radius);
           state.geometry = key;

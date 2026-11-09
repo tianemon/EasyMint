@@ -60,7 +60,7 @@ export function sampleOffset(optic,band,gain=1) {
 /** Build geometry maps once per size/material change; scrolling only moves live DOM. */
 export function renderFilter(filter,w,h,r,settings={},options={}) {
   const pad=48,scale=options.resolution??Math.min(globalThis.devicePixelRatio||1,2),pw=Math.max(1,Math.round((w+pad*2)*scale)),ph=Math.max(1,Math.round((h+pad*2)*scale));
-  const bands=options.monochrome ? [{shift:0,weights:[1,1,1]}] : spectrum(options.bands??3),gain=options.gain??1,offsets=bands.map(()=>new Float32Array(pw*ph*2));let maxOffset=.01;
+  const bands=options.monochrome || options.edgeOnly ? [{shift:0,weights:[1,1,1]}] : spectrum(options.bands??3),gain=options.gain??1,offsets=bands.map(()=>new Float32Array(pw*ph*2));let maxOffset=.01;
   for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
     const px=(x+.5)*(w+pad*2)/pw-pad,py=(y+.5)*(h+pad*2)/ph-pad;
     if(surface(px,py,w,h,r).distance>1)continue;
@@ -75,6 +75,18 @@ export function renderFilter(filter,w,h,r,settings={},options={}) {
     const canvas=doc.createElement('canvas');canvas.width=pw;canvas.height=ph;const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas unavailable');
     const img=ctx.createImageData(pw,ph),data=offsets[b];for(let i=0;i<pw*ph;i++){img.data[i*4]=Math.round(128+data[i*2]/displacementScale*255);img.data[i*4+1]=Math.round(128+data[i*2+1]/displacementScale*255);img.data[i*4+2]=128;img.data[i*4+3]=255}ctx.putImageData(img,0,0);
     primitive('feImage',{href:canvas.toDataURL(),x:0,y:0,width:'100%',height:'100%',preserveAspectRatio:'none',result:'map'+b});
+    if (options.edgeOnly) {
+      // Only process the four interior edge bands. Distortion has already tapered
+      // to zero at the inner boundary, so the unchanged blurred center joins it.
+      const band=Math.min(h/2,Math.ceil(h*(settings.bevelRatio??defaults.bevelRatio)*(settings.width??defaults.width)*(settings.sideWidth??defaults.sideWidth))+3);
+      const horizontal=Math.min(w/2,band),vertical=Math.max(0,h-2*band);
+      const regions=[[pad,pad,w,band],[pad,pad+h-band,w,band],[pad,pad+band,horizontal,vertical],[pad+w-horizontal,pad+band,horizontal,vertical]];
+      const names=[];
+      regions.forEach(([x,y,width,height],i)=>{if(width<=0||height<=0)return;const name='edge'+i;names.push(name);primitive('feDisplacementMap',{in:'centered',in2:'map'+b,scale:displacementScale,xChannelSelector:'R',yChannelSelector:'G',x,y,width,height,result:name,'color-interpolation-filters':'sRGB'});});
+      const merge=primitive('feMerge',{'color-interpolation-filters':'sRGB'});
+      for(const name of ['softBackdrop',...names]){const node=doc.createElementNS('http://www.w3.org/2000/svg','feMergeNode');node.setAttribute('in',name);merge.append(node)}
+      return;
+    }
     primitive('feDisplacementMap',{in:'centered',in2:'map'+b,scale:displacementScale,xChannelSelector:'R',yChannelSelector:'G',result:'bent'+b,'color-interpolation-filters':'sRGB'});
     const [red,green,blue]=band.weights;primitive('feColorMatrix',{in:'bent'+b,type:'matrix',values:`${red} 0 0 0 0  0 ${green} 0 0 0  0 0 ${blue} 0 0  0 0 0 1 0`,result:'weighted'+b,'color-interpolation-filters':bands.length===3?'sRGB':'linearRGB'});
     if(b)primitive('feComposite',{in:b===1?'weighted0':'sum'+(b-1),in2:'weighted'+b,operator:'arithmetic',k1:0,k2:1,k3:1,k4:0,result:'sum'+b,'color-interpolation-filters':bands.length===3?'sRGB':'linearRGB'});

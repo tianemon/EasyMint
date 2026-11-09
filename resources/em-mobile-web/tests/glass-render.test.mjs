@@ -86,10 +86,12 @@ test('diagnostic modes switch the actual optical pipeline and stop updates when 
  const layer=f.surface.querySelector('.liquid-dom-optics'),counts=f.state.renders.length;
  f.root.dataset.glassDiagnosticMode='no-dispersion';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
  assert.equal(f.state.renders.at(-1)[5].monochrome,true);assert.equal(f.state.renders.length,counts+1);
+ f.root.dataset.glassDiagnosticMode='edge';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
+ assert.equal(f.state.renders.at(-1)[5].edgeOnly,true);
  f.root.dataset.glassDiagnosticMode='frost';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
- assert.match(layer.style.filter,/blur/);assert.equal(f.state.renders.length,counts+1);
+ assert.match(layer.style.filter,/blur/);assert.equal(f.state.renders.length,counts+2);
  f.root.dataset.glassDiagnosticMode='off';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
- assert.equal(f.state.renders.length,counts+1);
+ assert.equal(f.state.renders.length,counts+2);
  f.root.dataset.glassDiagnosticMode='full';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
  assert.match(layer.style.filter,/url/);assert.equal(f.state.renders.at(-1)[5].monochrome,false);stop();
 });
@@ -104,4 +106,13 @@ test('diagnostic samples are emitted only while collection is active',()=>{
  const stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();assert.equal(samples.length,0);
  f.root.dataset.glassDiagnosticActive='true';const scroller=f.root.querySelector('.message-scroll');scroller.scrollTop=300;scroller.dispatchEvent(new f.state.Event('scroll'));f.flush();
  assert.equal(samples.length,1);assert.equal(samples[0].rows,30);assert.ok(samples[0].mirrored>0);stop();
+});
+
+test('edge mode confines displacement to four bands and keeps the blurred center',async()=>{
+ const {renderFilter}=await import('../../../app/shared/visual-design/liquid-dom-optics.mjs');const w=new Window(),filter=w.document.createElementNS('http://www.w3.org/2000/svg','filter');
+ w.HTMLCanvasElement.prototype.getContext=()=>({createImageData:(width,height)=>({data:new Uint8ClampedArray(width*height*4)}),putImageData(){}});w.HTMLCanvasElement.prototype.toDataURL=()=> 'data:image/png;base64,';
+ renderFilter(filter,358,126,24,{blur:2.5},{edgeOnly:true,resolution:.25});
+ const passes=[...filter.querySelectorAll('feDisplacementMap')];assert.equal(passes.length,4);
+ for(const p of passes){const x=Number(p.getAttribute('x')),y=Number(p.getAttribute('y')),width=Number(p.getAttribute('width')),height=Number(p.getAttribute('height'));assert.ok(!(x<227&&x+width>227&&y<111&&y+height>111),'center must not be displaced');}
+ const merge=filter.querySelector('feMerge');assert.equal(merge.firstElementChild.getAttribute('in'),'softBackdrop');assert.equal(merge.children.length,5);
 });
