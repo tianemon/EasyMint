@@ -203,7 +203,26 @@ html[data-theme="light"] .composer-glass.has-fine-contour::after {
   html:not([data-theme]) .composer-glass.has-fine-contour::after {
     box-shadow: inset 0 3px 7px -3px rgba(255,255,255,.72), inset 0 -3px 6px -3px rgba(255,255,255,.58); }
 }
-@media (prefers-reduced-transparency: reduce) { .glass-fine-contour { display: none; } }
+/* Only the horizontal straight edges receive extra light; sides stay untouched. */
+html[data-theme="light"] .composer-glass.has-fine-contour::before {
+  content: ''; position: absolute; z-index: 2; top: 0; bottom: 0;
+  left: calc(var(--glass-radius) + 2px); right: calc(var(--glass-radius) + 2px); pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255,255,255,.96) 0, rgba(255,255,255,.72) 1px,
+    rgba(255,255,255,.20) 3px, transparent 7px, transparent calc(100% - 7px),
+    rgba(255,255,255,.20) calc(100% - 3px), rgba(255,255,255,.72) calc(100% - 1px), rgba(255,255,255,.96) 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+@media (prefers-color-scheme: light) {
+  html:not([data-theme]) .composer-glass.has-fine-contour::before {
+    content: ''; position: absolute; z-index: 2; top: 0; bottom: 0;
+    left: calc(var(--glass-radius) + 2px); right: calc(var(--glass-radius) + 2px); pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255,255,255,.96) 0, rgba(255,255,255,.72) 1px,
+      rgba(255,255,255,.20) 3px, transparent 7px, transparent calc(100% - 7px),
+      rgba(255,255,255,.20) calc(100% - 3px), rgba(255,255,255,.72) calc(100% - 1px), rgba(255,255,255,.96) 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+}
+@media (prefers-reduced-transparency: reduce) { .glass-fine-contour, .composer-glass.has-fine-contour::before { display: none; } }
 
 /* ── 图标动效 ─────────────────────────────────── */
 .spin-icon { animation: spin .9s linear infinite; color: var(--accent); flex: 0 0 auto; }
