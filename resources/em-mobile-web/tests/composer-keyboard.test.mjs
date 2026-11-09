@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import vm from 'node:vm';
+import {fileURLToPath} from 'node:url';
+const bundle=await build({entryPoints:[fileURLToPath(new URL('../src/ui/composer-keyboard.ts',import.meta.url))],bundle:true,write:false,format:'iife',globalName:'keyboard'});
+const state={};vm.createContext(state);vm.runInContext(bundle.outputFiles[0].text,state);
+const enter={key:'Enter',shiftKey:false,isComposing:false,keyCode:13};
+test('phone return inserts a newline instead of sending',()=>{for(const platform of ['ios','android','harmony'])assert.equal(state.keyboard.shouldSendOnEnter(enter,platform),false)});
+test('desktop Enter sends, while shift and composition remain editable',()=>{assert.equal(state.keyboard.shouldSendOnEnter(enter,'desktop'),true);for(const change of [{shiftKey:true},{isComposing:true},{keyCode:229},{key:'a'}])assert.equal(state.keyboard.shouldSendOnEnter({...enter,...change},'desktop'),false)});

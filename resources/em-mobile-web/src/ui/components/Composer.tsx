@@ -5,6 +5,8 @@ import type { AttachmentKind, DraftAttachment } from '../../core/attachments';
 import type { ComposerControl } from '../../core/types';
 import { THINKING_LABELS } from '../../core/thinking';
 import { Glass } from './Glass';
+import { detectPlatform } from '../../core/platform';
+import { shouldSendOnEnter } from '../composer-keyboard';
 import { AttachmentKindIcon, ComposerIcon, Icon, SendIcon, SpinIcon, iconSize } from './icons';
 
 export type ComposerProps = {
@@ -111,11 +113,12 @@ export function Composer(props: ComposerProps): React.ReactElement {
           className="composer-input"
           value={draft}
           rows={1}
+          enterKeyHint="enter"
           placeholder={compacting ? '正在整理上下文，请稍候' : running ? '输入以引导当前任务…' : '给 EasyMint 发送消息…'}
           disabled={compacting}
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            if (shouldSendOnEnter({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.nativeEvent.keyCode }, detectPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0))) {
               event.preventDefault();
               submit();
             }
