@@ -470,7 +470,7 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .composer-toolbar { min-height: 38px; padding: 0 var(--s1); display: flex; align-items: center; gap: 5px; }
 .composer-tool { width: 26px; height: 26px; border-radius: var(--radius-lg); display: grid; place-items: center;
   background: transparent; color: var(--text-muted); flex: 0 0 auto; }
-.composer-tool.is-active { background: var(--surface-hover); color: var(--text-secondary); }
+.composer-tool.is-active { background: rgba(65, 174, 145, .18); color: var(--text-primary); }
 .composer-tool.is-danger { color: var(--permission-on); }
 .composer-spacer { flex: 1; }
 .composer-context { width: 30px; height: 30px; margin-left: 2px; display: grid; place-items: center; flex: 0 0 auto; }
