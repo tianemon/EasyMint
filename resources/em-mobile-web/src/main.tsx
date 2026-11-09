@@ -23,18 +23,35 @@ document.documentElement.dataset.platform = detectPlatform(
  * 安装到主屏后又因为那次采样停留在旧值而一直短 48px。没有键盘时交给 CSS
  * （iOS 100vh / 其它 dvh，见 app.css 的 html[data-platform] 规则）。
  */
+let restingViewportHeight = window.visualViewport?.height ?? window.innerHeight;
+let restingViewportWidth = window.visualViewport?.width ?? window.innerWidth;
 function syncViewport(): void {
   const viewport = window.visualViewport;
   const root = document.documentElement;
-  const keyboard = !!viewport && window.innerHeight - viewport.height > 120;
-  if (keyboard && viewport) root.style.setProperty('--vvh', `${viewport.height}px`);
-  else root.style.removeProperty('--vvh');
+  const focused = document.activeElement instanceof HTMLElement
+    && (document.activeElement.matches('input, textarea, [contenteditable="true"]'));
+  if (viewport && Math.abs(viewport.width - restingViewportWidth) > 80) {
+    restingViewportWidth = viewport.width;
+    restingViewportHeight = viewport.height;
+  }
+  if (viewport && !focused) restingViewportHeight = viewport.height;
+  const keyboard = !!viewport && (window.innerHeight - viewport.height > 120
+    || (focused && restingViewportHeight - viewport.height > 120));
+  if (keyboard && viewport) {
+    root.style.setProperty('--vvh', `${viewport.height}px`);
+    root.dataset.keyboard = 'open';
+  } else {
+    root.style.removeProperty('--vvh');
+    delete root.dataset.keyboard;
+  }
 }
 syncViewport();
 window.visualViewport?.addEventListener('resize', syncViewport);
 // 软键盘弹出时页面可能被平移而只触发 scroll，同样重算 --vvh，避免输入卡错位。
 window.visualViewport?.addEventListener('scroll', syncViewport);
 window.addEventListener('resize', syncViewport);
+document.addEventListener('focusin', syncViewport);
+document.addEventListener('focusout', syncViewport);
 
 const root = document.getElementById('root');
 if (root) createRoot(root).render(<App />);

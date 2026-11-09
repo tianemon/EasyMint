@@ -150,7 +150,7 @@ export function Composer(props: ComposerProps): React.ReactElement {
             onClick={() => setShowContextTip((value) => !value)}>
             <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} className="composer-context-ring">
               <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none"
-                stroke="rgba(65, 174, 145, .48)" strokeWidth={RING_STROKE} />
+                stroke="rgba(185, 193, 191, .62)" strokeWidth={RING_STROKE} />
               <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none"
                 stroke="var(--accent)" strokeWidth={RING_STROKE} strokeLinecap="round"
                 strokeDasharray={RING_CIRCUMFERENCE}
