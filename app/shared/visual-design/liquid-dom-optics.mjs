@@ -60,7 +60,7 @@ export function sampleOffset(optic,band,gain=1) {
 /** Build geometry maps once per size/material change; scrolling only moves live DOM. */
 export function renderFilter(filter,w,h,r,settings={},options={}) {
   const pad=48,scale=options.resolution??Math.min(globalThis.devicePixelRatio||1,2),pw=Math.max(1,Math.round((w+pad*2)*scale)),ph=Math.max(1,Math.round((h+pad*2)*scale));
-  const bands=spectrum(options.bands??3),gain=options.gain??1,offsets=bands.map(()=>new Float32Array(pw*ph*2));let maxOffset=.01;
+  const bands=options.monochrome ? [{shift:0,weights:[1,1,1]}] : spectrum(options.bands??3),gain=options.gain??1,offsets=bands.map(()=>new Float32Array(pw*ph*2));let maxOffset=.01;
   for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
     const px=(x+.5)*(w+pad*2)/pw-pad,py=(y+.5)*(h+pad*2)/ph-pad;
     if(surface(px,py,w,h,r).distance>1)continue;

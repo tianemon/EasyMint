@@ -656,3 +656,17 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Temporary performance comparison, isolated from the sampled background. */
+.glass-diagnostics { position: absolute; z-index: 12; right: 12px; top: calc(var(--safe-top, env(safe-area-inset-top)) + 58px); font-size: 12px; color: var(--text-primary); }
+.glass-diagnostics-toggle, .glass-diagnostics-panel { background: var(--card); border: 1px solid var(--glass-rim); border-radius: 12px; box-shadow: var(--shadow-sm); }
+.glass-diagnostics-toggle { padding: 6px 10px; float: right; }
+.glass-diagnostics-panel { clear: both; width: min(340px, calc(100vw - 24px)); padding: 12px; line-height: 1.6; }
+.glass-diagnostics-modes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.glass-diagnostics-modes button, .glass-diagnostics-actions button { background: var(--surface-alt); border-radius: 8px; padding: 5px 8px; }
+.glass-diagnostics-modes button[aria-pressed="true"] { background: var(--accent); color: white; }
+.glass-diagnostics-panel small { display: block; color: var(--text-muted); margin-top: 6px; }
+.glass-diagnostics-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.glass-diagnostics-panel textarea { width: 100%; height: 120px; margin-top: 8px; background: var(--surface-alt); color: var(--text-primary); }
+.app[data-glass-diagnostic-mode="off"] .composer-glass { background: transparent !important; border-color: transparent !important; backdrop-filter: none !important; box-shadow: none !important; }
+.app[data-glass-diagnostic-mode="off"] .composer-glass::before, .app[data-glass-diagnostic-mode="off"] .composer-glass::after, .app[data-glass-diagnostic-mode="off"] .composer-glass .liquid-dom-layer { display: none !important; }

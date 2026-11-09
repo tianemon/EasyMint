@@ -14,10 +14,10 @@ function fixture() {
  Object.defineProperties(window.HTMLElement.prototype,{clientWidth:{get(){return this.classList.contains('glass-liquid')?358:390}},clientHeight:{get(){return this.classList.contains('glass-liquid')?98:800}}});
  window.HTMLElement.prototype.getBoundingClientRect=function(){const isGlass=this.classList.contains('glass-liquid'),column=this.classList.contains('message-column'),row=this.hasAttribute('data-index'),scroll=document.querySelector('.message-scroll').scrollTop,top=isGlass?700:row?Number(this.dataset.index)*100-scroll:column?-scroll:0,height=isGlass?98:row?100:column?3000:800,width=isGlass?358:390;return {left:0,right:width,top,bottom:top+height,width,height,x:0,y:top,toJSON(){}}};
  Object.defineProperty(document,'fonts',{value:{ready:{then(){}}}});
- const state={window,document,console,renders:[],devicePixelRatio:2,requestAnimationFrame:cb=>{frames.set(++next,cb);return next},cancelAnimationFrame:id=>frames.delete(id),getComputedStyle:window.getComputedStyle.bind(window),
+ const state={window,document,console,renders:[],devicePixelRatio:2,performance:{now:()=>5},requestAnimationFrame:cb=>{frames.set(++next,cb);return next},cancelAnimationFrame:id=>frames.delete(id),getComputedStyle:window.getComputedStyle.bind(window),
   ResizeObserver:class{observe(){}unobserve(){}disconnect(){}},MutationObserver:class{constructor(cb){this.cb=cb;observers.push(this)}observe(){}disconnect(){this.disconnected=true}},
   matchMedia:query=>{if(!media.has(query))media.set(query,{matches:false,listeners:new Set(),addEventListener(_,cb){this.listeners.add(cb)},removeEventListener(_,cb){this.listeners.delete(cb)}});return media.get(query)}};
- for(const key of ['Element','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Event'])state[key]=window[key];
+ for(const key of ['Element','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Event','CustomEvent'])state[key]=window[key];
  vm.createContext(state);vm.runInContext(result.outputFiles[0].text,state);
  const root=document.querySelector('.app'),surface=root.querySelector('.glass-liquid');
  return {state,document,root,surface,observers,media,flush(){const jobs=[...frames.values()];frames.clear();jobs.forEach(cb=>cb())}};
@@ -79,4 +79,29 @@ test('scrolling list used directly as source keeps mirror positions in scroll co
  assert.ok(row);assert.equal(row.style.top,'1100px');assert.equal(viewport.firstElementChild.style.top,'0px');assert.match(viewport.firstElementChild.style.transform,/-400px/);
  scroller.scrollTop=500;scroller.dispatchEvent(new f.state.Event('scroll'));f.flush();
  assert.ok(viewport.querySelector('[data-index="12"]'));assert.equal(viewport.firstElementChild.style.top,'0px');assert.match(viewport.firstElementChild.style.transform,/-500px/);stop();
+});
+
+test('diagnostic modes switch the actual optical pipeline and stop updates when off',()=>{
+ const f=fixture(),stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();
+ const layer=f.surface.querySelector('.liquid-dom-optics'),counts=f.state.renders.length;
+ f.root.dataset.glassDiagnosticMode='no-dispersion';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
+ assert.equal(f.state.renders.at(-1)[5].monochrome,true);assert.equal(f.state.renders.length,counts+1);
+ f.root.dataset.glassDiagnosticMode='frost';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
+ assert.match(layer.style.filter,/blur/);assert.equal(f.state.renders.length,counts+1);
+ f.root.dataset.glassDiagnosticMode='off';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
+ assert.equal(f.state.renders.length,counts+1);
+ f.root.dataset.glassDiagnosticMode='full';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
+ assert.match(layer.style.filter,/url/);assert.equal(f.state.renders.at(-1)[5].monochrome,false);stop();
+});
+test('single-path refraction actually renders one displacement',async()=>{
+ const {renderFilter}=await import('../../../app/shared/visual-design/liquid-dom-optics.mjs');const w=new Window(),filter=w.document.createElementNS('http://www.w3.org/2000/svg','filter');
+ w.HTMLCanvasElement.prototype.getContext=()=>({createImageData:(width,height)=>({data:new Uint8ClampedArray(width*height*4)}),putImageData(){}});w.HTMLCanvasElement.prototype.toDataURL=()=> 'data:image/png;base64,';
+ renderFilter(filter,58,58,29,{blur:2.5},{monochrome:true,resolution:.25});assert.equal(filter.querySelectorAll('feDisplacementMap').length,1);
+});
+
+test('diagnostic samples are emitted only while collection is active',()=>{
+ const f=fixture(),samples=[];f.root.addEventListener('liquid-diagnostic-sample',e=>samples.push(e.detail));
+ const stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();assert.equal(samples.length,0);
+ f.root.dataset.glassDiagnosticActive='true';const scroller=f.root.querySelector('.message-scroll');scroller.scrollTop=300;scroller.dispatchEvent(new f.state.Event('scroll'));f.flush();
+ assert.equal(samples.length,1);assert.equal(samples[0].rows,30);assert.ok(samples[0].mirrored>0);stop();
 });

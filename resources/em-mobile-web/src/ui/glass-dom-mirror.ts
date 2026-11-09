@@ -69,7 +69,7 @@ class MirrorGroup {
     let affected = false;
     for (const record of records) {
       const element = record.target instanceof Element ? record.target : record.target.parentElement;
-      if (!element || element.closest('[data-liquid-mirror-layer],[data-liquid-glass]')) continue;
+      if (!element || element.closest('[data-liquid-mirror-layer],[data-liquid-glass],[data-glass-diagnostics]')) continue;
       if (element.closest('.ambient')) { this.ambientVersion++; affected = true; continue; }
       if (!this.source || !this.source.contains(element)) continue;
       const row = element.closest<HTMLElement>('[data-liquid-row]');
@@ -85,6 +85,7 @@ class MirrorGroup {
   private theme = new MutationObserver(() => { this.version++; this.ambientVersion++; this.schedule(); });
   private reduced = matchMedia('(prefers-reduced-transparency: reduce)');
   private scheme = matchMedia('(prefers-color-scheme: dark)');
+  private onDiagnosticMode = (): void => { for (const surface of this.surfaces.values()) surface.geometry = ''; this.schedule(); };
   private onPreference = (): void => { this.version++; this.schedule(); };
   private onScroll = (event: Event): void => {
     const target = event.target;
@@ -102,6 +103,7 @@ class MirrorGroup {
     this.theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
     this.reduced.addEventListener('change', this.onPreference);
     this.scheme.addEventListener('change', this.onPreference);
+    root.addEventListener('liquid-diagnostic-mode', this.onDiagnosticMode);
     root.addEventListener('scroll', this.onScroll, true);
     root.addEventListener('load', this.onLoad, true);
     window.addEventListener('resize', this.onLoad);
@@ -135,6 +137,7 @@ class MirrorGroup {
     if (this.surfaces.size) return false;
     cancelAnimationFrame(this.frame); this.resize.disconnect(); this.mutations.disconnect(); this.theme.disconnect();
     this.reduced.removeEventListener('change', this.onPreference); this.scheme.removeEventListener('change', this.onPreference);
+    this.root.removeEventListener('liquid-diagnostic-mode', this.onDiagnosticMode);
     this.root.removeEventListener('scroll', this.onScroll, true); this.root.removeEventListener('load', this.onLoad, true);
     window.removeEventListener('resize', this.onLoad); window.visualViewport?.removeEventListener('resize', this.onLoad);
     window.visualViewport?.removeEventListener('scroll', this.onLoad); document.removeEventListener('visibilitychange', this.onPreference);
@@ -145,6 +148,9 @@ class MirrorGroup {
   private update = (): void => {
     this.frame = 0;
     if (document.hidden) return;
+    const mode = this.root.dataset.glassDiagnosticMode || 'full';
+    if (mode === 'off') return;
+    const started = this.root.dataset.glassDiagnosticActive === 'true' ? performance.now() : 0;
     const reduced = this.reduced.matches;
     this.root.dataset.liquidBackend = reduced ? 'reduced-transparency' : 'dom-mirror';
     if (reduced) return;
@@ -170,10 +176,11 @@ class MirrorGroup {
     for (const state of this.surfaces.values()) {
       const box = state.node.getBoundingClientRect(); if (box.width < 1 || box.height < 1) continue;
       const radius = Math.min(parseFloat(getComputedStyle(state.node).borderTopLeftRadius) || 0, box.width / 2, box.height / 2);
-      const blur = Number(state.node.dataset.liquidBlur ?? 2.5), key = [box.width, box.height, radius, blur, devicePixelRatio].join(':');
+      const blur = Number(state.node.dataset.liquidBlur ?? 2.5), key = [box.width, box.height, radius, blur, devicePixelRatio, mode].join(':');
       try {
         if (state.geometry !== key) {
-          renderFilter(state.filter, box.width, box.height, radius, { blur }, { bands: 3 });
+          if (mode !== 'frost') renderFilter(state.filter, box.width, box.height, radius, { blur }, { bands: 3, monochrome: mode === 'no-dispersion' });
+          state.optics.style.filter = mode === 'frost' ? `blur(${blur}px)` : `url("#${state.filter.id}")`;
           renderContour(state.contour, box.width, box.height, radius);
           state.geometry = key;
         }
@@ -208,6 +215,7 @@ class MirrorGroup {
       }
       for (const [node, cached] of state.copies) if (!active.has(node)) { cached.node.remove(); state.copies.delete(node); }
     }
+    if (started) this.root.dispatchEvent(new CustomEvent('liquid-diagnostic-sample', { detail: { ms: performance.now() - started, rows: this.items.length, mirrored: [...this.surfaces.values()].reduce((n, surface) => n + surface.copies.size, 0) } }));
   };
 }
 export function registerLiquidGlass(surface: HTMLElement): () => void {
