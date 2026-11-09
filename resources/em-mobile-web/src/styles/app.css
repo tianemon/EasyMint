@@ -445,13 +445,7 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 
 /* ── 输入卡磨砂 ───────────────── */
 .composer-wrap { flex: 0 0 auto; }
-.composer-card { position: relative; margin: 0 var(--chat-inset) 26px; padding: var(--s1); border-radius: 24px; }
-/* iOS：Home 条本身已占 34，再叠 26 会比原生 App 高出一截；收到 12（合计 46）。
-   Android / 鸿蒙没有底部安全区，26 就是全部间距，不要动。 */
-@supports (-webkit-touch-callout: none) { .composer-card { margin-bottom: 12px; } }
-/* Keyboard already excludes the bottom system area; keep a small visual gap. */
-html[data-keyboard="open"] .chat-floating { padding-bottom: 0; }
-html[data-keyboard="open"] .composer-card { margin-bottom: 8px; }
+.composer-card { position: relative; margin: 0 var(--chat-inset) 12px; padding: var(--s1); border-radius: 24px; }
 .composer-glass { position: absolute; inset: 0; z-index: 0; }
 /* 注意：这里**不能**给玻璃或它的祖先加 transform / will-change / filter —— 那会让内层
    backdrop-filter 只能采样到这一层自己的背景，模糊等于什么都没糊上。上一轮加的
