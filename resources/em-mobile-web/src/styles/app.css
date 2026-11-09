@@ -226,7 +226,8 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .chat-topbar .header { position: relative; z-index: 1; }
 .chat-topbar-fill { position: absolute; inset: 0; border-radius: 0; }
 .chat-floating { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom); }
+  padding-bottom: 0; }
+.chat-floating:focus-within { padding-bottom: env(safe-area-inset-bottom); }
 .message-area { height: 100%; position: relative; }
 /* 这里曾经挂过一条「顶部渐隐」mask（transparent → 黑），用来化开压到标题栏下的正文。
    但 mask 是**整块滚动区**生效的：栏内那段被抹掉的正文正好在按钮下面，iOS 有 backdrop-filter
@@ -445,7 +446,8 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 
 /* ── 输入卡磨砂 ───────────────── */
 .composer-wrap { flex: 0 0 auto; }
-.composer-card { position: relative; margin: 0 var(--chat-inset) 12px; padding: var(--s1); border-radius: 24px; }
+.composer-card { position: relative; margin: 0 var(--chat-inset) 10px; padding: var(--s1); border-radius: 24px; }
+.chat-floating:focus-within .composer-card { margin-bottom: 12px; }
 .composer-glass { position: absolute; inset: 0; z-index: 0; }
 /* 注意：这里**不能**给玻璃或它的祖先加 transform / will-change / filter —— 那会让内层
    backdrop-filter 只能采样到这一层自己的背景，模糊等于什么都没糊上。上一轮加的
