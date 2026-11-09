@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const SOURCE = path.join(root, '..', '..', '..', 'EasyMintMobile', 'assets', 'brand', 'appicon.png');
+const SOURCE = path.join(root, 'assets', 'appicon.png');
 const outDir = path.join(root, 'public');
 mkdirSync(outDir, { recursive: true });
 

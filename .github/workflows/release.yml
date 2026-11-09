@@ -51,6 +51,11 @@ jobs:
           npm_config_registry: https://registry.npmjs.org/
           npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
 
+      - name: Install mobile Web dependencies
+        run: npm ci --prefix resources/em-mobile-web
+        env:
+          npm_config_registry: https://registry.npmjs.org/
+
       - name: Build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -87,6 +92,11 @@ jobs:
           npm_config_registry: https://registry.npmjs.org/
           npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
 
+      - name: Install mobile Web dependencies
+        run: npm ci --prefix resources/em-mobile-web
+        env:
+          npm_config_registry: https://registry.npmjs.org/
+
       - name: Build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -119,6 +129,11 @@ jobs:
         env:
           npm_config_registry: https://registry.npmjs.org/
           npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
+
+      - name: Install mobile Web dependencies
+        run: npm ci --prefix resources/em-mobile-web
+        env:
+          npm_config_registry: https://registry.npmjs.org/
 
       - name: Build
         env:

@@ -1,4 +1,3 @@
-import html2canvas from 'html2canvas';
 import { freezeCaptureScroll } from './liquid-capture-scroll';
 import { LIQUID_MATERIAL_CORE } from './liquid-material-source';
 import preset from '../../../resources/visual-design/liquid-template-preset.json';
@@ -204,6 +203,8 @@ export function mountLiquidWebGL(root: HTMLElement, options: { liveBackdrop?: bo
     const limit = gl!.getParameter(gl!.MAX_TEXTURE_SIZE) as number;
     const scale = Math.min(options.liveBackdrop ? 1 : dpr, limit / Math.max(width, height));
     try {
+      // html2canvas touches window.document at import time; load it only when capturing.
+      const { default: html2canvas } = await import('html2canvas');
       let image = await html2canvas(target, {
         backgroundColor: getComputedStyle(target.classList.contains('ios-player-sheet') ? target : root).backgroundColor,
         width, height, scale, logging: false, useCORS: true, foreignObjectRendering: true,
