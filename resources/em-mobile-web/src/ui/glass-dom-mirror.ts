@@ -5,7 +5,7 @@ const groups = new Map<HTMLElement, MirrorGroup>();
 let serial = 0;
 type Item = { node: HTMLElement; x: number; y: number; width: number; height: number };
 type Surface = {
-  node: HTMLElement; layer: HTMLDivElement; optics: HTMLDivElement; scene: HTMLDivElement;
+  node: HTMLElement; layer: HTMLDivElement; frost: HTMLDivElement; optics: HTMLDivElement; scene: HTMLDivElement;
   viewport: HTMLDivElement; column: HTMLElement; contour: HTMLCanvasElement;
   filter: SVGFilterElement; svg: SVGSVGElement; geometry: string;
   copies: Map<HTMLElement, { node: HTMLElement; version: number; rowVersion: number }>; ambientVersion: number;
@@ -113,6 +113,7 @@ class MirrorGroup {
     void document.fonts.ready.then(() => { if (this.surfaces.size) this.onLoad(new Event('fonts')); });
   }
   add(node: HTMLElement): void {
+    const frost = document.createElement('div'); frost.className = 'liquid-native-frost'; frost.setAttribute('aria-hidden', 'true');
     const layer = document.createElement('div'); layer.className = 'liquid-dom-layer';
     layer.dataset.liquidMirrorLayer = ''; layer.setAttribute('aria-hidden', 'true'); layer.inert = true;
     const optics = document.createElement('div'); optics.className = 'liquid-dom-optics';
@@ -126,13 +127,13 @@ class MirrorGroup {
     const defs = document.createElementNS(SVG_NS, 'defs'); const filter = document.createElementNS(SVG_NS, 'filter');
     filter.id = `em-dom-glass-${++serial}`;
     for (const [key, value] of Object.entries({ x: '0', y: '0', width: '100%', height: '100%', 'color-interpolation-filters': 'sRGB' })) filter.setAttribute(key, value);
-    defs.append(filter); svg.append(defs); layer.append(svg, optics, tint, contour); node.prepend(layer);
+    defs.append(filter); svg.append(defs); layer.append(svg, optics, tint, contour); node.prepend(frost, layer);
     optics.style.filter = `url("#${filter.id}")`;
-    this.surfaces.set(node, { node, layer, optics, scene, viewport, column, contour, filter, svg, geometry: '', copies: new Map(), ambientVersion: -1 });
+    this.surfaces.set(node, { node, layer, frost, optics, scene, viewport, column, contour, filter, svg, geometry: '', copies: new Map(), ambientVersion: -1 });
     this.resize.observe(node); this.layoutDirty = true; this.schedule();
   }
   remove(node: HTMLElement): boolean {
-    const state = this.surfaces.get(node); state?.layer.remove(); node.removeAttribute('data-liquid-ready');
+    const state = this.surfaces.get(node); state?.layer.remove(); state?.frost.remove(); node.removeAttribute('data-liquid-ready');
     this.resize.unobserve(node); this.surfaces.delete(node);
     if (this.surfaces.size) return false;
     cancelAnimationFrame(this.frame); this.resize.disconnect(); this.mutations.disconnect(); this.theme.disconnect();
@@ -179,7 +180,7 @@ class MirrorGroup {
       const blur = Number(state.node.dataset.liquidBlur ?? 2.5), key = [box.width, box.height, radius, blur, devicePixelRatio, mode].join(':');
       try {
         if (state.geometry !== key) {
-          if (mode !== 'frost') renderFilter(state.filter, box.width, box.height, radius, { blur }, { bands: 3, monochrome: mode === 'no-dispersion', edgeOnly: mode === 'edge' });
+          if (mode !== 'frost') renderFilter(state.filter, box.width, box.height, radius, { blur: mode === 'layered' ? 0 : blur }, { bands: 3, monochrome: mode === 'no-dispersion', edgeOnly: mode === 'edge' });
           state.optics.style.filter = mode === 'frost' ? `blur(${blur}px)` : `url("#${state.filter.id}")`;
           renderContour(state.contour, box.width, box.height, radius);
           state.geometry = key;

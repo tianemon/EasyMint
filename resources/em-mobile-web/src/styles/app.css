@@ -670,3 +670,8 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .glass-diagnostics-panel textarea { width: 100%; height: 120px; margin-top: 8px; background: var(--surface-alt); color: var(--text-primary); }
 .app[data-glass-diagnostic-mode="off"] .composer-glass { background: transparent !important; border-color: transparent !important; backdrop-filter: none !important; box-shadow: none !important; }
 .app[data-glass-diagnostic-mode="off"] .composer-glass::before, .app[data-glass-diagnostic-mode="off"] .composer-glass::after, .app[data-glass-diagnostic-mode="off"] .composer-glass .liquid-dom-layer { display: none !important; }
+
+/* Experimental iOS comparison: native backdrop blur beneath the complete optical mirror. */
+.liquid-native-frost { display: none; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.app[data-glass-diagnostic-mode="layered"] .composer-glass .liquid-native-frost { display: block; backdrop-filter: blur(10px) saturate(1.1); }
+.app[data-glass-diagnostic-mode="layered"] .composer-glass .liquid-dom-optics { opacity: .82; }

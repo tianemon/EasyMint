@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-type Mode = 'full' | 'no-dispersion' | 'edge' | 'frost' | 'off';
+type Mode = 'layered' | 'full' | 'no-dispersion' | 'edge' | 'frost' | 'off';
 type Sample = { ms: number; rows: number; mirrored: number };
-const options: Array<[Mode, string]> = [['full', '完整液态'], ['no-dispersion', '关闭色散'], ['edge', '边缘折射'], ['frost', '仅磨砂'], ['off', '关闭玻璃']];
+const options: Array<[Mode, string]> = [['full', '完整液态'], ['layered', '分层完整液态'], ['no-dispersion', '关闭色散'], ['edge', '边缘折射'], ['frost', '仅磨砂'], ['off', '关闭玻璃']];
 const empty = () => ({ fps: 0, low: 0, stalls: 0, avg: 0, max: 0, rows: 0, mirrored: 0, frames: 0, updates: 0 });
 
 /** Temporary local-only comparison tool; does not collect message contents. */

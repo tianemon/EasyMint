@@ -116,3 +116,11 @@ test('edge mode confines displacement to four bands and keeps the blurred center
  for(const p of passes){const x=Number(p.getAttribute('x')),y=Number(p.getAttribute('y')),width=Number(p.getAttribute('width')),height=Number(p.getAttribute('height'));assert.ok(!(x<227&&x+width>227&&y<111&&y+height>111),'center must not be displaced');}
  const merge=filter.querySelector('feMerge');assert.equal(merge.firstElementChild.getAttribute('in'),'softBackdrop');assert.equal(merge.children.length,5);
 });
+
+test('layered comparison preserves all color paths and cleans up its native blur layer',()=>{
+ const f=fixture(),stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();
+ assert.ok(f.surface.querySelector('.liquid-native-frost'));
+ f.root.dataset.glassDiagnosticMode='layered';f.root.dispatchEvent(new f.state.Event('liquid-diagnostic-mode'));f.flush();
+ const args=f.state.renders.at(-1);assert.equal(args[4].blur,0);assert.equal(args[5].monochrome,false);assert.equal(args[5].edgeOnly,false);
+ stop();assert.equal(f.surface.querySelector('.liquid-native-frost'),null);
+});
