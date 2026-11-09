@@ -494,9 +494,9 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .composer-check { color: var(--accent); }
 .composer-attachment-menu { margin: var(--s1); margin-top: 2px; display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; gap: 8px; }
 .composer-attachment-option { min-height: 44px; padding: 0 var(--s3); border-radius: var(--radius-lg);
-  border: 1px solid var(--border); background: var(--card); color: var(--text-primary); font-size: var(--fs-xs);
+  border: 0; background: transparent; color: var(--text-primary); font-size: var(--fs-xs);
   display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
-.composer-attachment-option:active { background: var(--surface-hover); }
+.composer-attachment-option:active { opacity: .6; }
 .composer-compact-mask { position: absolute; inset: 0; border-radius: 24px; background: var(--glass-fill-strong);
   display: flex; align-items: center; justify-content: center; gap: 8px; z-index: 4;
   color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 500; }
