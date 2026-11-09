@@ -1,290 +1,63 @@
-// 液态玻璃「原生近似」的真实浏览器像素验证。
-//
-// 不做 CSS.supports 语法检测就宣称效果成立：这里
-//  1. 用 esbuild 导入产物模块 src/ui/glass-lens.ts 的 LENS_FILTER_MARKUP / LENS_BACKDROP，
-//     保证「被测 SVG 滤镜」与「线上注入的滤镜」是同一份；
-//  2. 测试页直接内联 src/styles/tokens.css + app.css，复用真实线上 CSS 规则与真实 class 结构；
-//  3. 用本机 Chrome 无头分别截图「无 lens 层」「有 lens 层」「只有 blur 的 lens 层」三种状态，
-//     用 Node 内置 zlib 手写 PNG 解码，按与 team-lead 探针一致的判据逐像素比较：
-//     RGB 绝对差之和 > 12 记为变化，距卡片边 < 边缘带宽 + 2px 记 rim、其余记 center。
-//       - 核心断言：四条边缘带 vs 无 lens 层，rim 有显著差异、center 无差异；
-//       - 与「只有 blur」对照相比仍要有明显 rim 差异，证明 feDisplacementMap 位移确实生效，
-//         而不只是 backdrop-filter 里的 blur 带来的模糊（对照组只摘掉 url()，模糊量级与线上一致）。
-//  Chrome 不存在时明确 skip 并打印原因，不恒绿。
-
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
-import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { inflateSync } from 'node:zlib';
+import vm from 'node:vm';
 import { build } from 'esbuild';
-
-const root = fileURLToPath(new URL('..', import.meta.url));
-const CHROME = process.env.EM_CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const CHROME_MISSING = !existsSync(CHROME);
-const W = 360;
-const H = 260;
-
-// rim 判据区域必须跟着边缘带宽度走：带宽从 16 收到 10 后，仍按 28px 统计会把带外
-// 那圈「本来就不该变」的像素计入分母，比例被稀释成假阴性。
-const BAND_PX = Number((/--lens-band,\s*(\d+)px/.exec(readFileSync(path.join(root, 'src/styles/app.css'), 'utf8')) || [])[1] ?? 16);
-
-// ---- 最小 PNG 解码器：8bit RGB/RGBA，filter 0..4，纯 Node 内置 zlib ----
-function decodePng(buf) {
-  let p = 8;
-  let width = 0;
-  let height = 0;
-  let colorType = 0;
-  let bitDepth = 0;
-  const idat = [];
-  while (p < buf.length) {
-    const len = buf.readUInt32BE(p);
-    const type = buf.toString('ascii', p + 4, p + 8);
-    const data = buf.subarray(p + 8, p + 8 + len);
-    if (type === 'IHDR') {
-      width = data.readUInt32BE(0);
-      height = data.readUInt32BE(4);
-      bitDepth = data[8];
-      colorType = data[9];
-    } else if (type === 'IDAT') idat.push(data);
-    else if (type === 'IEND') break;
-    p += 12 + len;
-  }
-  const ch = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
-  if (!ch || bitDepth !== 8) throw new Error(`不支持的 PNG：colorType=${colorType} bitDepth=${bitDepth}`);
-  const raw = inflateSync(Buffer.concat(idat));
-  const stride = width * ch;
-  const out = Buffer.alloc(height * stride);
-  let rp = 0;
-  for (let y = 0; y < height; y += 1) {
-    const f = raw[rp++];
-    for (let x = 0; x < stride; x += 1) {
-      const v = raw[rp++];
-      const a = x >= ch ? out[y * stride + x - ch] : 0;
-      const b = y > 0 ? out[(y - 1) * stride + x] : 0;
-      const c = (x >= ch && y > 0) ? out[(y - 1) * stride + x - ch] : 0;
-      let r;
-      if (f === 0) r = v;
-      else if (f === 1) r = v + a;
-      else if (f === 2) r = v + b;
-      else if (f === 3) r = v + ((a + b) >> 1);
-      else {
-        const pa = Math.abs(b - c);
-        const pb = Math.abs(a - c);
-        const pc = Math.abs(a + b - 2 * c);
-        r = v + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
-      }
-      out[y * stride + x] = r & 255;
-    }
-  }
-  return { width, height, ch, data: out };
+import { Window } from 'happy-dom';
+import { fileURLToPath } from 'node:url';
+const result = await build({ entryPoints: [fileURLToPath(new URL('../src/ui/glass-dom-mirror.ts', import.meta.url))], bundle: true, write: false, format: 'iife', globalName: 'adapter', plugins: [{ name: 'geometry-stub', setup(b) {
+ b.onResolve({filter:/liquid-dom-optics\.mjs$/},()=>({path:'optics',namespace:'test'}));
+ b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export function renderFilter(...args){globalThis.renders.push(args)} export function renderContour(){}'}));
+} }] });
+function fixture() {
+ const window=new Window(),document=window.document,frames=new Map(),observers=[],media=new Map();let next=0;
+ document.body.innerHTML='<div class="app"><div class="ambient"><div class="ambient-green"></div></div><div class="message-scroll"><div class="message-column">'+Array.from({length:30},(_,i)=>`<div class="msg-row" data-index="${i}">message ${i}</div>`).join('')+'</div></div><div class="glass-liquid" data-liquid-glass data-liquid-blur="2.5" style="border-radius:24px"></div></div>';
+ Object.defineProperties(window.HTMLElement.prototype,{clientWidth:{get(){return this.classList.contains('glass-liquid')?358:390}},clientHeight:{get(){return this.classList.contains('glass-liquid')?98:800}}});
+ window.HTMLElement.prototype.getBoundingClientRect=function(){const isGlass=this.classList.contains('glass-liquid'),column=this.classList.contains('message-column'),row=this.hasAttribute('data-index'),scroll=document.querySelector('.message-scroll').scrollTop,top=isGlass?700:row?Number(this.dataset.index)*100-scroll:column?-scroll:0,height=isGlass?98:row?100:column?3000:800,width=isGlass?358:390;return {left:0,right:width,top,bottom:top+height,width,height,x:0,y:top,toJSON(){}}};
+ Object.defineProperty(document,'fonts',{value:{ready:{then(){}}}});
+ const state={window,document,console,renders:[],devicePixelRatio:2,requestAnimationFrame:cb=>{frames.set(++next,cb);return next},cancelAnimationFrame:id=>frames.delete(id),getComputedStyle:window.getComputedStyle.bind(window),
+  ResizeObserver:class{observe(){}unobserve(){}disconnect(){}},MutationObserver:class{constructor(cb){this.cb=cb;observers.push(this)}observe(){}disconnect(){this.disconnected=true}},
+  matchMedia:query=>{if(!media.has(query))media.set(query,{matches:false,listeners:new Set(),addEventListener(_,cb){this.listeners.add(cb)},removeEventListener(_,cb){this.listeners.delete(cb)}});return media.get(query)}};
+ for(const key of ['Element','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Event'])state[key]=window[key];
+ vm.createContext(state);vm.runInContext(result.outputFiles[0].text,state);
+ const root=document.querySelector('.app'),surface=root.querySelector('.glass-liquid');
+ return {state,document,root,surface,observers,media,flush(){const jobs=[...frames.values()];frames.clear();jobs.forEach(cb=>cb())}};
 }
-
-/**
- * 与 team-lead 探针一致的判据：卡片区域内逐像素算 RGB 绝对差之和 > 12 记为「变化」，
- * 距卡片边 < 带宽 + 2px 记 rim、其余记 center。核心证据是「rim 有显著差异、center 无差异」。
- */
-function rimCenterDiff(a, b) {
-  const card = { x0: 50, y0: 60, x1: 310, y1: 200 };
-  const rimWidth = BAND_PX + 2;
-  let rim = 0;
-  let center = 0;
-  let rimTotal = 0;
-  let centerTotal = 0;
-  for (let y = card.y0; y < card.y1; y += 1) {
-    for (let x = card.x0; x < card.x1; x += 1) {
-      const i = (y * a.width + x) * a.ch;
-      const d = Math.abs(a.data[i] - b.data[i])
-        + Math.abs(a.data[i + 1] - b.data[i + 1])
-        + Math.abs(a.data[i + 2] - b.data[i + 2]);
-      const dx = Math.min(x - card.x0, card.x1 - 1 - x);
-      const dy = Math.min(y - card.y0, card.y1 - 1 - y);
-      if (dx < rimWidth || dy < rimWidth) {
-        rimTotal += 1;
-        if (d > 12) rim += 1;
-      } else {
-        centerTotal += 1;
-        if (d > 12) center += 1;
-      }
-    }
-  }
-  return { rim, rimTotal, center, centerTotal };
-}
-
-async function loadShippedLens() {
-  const result = await build({
-    stdin: {
-      contents: `export { LENS_FILTER_MARKUP, LENS_FILTER_ID, LENS_BACKDROP } from './src/ui/glass-lens.ts';`,
-      resolveDir: root,
-      sourcefile: 'entry.ts',
-      loader: 'ts',
-    },
-    bundle: true,
-    format: 'esm',
-    platform: 'node',
-    write: false,
-    logLevel: 'silent',
-  });
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
-}
-
-// 测试页：真实线上 CSS（tokens + app.css）+ 真实线上 SVG filter 标记 + 真实线上 class 结构。
-// 只额外覆盖测试用的条纹背景与卡片几何，玻璃内部规则完全来自 app.css。
-function page(mode, lens) {
-  const tokens = readFileSync(path.join(root, 'src/styles/tokens.css'), 'utf8');
-  const app = readFileSync(path.join(root, 'src/styles/app.css'), 'utf8');
-  const lensValue = JSON.stringify(lens.LENS_BACKDROP);
-  // 对照组只去掉 url()，模糊与饱和必须与线上完全一致，否则「差异来自位移」这条判据不成立
-  const blurOnlyValue = JSON.stringify(lens.LENS_BACKDROP.replace(/url\([^)]*\)\s*/, ''));
-  const apply = {
-    // 无 lens 层：四条边缘带全隐藏（等价 Glass.tsx 不挂载折射层）
-    off: `bands.forEach(function(b){b.style.display='none';});`,
-    // 有 lens 层：与 applyLens() 一样用 CSSOM 给四条边缘带设置 backdrop-filter
-    on: `bands.forEach(function(b){b.style.backdropFilter=${lensValue};b.style.setProperty('-webkit-backdrop-filter',${lensValue});});`,
-    // 对照组：同样有 lens 层，但只有 blur/saturate、没有 url(#SVG) 位移
-    blur: `bands.forEach(function(b){b.style.backdropFilter=${blurOnlyValue};b.style.setProperty('-webkit-backdrop-filter',${blurOnlyValue});});`,
-  }[mode];
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-<style>${tokens}\n${app}</style>
-<style>
-  html,body,#root{margin:0;height:100%}
-  body{background:#fff}
-  .test-bg{position:absolute;inset:0;background:
-      repeating-linear-gradient(90deg,#111 0 3px,transparent 3px 26px),
-      repeating-linear-gradient(0deg,#0a0 0 1px,transparent 1px 22px)}
-  .test-bg b{display:block;padding-left:8px;font-size:18px;letter-spacing:2px;color:#c00;font-family:monospace}
-  /* 与 .composer-wrap 一致：position + z-index 的包裹层 */
-  .test-wrap{position:relative;z-index:1}
-  .glass.test-card{position:absolute;left:50px;top:60px;width:260px;height:140px;border-radius:24px}
-</style></head><body>
-<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>${lens.LENS_FILTER_MARKUP}</defs></svg>
-<div class="test-bg">
-  <b>ABCDEFGHIJ 0123456789</b><b>KLMNOPQRST UVWXYZABCD</b><b>EFGHIJKLMN OPQRSTUVWX</b>
-  <b>YZ01234567 89ABCDEFGH</b><b>IJKLMNOPQR STUVWXYZ01</b><b>23456789AB CDEFGHIJKL</b>
-</div>
-<div class="test-wrap">
-  <div class="glass glass-liquid has-lens test-card">
-    <div class="glass-frost" aria-hidden="true"></div>
-    <div class="glass-lens glass-lens-t" data-lens-band="" aria-hidden="true"></div>
-    <div class="glass-lens glass-lens-b" data-lens-band="" aria-hidden="true"></div>
-    <div class="glass-lens glass-lens-l" data-lens-band="" aria-hidden="true"></div>
-    <div class="glass-lens glass-lens-r" data-lens-band="" aria-hidden="true"></div>
-    <div class="glass-content"></div>
-  </div>
-</div>
-<script>
-var bands=Array.prototype.slice.call(document.querySelectorAll('[data-lens-band]'));
-var lensId=${JSON.stringify(lens.LENS_FILTER_ID)};
-void lensId;
-${apply}
-</script></body></html>`;
-}
-
-test('产物滤镜标记含真实折射原语（不依赖 Chrome，先证明测的是同一份滤镜）', async () => {
-  const lens = await loadShippedLens();
-  assert.match(lens.LENS_FILTER_MARKUP, /<filter id="em-liquid-lens"/, '缺少线上 filter id');
-  assert.match(lens.LENS_FILTER_MARKUP, /feTurbulence[^>]*fractalNoise/, '缺少 feTurbulence 噪声源');
-  assert.match(lens.LENS_FILTER_MARKUP, /feDisplacementMap[^>]*SourceGraphic/, '缺少 feDisplacementMap 位移');
-  assert.match(lens.LENS_FILTER_MARKUP, /xChannelSelector="R"/, '位移通道不对');
-  assert.match(lens.LENS_BACKDROP, /url\(#em-liquid-lens\)/, 'LENS_BACKDROP 没引用线上 filter');
-  assert.doesNotMatch(lens.LENS_FILTER_MARKUP, /feImage/, '不应使用 feImage / data URI');
+test('surfaces share observers; final unmount releases mirrors, listeners and backend',()=>{
+ const f=fixture(),other=f.surface.cloneNode();f.root.append(other);
+ const a=f.state.adapter.registerLiquidGlass(f.surface),b=f.state.adapter.registerLiquidGlass(other);f.flush();
+ assert.equal(f.observers.length,2);assert.equal(f.state.renders.length,2);assert.equal(f.root.querySelectorAll('[data-liquid-mirror-layer]').length,2);
+ a();assert.equal(f.root.dataset.liquidBackend,'dom-mirror');b();assert.equal(f.root.dataset.liquidBackend,undefined);assert.equal(f.root.querySelectorAll('[data-liquid-mirror-layer]').length,0);assert.ok(f.observers.every(o=>o.disconnected));
+});
+test('scroll moves a bounded live mirror without rebuilding geometry or capturing DOM',()=>{
+ const f=fixture(),stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();const calls=f.state.renders.length;
+ const scroller=f.root.querySelector('.message-scroll');scroller.scrollTop=400;scroller.dispatchEvent(new f.state.Event('scroll'));f.flush();
+ const viewport=f.surface.querySelector('.liquid-dom-viewport');assert.match(viewport.firstElementChild.style.transform,/-400px/);assert.ok(viewport.querySelectorAll('.msg-row').length<8);assert.match(viewport.textContent,/message 11/);assert.equal(f.state.renders.length,calls);
+ const layer=f.surface.querySelector('[data-liquid-mirror-layer]');assert.equal(layer.getAttribute('aria-hidden'),'true');assert.equal(layer.inert,true);stop();
+});
+test('streaming edits replace mirrored text while the same optical map is reused',()=>{
+ const f=fixture(),stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();const calls=f.state.renders.length;
+ const row=f.root.querySelector('[data-index="7"]');row.textContent='updated streaming text';f.observers[0].cb([{target:row.firstChild,type:'characterData'}]);f.flush();
+ assert.match(f.surface.textContent,/updated streaming text/);assert.equal(f.state.renders.length,calls);stop();
+});
+test('reduced transparency disables the optical backend and can be changed live',()=>{
+ const f=fixture(),stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();const media=f.media.get('(prefers-reduced-transparency: reduce)');media.matches=true;media.listeners.forEach(cb=>cb());f.flush();assert.equal(f.root.dataset.liquidBackend,'reduced-transparency');media.matches=false;media.listeners.forEach(cb=>cb());f.flush();assert.equal(f.root.dataset.liquidBackend,'dom-mirror');stop();assert.equal(media.listeners.size,0);
+});
+test('clone IDs are isolated while SVG references and original controls remain intact',()=>{
+ const f=fixture(),source=f.document.createElement('div');source.innerHTML='<svg><defs><linearGradient id="paint"></linearGradient></defs><rect fill="url(#paint)"></rect></svg><input name="draft" autofocus onclick="alert(1)"><script>bad()</script>';
+ const copy=f.state.adapter.cloneMirrorNode(source,'mirror-test');assert.notEqual(copy.querySelector('linearGradient').id,'paint');assert.equal(copy.querySelector('rect').getAttribute('fill'),'url(#mirror-test-0)');assert.equal(copy.querySelector('input').getAttribute('name'),null);assert.equal(copy.querySelector('input').getAttribute('onclick'),null);assert.equal(copy.querySelector('script'),null);assert.equal(source.querySelector('linearGradient').id,'paint');
 });
 
-test('Chrome 中 supportsLens() 门槛为真（线上页面确实会挂载折射层，而非只在测试里强制开启）', {
-  skip: CHROME_MISSING && `未找到 Chrome：${CHROME}`,
-}, async () => {
-  const result = await build({
-    stdin: {
-      contents: `import { supportsLens } from './src/ui/glass-lens.ts';
-document.body.setAttribute('data-lens-gate', String(supportsLens()));`,
-      resolveDir: root,
-      sourcefile: 'gate.ts',
-      loader: 'ts',
-    },
-    bundle: true,
-    format: 'iife',
-    platform: 'browser',
-    write: false,
-    logLevel: 'silent',
-  });
-  const tmp = mkdtempSync(path.join(os.tmpdir(), 'em-lens-gate-'));
-  try {
-    const htmlPath = path.join(tmp, 'gate.html');
-    writeFileSync(htmlPath, `<!doctype html><html><body><script>${result.outputFiles[0].text}</script></body></html>`);
-    const dom = execFileSync(CHROME, [
-      '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
-      '--virtual-time-budget=1000', '--dump-dom', `file://${htmlPath}`,
-    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 });
-    assert.match(dom, /data-lens-gate="true"/,
-      'supportsLens() 在 Chrome 返回 false：线上 Glass.tsx 不会挂载折射层');
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test('Chrome 像素验证：四边缘带 rim 显著变化 / center 无差异，url() 位移确有贡献', {
-  skip: CHROME_MISSING && `未找到 Chrome：${CHROME}（跳过真实渲染验证，不恒绿）`,
-}, async (t) => {
-  const lens = await loadShippedLens();
-  const tmp = mkdtempSync(path.join(os.tmpdir(), 'em-glass-render-'));
-  t.after(() => rmSync(tmp, { recursive: true, force: true }));
-
-  const shoot = (mode) => {
-    const htmlPath = path.join(tmp, `${mode}.html`);
-    const pngPath = path.join(tmp, `${mode}.png`);
-    writeFileSync(htmlPath, page(mode, lens));
-    execFileSync(CHROME, [
-      '--headless=new',
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-      '--hide-scrollbars',
-      '--force-device-scale-factor=1',
-      '--allow-file-access-from-files',
-      `--window-size=${W},${H}`,
-      '--virtual-time-budget=2000',
-      `--screenshot=${pngPath}`,
-      `file://${htmlPath}`,
-    ], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 60000 });
-    return decodePng(readFileSync(pngPath));
-  };
-
-  const off = shoot('off');
-  const on = shoot('on');
-  const blur = shoot('blur');
-
-  assert.equal(off.width, W, '截图宽度不符');
-  assert.equal(off.height, H, '截图高度不符');
-  assert.equal(on.width, off.width, '两次截图尺寸不一致，无法逐像素比较');
-  assert.equal(blur.width, off.width, '对照截图尺寸不一致');
-  assert.equal(off.ch, on.ch, '两次截图通道数不一致');
-
-  const fmt = (d) => `rim ${d.rim}/${d.rimTotal} (${(100 * d.rim / d.rimTotal).toFixed(1)}%)` +
-    `，center ${d.center}/${d.centerTotal}`;
-
-  // 核心断言（能推翻实现的证据）：四条边缘带 vs 无 lens 层 → rim 有差异、center 零差异。
-  //
-  // 为什么 rim 的阈值只有 1%（原来 30%）：磨砂层改成整卡覆盖（inset: 0）之后，边缘带是画在
-  // 磨砂层**之上**的，它采样到的是已经模糊过的背景——位移细节必然被削弱。这是「整卡磨砂」
-  // 与「边缘实位移」在同一张卡上互相采样的必然结果，两者不能同时最大化。
-  // 用户要的是「磨砂盖满整张卡」（边缘不能留清晰的一圈），所以这里以 center 零差异为主判据，
-  // rim 只要求「仍有可测的 url() 贡献」，不再要求它显著。
-  const offOn = rimCenterDiff(off, on);
-  // 隔离 url() 位移：与「只有 blur」对照相比边缘仍明显不同 + center 稳定，
-  // 证明差异来自 feDisplacementMap 折射而非 backdrop-filter 的 blur(3px)。
-  const blurOn = rimCenterDiff(blur, on);
-
-  t.diagnostic(`四条边缘带 vs 无 lens 层：${fmt(offOn)}`);
-  t.diagnostic(`只有 blur vs 完整 url 折射（隔离 url 贡献）：${fmt(blurOn)}`);
-  t.diagnostic(`PNG：${off.width}x${off.height}，${off.ch} 通道，zlib 手写解码；判据 RGB 和>12 / rim<${BAND_PX + 2}px`);
-
-  assert.equal(offOn.center, 0, `折射层改变了中心像素，违反「中心稳定」：${fmt(offOn)}`);
-  assert.ok(offOn.rim >= offOn.rimTotal * 0.01, `边缘带完全没有位移贡献：${fmt(offOn)}`);
-  assert.equal(blurOn.center, 0, `对照实验中中心不稳定：${fmt(blurOn)}`);
-  // 对照实验（只摘掉 url()、保留同样的 blur）仍要与完整折射有差异，证明 url() 确实在起作用；
-  // 阈值同上，磨砂整卡后两者的差距本来就变小了。
-  assert.ok(blurOn.rim >= blurOn.rimTotal * 0.02,
-    `url(#SVG) 位移对边缘几乎无贡献，疑似只有 blur 生效：${fmt(blurOn)}`);
+test('frost is applied to the backdrop before all three liquid refraction paths',async()=>{
+ const {renderFilter}=await import('../../../app/shared/visual-design/liquid-dom-optics.mjs');
+ const window=new Window(),doc=window.document;
+ window.HTMLCanvasElement.prototype.getContext=()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(){}});
+ window.HTMLCanvasElement.prototype.toDataURL=()=> 'data:image/png;base64,';
+ const filter=doc.createElementNS('http://www.w3.org/2000/svg','filter');
+ renderFilter(filter,58,58,29,{blur:2.5},{bands:3,resolution:.25});
+ assert.equal(filter.firstElementChild.tagName,'feGaussianBlur');
+ assert.equal(filter.firstElementChild.getAttribute('in'),'SourceGraphic');
+ assert.equal(filter.firstElementChild.getAttribute('stdDeviation'),'2.5');
+ assert.equal(filter.querySelector('feOffset').getAttribute('in'),'softBackdrop');
+ assert.equal(filter.querySelectorAll('feDisplacementMap').length,3);
+ for(const warp of filter.querySelectorAll('feDisplacementMap'))assert.equal(warp.getAttribute('in'),'centered');
 });

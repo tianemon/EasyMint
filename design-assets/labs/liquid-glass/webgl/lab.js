@@ -1,4 +1,4 @@
-import templatePreset from '../../../resources/visual-design/liquid-template-preset.json';
+import templatePreset from '../../../../resources/visual-design/liquid-template-preset.json';
 const BASE_PRESET = { ...templatePreset, background: 'spectrum' };
 import { materialFragment, spectrumUniforms } from './material.ts';
 

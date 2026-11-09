@@ -2,9 +2,9 @@
 
 初次盘点：2026-10-23；场景升级：2026-10-24。机器可读清单见 [inventory.json](inventory.json)。此目录保留原始盘点与后续实现状态；以下新增章节记录已落地的场景和动效，原有建议仍作为历史参考。
 
-新增研究：[液态玻璃开源参考与实现诊断](research/liquid-glass-open-source-2026-10-24.md)、[AI UI 设计工作方法](guides/ai-ui-design-workflow.md)。研究候选不计入已落地模板或可发布素材。
+设计工作方法见 [AI UI 设计工作方法](guides/ai-ui-design-workflow.md)。研究候选不计入已落地模板或可发布素材。
 
-独立实验：[液态玻璃同场对照](labs/liquid-glass/PROVENANCE.md)。包含固定的当前版本、rdev 原始组件和光学库候选；运行 `node scripts/preview-glass-comparison.mjs` 构建本地页面，不替换正式模板。
+液态玻璃已确认演示统一放在 `labs/liquid-glass/`，运行 `node scripts/preview-liquid-glass.mjs` 生成统一预览入口。正式模板、DOM 镜像和 Android 参数对照各有明确适用范围。
 
 ## 现有资产
 
@@ -135,28 +135,9 @@
 
 重建检查页面：`node scripts/preview-visual-showcases.mjs`。输出为 private_docs/design/ui-showcases-2026-10-24/，不参与应用运行；正式实现不依赖 private_docs 研究目录。
 
-## 2026-10-24：玻璃材质专项修订
+## 当前液态玻璃入口
 
-- 玻璃拟态保留独立 ID `glass`，改为 AURA 工作台，稳定的半透明面板、实际 24px / 4px 背景模糊、均匀材质和规整层级。
-- 液态玻璃沿用独立 ID `liquid-glass`，撤掉风景页，改为 SONORA 音乐应用；不新增同名重复风格。
-- 对照 Apple HIG Materials、WWDC25 Meet Liquid Glass 与 Build a SwiftUI app with the new design 核查。默认为 regular，clear 为更高透光量；不将 Web 实现声称为 iOS 系统渲染。
-- 主体是清晰内容，操作层包括浮动标签栏、独立搜索、迷你播放器与展开播放层；支持内容滚动、收拢导航、曲目切换和滑杆。
-- 透镜位移场由圆角边缘距离计算，中心保持中性；取消随机噪声折射。实际背景参与滤镜，文字图标不进入位移层。折射图蓝通道另存边缘遮罩，锐利折射边缘与柔化中心分别合成，避免先模糊整块背景导致折射丢失；凸面法线按 Snell 定律近似计算，取消正弦波形的边缘扭曲。支持 reduced-motion / reduced-transparency，组件卸载清理观察器、绘制帧和计时器。
-- 导航保留稳定中性基色，让背景连续透色，取消滚动阈值触发的明暗换肤。常规采用 5px 中心柔化 / 32% 基色，清透采用 0.35px / 10%；这些数值属于本项目 Web 实现。两种模式的文字图标局部连续调整对比，表面不换色。高光仅沿边缘，中心不叠加大面积白雾；边缘使用 0.65–0.75px 渐隐光线，移除叠加的亮暗倒角，折射带限制在 12px 内，折射边缘独立保留锐度；增加表面反射、浅层肩部明暗和接触阴影，强化透明材质的体积感；导航选中胶囊支持拖动跟随和松手回弹。
-- 配色与材质选项的触发器、选项尺寸统一。两种预览与项目导出仍共用渲染、交互、材质源码。
-
-参考：
-- https://developer.apple.com/design/human-interface-guidelines/materials
-- https://developer.apple.com/videos/play/wwdc2025/219/
-- https://developer.apple.com/videos/play/wwdc2025/323/
-
-用户明确的后续方向：原 15 种动效应逐步作为与 UI 风格并列的独立模板/素材，而非给每个现有风格增加“动效版”。当前动效入口先保持，后续另行整理；本次不实施该结构调整。
-
-## 2026-10-24：采用 C 光学候选
-
-用户选定参数：倒角10px、厚度0.8、折射倍率1.5、清透。正式液态玻璃场景与项目导出共用 C 计算与反射层；对照页 C 也调用这套计算，A 的固定基线不变。曲面法线、Fresnel 反射/透射与厚度关联，倒角内侧40%平滑渐隐到平面，取消早期独立叠加的白边与肩部明暗。清透柔化0.25px，常规3px。
-
-上游数学来自 sohumsuthar/liquid-glass 固定提交 fb0e2dd45c1c76f2385dabffbb448c1099cd19cc，机械包装为可序列化工厂；MIT 许可随应用资源和导出脚本保留。背景流动、白字、导航选中项与 polar 是实验条件（polar 仅属于 B），不会写成真实界面的固定状态。
+已确认的 WebGL、DOM 镜像及 Android 参数对照演示统一位于 `design-assets/labs/liquid-glass/`；生成命令为 `node scripts/preview-liquid-glass.mjs`。正式模板继续使用共享 WebGL 材质，手机 Web 使用实时 DOM 镜像。被替代的比较实验和生成脚本已移除。
 
 ## 2026-10-24：从组件目录改为完整场景
 
@@ -164,7 +145,7 @@
 
 17 种方向分别为：极简写作日志、扁平设计商店、Material 社区、磨砂创作台、新拟态音频控制台、纸质手账、液态音乐应用、黏土习惯花园、商务运营台、器物展厅、Bento 日程面板、彩色学习空间、复古设计节、柔和呼吸记录、独立文化杂志、深色音频工作室、轨道任务控制。各自只放适合任务的代表性控件；不再要求穷举按钮、输入、菜单等所有类型。
 
-实际源码在 showcase.ts / curated-showcases.ts 与 scene-showcase.css；玻璃和液态玻璃沿用各自成熟引擎。播放图形使用几何精度渲染，玻璃光学图在既有内存上限内采用双倍采样与边界覆盖，降低小圆形按钮的阶梯边缘。
+实际源码在 showcase.ts / curated-showcases.ts 与 scene-showcase.css；玻璃与液态玻璃使用各自当前材质实现，液态材质的唯一演示入口见上文。
 
 新项目交付双端场景、完整样式与交互、scene-contract.json 和 DESIGN.md。Mint 的主/设计子会话与 ui-aesthetic 内置规范已加强“读实际源码 → 复用成熟实现 → 同条件小样对照 → 保留认可基线 → 实际渲染验收”的流程。旧项目无场景文件时仍走兼容起点，用户编辑的场景不被静默替换。
 

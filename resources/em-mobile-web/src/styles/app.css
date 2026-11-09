@@ -67,25 +67,25 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .header-pill { width: 40px; height: 40px; }
 .header-pill-inner { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-secondary); }
 
-/* ── Glass：frosted 默认不模糊、不投影（App Glass 语义）；liquid 保持折射实现 ── */
+/* ── Glass：frosted 为普通磨砂；liquid 在折射材质内部叠加磨砂 ── */
 .glass { position: relative; border-radius: var(--glass-radius, 8px); border: 1px solid var(--glass-rim); overflow: hidden; }
 .glass-frosted { background: var(--glass-fill-strong);
   border-color: var(--glass-rim);
   border-color: color-mix(in srgb, var(--glass-rim) 50%, transparent); }
-.glass-frosted.is-blur { backdrop-filter: blur(18px) saturate(1.1); -webkit-backdrop-filter: blur(18px) saturate(1.1); }
+.glass-frosted.is-blur { backdrop-filter: blur(18px) saturate(1.1);  }
 /* App 的 intensity 口径：换算成 CSS px（42 ≈ 18px），只影响显式传 intensity 的实例 */
-.glass-frosted.is-blur.is-blur-tuned { backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.1); -webkit-backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.1); }
+.glass-frosted.is-blur.is-blur-tuned { backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.1);  }
 /* rim="none"：整条磨砂标题栏不画光学边与高光 */
 .glass.rim-none { border-color: transparent; }
 .glass.rim-none::before, .glass.rim-none::after { display: none; }
 .glass.is-elevated { box-shadow: var(--shadow-sm); }
-/* liquid 仅输入卡使用：背景染色 + 顶部一次高光 + 方向性 1px 光学轮廓 */
+/* liquid 用于输入卡与悬浮按钮：背景染色 + 顶部一次高光 + 方向性 1px 光学轮廓 */
 .glass-liquid { background: linear-gradient(135deg, var(--glass-sheen), transparent 42%), var(--liquid-fill);
   border-color: transparent; }
 /* App 的 iOS 玻璃是系统材质，**永远带模糊**；Web 上等价于「不依赖调用方传 blur」。
    少了这条，没传 blur 的实例（首页加号 FAB）在非折射路径上只剩 20% 染色，
    表现就是「iOS 是磨砂玻璃、安卓只有一层半透明」。 */
-.glass-liquid { backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
+.glass-liquid { backdrop-filter: blur(18px) saturate(1.4);  }
 .glass-liquid.is-elevated { box-shadow: var(--shadow-md); }
 /* 顶部 1px 高光：整块玻璃只有这一次，不叠加第二层 inset 白边 */
 .glass-liquid::before { content: ''; position: absolute; top: 0; left: 12%; right: 12%; height: 1px; pointer-events: none;
@@ -100,45 +100,15 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude; }
-/* 液态折射结构：无 lens 能力时整块走 blur(18px) 磨砂；有 lens 时父层不再整体模糊
-   （父层 backdrop-filter 会形成 Backdrop Root，让边缘带采样到已无细节的模糊像素，实测 url()
-   折射贡献从 9988 掉到 199），改由中心磨砂层承接同样的 blur(18px) saturate(1.4)、
-   四条边缘带采样原始背景做折射（见 glass-lens.ts 与 tests/glass-render.test.mjs）。 */
-.glass-frost, .glass-lens { display: none; }
-/* 整卡磨砂的兜底路径：Safari/iOS 不支持 backdrop-filter: url()，supportsLens() 为假、
-   不会挂 has-lens，若这里不补一条规则，液态玻璃就只剩 4% 填充 —— 等于整张卡没有背景模糊。
-   强度写死 18px 而不是走 --glass-blur：App 的 intensity=8 是 expo-blur 的口径，
-   换算成 CSS 只有 3px，肉眼看不出模糊。 */
-.glass-liquid.is-blur { backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
-.glass-liquid.has-lens { backdrop-filter: none; -webkit-backdrop-filter: none; }
-/* 磨砂层必须**盖住整张卡**（inset: 0）。
-   之前它内缩了 var(--lens-band)，把边缘让给折射带；可 Safari 的 CSS.supports('url()') 会返回 true、
-   实际却不渲染 url() 滤镜，于是边缘那一圈既没有位移也没有模糊——卡片看起来「只模糊了中间那块」。
-   现在中心与边缘都由这一层负责模糊，折射带只做叠加（有真折射的浏览器上位移仍然可见）。 */
-.glass-liquid.has-lens .glass-frost { display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  /* 磨砂层在 border 以内，圆角要比外框小 1px，否则它会在描边内侧再露一圈浅色弧（看起来像双边框） */
-  border-radius: calc(var(--glass-radius, 8px) - 1px); background: var(--liquid-fill);
-  backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
-.glass-liquid.has-lens .glass-lens { display: block; position: absolute; z-index: 0; pointer-events: none; }
-/* 四条边缘带：backdrop-filter 由 glass-lens.ts 用 CSSOM 注入（CSP 不允许内联 style，
-   外链 CSS 里的 url(#id) 又会按样式表 URL 解析）。中心留空 → 中心零位移；边缘带 → 集中折射。
-   向内的线性渐隐 mask 让折射强度平滑衰减进中心（实测条带上 mask 不会让滤镜失效）。
-   宽度由 --lens-band 统一给：磨砂层 inset 必须等于带宽，两者错开就会在卡片上留下一圈没模糊的边
-   ——输入卡只有 100 出头高，16px 的带等于上下各有一条清晰带，看起来就是「只模糊了输入框」。 */
-.glass-lens-t { left: 0; right: 0; top: 0; height: var(--lens-band, 10px);
-  -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent); }
-.glass-lens-b { left: 0; right: 0; bottom: 0; height: var(--lens-band, 10px);
-  -webkit-mask-image: linear-gradient(0deg, #000, transparent); mask-image: linear-gradient(0deg, #000, transparent); }
-.glass-lens-l { top: 0; bottom: 0; left: 0; width: var(--lens-band, 10px);
-  -webkit-mask-image: linear-gradient(90deg, #000, transparent); mask-image: linear-gradient(90deg, #000, transparent); }
-.glass-lens-r { top: 0; bottom: 0; right: 0; width: var(--lens-band, 10px);
-  -webkit-mask-image: linear-gradient(270deg, #000, transparent); mask-image: linear-gradient(270deg, #000, transparent); }
-/* liquid 会多包一层内容容器：必须撑满玻璃根，否则子元素的 100% 高度退化成内容高，
-   固定尺寸的玻璃（如 58×58 的悬浮加号）里图标会被顶到左上角而不是居中 */
+/* CSS blur remains the fallback when the optical layer cannot initialize. */
+.glass-liquid.is-blur,
+.glass-liquid.is-blur.is-blur-tuned { backdrop-filter: blur(18px) saturate(1.4);  }
+
 .glass-content { position: relative; z-index: 1; width: 100%; height: 100%; }
-.glass-fallback.glass-liquid, .glass-fallback.glass-frosted { backdrop-filter: none; -webkit-backdrop-filter: none; }
-/* 连 CSS.supports 都说没有 backdrop-filter 的浏览器（部分国产 WebView）：别退成一块 78% 白板，
-   那看起来就是「半透明色块」。仍用「顶部淡纱 + liquid 染色」，至少保住玻璃的层次。 */
+/* 能力探测（CSS.supports）说「没有 backdrop-filter」时，**不要主动把模糊关掉**。
+   鸿蒙 ArkWeb 实测就属于「CSS.supports 返回 false / 只认 -webkit- 前缀，但渲染其实能做」，
+   以前这里写 `backdrop-filter: none`，等于亲手把磨砂关掉，剩下填充 —— 观感就是「半透明」。
+   现在只补一层看得见的材质；不支持该属性的引擎会自己忽略这条声明。 */
 .glass-fallback.glass-liquid {
   background: linear-gradient(180deg, var(--composer-fill-android) 0%, transparent 100%), var(--liquid-fill);
 }
@@ -512,21 +482,11 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
    Android / 鸿蒙没有底部安全区，26 就是全部间距，不要动。 */
 @supports (-webkit-touch-callout: none) { .composer-card { margin-bottom: 12px; } }
 .composer-glass { position: absolute; inset: 0; z-index: 0; background: var(--liquid-clear-fill); }
-/* 安卓 / 鸿蒙：这些 WebView 的合成器经常不渲染 backdrop-filter（表现是输入卡彻底隐形，
-   因为 liquidClearFill 在浅色下是全透明、深色只有 5%）。但仍不能铺一块接近实色的白底：
-   55% 白会把模糊、轮廓、折射全盖掉，观感就是「半透明矩形」而不是玻璃。
-   改成「顶部一层淡纱 + 底部只留 liquid 染色」——模糊生效时几乎看不出，不生效时也仍是一块卡。 */
-:is(html[data-platform="android"], html[data-platform="harmony"]) .composer-glass {
-  background: linear-gradient(180deg, var(--composer-fill-android) 0%, transparent 100%), var(--liquid-fill);
-  /* 没有折射带时，玻璃的「厚度」只剩这条贴顶的内高光能表达（::before 的高光是给有折射的实例的） */
-  box-shadow: inset 0 1px 0 var(--glass-rim);
-}
-:is(html[data-platform="android"], html[data-platform="harmony"]) .glass-liquid.has-lens.composer-glass .glass-frost {
-  background: var(--liquid-fill);
-}
+/* 注意：这里**不能**给玻璃或它的祖先加 transform / will-change / filter —— 那会让内层
+   backdrop-filter 只能采样到这一层自己的背景，模糊等于什么都没糊上。上一轮加的
+   `transform: translateZ(0)` 就是反效果，已删。 */
 /* 输入卡按 App 传 fill=liquidClearFill / sheen=false：不要整面染色与顶部高光，只保留玻璃轮廓与折射 */
 .glass-liquid.composer-glass::before { display: none; }
-.glass-liquid.has-lens.composer-glass .glass-frost { background: var(--liquid-clear-fill); }
 .composer-attachments, .composer-input, .composer-toolbar, .composer-menu, .composer-attachment-menu { position: relative; z-index: 1; }
 .composer-attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px var(--s3) 0; }
 .composer-attachment { position: relative; width: 58px; height: 58px; border-radius: var(--radius-lg); overflow: hidden;

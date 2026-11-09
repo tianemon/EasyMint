@@ -1,8 +1,7 @@
-import type { roundedLensMap } from './liquid-lens';
 import type { renderLiquidIcon } from './liquid-icons';
 
-/** Self-contained for source export. The pure lens generator is an explicit dependency. */
-export function mountLiquidShowcase(root:HTMLElement,english:boolean,_makeLens:typeof roundedLensMap|undefined,makeIcon:typeof renderLiquidIcon,mountGlass?:(root:HTMLElement)=>()=>void):()=>void {
+/** Self-contained scene interaction; the optical renderer is supplied explicitly. */
+export function mountLiquidShowcase(root:HTMLElement,english:boolean,makeIcon:typeof renderLiquidIcon,mountGlass?:(root:HTMLElement)=>()=>void):()=>void {
   const scroll=root.querySelector<HTMLElement>('[data-ios-scroll]')!;
   const controls=root.querySelector<HTMLElement>('[data-ios-controls]')!;
   const overlay=root.querySelector<HTMLElement>('[data-ios-player-overlay]')!;

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { detectPlatform, isMobileShell, usesLayeredGlass } from '../src/core/platform.ts';
+import { detectPlatform, isMobileShell } from '../src/core/platform.ts';
 
 const UA = {
   iosSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
@@ -25,7 +25,6 @@ test('detectPlatform：iOS 走 100vh + 分层折射', () => {
   // iPadOS 13+ 默认桌面 UA，只能靠触点数区分
   assert.equal(detectPlatform(UA.ipadDesktop, 5), 'ios', '破坏后应失败：iPad 桌面 UA + 触点漏判');
   assert.equal(detectPlatform(UA.ipadDesktop, 0), 'desktop', '破坏后应失败：没有触点的 Mac 被当成 iPad');
-  assert.equal(usesLayeredGlass('ios'), true, '破坏后应失败：iOS 不再走分层折射');
 });
 
 test('detectPlatform：安卓 / 鸿蒙各自归位，鸿蒙优先于安卓', () => {
@@ -39,12 +38,7 @@ test('detectPlatform：安卓 / 鸿蒙各自归位，鸿蒙优先于安卓', () 
   assert.equal(detectPlatform(UA.windows), 'desktop', '破坏后应失败：Windows 被当成移动端');
 });
 
-test('材质口径：只有安卓/鸿蒙整块模糊，iOS 与桌面走分层折射', () => {
-  assert.equal(usesLayeredGlass('ios'), true, '破坏后应失败：iOS 不再走分层折射');
-  assert.equal(usesLayeredGlass('desktop'), true, '破坏后应失败：桌面浏览器（Chrome 支撑 url() 折射）被降到整块模糊');
-  for (const platform of ['android', 'harmony']) {
-    assert.equal(usesLayeredGlass(platform), false, `破坏后应失败：${platform} 也挂了折射带（合成器不保证渲染）`);
-  }
+test('材质口径：所有平台都允许使用统一渲染器', () => {
   assert.equal(isMobileShell('android'), true, '破坏后应失败：安卓不再吃移动壳补丁');
   assert.equal(isMobileShell('harmony'), true, '破坏后应失败：鸿蒙不再吃移动壳补丁（输入卡会只剩染色）');
   assert.equal(isMobileShell('ios'), false, '破坏后应失败：iOS 被算进移动壳补丁');

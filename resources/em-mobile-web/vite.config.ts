@@ -30,6 +30,7 @@ export default defineConfig({
     // CSP script-src 'self'：禁止 Vite 注入 modulepreload polyfill 内联脚本（契约 C2）。
     modulePreload: { polyfill: false },
     target: 'es2022',
+    cssTarget: ['chrome76', 'safari15'],
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',

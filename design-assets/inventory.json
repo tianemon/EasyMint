@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "asOf": "2026-10-24",
+  "asOf": "2026-11-09",
   "purpose": "Curated complete product scenes with actual dual-device source, reusable material engines and an archived independent motion library.",
   "styleSystem": {
     "styles": [
@@ -1683,7 +1683,7 @@
     "verification": "34 real browser screenshots; no horizontal overflow or clipped controls at 900x700 web and 390x780 mobile; representative interactions checked"
   },
   "glassRevision": {
-    "date": "2026-10-24",
+    "date": "2026-11-09",
     "glass": {
       "scene": "glass-workspace",
       "blur": {
@@ -1694,37 +1694,20 @@
     },
     "liquidGlass": {
       "scene": "ios-music",
-      "variants": {
-        "regular": 3,
-        "clear": 0.25
-      },
-      "renderer": "app/shared/visual-design/liquid-showcase.ts",
+      "renderer": "app/shared/visual-design/liquid-webgl.ts",
       "interactions": "app/shared/visual-design/liquid-interactions.ts",
-      "lensField": "app/shared/visual-design/liquid-lens.ts",
-      "nativeParity": false,
-      "surfaceTint": "Fixed neutral film; background transmits continuously without light/dark theme thresholds",
-      "transmission": {
-        "regularOpacity": 0.302,
-        "clearOpacity": 0.094
-      },
-      "interaction": "Drag-follow tab capsule with spring settle; local continuous glyph contrast for both variants",
-      "edgeTreatment": {
-        "bezel": 10,
-        "thickness": 0.8,
-        "gain": 1.5,
-        "innerFeatherFraction": 0.4,
-        "rendering": "Adopted C: squircle profile, Fresnel-weighted ray refraction and matched reflection map; inner shoulder fades smoothly",
-        "stackedBevels": false,
-        "sampling": "2x sampling within a 512x256 cap, with analytic subpixel reflection coverage and vector glyphs"
-      },
-      "references": [
-        "https://www.apple.com/os/ios/",
-        "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views"
+      "material": "resources/visual-design/liquid-material.agsl",
+      "presets": [
+        "resources/visual-design/liquid-template-preset.json",
+        "resources/visual-design/liquid-app-preset.json"
       ],
-      "engine": "resources/visual-design/liquid-optics-engine.mjs",
-      "license": "resources/visual-design/liquid-optics-LICENSE.txt",
-      "sourceRepository": "https://github.com/sohumsuthar/liquid-glass",
-      "sourceCommit": "fb0e2dd45c1c76f2385dabffbb448c1099cd19cc"
+      "mobileWebRenderer": "resources/em-mobile-web/src/ui/glass-dom-mirror.ts",
+      "mobileWebOptics": "app/shared/visual-design/liquid-dom-optics.mjs",
+      "approvedDemos": "design-assets/labs/liquid-glass",
+      "previewCommand": "node scripts/preview-liquid-glass.mjs",
+      "nativeParity": false,
+      "mobileWebBusinessDeviceAcceptance": "pending",
+      "blurComposition": "Backdrop blur before liquid refraction; foreground controls stay clear"
     },
     "appearanceOptionSizing": "Matched triggers and option tiles",
     "motionScope": "Keep current entry unchanged. Future motion studies should be peer templates, not per-style variants.",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { spectrumUniforms, extendMaterial } from './spectrum.mjs';
-import { LIQUID_MATERIAL_CORE } from '../../../app/shared/visual-design/liquid-material-source';
+import { LIQUID_MATERIAL_CORE } from '../../../../app/shared/visual-design/liquid-material-source';
 
 describe('spectral demo material', () => {
   for (const count of [8, 12]) {

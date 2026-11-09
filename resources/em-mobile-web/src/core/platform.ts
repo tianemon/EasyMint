@@ -1,5 +1,5 @@
 /**
- * 平台判定：网页端只有三件事需要按端分开——视口高度、玻璃材质、安装指引。
+ * 平台判定：网页端的视口高度与安装指引需要按端区分。
  *
  * 鸿蒙必须排在安卓前面：鸿蒙 2–4 是安卓底座，UA 里同时有 `Android` 和 `HarmonyOS`/`HMSCore`；
  * 鸿蒙 5（NEXT）换成 ArkWeb，UA 里是 `OpenHarmony` + `ArkWeb`，已经没有 `Android`。
@@ -17,12 +17,7 @@ export function detectPlatform(userAgent: string, maxTouchPoints = 0): WebPlatfo
   return 'desktop';
 }
 
-/** 玻璃材质口径：安卓 / 鸿蒙走整块模糊，其余（iOS、桌面浏览器）走分层折射。 */
-export function usesLayeredGlass(platform: WebPlatform): boolean {
-  return platform !== 'android' && platform !== 'harmony';
-}
-
-/** 安卓 / 鸿蒙共用一套布局与材质补丁（输入卡自铺底色、不用折射带）。 */
+/** 安卓 / 鸿蒙共用移动布局标记；不参与玻璃渲染能力判断。 */
 export function isMobileShell(platform: WebPlatform): boolean {
   return platform === 'android' || platform === 'harmony';
 }

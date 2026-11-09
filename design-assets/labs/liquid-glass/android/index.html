@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>EasyMint 液态玻璃调参</title>
+  <link rel="stylesheet" href="lab.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="./">EasyMint <span>液态玻璃调参</span></a>
+    <div class="actions">
+      <button id="reset">恢复 App 参数</button>
+      <button id="export">导出参数</button>
+      <button id="import">导入参数</button>
+      <input id="file" type="file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+  <main>
+    <section class="preview">
+      <div class="preview-toolbar">
+        <label>主题 <select id="theme"><option value="light">亮色</option><option value="dark">暗色</option></select></label>
+        <label>背景 <select id="background"><option value="chat">聊天与表格</option><option value="spectrum">彩色网格</option><option value="plain">接近纯色</option></select></label>
+        <label class="check"><input id="autoScroll" type="checkbox">缓慢滚动</label>
+      </div>
+      <div class="phone" id="stage">
+        <canvas id="canvas" width="780" height="1200" aria-label="App 同参数液态玻璃，背景可滚动"></canvas>
+        <div class="phone-header"><span>‹ 返回</span><strong>材质预览</strong><span>●</span></div>
+        <button class="circle glass-drag" id="circle" aria-label="拖动圆形玻璃，方向键移动">＋</button>
+        <div class="composer" id="composer">
+          <textarea id="draft" aria-label="预览输入文字" placeholder="给 EasyMint 发送消息…"></textarea>
+          <div class="composer-toolbar">
+            <button class="glass-drag" id="drag" aria-label="拖动输入卡，方向键移动">⠿</button>
+            <span>♧</span><span class="spacer"></span><span>♢</span><span>◉</span>
+            <button id="send" aria-label="预览发送按钮">↑</button>
+          </div>
+        </div>
+        <p class="fallback" id="error" role="alert" hidden></p>
+      </div>
+      <label class="scroll-control">背景滚动 <input id="scroll" type="range" min="0" max="950" value="0"></label>
+      <p class="hint">拖动圆形或输入卡下方的 ⠿，观察背景像素经过边缘。上下细亮边与左右细暗边可分别调节。</p>
+      <p id="status" role="status" aria-live="polite">App 参数已载入</p>
+    </section>
+    <aside id="controls" aria-label="材质参数"></aside>
+  </main>
+  <footer>着色器由 Android AGSL 源码生成。背景与前景使用浏览器绘制，模糊由 WebGL 实现，最终效果以手机为准。</footer>
+  <script type="module" src="lab.js"></script>
+</body>
+</html>

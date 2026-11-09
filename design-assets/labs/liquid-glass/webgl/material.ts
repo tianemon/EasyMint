@@ -1,8 +1,8 @@
-import { LIQUID_MATERIAL_CORE } from '../../../app/shared/visual-design/liquid-material-source';
+import { LIQUID_MATERIAL_CORE } from '../../../../app/shared/visual-design/liquid-material-source';
 import { extendMaterial } from './spectrum.mjs';
 export { spectrumUniforms } from './spectrum.mjs';
 
-const header = `#version 300 es
+export const header = `#version 300 es
 precision highp float;
 uniform sampler2D uBackdrop; uniform sampler2D uScene;
 uniform vec2 uViewport; uniform vec4 uRects[2]; uniform float uRadii[2];
@@ -16,7 +16,7 @@ vec4 sampleCapture(vec2 uv) {
   return texture(uBackdrop, vec2(textureUV.x, 1.0-textureUV.y));
 }
 `;
-const footer = `
+export const footer = `
 void main() {
   vec2 point = vec2(vUv.x,1.0-vUv.y) * uViewport * u_referenceScale;
   vec4 result = texture(uScene,vUv);

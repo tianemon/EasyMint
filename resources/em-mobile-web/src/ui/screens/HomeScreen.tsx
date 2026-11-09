@@ -32,14 +32,14 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
     <div className="screen">
       <Header title="设备" right={
         <button type="button" className="header-pill-hit" onClick={onOpenSettings} aria-label="设置">
-          <Glass variant="frosted" radius={13} blur className="header-pill">
+          <Glass variant="frosted" blur radius={13} className="header-pill">
             <span className="header-pill-inner"><Icon name="settings" size={19} /></span>
           </Glass>
         </button>
       } />
       <div className="screen-body home-body">
         {devices.length > 0 ? (
-          <Glass variant="frosted" radius={16} className="device-card">
+          <Glass variant="frosted" blur radius={16} className="device-card">
             {devices.map((device, index) => {
               const isActive = device.pcId === activePcId;
               const connected = isActive && connection === 'connected';

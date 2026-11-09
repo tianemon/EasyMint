@@ -17,7 +17,8 @@ const core = source.replace('uniform shader backdrop;', '')
 emit(path.join(root, 'app/shared/visual-design/liquid-material-source.ts'), '// Generated from resources/visual-design/liquid-material.agsl.\nexport const LIQUID_MATERIAL_CORE = '+JSON.stringify(core)+';\n');
 emit(path.join(root, 'resources/visual-design/liquid-material-source.txt'), '// Shared GLSL core generated from liquid-material.agsl.\nexport const LIQUID_MATERIAL_CORE = '+JSON.stringify(core)+';\n');
 const portableSource = fs.readFileSync(path.join(root, 'app/shared/visual-design/liquid-webgl.ts'), 'utf8')
-  .replace("'../../../resources/visual-design/liquid-template-preset.json'", "'./liquid-template-preset.json'");
+  .replace("'../../../resources/visual-design/liquid-template-preset.json'", "'./liquid-template-preset.json'")
+  .replace("import { freezeCaptureScroll } from './liquid-capture-scroll';", fs.readFileSync(path.join(root, 'app/shared/visual-design/liquid-capture-scroll.ts'), 'utf8'));
 emit(path.join(root, 'resources/visual-design/liquid-webgl-source.txt'), portableSource);
 const result = await build({ entryPoints: [path.join(root, 'app/shared/visual-design/liquid-webgl.ts')], bundle: true,
   write: false, platform: 'browser', format: 'iife', globalName: 'EmLiquidWebGL', minify: true, legalComments: 'inline' });

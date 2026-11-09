@@ -18,9 +18,9 @@ export function AppearanceSlider({ value, onChange }: {
   const index = Math.max(0, OPTIONS.findIndex((item) => item.value === value));
   return (
     <div className="appearance-slider" role="radiogroup" aria-label={t('app.appearance')}>
-      <Glass variant="frosted" radius={27} className="appearance-track">
+      <Glass variant="frosted" blur radius={27} className="appearance-track">
         <div className="segment-thumb" style={{ transform: `translateX(${index * 100}%)` }}>
-          <Glass variant="frosted" radius={23} blur className="segment-thumb-fill" />
+          <Glass variant="frosted" blur radius={23} className="segment-thumb-fill" />
         </div>
         {OPTIONS.map((option) => (
           <button

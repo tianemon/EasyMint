@@ -34,7 +34,7 @@ export function SettingsScreen({ device, connection, themeMode, onThemeMode,
         <AppearanceSlider value={themeMode} onChange={onThemeMode} />
 
         <div className="settings-group-label">电脑</div>
-        <Glass variant="frosted" radius={16} className="settings-card">
+        <Glass variant="frosted" blur radius={16} className="settings-card">
           {device ? (
             <>
               <div className="settings-info-row">
@@ -60,7 +60,7 @@ export function SettingsScreen({ device, connection, themeMode, onThemeMode,
         </Glass>
 
         <div className="settings-group-label">关于</div>
-        <Glass variant="frosted" radius={16} className="settings-card">
+        <Glass variant="frosted" blur radius={16} className="settings-card">
           <div className="settings-row">
             <span>版本</span>
             <span className="settings-version">{__EM_VERSION__}</span>

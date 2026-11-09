@@ -5,12 +5,11 @@ import './styles/tokens.css';
 import './styles/app.css';
 
 /**
- * 平台标记：四端在「视口高度」和「玻璃材质」上要分别处理，靠 CSS 的 @supports 分不干净
+ * 平台标记仅用于视口与安装指引；液态玻璃统一使用实时 DOM 镜像，磨砂在折射滤镜内部叠加
  * （Safari 与 Chrome 报的能力几乎一样）。
  *  - ios：主屏 standalone 首帧的 100dvh 会偏小一圈（底部留黑边，滑动一次才补齐，
  *    不滚动的页面永远补不上），要用 100vh；
- *  - android / harmony：地址栏会变，必须用 dvh；且这些 WebView 的合成器常常不渲染
- *    backdrop-filter，输入卡要自带一层看得见的材质。判定细节见 core/platform.ts。
+ *  - android / harmony：地址栏会变，必须用 dvh；玻璃能力不按 UA 排除。判定细节见 core/platform.ts。
  */
 document.documentElement.dataset.platform = detectPlatform(
   navigator.userAgent, navigator.maxTouchPoints ?? 0,

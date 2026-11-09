@@ -1,9 +1,14 @@
 import html2canvas from 'html2canvas';
+import { freezeCaptureScroll } from './liquid-capture-scroll';
 import { LIQUID_MATERIAL_CORE } from './liquid-material-source';
 import preset from '../../../resources/visual-design/liquid-template-preset.json';
 
+export type LiquidFrame = { image: HTMLCanvasElement; x: number; y: number; width: number; height: number; revision: number };
 type Capture = {
+  external?: boolean; frameRevision?: number; rasterWidth?: number; rasterHeight?: number;
   target: HTMLElement;
+  surface?: HTMLElement;
+  x: number; y: number;
   texture: WebGLTexture | null;
   framebuffer: WebGLFramebuffer | null;
   blurred: WebGLTexture | null;
@@ -41,7 +46,7 @@ float d=surfaceDistance(point);float aa=max(fwidth(d),.75);float coverage=1.-smo
 fragColor=vec4(color.rgb*(1.-tint)*coverage,color.a*coverage);}`;
 
 /** The exported runtime bundles this same renderer and DOM capture dependency. */
-export function mountLiquidWebGL(root: HTMLElement): () => void {
+export function mountLiquidWebGL(root: HTMLElement, options: { liveBackdrop?: boolean; excludeFromCapture?: string; scrollContainers?: string; frameSource?: (surface: HTMLElement) => LiquidFrame | null | undefined } = {}): () => void {
   const reducedTransparency = matchMedia('(prefers-reduced-transparency:reduce)');
   const scratchCanvas: HTMLCanvasElement | OffscreenCanvas = typeof OffscreenCanvas !== 'undefined'
     ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
@@ -60,6 +65,7 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
   let disposed = false;
   let frame = 0;
   let captureTimer: ReturnType<typeof setTimeout> | undefined;
+  let scrollEndTimer: ReturnType<typeof setTimeout> | undefined;
   let animateUntil = 0;
   let failed = false;
   let material: WebGLProgram;
@@ -141,22 +147,30 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
 
   function captureFor(surface: HTMLElement) {
     const player = surface.closest<HTMLElement>('.ios-player-sheet');
-    const target = player || root.querySelector<HTMLElement>('[data-liquid-backdrop],[data-ios-scroll]') || root;
-    let result = captures.get(target);
+    const target = options.liveBackdrop ? root : player || root.querySelector<HTMLElement>('[data-liquid-backdrop],[data-ios-scroll]') || root;
+    const key = options.liveBackdrop ? surface : target;
+    let result = captures.get(key);
     if (!result) {
-      result = { target, texture: null, framebuffer: null, blurred: null, scratch: null, scratchFramebuffer: null,
+      result = { target, surface: options.liveBackdrop ? surface : undefined, x: 0, y: 0, texture: null, framebuffer: null, blurred: null, scratch: null, scratchFramebuffer: null,
         width: 0, height: 0, revision: 0, pending: false, ready: false };
-      captures.set(target, result);
+      captures.set(key, result);
     }
     return result;
   }
   function blurCapture(capture: Capture, canvas: HTMLCanvasElement) {
-    releaseCapture(capture);
-    capture.texture = texture(canvas.width, canvas.height, canvas);
-    capture.scratch = texture(canvas.width, canvas.height);
-    capture.blurred = texture(canvas.width, canvas.height);
-    capture.scratchFramebuffer = framebuffer(capture.scratch);
-    capture.framebuffer = framebuffer(capture.blurred);
+    if (capture.rasterWidth !== canvas.width || capture.rasterHeight !== canvas.height || !capture.texture) {
+      releaseCapture(capture);
+      capture.texture = texture(canvas.width, canvas.height, canvas);
+      capture.scratch = texture(canvas.width, canvas.height);
+      capture.blurred = texture(canvas.width, canvas.height);
+      capture.scratchFramebuffer = framebuffer(capture.scratch);
+      capture.framebuffer = framebuffer(capture.blurred);
+      capture.rasterWidth = canvas.width; capture.rasterHeight = canvas.height;
+    } else {
+      gl!.bindTexture(gl!.TEXTURE_2D, capture.texture);
+      gl!.pixelStorei(gl!.UNPACK_FLIP_Y_WEBGL, true);
+      gl!.texSubImage2D(gl!.TEXTURE_2D, 0, 0, 0, gl!.RGBA, gl!.UNSIGNED_BYTE, canvas);
+    }
     gl!.useProgram(blur);
     gl!.uniform1i(location(blur, 'image'), 0);
     gl!.uniform2f(location(blur, 'dimensions'), canvas.width, canvas.height);
@@ -173,16 +187,24 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
     capture.ready = true;
   }
   async function refreshCapture(capture: Capture) {
-    if (disposed || failed || capture.pending || capture.target.getBoundingClientRect().width === 0) return;
+    if (capture.external || disposed || failed || capture.pending || capture.target.getBoundingClientRect().width === 0) return;
     capture.pending = true;
     const revision = capture.revision;
     const target = capture.target;
-    const width = target.offsetWidth;
-    const height = Math.max(target.scrollHeight, target.offsetHeight);
+    const fullWidth = target.offsetWidth;
+    const fullHeight = options.liveBackdrop ? target.offsetHeight : Math.max(target.scrollHeight, target.offsetHeight);
+    const targetBox = target.getBoundingClientRect();
+    const surfaceBox = capture.surface?.getBoundingClientRect();
+    if (surfaceBox && (!surfaceBox.width || !surfaceBox.height)) { capture.pending = false; return; }
+    const margin = 28; // Refraction needs pixels beyond the visible contour.
+    const x = surfaceBox ? Math.max(0, Math.floor(surfaceBox.left - targetBox.left - margin)) : 0;
+    const y = surfaceBox ? Math.max(0, Math.floor(surfaceBox.top - targetBox.top - margin)) : 0;
+    const width = surfaceBox ? Math.max(1, Math.min(fullWidth, Math.ceil(surfaceBox.right - targetBox.left + margin)) - x) : fullWidth;
+    const height = surfaceBox ? Math.max(1, Math.min(fullHeight, Math.ceil(surfaceBox.bottom - targetBox.top + margin)) - y) : fullHeight;
     const limit = gl!.getParameter(gl!.MAX_TEXTURE_SIZE) as number;
-    const scale = Math.min(dpr, limit / Math.max(width, height));
+    const scale = Math.min(options.liveBackdrop ? 1 : dpr, limit / Math.max(width, height));
     try {
-      const image = await html2canvas(target, {
+      let image = await html2canvas(target, {
         backgroundColor: getComputedStyle(target.classList.contains('ios-player-sheet') ? target : root).backgroundColor,
         width, height, scale, logging: false, useCORS: true, foreignObjectRendering: true,
         ignoreElements: element => {
@@ -193,17 +215,40 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
         onclone: (_document, cloned) => {
           const scene = cloned.closest<HTMLElement>('.sc-page');
           if (scene) { scene.style.overflow = 'visible'; scene.style.height = 'auto'; scene.style.minHeight = '0'; }
-          cloned.style.width = `${width}px`;
-          cloned.style.height = `${height}px`;
+          cloned.style.width = `${fullWidth}px`;
+          cloned.style.height = `${fullHeight}px`;
           cloned.style.maxHeight = 'none';
           cloned.style.overflow = 'visible';
           cloned.style.transform = 'none';
           cloned.style.opacity = '1';
           cloned.scrollTop = 0;
+          if (options.liveBackdrop && options.scrollContainers) freezeCaptureScroll(root, cloned, options.scrollContainers);
+          if (options.excludeFromCapture) cloned.querySelectorAll<HTMLElement>(options.excludeFromCapture).forEach(element => { element.style.display = 'none'; });
           cloned.querySelectorAll<HTMLElement>('[data-ios-optic],[data-liquid-glass]').forEach(element => { element.style.visibility = 'hidden'; });
+          if (options.liveBackdrop) {
+            // Crop before foreignObject rasterization. Its scale<1 path clips content, so
+            // rasterize this small strip at 1x and downsample before uploading the texture.
+            const strip = cloned.ownerDocument.createElement('div');
+            strip.style.cssText = `position:relative;width:${fullWidth}px;height:${fullHeight}px;transform:translate(${-x}px,${-y}px);transform-origin:0 0;`;
+            strip.append(...cloned.childNodes);
+            cloned.append(strip);
+            cloned.style.width = `${width}px`; cloned.style.height = `${height}px`;
+            cloned.style.position = 'fixed'; cloned.style.left = '0'; cloned.style.top = '0';
+            cloned.style.margin = '0'; cloned.style.overflow = 'hidden';
+          }
         },
       });
-      if (disposed || failed || reducedTransparency.matches || revision !== capture.revision) return;
+      if (disposed || failed || reducedTransparency.matches || (!options.liveBackdrop && revision !== capture.revision)) return;
+      if (options.liveBackdrop) {
+        const small = document.createElement('canvas');
+        small.width = Math.max(1, Math.round(width * 0.5));
+        small.height = Math.max(1, Math.round(height * 0.5));
+        const context = small.getContext('2d');
+        if (!context) throw new Error('Capture downsampling unavailable');
+        context.drawImage(image, 0, 0, small.width, small.height);
+        image = small;
+      }
+      capture.x = x; capture.y = y;
       capture.width = width;
       capture.height = height;
       blurCapture(capture, image);
@@ -222,6 +267,20 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
       const box = surface.getBoundingClientRect();
       if (!box.width || !box.height || surface.closest('[hidden]')) continue;
       const capture = captureFor(surface);
+      const supplied = options.frameSource?.(surface);
+      capture.external = supplied !== undefined;
+      if (supplied !== undefined) {
+        if (!supplied) {
+          if (!surface.hasAttribute('data-liquid-waiting')) surface.setAttribute('data-liquid-waiting', '');
+          continue;
+        }
+        if (surface.hasAttribute('data-liquid-waiting')) surface.removeAttribute('data-liquid-waiting');
+        if (capture.frameRevision !== supplied.revision) {
+          capture.x = supplied.x; capture.y = supplied.y; capture.width = supplied.width; capture.height = supplied.height;
+          blurCapture(capture, supplied.image); capture.frameRevision = supplied.revision;
+          root.dataset.liquidBackend = 'webgl2';
+        }
+      }
       if (!capture.ready) { void refreshCapture(capture); continue; }
       let canvas = surfaces.get(surface);
       if (!canvas) {
@@ -264,8 +323,8 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
       gl!.uniform4f(location(material, 'outsideColor'), (components[0] || 0)/255, (components[1] || 0)/255, (components[2] || 0)/255, 1);
       gl!.uniform2f(location(material, 'captureSize'), capture.width, capture.height);
       gl!.uniform2f(location(material, 'captureOffset'),
-        (box.left - captureBox.left) / scaleX + capture.target.scrollLeft,
-        (box.top - captureBox.top) / scaleY + capture.target.scrollTop);
+        (box.left - captureBox.left) / scaleX + capture.target.scrollLeft - capture.x,
+        (box.top - captureBox.top) / scaleY + capture.target.scrollTop - capture.y);
       gl!.uniform2f(location(material, 'captureScale'), box.width / width / scaleX, box.height / height / scaleY);
       const dark = !!surface.closest('.ios-player-sheet') || root.dataset.theme === 'dark';
       gl!.uniform1f(location(material, 'tint'), dark ? parameters.tintDark : parameters.tintLight);
@@ -289,9 +348,9 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
     if (!disposed && !failed && !frame) frame = requestAnimationFrame(draw);
   }
   function invalidateCaptures() {
-    for (const capture of captures.values()) { capture.revision++; capture.ready = false; }
+    for (const capture of captures.values()) { capture.revision++; if (!options.liveBackdrop) capture.ready = false; }
     clearTimeout(captureTimer);
-    captureTimer = setTimeout(() => { for (const capture of captures.values()) void refreshCapture(capture); }, 70);
+    captureTimer = setTimeout(() => { captureTimer = undefined; for (const capture of captures.values()) void refreshCapture(capture); }, 70);
     animateUntil = performance.now() + 550;
     schedule();
   }
@@ -308,15 +367,32 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
   mutation.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'data-effect', 'data-theme'] });
   let lastWidth = root.offsetWidth;
   const resize = new ResizeObserver(() => {
-    if (root.offsetWidth !== lastWidth) { lastWidth = root.offsetWidth; invalidateCaptures(); }
+    if (options.liveBackdrop || root.offsetWidth !== lastWidth) { lastWidth = root.offsetWidth; invalidateCaptures(); }
     animateUntil = performance.now() + 550;
     schedule();
   });
   resize.observe(root);
   root.querySelectorAll<HTMLElement>('[data-ios-optic],[data-liquid-glass]').forEach(surface => resize.observe(surface));
   const onInteraction = () => { animateUntil = performance.now() + 550; schedule(); };
-  const onVisibility = () => { if (!document.hidden) schedule(); };
-  root.addEventListener('scroll', onInteraction, true);
+  const onScroll = () => {
+    onInteraction();
+    if (options.liveBackdrop) { clearTimeout(scrollEndTimer); scrollEndTimer = setTimeout(onScrollEnd, 180); }
+    if (options.liveBackdrop && !captureTimer) captureTimer = setTimeout(() => {
+      captureTimer = undefined;
+      for (const capture of captures.values()) void refreshCapture(capture);
+    }, 100);
+  };
+  const onVisibility = () => { if (!document.hidden) invalidateCaptures(); };
+  const onScrollEnd = () => {
+    if (!options.liveBackdrop) return;
+    clearTimeout(scrollEndTimer); scrollEndTimer = undefined;
+    clearTimeout(captureTimer); captureTimer = undefined;
+    for (const capture of captures.values()) { capture.revision++; void refreshCapture(capture); }
+    onInteraction();
+  };
+  root.addEventListener('liquid-frame-ready', onInteraction);
+  root.addEventListener('scrollend', onScrollEnd, true);
+  root.addEventListener('scroll', onScroll, true);
   root.addEventListener('click', onInteraction);
   root.addEventListener('pointerdown', onInteraction);
   root.addEventListener('input', onInteraction);
@@ -339,15 +415,18 @@ export function mountLiquidWebGL(root: HTMLElement): () => void {
     disposed = true;
     cancelAnimationFrame(frame);
     clearTimeout(captureTimer);
+    clearTimeout(scrollEndTimer);
     mutation.disconnect();
     resize.disconnect();
-    root.removeEventListener('scroll', onInteraction, true);
+    root.removeEventListener('liquid-frame-ready', onInteraction);
+    root.removeEventListener('scrollend', onScrollEnd, true);
+    root.removeEventListener('scroll', onScroll, true);
     root.removeEventListener('click', onInteraction);
     root.removeEventListener('pointerdown', onInteraction);
     root.removeEventListener('input', onInteraction);
     document.removeEventListener('visibilitychange', onVisibility);
     reducedTransparency.removeEventListener('change', onTransparency);
-    surfaces.forEach(canvas => canvas.remove());
+    surfaces.forEach((canvas, surface) => { canvas.remove(); surface.removeAttribute('data-liquid-waiting'); });
     captures.forEach(releaseCapture);
     gl.deleteBuffer(buffer);
     programs.forEach(p => gl.deleteProgram(p));
