@@ -8,7 +8,7 @@ type Surface = {
   node: HTMLElement; layer: HTMLDivElement; optics: HTMLDivElement; scene: HTMLDivElement;
   viewport: HTMLDivElement; column: HTMLElement; contour: HTMLCanvasElement;
   filter: SVGFilterElement; svg: SVGSVGElement; geometry: string;
-  copies: Map<HTMLElement, { node: HTMLElement; version: number }>; ambientVersion: number;
+  copies: Map<HTMLElement, { node: HTMLElement; version: number; rowVersion: number }>; ambientVersion: number;
 };
 
 /** Only the read-only visible band is cloned; real controls stay in their original tree. */
@@ -52,6 +52,7 @@ class MirrorGroup {
   private surfaces = new Map<HTMLElement, Surface>();
   private frame = 0;
   private version = 0;
+  private rowVersions = new WeakMap<HTMLElement, number>();
   private ambientVersion = 0;
   private layoutDirty = true;
   private source: HTMLElement | null = null;
@@ -59,12 +60,21 @@ class MirrorGroup {
   private items: Item[] = [];
   private resize = new ResizeObserver(() => { this.layoutDirty = true; this.schedule(); });
   private mutations = new MutationObserver(records => {
-    if (!records.some(record => {
+    let affected = false;
+    for (const record of records) {
       const element = record.target instanceof Element ? record.target : record.target.parentElement;
-      return element && !element.closest('[data-liquid-mirror-layer],[data-liquid-glass]');
-    })) return;
-    if (records.some(record => record.target instanceof Element && record.target.closest('.ambient') && !record.target.closest('[data-liquid-mirror-layer]'))) this.ambientVersion++;
-    this.version++; this.layoutDirty = true; this.schedule();
+      if (!element || element.closest('[data-liquid-mirror-layer],[data-liquid-glass]')) continue;
+      if (element.closest('.ambient')) { this.ambientVersion++; affected = true; continue; }
+      if (!this.source || !this.source.contains(element)) continue;
+      const row = element.closest<HTMLElement>('[data-liquid-row]');
+      if (row && row.parentElement === this.source) {
+        this.rowVersions.set(row, (this.rowVersions.get(row) ?? 0) + 1);
+      } else {
+        this.version++;
+      }
+      affected = true; this.layoutDirty = true;
+    }
+    if (affected) this.schedule();
   });
   private theme = new MutationObserver(() => { this.version++; this.ambientVersion++; this.schedule(); });
   private reduced = matchMedia('(prefers-reduced-transparency: reduce)');
@@ -181,10 +191,11 @@ class MirrorGroup {
         if (top + item.height < box.top - 96 || top > box.bottom + 96 || item.width < 1) continue;
         active.add(item.node);
         let cached = state.copies.get(item.node); let fresh = false;
-        if (!cached || cached.version !== this.version) {
+        const rowVersion = this.rowVersions.get(item.node) ?? 0;
+        if (!cached || cached.version !== this.version || cached.rowVersion !== rowVersion) {
           cached?.node.remove(); const clone = cloneMirrorNode(item.node, `${state.filter.id}-row-${++serial}`);
           state.column.append(clone); fresh = true;
-          cached = { node: clone, version: this.version }; state.copies.set(item.node, cached);
+          cached = { node: clone, version: this.version, rowVersion }; state.copies.set(item.node, cached);
         }
         Object.assign(cached.node.style, { position: 'absolute', left: `${item.x}px`, top: `${item.y}px`, width: `${item.width}px`, height: `${item.height}px`, margin: '0', contentVisibility: 'visible', containIntrinsicSize: 'none', overflow: 'hidden' });
         if (fresh) syncLiveState(item.node, cached.node);

@@ -541,7 +541,7 @@ export default function App(): React.ReactElement {
     onOpenArchive={() => setArchiveOpen(true)} onBack={goBack} onSwitchProject={() => void refreshProjects()}
     onOpenSession={(item) => void actions.openSession(item)} onLongPressSession={openSessionMenu}
     onNewSession={() => void actions.startNewSession()} />;
-  else content = <ChatScreen title={session?.title ?? t('app.newSession')} connection={connection} messages={messages as DisplayMessage[]}
+  else content = <ChatScreen key={activeSessionId} title={session?.title ?? t('app.newSession')} connection={connection} messages={messages as DisplayMessage[]}
     pendingAsk={pendingAsk} onAnswerSubmit={submitAsk}
     backgroundShells={backgroundShells} backgroundAgents={backgroundAgents}
     onOpenShellOutput={(shell) => setViewingShell({ id: shell.id, command: shell.command })}

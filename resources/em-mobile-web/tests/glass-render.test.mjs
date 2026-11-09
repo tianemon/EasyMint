@@ -10,7 +10,7 @@ const result = await build({ entryPoints: [fileURLToPath(new URL('../src/ui/glas
 } }] });
 function fixture() {
  const window=new Window(),document=window.document,frames=new Map(),observers=[],media=new Map();let next=0;
- document.body.innerHTML='<div class="app"><div class="ambient"><div class="ambient-green"></div></div><div class="message-scroll"><div class="message-column">'+Array.from({length:30},(_,i)=>`<div class="msg-row" data-index="${i}">message ${i}</div>`).join('')+'</div></div><div class="glass-liquid" data-liquid-glass data-liquid-blur="2.5" style="border-radius:24px"></div></div>';
+ document.body.innerHTML='<div class="app"><div class="ambient"><div class="ambient-green"></div></div><div class="message-scroll"><div class="message-column">'+Array.from({length:30},(_,i)=>`<div class="msg-row" data-liquid-row data-index="${i}">message ${i}</div>`).join('')+'</div></div><div class="glass-liquid" data-liquid-glass data-liquid-blur="2.5" style="border-radius:24px"></div></div>';
  Object.defineProperties(window.HTMLElement.prototype,{clientWidth:{get(){return this.classList.contains('glass-liquid')?358:390}},clientHeight:{get(){return this.classList.contains('glass-liquid')?98:800}}});
  window.HTMLElement.prototype.getBoundingClientRect=function(){const isGlass=this.classList.contains('glass-liquid'),column=this.classList.contains('message-column'),row=this.hasAttribute('data-index'),scroll=document.querySelector('.message-scroll').scrollTop,top=isGlass?700:row?Number(this.dataset.index)*100-scroll:column?-scroll:0,height=isGlass?98:row?100:column?3000:800,width=isGlass?358:390;return {left:0,right:width,top,bottom:top+height,width,height,x:0,y:top,toJSON(){}}};
  Object.defineProperty(document,'fonts',{value:{ready:{then(){}}}});
@@ -60,4 +60,13 @@ test('frost is applied to the backdrop before all three liquid refraction paths'
  assert.equal(filter.querySelector('feOffset').getAttribute('in'),'softBackdrop');
  assert.equal(filter.querySelectorAll('feDisplacementMap').length,3);
  for(const warp of filter.querySelectorAll('feDisplacementMap'))assert.equal(warp.getAttribute('in'),'centered');
+});
+
+test('unrelated changes and updates to one row do not replace other visible mirrors',()=>{
+ const f=fixture(),stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();
+ const mirror=f.surface.querySelector('.liquid-dom-viewport');const untouched=mirror.querySelector('[data-index="6"]');
+ const row=f.root.querySelector('[data-index="7"]');row.textContent='updated';f.observers[0].cb([{target:row.firstChild,type:'characterData'}]);f.flush();
+ assert.equal(mirror.querySelector('[data-index="6"]'),untouched);
+ const toolbar=f.document.createElement('div');f.root.append(toolbar);f.observers[0].cb([{target:toolbar,type:'attributes'}]);f.flush();
+ assert.equal(mirror.querySelector('[data-index="6"]'),untouched);stop();
 });

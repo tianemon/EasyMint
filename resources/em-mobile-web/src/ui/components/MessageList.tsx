@@ -79,7 +79,8 @@ export function MessageList({ messages, running, tail, askId, statusText, status
 }): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
-  const forceBottom = useRef(false);
+  const forceBottom = useRef(true);
+  const followingBottom = useRef(true);
 
   // 最新在前 → 文档流要 oldest-first
   const rows = useMemo(
@@ -94,6 +95,7 @@ export function MessageList({ messages, running, tail, askId, statusText, status
   useLayoutEffect(() => {
     if (!askId) return;
     forceBottom.current = true;
+    followingBottom.current = true;
     setAtBottom(true);
     const handle = requestAnimationFrame(() => {
       const el = scrollRef.current;
@@ -115,10 +117,23 @@ export function MessageList({ messages, running, tail, askId, statusText, status
     return () => cancelAnimationFrame(handle);
   }, [signature, rows, atBottom, bottomInset, statusText]);
 
+  useLayoutEffect(() => {
+    const node = scrollRef.current;
+    const column = node?.firstElementChild;
+    if (!node || !column || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (followingBottom.current || forceBottom.current) node.scrollTop = node.scrollHeight;
+    });
+    observer.observe(column);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const onScroll = (): void => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || forceBottom.current) return;
     const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_PX;
+    followingBottom.current = bottom;
     setAtBottom(bottom);
   };
 
