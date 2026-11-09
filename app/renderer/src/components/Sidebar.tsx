@@ -11,6 +11,7 @@ import { RunPanel } from "./RunPanel";
 import { ToolboxPanel } from "./toolbox/ToolboxPanel";
 import { DevicePanel } from "./device/DevicePanel";
 import { MobileTerminalPanel } from "./device/MobileTerminalPanel";
+import { MobileConnectionGuide, useMobileConnectionGuide } from "./device/MobileConnectionGuide";
 import { ProjectCreationGuide, useProjectCreationGuide } from "./new-project/ProjectCreationGuide";
 import { useThemeStore } from "../stores/theme-store";
 import { readVersion, markRead } from "../lib/update-notice";
@@ -61,6 +62,7 @@ export function Sidebar({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const newProjectRef = useRef<HTMLButtonElement>(null);
   const creationGuide = useProjectCreationGuide(projectId);
+  const mobileGuide = useMobileConnectionGuide(creationGuide.active || toolboxOpen || devicePanelOpen || mobilePanelOpen || menuOpen || drawerOpen);
   const drawerRef = useRef<HTMLDivElement>(null);
   const segRef = useRef<HTMLDivElement>(null);
 
@@ -312,7 +314,11 @@ export function Sidebar({
           </div>
           <div className="flex-1" />
           <button
+            type="button"
             className={`sb-foot-btn ${toolboxOpen ? "bg-surface-hover" : ""}`}
+            aria-label={t("ui.ToolboxPanel.toolbox")}
+            aria-expanded={toolboxOpen}
+            title={t("ui.ToolboxPanel.toolbox")}
             onClick={() => setToolboxOpen((v) => !v)}
            
           >
@@ -332,11 +338,12 @@ export function Sidebar({
       {/* 工具箱弹层:相对 sidebar 定位(底部按钮上方弹出,不受按钮容器尺寸影响)。
           两个抽屉都是 fixed 全覆盖浮层,同时打开会叠在一起——开一个先关另一个,
           不依赖遮罩挡住工具箱这个隐式前提(将来加托盘/快捷键入口就不成立了) */}
+      {mobileGuide.visible && <MobileConnectionGuide onClose={mobileGuide.dismiss} onOpen={() => { mobileGuide.dismiss(); setDevicePanelOpen(false); setMobilePanelOpen(true); }} />}
       <ToolboxPanel
         open={toolboxOpen}
         onClose={() => setToolboxOpen(false)}
         onOpenMigrationPanel={() => { setMobilePanelOpen(false); setDevicePanelOpen(true); }}
-        onOpenMobilePanel={() => { setDevicePanelOpen(false); setMobilePanelOpen(true); }}
+        onOpenMobilePanel={() => { mobileGuide.dismiss(); setDevicePanelOpen(false); setMobilePanelOpen(true); }}
       />
       {/* 项目迁移浮层:fixed 覆盖整个视口(电脑↔电脑迁移项目) */}
       <DevicePanel open={devicePanelOpen} onClose={() => setDevicePanelOpen(false)} />
