@@ -70,3 +70,13 @@ test('unrelated changes and updates to one row do not replace other visible mirr
  const toolbar=f.document.createElement('div');f.root.append(toolbar);f.observers[0].cb([{target:toolbar,type:'attributes'}]);f.flush();
  assert.equal(mirror.querySelector('[data-index="6"]'),untouched);stop();
 });
+
+test('scrolling list used directly as source keeps mirror positions in scroll coordinates',()=>{
+ const f=fixture(),scroller=f.root.querySelector('.message-scroll'),column=scroller.querySelector('.message-column');
+ scroller.append(...column.children);column.remove();scroller.scrollTop=400;
+ const stop=f.state.adapter.registerLiquidGlass(f.surface);f.flush();
+ const viewport=f.surface.querySelector('.liquid-dom-viewport'),row=viewport.querySelector('[data-index="11"]');
+ assert.ok(row);assert.equal(row.style.top,'1100px');assert.match(viewport.firstElementChild.style.transform,/-400px/);
+ scroller.scrollTop=500;scroller.dispatchEvent(new f.state.Event('scroll'));f.flush();
+ assert.ok(viewport.querySelector('[data-index="12"]'));stop();
+});

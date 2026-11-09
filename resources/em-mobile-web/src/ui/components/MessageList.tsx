@@ -97,24 +97,18 @@ export function MessageList({ messages, running, tail, askId, statusText, status
     forceBottom.current = true;
     followingBottom.current = true;
     setAtBottom(true);
-    const handle = requestAnimationFrame(() => {
-      const el = scrollRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
-      forceBottom.current = false;
-    });
-    return () => cancelAnimationFrame(handle);
+    const node = scrollRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+    forceBottom.current = false;
   }, [askId]);
 
   useLayoutEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
     if (!atBottom && !forceBottom.current) return;
-    const handle = requestAnimationFrame(() => {
-      const el = scrollRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
-      forceBottom.current = false;
-    });
-    return () => cancelAnimationFrame(handle);
+    // Layout effects run before paint, so opening a populated session does not flash at the top.
+    node.scrollTop = node.scrollHeight;
+    forceBottom.current = false;
   }, [signature, rows, atBottom, bottomInset, statusText]);
 
   useLayoutEffect(() => {

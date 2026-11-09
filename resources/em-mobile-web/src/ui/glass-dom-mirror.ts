@@ -34,6 +34,12 @@ export function cloneMirrorNode(source: HTMLElement, prefix: string): HTMLElemen
   }
   return clone;
 }
+function updateStyles(element: HTMLElement, styles: Partial<CSSStyleDeclaration>): void {
+  for (const [key, value] of Object.entries(styles)) {
+    const property = key as keyof CSSStyleDeclaration;
+    if (element.style[property] !== value) (element.style as unknown as Record<string, string>)[key] = String(value);
+  }
+}
 function syncLiveState(source: HTMLElement, clone: HTMLElement): void {
   const originals = [source, ...source.querySelectorAll<HTMLElement>('*')];
   const copies = [clone, ...clone.querySelectorAll<HTMLElement>('*')];
@@ -156,7 +162,7 @@ class MirrorGroup {
     const sourceRect = source?.getBoundingClientRect();
     if (this.layoutDirty) {
       this.items = source && sourceRect ? [...source.children].filter((el): el is HTMLElement => el instanceof HTMLElement)
-        .map(node => { const box = node.getBoundingClientRect(); return { node, x: box.left - sourceRect.left, y: box.top - sourceRect.top, width: box.width, height: box.height }; }) : [];
+        .map(node => { const box = node.getBoundingClientRect(); return { node, x: box.left - sourceRect.left, y: box.top - sourceRect.top + (source === scroller ? scroller.scrollTop : 0), width: box.width, height: box.height }; }) : [];
       this.layoutDirty = false;
     }
     const rootRect = this.root.getBoundingClientRect(), scrollRect = scroller?.getBoundingClientRect();
@@ -174,7 +180,7 @@ class MirrorGroup {
         state.node.dataset.liquidReady = ''; delete state.node.dataset.liquidError;
       } catch { delete state.node.dataset.liquidReady; state.node.dataset.liquidError = 'material-unavailable'; continue; }
       state.layer.style.setProperty('--liquid-dom-tint', dark ? '.05' : '0');
-      Object.assign(state.scene.style, { width: `${rootRect.width}px`, height: `${rootRect.height}px`, transform: `translate(${rootRect.left - box.left + 48}px,${rootRect.top - box.top + 48}px)` });
+      updateStyles(state.scene, { width: `${rootRect.width}px`, height: `${rootRect.height}px`, transform: `translate(${rootRect.left - box.left + 48}px,${rootRect.top - box.top + 48}px)` });
       if (state.ambientVersion !== this.ambientVersion) {
         state.scene.querySelector(':scope > .ambient')?.remove();
         const ambient = this.root.querySelector<HTMLElement>(':scope > .ambient');
@@ -182,12 +188,12 @@ class MirrorGroup {
         state.ambientVersion = this.ambientVersion;
       }
       if (!source || !sourceRect || !scrollRect || !scroller) { state.viewport.style.display = 'none'; continue; }
-      Object.assign(state.viewport.style, { display: 'block', left: `${scrollRect.left - rootRect.left}px`, top: `${scrollRect.top - rootRect.top}px`, width: `${scroller.clientWidth}px`, height: `${scroller.clientHeight}px` });
-      state.column.className = source.className;
-      Object.assign(state.column.style, { position: 'absolute', display: 'block', flex: 'none', minHeight: '0', padding: '0', margin: '0', overflow: 'visible', width: `${sourceRect.width}px`, height: `${source.scrollHeight}px`, left: `${sourceRect.left - scrollRect.left + scroller.scrollLeft}px`, top: `${sourceRect.top - scrollRect.top + scroller.scrollTop}px`, transform: `translate(${-scroller.scrollLeft}px,${-scroller.scrollTop}px)` });
+      updateStyles(state.viewport, { display: 'block', left: `${scrollRect.left - rootRect.left}px`, top: `${scrollRect.top - rootRect.top}px`, width: `${scroller.clientWidth}px`, height: `${scroller.clientHeight}px` });
+      if (state.column.className !== source.className) state.column.className = source.className;
+      updateStyles(state.column, { position: 'absolute', display: 'block', flex: 'none', minHeight: '0', padding: '0', margin: '0', overflow: 'visible', width: `${sourceRect.width}px`, height: `${source.scrollHeight}px`, left: `${sourceRect.left - scrollRect.left + scroller.scrollLeft}px`, top: `${sourceRect.top - scrollRect.top + scroller.scrollTop}px`, transform: `translate(${-scroller.scrollLeft}px,${-scroller.scrollTop}px)` });
       const active = new Set<HTMLElement>();
       for (const item of this.items) {
-        const top = sourceRect.top + item.y;
+        const top = sourceRect.top + item.y - (source === scroller ? scroller.scrollTop : 0);
         if (top + item.height < box.top - 96 || top > box.bottom + 96 || item.width < 1) continue;
         active.add(item.node);
         let cached = state.copies.get(item.node); let fresh = false;
@@ -197,7 +203,7 @@ class MirrorGroup {
           state.column.append(clone); fresh = true;
           cached = { node: clone, version: this.version, rowVersion }; state.copies.set(item.node, cached);
         }
-        Object.assign(cached.node.style, { position: 'absolute', left: `${item.x}px`, top: `${item.y}px`, width: `${item.width}px`, height: `${item.height}px`, margin: '0', contentVisibility: 'visible', containIntrinsicSize: 'none', overflow: 'hidden' });
+        updateStyles(cached.node, { position: 'absolute', left: `${item.x}px`, top: `${item.y}px`, width: `${item.width}px`, height: `${item.height}px`, margin: '0', contentVisibility: 'visible', containIntrinsicSize: 'none', overflow: 'hidden' });
         if (fresh) syncLiveState(item.node, cached.node);
       }
       for (const [node, cached] of state.copies) if (!active.has(node)) { cached.node.remove(); state.copies.delete(node); }
