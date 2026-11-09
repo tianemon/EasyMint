@@ -37,7 +37,7 @@ export function HomeScreen({ devices, activePcId, connection, pairCode, error,
       } />
       <div className="screen-body home-body">
         {devices.length > 0 ? (
-          <Glass variant="frosted" blur radius={16} className="device-card">
+          <Glass variant="frosted" contour blur radius={16} className="device-card">
             {devices.map((device, index) => {
               const isActive = device.pcId === activePcId;
               const connected = isActive && connection === 'connected';
