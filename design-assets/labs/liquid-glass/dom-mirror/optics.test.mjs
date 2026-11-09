@@ -59,3 +59,10 @@ test('optimized contour matches the original visible pixels across sizes and rad
   }
  }
 });
+
+test('contour strengths increase only the requested edge intensities',async()=>{
+ const {renderContour}=await import('../../../../app/shared/visual-design/liquid-dom-optics.mjs');
+ const draw=options=>{let img;const canvas={width:0,height:0,getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(value){img=value}})};renderContour(canvas,100,60,16,{resolution:2,...options});return (x,y)=>img.data[(y*canvas.width+x)*4+3]};
+ const base=draw({}),strong=draw({darkStrength:.38,lightStrength:.38});
+ assert.ok(strong(1,60)>base(1,60));assert.ok(strong(100,1)>base(100,1));assert.equal(strong(100,60),0);
+});

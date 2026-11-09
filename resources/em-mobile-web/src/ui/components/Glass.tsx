@@ -6,6 +6,8 @@ import { renderContour } from '../../../../../app/shared/visual-design/liquid-do
 type GlassProps = {
   variant?: 'frosted';
   contour?: boolean;
+  contourDark?: number;
+  contourLight?: number;
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
@@ -22,7 +24,7 @@ type GlassProps = {
 };
 
 export function Glass({
-  variant = 'frosted', contour = false, className = '', style, children, radius = 8, blur = true, intensity, elevated = false, rim = 'gradient',
+  variant = 'frosted', contour = false, contourDark, contourLight, className = '', style, children, radius = 8, blur = true, intensity, elevated = false, rim = 'gradient',
 }: GlassProps): React.ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
   const [contourReady, setContourReady] = useState(false);
@@ -38,7 +40,7 @@ export function Glass({
       const key = [box.width, box.height, radius, density].join(':');
       if (key === lastGeometry) return;
       try {
-        renderContour(canvas, box.width, box.height, Math.min(radius, box.width / 2, box.height / 2), { resolution: density });
+        renderContour(canvas, box.width, box.height, Math.min(radius, box.width / 2, box.height / 2), { resolution: density, darkStrength: contourDark, lightStrength: contourLight });
         lastGeometry = key;
         canvas.hidden = false;
         setContourReady(true);
@@ -53,7 +55,7 @@ export function Glass({
     observer?.observe(root);
     window.addEventListener('resize', draw);
     return () => { observer?.disconnect(); window.removeEventListener('resize', draw); };
-  }, [contour, radius]);
+  }, [contour, contourDark, contourLight, radius]);
   const vars = { '--glass-radius': `${radius}px` } as CSSProperties;
   if (intensity !== undefined) (vars as Record<string, string>)['--glass-blur'] = `${Math.max(2, Math.round(intensity * 0.43))}px`;
   const tuned = blur && intensity !== undefined;

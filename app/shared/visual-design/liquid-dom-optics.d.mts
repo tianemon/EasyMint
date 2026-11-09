@@ -6,4 +6,4 @@ export const defaults: {
 };
 export type OpticalSettings=Partial<typeof defaults>;
 export function renderFilter(filter:SVGFilterElement,w:number,h:number,r:number,settings?:OpticalSettings,options?:{resolution?:number;bands?:3|8;gain?:number;monochrome?:boolean;edgeOnly?:boolean}):void;
-export function renderContour(canvas:HTMLCanvasElement,w:number,h:number,r:number,options?:{width?:number;retreat?:number;resolution?:number}):void;
+export function renderContour(canvas:HTMLCanvasElement,w:number,h:number,r:number,options?:{width?:number;retreat?:number;darkStrength?:number;lightStrength?:number;resolution?:number}):void;

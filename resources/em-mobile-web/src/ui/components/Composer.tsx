@@ -90,7 +90,7 @@ export function Composer(props: ComposerProps): React.ReactElement {
   return (
     <div className="composer-wrap">
       <div className="composer-card">
-        <Glass variant="frosted" contour blur radius={24} elevated={false} className="composer-glass" />
+        <Glass variant="frosted" contour contourDark={0.38} contourLight={0.38} blur radius={24} elevated={false} className="composer-glass" />
 
         {attachments.length > 0 && (
           <div className="composer-attachments">
