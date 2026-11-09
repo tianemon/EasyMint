@@ -95,10 +95,18 @@ export function renderFilter(filter,w,h,r,settings={},options={}) {
 export function renderContour(canvas,w,h,r,{width=.5,retreat=2,resolution=Math.min(globalThis.devicePixelRatio||1,3)}={}) {
   const pw=Math.max(1,Math.round(w*resolution)),ph=Math.max(1,Math.round(h*resolution));canvas.width=pw;canvas.height=ph;if(!width)return;
   const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas unavailable');const img=ctx.createImageData(pw,ph);
-  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
-    const px=(x+.5)*w/pw,py=(y+.5)*h/ph,s=surface(px,py,w,h,r),depth=-s.distance;
-    const profile=Math.exp(-Math.pow((depth-.4)/Math.max(width,.15),2)),coverage=1-smoothstep(0,1,(s.distance+.5)*resolution);
-    const dark=profile*Math.pow(s.nx,4)*.26*coverage,light=profile*Math.pow(s.ny,4)*.24*coverage*(retreat?smoothstep(0,retreat,Math.min(px,w-px)):1),alpha=light+dark*(1-light),k=(y*pw+x)*4;
-    img.data[k]=img.data[k+1]=img.data[k+2]=alpha?Math.round(255*light/alpha):0;img.data[k+3]=Math.round(255*alpha);
+  // The Gaussian is below 8-bit visibility outside this conservative band.
+  // Skip the flat interior while retaining full corner coverage and identical pixels.
+  const band=2+6*Math.max(width,.15),corner=Math.max(0,r)+band;
+  const edgePixels=Math.min(pw,Math.ceil(band*pw/w)+1),cornerPixels=Math.min(pw,Math.ceil(corner*pw/w)+1);
+  for(let y=0;y<ph;y++){
+    const py=(y+.5)*h/ph,limit=py<=band||py>=h-band?pw:(py<=corner||py>=h-corner?cornerPixels:edgePixels);
+    const spans=limit*2>=pw?[[0,pw]]:[[0,limit],[pw-limit,pw]];
+    for(const [start,end] of spans)for(let x=start;x<end;x++){
+      const px=(x+.5)*w/pw,s=surface(px,py,w,h,r),depth=-s.distance;
+      const profile=Math.exp(-Math.pow((depth-.4)/Math.max(width,.15),2)),coverage=1-smoothstep(0,1,(s.distance+.5)*resolution);
+      const dark=profile*Math.pow(s.nx,4)*.26*coverage,light=profile*Math.pow(s.ny,4)*.24*coverage*(retreat?smoothstep(0,retreat,Math.min(px,w-px)):1),alpha=light+dark*(1-light),k=(y*pw+x)*4;
+      img.data[k]=img.data[k+1]=img.data[k+2]=alpha?Math.round(255*light/alpha):0;img.data[k+3]=Math.round(255*alpha);
+    }
   }ctx.putImageData(img,0,0);
 }

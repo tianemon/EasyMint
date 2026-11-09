@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { renderContour } from '../../../../../app/shared/visual-design/liquid-dom-optics.mjs';
 
@@ -25,13 +25,28 @@ export function Glass({
   variant = 'frosted', contour = false, className = '', style, children, radius = 8, blur = true, intensity, elevated = false, rim = 'gradient',
 }: GlassProps): React.ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [contourReady, setContourReady] = useState(false);
   const contourRef = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     const root = rootRef.current, canvas = contourRef.current;
     if (!contour || !root || !canvas) return;
+    let lastGeometry = '';
     const draw = (): void => {
       const box = root.getBoundingClientRect();
-      if (box.width > 0 && box.height > 0) renderContour(canvas, box.width, box.height, Math.min(radius, box.width / 2, box.height / 2));
+      if (box.width <= 0 || box.height <= 0) return;
+      const density = Math.min(window.devicePixelRatio || 1, 3);
+      const key = [box.width, box.height, radius, density].join(':');
+      if (key === lastGeometry) return;
+      try {
+        renderContour(canvas, box.width, box.height, Math.min(radius, box.width / 2, box.height / 2), { resolution: density });
+        lastGeometry = key;
+        canvas.hidden = false;
+        setContourReady(true);
+      } catch {
+        lastGeometry = '';
+        canvas.hidden = true;
+        setContourReady(false);
+      }
     };
     draw();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(draw);
@@ -46,7 +61,7 @@ export function Glass({
   return (
     <div
       ref={rootRef}
-      className={`glass glass-${variant}${blur ? ' is-blur' : ''}${tuned ? ' is-blur-tuned' : ''}${elevated ? ' is-elevated' : ''}${rim === 'none' ? ' rim-none' : ''}${contour ? ' has-fine-contour' : ''} ${className}`}
+      className={`glass glass-${variant}${blur ? ' is-blur' : ''}${tuned ? ' is-blur-tuned' : ''}${elevated ? ' is-elevated' : ''}${rim === 'none' ? ' rim-none' : ''}${contour && contourReady ? ' has-fine-contour' : ''} ${className}`}
       style={{ ...vars, ...style }}
     >
       {contour && <canvas ref={contourRef} className="glass-fine-contour" aria-hidden="true" />}

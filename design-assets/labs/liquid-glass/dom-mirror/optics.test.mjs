@@ -42,3 +42,20 @@ test('accepted contour keeps the middle clear with horizontal light and lateral 
  const top=pixel(100,1),side=pixel(1,60);
  assert.ok(top[3]>0&&top[0]>200,'top should be bright');assert.ok(side[3]>0&&side[0]<30,'side should be dark');
 });
+
+test('optimized contour matches the original visible pixels across sizes and radii',async()=>{
+ const {renderContour,surface,smoothstep}=await import('../../../../app/shared/visual-design/liquid-dom-optics.mjs');
+ for(const [w,h,r,width,resolution] of [[100,60,16,.5,2],[59,59,29.5,.5,3],[358,150,24,.5,2],[80,40,0,1.5,1],[17,9,4,.1,1]]){
+  let img;const canvas={width:0,height:0,getContext:()=>({createImageData:(a,b)=>({data:new Uint8ClampedArray(a*b*4)}),putImageData(v){img=v}})};
+  renderContour(canvas,w,h,r,{width,resolution});
+  const pw=canvas.width,ph=canvas.height;
+  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
+   const px=(x+.5)*w/pw,py=(y+.5)*h/ph,s=surface(px,py,w,h,r),depth=-s.distance;
+   const profile=Math.exp(-(((depth-.4)/Math.max(width,.15))**2)),coverage=1-smoothstep(0,1,(s.distance+.5)*resolution);
+   const dark=profile*Math.abs(s.nx)**4*.26*coverage,light=profile*Math.abs(s.ny)**4*.24*coverage*smoothstep(0,2,Math.min(px,w-px));
+   const alpha=light+dark*(1-light),expected=Math.round(255*alpha),index=(y*pw+x)*4;
+   assert.equal(img.data[index+3],expected,`alpha at ${w}x${h} (${x},${y})`);
+   if(expected)assert.equal(img.data[index],Math.round(255*light/alpha),`color at ${w}x${h} (${x},${y})`);
+  }
+ }
+});
