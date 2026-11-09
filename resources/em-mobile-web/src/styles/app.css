@@ -192,6 +192,10 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 /* Match the accepted SDF contour while leaving the frosted backdrop live. */
 .glass.has-fine-contour { border: 0; }
 .glass-fine-contour { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+/* A soft inner reflection adds depth without changing the fine contour. */
+.composer-glass.has-fine-contour::after { content: ''; position: absolute; inset: 0; z-index: 1;
+  border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 3px 5px -4px rgba(255,255,255,.38), inset 0 -2px 4px -4px rgba(255,255,255,.22); }
 @media (prefers-reduced-transparency: reduce) { .glass-fine-contour { display: none; } }
 
 /* ── 图标动效 ─────────────────────────────────── */
