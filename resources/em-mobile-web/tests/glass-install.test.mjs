@@ -40,7 +40,7 @@ test('index.html：安装入口齐全且仍满足 CSP / 相对路径契约', () 
     match(html, new RegExp(`<meta name="${name}" content="${value}"`), `删掉 <meta name="${name}">`);
   }
   match(html, /<meta name="theme-color" content="#141414" media="\(prefers-color-scheme: dark\)"/, '删掉深色 theme-color 变体');
-  match(html, /interactive-widget=overlays-content/, '删掉 interactive-widget（Android 软键盘会压缩布局）');
+  match(html, /interactive-widget=resizes-visual/, '键盘必须缩小可视区域，避免遮住输入卡');
   noMatch(html, /https?:\/\//, '引入一个外部 CDN / 绝对 URL');
   noMatch(html, /\son(?:click|load|error|change|input|submit|focus|blur)\s*=/i, '加一个内联事件属性');
   noMatch(html, /<script\b[^>]*>[\s\S]+?<\/script>/, '往 HTML 里塞内联脚本或 SVG defs');
