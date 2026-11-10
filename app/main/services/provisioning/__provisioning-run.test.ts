@@ -112,7 +112,23 @@ describe("依赖安装执行层", () => {
     expect(res.reason).not.toContain("镜像源");
   });
 
-  it("只复核本次请求：Windows 可选 Git Bash 缺失不把 winSandbox 安装判成失败", async () => {
+    it("Windows：装配失败不再套用 Linux polkit 的「网络/镜像源不可达」解释", async () => {
+    const res = await installDependencies(
+      ["winSandbox"],
+      () => {},
+      {
+        plan: { strategy: "winInstall" },
+        installWin: async () => { throw new Error("install_failed"); },
+        logger: () => {},
+        probe: async () => report(["missing"], ["winSandbox"]),
+      },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.reason).toContain("系统授权没成功");
+    expect(res.reason).not.toContain("镜像源");
+  });
+
+it("只复核本次请求：Windows 可选 Git Bash 缺失不把 winSandbox 安装判成失败", async () => {
     const events: InstallEvent[] = [];
     const res = await installDependencies(
       ["winSandbox"],

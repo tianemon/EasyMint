@@ -14,13 +14,44 @@ const report = (status: EnvItemShape["status"]): EnvReportShape => ({
   ], distro: { id: "windows", autoInstallable: false }, probedAt: 1,
 });
 const probe = vi.fn(), install = vi.fn();
+/** 主进程阶段事件的订阅者：让单测能注入 done/verifying，验证读数门槛。 */
+let progressHandler: ((ev: { phase: string }) => void) | null = null;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  probe.mockReset(); install.mockReset();
-  Object.assign(window, { electronAPI: { env: { probe, retest: probe, install, cancel: vi.fn() } } });
+  probe.mockReset(); install.mockReset(); progressHandler = null;
+  Object.assign(window, { electronAPI: { env: {
+    probe, retest: probe, install, cancel: vi.fn(),
+    onProgress: (cb: (ev: { phase: string }) => void) => {
+      progressHandler = cb;
+      return () => { progressHandler = null; };
+    },
+  } } });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+it("引导页工作屏幕显示数字百分比，并随最短停留推进", async () => {
+  vi.useFakeTimers();
+  probe.mockResolvedValue(report("ok"));
+  await act(async () => root.render(createElement(EnvPanel, { variant: "onboarding", autoFix: true, onReady: vi.fn() })));
+  const readPercent = (): number => Number((container.textContent?.match(/(\d+)%/) ?? [])[1]);
+  expect(container.textContent).toContain("%");
+  const before = readPercent();
+  await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+  expect(readPercent()).toBeGreaterThan(before);
+});
+
+it("done 阶段不谎报 100，只有交回宿主才到 100", async () => {
+  vi.useFakeTimers();
+  probe.mockResolvedValue(report("ok"));
+  const readPercent = (): number => Number((container.textContent?.match(/(\d+)%/) ?? [])[1]);
+  await act(async () => root.render(createElement(EnvPanel, { variant: "onboarding", autoFix: true, onReady: vi.fn() })));
+  // 主进程在「所选组件已装完、仍有其它环境问题」时也会发 done，不能当成整体就绪
+  await act(async () => { progressHandler?.({ phase: "done" }); });
+  expect(readPercent()).toBeLessThan(100);
+  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+  expect(readPercent()).toBe(100);
+});
 
 it("onboarding prepares only portable runtime even with sandbox disabled, then continues without UAC", async () => {
   vi.useFakeTimers();

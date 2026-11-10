@@ -11,7 +11,7 @@ import { uiText, useUiLocale } from "../../lib/i18n";
  *   （用户 2026-09-15 反馈：此前只说缺什么、没说影响，提醒不够明确）。
  * - 实在装不了才提供「关闭沙盒运行」，且必须先说清失去什么、保留什么，并说明随时能开回来（安抚）。
  */
-import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { confirmDialog } from "../ui/ConfirmDialog";
 import { useSettingsStore } from "../../stores/settings-store";
 
@@ -53,7 +53,7 @@ export function onboardingHint(s: {
 }
 
 /**
- * 「工作屏幕」（只有标题 + 动画，不显示依赖列表）是否可见。抽成纯函数以便单测。
+ * 「工作屏幕」（只有标题 + 光带 + 数字百分比，不显示依赖列表）是否可见。抽成纯函数以便单测。
  *
  * ⚠️ **判据里没有 `holdMin`**（最短停留），这是 2026-09-15 修掉的一个真缺陷：原来判的是
  * `busy || holdMin`，最短停留一走完它就变假 —— 而此刻宿主还没把页面跳走（要等 1.2s 才切步），
@@ -87,6 +87,18 @@ export function workScreenVisible(s: {
  *  至少显示 5 秒（不然我白做了）"。没有它，在本来就什么都不用装的机器上，探测几百毫秒就结束，
  *  动画一闪而过甚至来不及出现。 */
 const MIN_WORK_SCREEN_MS = 5000;
+
+/** 工作屏幕的数字百分比（用户 2026-11-10 拍板追加，与光带并列）。
+ *  它和光带一样是「正在工作」的表达，**不是真实安装进度**：按最短停留缓动到 90% 后停住，
+ *  不谎报完成；真实阶段事件到达时抬到对应值，交回宿主（就绪）才落到 100%。
+ *  这样纯探测、无需安装任何东西的机器也有可读的推进感。 */
+const PROGRESS_TICK_MS = 100;
+const PROGRESS_TIME_CAP = 90;
+/** done 不映射 100：主进程在「所选组件已装完、但仍有其它环境问题」时也会发 done
+ *  （run.ts:229-232）。100 只允许由 handedOff（环境真正就绪）给出。 */
+const PHASE_PERCENT: Record<string, number> = {
+  preparing: 92, installing: 94, verifying: 98,
+};
 
 /**
  * 「本次运行里，这个自动动作是否已经自动跑过一次」——
@@ -161,6 +173,8 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   const [handedOff, setHandedOff] = useState(false);
   /** 最短停留是否还没到（仅引导流程初始为 true，见 MIN_WORK_SCREEN_MS） */
   const [holdMin, setHoldMin] = useState(autoFix);
+  /** 工作屏幕数字百分比（0~100，见 PROGRESS_TIME_CAP 注释） */
+  const [progress, setProgress] = useState(0);
   const sandboxDisabled = useSettingsStore((s) => s.sandboxDisabled);
   const setSandboxDisabled = useSettingsStore((s) => s.setSandboxDisabled);
 
@@ -209,12 +223,42 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   /** 宿主接管了"就绪即自动离开"（引导流程传 onReady）。用户自己「返回」再进来时宿主不再传它，
    *  面板据此回落到普通态 —— 否则会挂着一个动画、"正在进入下一步"却永远不会跳。 */
   const willAutoLeave = onReady !== undefined;
-  /** 只留「标题 + 动画」（用户 2026-09-15 定："不要显示具体的在安装什么依赖，一个标题，一个动画"）。
+  /** 只留标题 + 光带 + 数字百分比（2026-09-15 定「不显示具体在装什么」，2026-11-10 追加数字；"不要显示具体的在安装什么依赖，一个标题，一个动画"）。
    *  规则与三个例外见 workScreenVisible 的 docstring —— 那里也解释了为什么判据不含 holdMin。 */
   const working = workScreenVisible({ busy, handedOff, autoFix, willAutoLeave, hasProblem,
     waitForUser: waitForUser && !holdMin });
   /** 实际工作期间刻意静默（"一个标题，一个动画"），就绪后允许显示检测结论。 */
   const quiet = working && !handedOff;
+
+  // 数字百分比按最短停留缓动推进：累计 tick 放 ref（working 切换不重爬），到顶即停表。
+  const progressElapsed = useRef(0);
+  useEffect(() => {
+    if (!working) return;
+    const timer = window.setInterval(() => {
+      progressElapsed.current += PROGRESS_TICK_MS;
+      const t = Math.min(1, progressElapsed.current / MIN_WORK_SCREEN_MS);
+      const eased = PROGRESS_TIME_CAP * (1 - (1 - t) ** 2);
+      setProgress((p) => Math.max(p, Math.round(eased)));
+      if (t >= 1) window.clearInterval(timer);
+    }, PROGRESS_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [working]);
+
+  // 真实安装阶段只抬不降；宿主没暴露订阅（渲染层单测的精简 mock）时静默跳过。
+  useEffect(() => {
+    const subscribe = window.electronAPI?.env?.onProgress;
+    if (!subscribe) return;
+    const off = subscribe((ev) => {
+      const target = PHASE_PERCENT[ev.phase];
+      if (target !== undefined) setProgress((p) => Math.max(p, target));
+    });
+    return () => { if (typeof off === "function") off(); };
+  }, []);
+
+  // 交回宿主＝环境就绪，此时才允许 100%；未就绪永远停在 90~98，不假完成。
+  useEffect(() => {
+    if (handedOff) setProgress(100);
+  }, [handedOff]);
 
   const install = async (selected = installable): Promise<void> => {
     if (selected.length === 0) return;
@@ -402,11 +446,11 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
         </div>
       )}
 
-      {/* 安装动画：**只有这一条动画，不配任何文字**（用户 2026-09-15："不要显示具体的在安装什么
-          依赖，一个标题，一个动画"，随后又点名去掉了阶段文案 —— 所以既没有依赖名，也没有"正在…"那行）。
-          形状：硬边、4px 厚 × 300px 长、两端渐隐、**无轨道线**（装饰性动画，不是进度条）。
+      {/* 工作屏幕：标题 + 光带 + 数字百分比。用户 2026-09-15 定为「一个标题，一个动画」，
+          点名去掉依赖名与阶段文案；2026-11-10 追加数字百分比，仍不显示「正在装什么」。
+          光带是装饰性动画、不是进度条：硬边、4px 厚 × 300px 长、两端渐隐、无轨道线。
           容器就是裁剪框（`overflow-hidden` 让光带贴边即返时干净收住），高度与光带一致。
-          主进程仍在发 `env:progress` 阶段事件（preload 也仍暴露 onProgress），只是界面不再显示。 */}
+          主进程 `env:progress` 阶段事件只用来抬数字（见 PHASE_PERCENT），不显示任何阶段文案。 */}
       {working && (
         /* mt-[26px] = 原来的 mt-4(16px) + 用户 2026-09-15 要求的 10px。
            注意它和标题之间还有 h1 的 mb-1(4px)，故实际间距 30px。
@@ -414,23 +458,31 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
            10px，见上面 h1 的 `-top-[10px]`），故累计 20px。用 position 位移而不是改 margin/gap ——
            这层是 justify-center 的 flex 容器，改 margin 会让整块重新居中、标题被一起带着走，
            达不到"若干项各自上下"的效果。连续微调时也可以把两个 10px 合并成一个值（现为 20px）。 */
-        <div className="mt-[26px] flex justify-center relative top-[20px]">
-          {/* 轨道 900px（用户 2026-09-15 先给 800，随后单独调到 900；光带 300 不变）→ 行程 600px。
-              **它比本面板的内容宽（540px）宽，这不是笔误** —— 面板被根节点 `max-w-[540px]` 框住，
-              而光带要有 600px 的行程，就必须让轨道比内容宽。靠这层 `flex justify-center` 溢出居中：
-              540/2 与 900/2 差 180px，于是轨道相对页面左右对称地各溢出 180px（主窗口默认 1400 宽，
-              内容区可用 1336px；即使拖到最小宽 1024 也还有 960px，900 都在其内，不会被 #app-shell 裁）。
-              `shrink-0` 必需：flex 项默认可收缩，否则它会被压回 540px，行程白加。
-              宽度上限（`max-width: calc(100vw - 64px)`，与引导页内容区的 px-8 对齐）写在
-              index.css 的 `.sweep-track` 里，与行程公式同处，见那里的注释。
-              行程与光带宽度都由 index.css 的 `@keyframes envSweep` 与 `.env-sweep-glow` 负责，
-              这里的 `overflow-hidden` 只是兜底，正常一帧都不会裁到像素。 */}
-          <div className="sweep-track relative h-1 w-[900px] shrink-0 overflow-hidden">
-            {/* 颜色、宽度（300px）、白芯与两端渐隐都在 index.css 的 .env-sweep-glow 里（那里用 mask 裁
-                水平渐隐），故此处不能加 bg-accent、也不能再加 w-*。也不能加 -translate-y-1/2 之类：
-                动画 keyframes 写的是 transform: translateX，会抢同一属性。`rounded-[50%]` 给光带一个
-                胶囊轮廓。行程 = `100cqw - 100%`（轨道宽 − 光带宽）在 keyframes 里自动算，此处无需配合。 */}
-            <div className="env-sweep-glow absolute inset-y-0 left-0 rounded-[50%]" />
+        <div className="mt-[26px] relative top-[20px]">
+          <div className="flex justify-center">
+            {/* 轨道 900px（用户 2026-09-15 先给 800，随后单独调到 900；光带 300 不变）→ 行程 600px。
+                **它比本面板的内容宽（540px）宽，这不是笔误** —— 面板被根节点 `max-w-[540px]` 框住，
+                而光带要有 600px 的行程，就必须让轨道比内容宽。靠这层 `flex justify-center` 溢出居中：
+                540/2 与 900/2 差 180px，于是轨道相对页面左右对称地各溢出 180px（主窗口默认 1400 宽，
+                内容区可用 1336px；即使拖到最小宽 1024 也还有 960px，900 都在其内，不会被 #app-shell 裁）。
+                `shrink-0` 必需：flex 项默认可收缩，否则它会被压回 540px，行程白加。
+                宽度上限（`max-width: calc(100vw - 64px)`，与引导页内容区的 px-8 对齐）写在
+                index.css 的 `.sweep-track` 里，与行程公式同处，见那里的注释。
+                行程与光带宽度都由 index.css 的 `@keyframes envSweep` 与 `.env-sweep-glow` 负责，
+                这里的 `overflow-hidden` 只是兜底，正常一帧都不会裁到像素。 */}
+            <div className="sweep-track relative h-1 w-[900px] shrink-0 overflow-hidden">
+              {/* 颜色、宽度（300px）、白芯与两端渐隐都在 index.css 的 .env-sweep-glow 里（那里用 mask 裁
+                  水平渐隐），故此处不能加 bg-accent、也不能再加 w-*。也不能加 -translate-y-1/2 之类：
+                  动画 keyframes 写的是 transform: translateX，会抢同一属性。`rounded-[50%]` 给光带一个
+                  胶囊轮廓。行程 = `100cqw - 100%`（轨道宽 − 光带宽）在 keyframes 里自动算，此处无需配合。 */}
+              <div className="env-sweep-glow absolute inset-y-0 left-0 rounded-[50%]" />
+            </div>
+          </div>
+          {/* 数字百分比：等宽数字防跳动、accent 随主题；不配说明小字，也不加容器描边。
+              装饰性读数，屏幕阅读器不必每 100ms 播报一次 → aria-hidden。 */}
+          <div className="mt-5 flex items-baseline justify-center gap-1" aria-hidden="true">
+            <span className="text-[30px] font-light leading-none tabular-nums text-accent">{progress}</span>
+            <span className="text-xs text-text-secondary">%</span>
           </div>
         </div>
       )}

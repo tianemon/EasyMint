@@ -214,6 +214,8 @@ export async function installDependencies(
     log("[install] windows installWindowsSandboxAsync");
     try {
       winCancelled = (await installWin())?.cancelled === true;
+      // 成功与「UAC 取消」都不抛异常，以前两者都不落日志，排查时只能靠界面文案猜结果
+      log(`[install] windows ${winCancelled ? "UAC cancelled" : "finished"}`);
     } catch (e) {
       errorText = (e as Error).message;
       exitCode = FAILED_EXIT; // 没有退出码，统一按失败处理
@@ -247,7 +249,8 @@ export async function installDependencies(
   } else if (exitCode === 0) {
     reason = `组件已安装，但 ${remaining.join("、")} 仍不可用——多为系统策略拦截，请看下方说明`;
   } else {
-    reason = `安装未完成（退出码 ${exitCode}：${pkexecExitNote(exitCode)}）`
+    const note = plan.strategy === "winInstall" ? AUTH_FAILED_NOTE : pkexecExitNote(exitCode);
+    reason = `安装未完成（退出码 ${exitCode}：${note}）`
       + (errorText ? `。错误信息：${outputTail(errorText, 160)}` : "");
   }
   onEvent({ phase: "failed", index: total, total, message: reason });
@@ -287,9 +290,14 @@ export interface FixUsernsDeps {
  * 且不给 127 断言"命令没有执行"（那可能是 PROGRAM 自己的退出码）。
  * 来源：https://manpages.ubuntu.com/manpages/noble/man1/pkexec.1.html
  */
+/** 系统授权没成功（弹不出窗口 / 策略拒绝）。Windows 的 srt 装配失败也用这句，
+ *  它的退出码只会是 1 或 null，不能套 Linux polkit 的「网络/镜像源不可达」解释。
+ *  文案复用 messages.systemAuthorizationFailedTheDialogMayBeUnavailable（i18n 已登记）。 */
+const AUTH_FAILED_NOTE = "通常表示系统授权没成功（当前环境弹不出授权窗口，或被系统策略拒绝）";
+
 function pkexecExitNote(exitCode: number | null): string {
   if (exitCode === 126) return "通常表示你在系统授权窗口点了取消，命令没有执行";
-  if (exitCode === 127) return "通常表示系统授权没成功（当前环境弹不出授权窗口，或被系统策略拒绝）";
+  if (exitCode === 127) return AUTH_FAILED_NOTE;
   return "常见原因：取消了系统授权、当前环境弹不出授权窗口，或网络/镜像源不可达";
 }
 
