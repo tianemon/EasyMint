@@ -629,11 +629,6 @@ export function seedDefaultMcp(): void {
     }
   }
 
-  if (changed) {
-    data.mcpServers = existing;
-    atomicWrite(configPath, JSON.stringify(data, null, 2));
-  }
-
   // CodeGraph 默认停用（2026-11-10）：工具是可选能力，没装不该拖慢或打扰对话。
   // 仅首次播种该条目时默认停用；已存在的条目保留原有状态。
   const settingsPath = emSettingsPath();
@@ -643,16 +638,23 @@ export function seedDefaultMcp(): void {
       ? JSON.parse(readFileSync(settingsPath, "utf-8"))
       : {};
     const migration = (settings.migration ?? {}) as Record<string, unknown>;
-    if (migration.codegraphDefaultOff === true) return;
-    const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
-    if (!hadCodegraph && !hidden.includes("codegraph")) {
-      writeExternalField(settings, "hiddenMcpServers", [...hidden, "codegraph"]);
+    if (migration.codegraphDefaultOff !== true) {
+      const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
+      if (!hadCodegraph && !hidden.includes("codegraph")) {
+        writeExternalField(settings, "hiddenMcpServers", [...hidden, "codegraph"]);
+      }
+      settings.migration = { ...migration, codegraphDefaultOff: true };
+      atomicWrite(settingsPath, JSON.stringify(settings, null, 2));
     }
-    settings.migration = { ...migration, codegraphDefaultOff: true };
-    atomicWrite(settingsPath, JSON.stringify(settings, null, 2));
   } catch (e) {
     console.warn("[mcp] 初始化默认停用列表失败:", (e as Error).message);
+    // Do not publish a new CodeGraph entry before its default-off state is durable.
+    return;
   } finally { release(); }
+  if (changed) {
+    data.mcpServers = existing;
+    atomicWrite(configPath, JSON.stringify(data, null, 2));
+  }
 }
 
 // ── Plugin marketplace seed ────────────────────────

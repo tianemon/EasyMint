@@ -123,6 +123,16 @@ describe("MCP 配置：迁移未完成时的回落读写", () => {
     expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(true);
   });
 
+  it("does not publish CodeGraph when the default-off settings cannot be saved, and retries safely", async () => {
+    fs.mkdirSync(path.join(home, "em-settings.json"), { recursive: true });
+    const mcp = await loadService();
+    mcp.seedDefaultMcp();
+    expect(fs.existsSync(path.join(home, "agent", "mcp.json"))).toBe(false);
+    fs.rmSync(path.join(home, "em-settings.json"), { recursive: true });
+    mcp.seedDefaultMcp();
+    expect(mcp.scanMcpServers().find(s => s.name === "codegraph")?.enabled).toBe(false);
+  });
+
   it("删除 codegraph 后下次播种仍保持停用", async () => {
     const mcp = await loadService();
     mcp.seedDefaultMcp();
