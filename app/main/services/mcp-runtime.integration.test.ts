@@ -97,10 +97,21 @@ describe("Pi MCP host integration", () => {
     await waitFor(() => getMcpStatus(cwd).find(status => status.name === "echo")?.state === "connected");
     expect(getMcpStatus(cwd).find(status => status.name === "echo")?.state).toBe("connected");
     await session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "retry discovery" }, { cwd });
+    // 重连已改为后台非阻塞（工具连接不与对话耦合）：prompt 立即返回，等后台落地再断言
+    await waitFor(() => getMcpStatus(cwd).find(status => status.name === "codegraph")?.state === "connected");
     expect(getMcpStatus(cwd).find(status => status.name === "codegraph")).toMatchObject({ state: "connected", toolCount: 1 });
     expect(sandbox.wrap).toHaveBeenCalledTimes(3);
     expect(JSON.stringify((await script(session, 'text((await tools.mcp__codegraph__echo({text:"recovered"})).content[0].text);')).content)).toContain("echo:recovered");
   }, 15000);
+
+  // 守护「聊天纯净」：把 before_agent_start 改回 async/await 会让每条消息等 30s 的 MCP 连接超时。
+  // SDK 的 emitBeforeAgentStart 本身总是返回 Promise，无法用返回值区分，故锚定源码形态。
+  it("MCP 的 before_agent_start 钩子保持同步返回", () => {
+    const source = fs.readFileSync(path.resolve("app/main/services/mcp-runtime.ts"), "utf8");
+    const start = source.indexOf('pi.on("before_agent_start"');
+    expect(start).toBeGreaterThan(-1);
+    expect(source.slice(start, start + 80)).not.toContain("async");
+  });
 
   it("publishes tools without enumerating resources and preserves non-object structured results", async () => {
     const resourceLog = path.join(root, "resources.log");

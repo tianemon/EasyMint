@@ -183,6 +183,22 @@ describe("Pi extension UI bridge", () => {
     expect(sent.at(-1)).toMatchObject({ senderId: 7, channel: "pi-extension:notice", message: "插件已加载", type: "info" });
   });
 
+  // 聊天纯净：MCP 的连接等待/加载失败/工具发现未激活同样不该弹 toast（用户 2026-11-10）。
+  it("silences MCP startup and connection notices, but keeps unrelated notices", () => {
+    makeWindow(8, projectUrl("proj-mcp-all"));
+    bindPiExtensionWindow("/tmp/pi-project-mcp-all", 8);
+    const ui = createPiExtensionUi("/tmp/pi-project-mcp-all");
+    for (const message of [
+      "MCP servers are still connecting; their tools become available once connected.",
+      "MCP failed to load: spawn codegraph ENOENT",
+      "MCP tools are only reachable from the codemode or tool_search tool, but neither is active",
+    ]) ui.notify(message, "warning");
+    expect(sent).toHaveLength(0);
+    // 正向探针必须用 warning：否则「吞掉所有 warning」的错误实现也能让上面三条静默通过
+    ui.notify("与 MCP 无关的提示", "warning");
+    expect(sent.at(-1)).toMatchObject({ channel: "pi-extension:notice", message: "与 MCP 无关的提示", type: "warning" });
+  });
+
   // isMcpAttentionNotice 是按文案特征静默的（pi 没有给这条通知结构化标识），所以升级 SDK 后
   // 若 pi 改了措辞，静默会悄悄失效、提醒重新弹回聊天。这条锚定已安装 SDK 里 MCP 扩展的真实文案：
   // 变红不是代码坏了，而是要求复核 isMcpAttentionNotice 的特征串。

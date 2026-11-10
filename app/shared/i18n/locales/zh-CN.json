@@ -25,7 +25,7 @@
   "settings.detecting": "检测中...",
   "settings.notInstalled": "未安装",
   "settings.detectFailed": "检测失败，可点「重新检测」重试",
-  "settings.powerShell": "在 PowerShell 中运行 · ",
+  "settings.optionalTool": "可选能力",
   "settings.cache": "缓存管理",
   "settings.installerCache": "安装包缓存",
   "settings.scanning": "扫描中...",

@@ -135,14 +135,28 @@ export async function createMcpSessionExtensions(options: {
   return [
     { name: "easymint-mcp", hidden: true, factory: pi => {
       sessions.add(record);
-      pi.on("before_agent_start", async () => {
+      /** 后台自愈冷却：工具是可选能力，不能因为一条消息就 await 一次 30s 的连接超时。 */
+      const retryCooldownMs = 60_000;
+      let lastMcpRetryAt = 0;
+      // 这个钩子在 SDK 里是串行 await 的（extensions/runner.js），必须同步返回。
+      // 配置变更由设置页的 reloadMcpTools() 显式刷新；这里只做后台自愈，失败只留主进程日志。
+      pi.on("before_agent_start", () => {
+        const now = Date.now();
+        if (now - lastMcpRetryAt < retryCooldownMs) return;
+        if (record.disposed || record.mode() === "readonly") return;
         if (loadedSignature !== configSignature()) {
-          await record.controller?.reload();
-        } else if (!record.disposed && record.mode() !== "readonly") {
-          // Retry only failed discovery, keeping successful servers and their tools alive.
-          await Promise.allSettled(record.statuses.filter(status => status.state === "failed")
-            .map(status => record.controller?.reconnect(status.name)));
+          lastMcpRetryAt = now;
+          void record.controller?.reload().catch(error => console.warn("[mcp] 配置重载失败", redact(String(error))));
+          return;
         }
+        const failed = record.statuses.filter(status => status.state === "failed");
+        if (failed.length === 0) return;
+        lastMcpRetryAt = now;
+        // 后台自愈不能在会话关闭后继续拉起可选工具：每个 server 发起前再检查一次。
+        void Promise.allSettled(failed.map(async (status) => {
+          if (record.disposed || record.mode() === "readonly") return;
+          await record.controller?.reconnect(status.name);
+        }));
       });
       wrapFactory(mcpFactory)(pi);
       pi.on("session_shutdown", () => { record.disposed = true; sessions.delete(record); });

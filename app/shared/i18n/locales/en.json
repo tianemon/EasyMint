@@ -25,7 +25,7 @@
   "settings.detecting": "Checking...",
   "settings.notInstalled": "Not installed",
   "settings.detectFailed": "Check failed. Select “Check again” to retry.",
-  "settings.powerShell": "Run in PowerShell · ",
+  "settings.optionalTool": "Optional",
   "settings.cache": "Cache management",
   "settings.installerCache": "Installer cache",
   "settings.scanning": "Scanning...",

@@ -38,6 +38,7 @@ beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "em-mcp-fallback-"));
   roots.push(home);
   process.env.EASYMINT_HOME = home;
+  vi.spyOn(os, "homedir").mockReturnValue(home);
 });
 
 afterEach(() => {
@@ -46,6 +47,7 @@ afterEach(() => {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
   }
   vi.resetModules();
+  vi.restoreAllMocks();
 });
 
 async function loadService() {
@@ -103,5 +105,46 @@ describe("MCP 配置：迁移未完成时的回落读写", () => {
     expect(mcp.deleteMcpServer("current").ok).toBe(true);
     expect(mcp.getMcpConfigPath()).toBe(path.join(home, "agent", "mcp.json"));
     expect(mcp.scanMcpServers()).toEqual([]);
+  });
+
+  it("seedDefaultMcp 默认停用 codegraph，且用户手动启用后不再自动关", async () => {
+    const mcp = await loadService();
+    mcp.seedDefaultMcp();
+    const config = JSON.parse(fs.readFileSync(mcp.getMcpConfigPath(), "utf8"));
+    // 条目保留在配置里，设置页仍可一键开启
+    expect(Object.keys(config.mcpServers)).toContain("codegraph");
+    expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(false);
+    // 只关 codegraph，不影响另一个默认项
+    expect(mcp.scanMcpServers().find((s) => s.name === "playwright")?.enabled).toBe(true);
+
+    mcp.toggleMcpServer("codegraph", true);
+    expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(true);
+    (await loadService()).seedDefaultMcp();
+    expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(true);
+  });
+
+  it("删除 codegraph 后下次播种仍保持停用", async () => {
+    const mcp = await loadService();
+    mcp.seedDefaultMcp();
+    expect(mcp.deleteMcpServer("codegraph").ok).toBe(true);
+    (await loadService()).seedDefaultMcp();
+    expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(false);
+  });
+
+  it("首次播种 codegraph 时，即使用户点过其它 MCP 开关也默认停用", async () => {
+    writeAt(home, "em-settings.json", JSON.stringify({ mcp: { hidden: ["playwright"] } }));
+    const mcp = await loadService();
+    mcp.seedDefaultMcp();
+    expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(false);
+  });
+
+  it.each([true, false])("保留旧版默认 CodeGraph 的启用状态：%s", async (enabled) => {
+    writeAt(path.join(home, "agent"), "mcp.json", JSON.stringify({ mcpServers: {
+      codegraph: { type: "stdio", command: "codegraph", args: ["serve", "--mcp"] },
+    } }));
+    writeAt(home, "em-settings.json", JSON.stringify({ mcp: { hidden: enabled ? [] : ["codegraph"] } }));
+    const mcp = await loadService();
+    mcp.seedDefaultMcp();
+    expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(enabled);
   });
 });

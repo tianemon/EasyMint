@@ -57,51 +57,22 @@ function EnvRow({ label, info, installUrl }: {
   );
 }
 
+/** CodeGraph 是可选能力：默认停用，未安装是正常态，不催装、不报红。
+ *  启用入口统一在「设置 → 插件 → MCP」，这里只显示检测结论。 */
 function CodegraphRow({ info }: { info: DetectInfo | null }) {
   const { t } = useTranslation();
-  // Windows 无 sh：原 curl|sh 在 PowerShell/cmd 下必失败，按平台给对应安装器
-  const isWin = window.electronAPI?.platform === "win32";
-  const cmd = isWin
-    ? "irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex"
-    : "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh";
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(cmd);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <div className="px-4 py-2.5 flex items-start justify-between em-hover-row transition-shadow">
-      <div className="flex items-center gap-2 mt-1">
+    <div className="px-4 py-2.5 flex items-center justify-between em-hover-row transition-shadow">
+      <div className="flex items-center gap-2">
         <span className="text-sm text-text-secondary">CodeGraph</span>
         {info === null ? (
           <span className="text-xs text-text-muted">{t("settings.detecting")}</span>
         ) : info.found ? (
           <span className="text-xs text-text-secondary">{info.version}</span>
-        ) : info.reason === "probe-error" ? (
-          <span className="text-xs text-danger">{t("settings.detectFailed")}</span>
         ) : (
-          <span className="text-xs text-danger">{t("settings.notInstalled")}</span>
+          <span className="text-xs text-text-muted">{t("settings.optionalTool")}</span>
         )}
       </div>
-      {info && !info.found && info.reason !== "probe-error" && (
-        <div className="flex flex-col items-end gap-1.5">
-          <div className="flex items-center gap-1">
-            <code className="text-[length:var(--text-2xs)] text-text-secondary bg-surface px-2 py-0.5 rounded-[var(--radius-lg)] select-all">{cmd}</code>
-            <button
-              className="shrink-0 px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-accent em-hover-control transition-all"
-              onClick={handleCopy}
-            >
-              {copied ? t("common.copied") : t("common.copy")}
-            </button>
-          </div>
-          <span className="text-[length:var(--text-2xs)] text-text-muted">
-            {isWin ? t("settings.powerShell") : ""}https://github.com/colbymchenry/codegraph
-          </span>
-        </div>
-      )}
     </div>
   );
 }

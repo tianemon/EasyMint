@@ -512,7 +512,8 @@ export function deleteMcpServer(
         ? JSON.parse(readFileSync(emSettingsPath(), "utf-8"))
         : {};
       const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
-      if (hidden.includes(name)) {
+      // codegraph 是默认停用项：删掉配置也不该让下次启动的播种把它重新启用
+      if (hidden.includes(name) && name !== "codegraph") {
         writeExternalField(settings, "hiddenMcpServers", hidden.filter((n) => n !== name));
         atomicWrite(emSettingsPath(), JSON.stringify(settings, null, 2));
       }
@@ -617,6 +618,8 @@ export function seedDefaultMcp(): void {
 
   const existing: Record<string, McpServerConfig> =
     (data.mcpServers as Record<string, McpServerConfig>) || {};
+  // 既有条目的启用状态无法区分用户选择与旧默认，升级时必须保留。
+  const hadCodegraph = Object.prototype.hasOwnProperty.call(existing, "codegraph");
 
   // Standard servers — just write config entries
   for (const [name, cfg] of Object.entries(DEFAULT_MCP_SERVERS)) {
@@ -630,6 +633,26 @@ export function seedDefaultMcp(): void {
     data.mcpServers = existing;
     atomicWrite(configPath, JSON.stringify(data, null, 2));
   }
+
+  // CodeGraph 默认停用（2026-11-10）：工具是可选能力，没装不该拖慢或打扰对话。
+  // 仅首次播种该条目时默认停用；已存在的条目保留原有状态。
+  const settingsPath = emSettingsPath();
+  const release = lockConfigDirectory(emHome());
+  try {
+    const settings: Record<string, unknown> = existsSync(settingsPath)
+      ? JSON.parse(readFileSync(settingsPath, "utf-8"))
+      : {};
+    const migration = (settings.migration ?? {}) as Record<string, unknown>;
+    if (migration.codegraphDefaultOff === true) return;
+    const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
+    if (!hadCodegraph && !hidden.includes("codegraph")) {
+      writeExternalField(settings, "hiddenMcpServers", [...hidden, "codegraph"]);
+    }
+    settings.migration = { ...migration, codegraphDefaultOff: true };
+    atomicWrite(settingsPath, JSON.stringify(settings, null, 2));
+  } catch (e) {
+    console.warn("[mcp] 初始化默认停用列表失败:", (e as Error).message);
+  } finally { release(); }
 }
 
 // ── Plugin marketplace seed ────────────────────────

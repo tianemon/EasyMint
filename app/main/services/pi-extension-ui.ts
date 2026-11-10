@@ -135,15 +135,19 @@ export function answerPiExtensionPrompt(senderId: number, id: string, value: str
 }
 
 /**
- * MCP 连不上时的「MCP servers need attention … Run /mcp to fix.」不进聊天界面。
+ * MCP 相关的通知一律不进聊天界面（用户 2026-11-10：聊天要纯净，工具是可选能力）。
  *
- * 这条来自 pi 的 reportProblems()，走 `ui.notify(..., "warning")`；EM 的 notify 会把它翻成
- * 一条 toast。MCP 起不来属于配置/依赖问题，但每次新会话首次发消息都弹一次会直接打断对话
- * （用户 2026-10-29 要求去掉，只在环境/设置里排查）。这里吞掉、保留主进程日志；
- * 两个文案特征任一命中即算，pi 只改其中一半也漏不掉。
+ * 覆盖 pi 的四类 notify：reportProblems 的 "MCP servers need attention … Run /mcp to fix."、
+ * 首轮等待直连的 "MCP servers are still connecting…"、整体加载失败的 "MCP failed to load…"、
+ * 以及按需工具发现未激活的 "MCP tools are only reachable…"。它们都是配置/依赖状态，
+ * 排查入口是「设置 → 插件 → MCP」，不该在对话里弹 toast。这里吞掉、保留主进程日志。
  */
 const isMcpAttentionNotice = (message: string): boolean =>
-  /MCP servers need attention/i.test(message) || /Run \/mcp to fix\./i.test(message);
+  /MCP servers need attention/i.test(message) ||
+  /Run \/mcp to fix\./i.test(message) ||
+  /MCP servers are still connecting/i.test(message) ||
+  /MCP failed to load/i.test(message) ||
+  /MCP tools are only reachable/i.test(message);
 
 export function createPiExtensionUi(projectPath?: string): ExtensionUIContext {
   const ui = {
