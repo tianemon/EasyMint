@@ -1,4 +1,5 @@
 import { translateAppText } from "../shared/i18n/app-messages";
+import { projectWindowRoute } from "../shared/project-window";
 import { applyUiLanguage, mainUiI18n, t } from "./services/ui-language";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog } from "electron";
@@ -635,12 +636,7 @@ app.on("activate", () => {
 async function openProjectWindow(
   projectId: string, sessionId?: string, init?: boolean, touchLastProject = true,
 ): Promise<void> {
-  const params = new URLSearchParams();
-  if (sessionId) params.set("session", sessionId);
-  if (init) params.set("init", "1");
-  params.set("fresh", "1"); // 标记为新窗口，App.tsx 跳过 tab 恢复
-  const qs = params.toString();
-  const hash = qs ? `/project/${projectId}?${qs}` : `/project/${projectId}`;
+  const hash = projectWindowRoute(projectId, { sessionId, init, remote: !touchLastProject });
   if (touchLastProject && sharedServices) sharedServices.store.setLastProjectId(projectId);
   await createWindow(hash);
 }

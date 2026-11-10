@@ -6,6 +6,7 @@ import { TabBar } from "../components/TabBar";
 import { ChatPanel } from "../components/ChatPanel";
 import { ImageViewer } from "../components/ImageViewer";
 import { isImagePath } from "@shared/image-files";
+import { shouldRememberProject } from "@shared/project-window";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { confirmDialog } from "../components/ui/ConfirmDialog";
@@ -139,7 +140,7 @@ export function ProjectPage(): JSX.Element {
           setProjectPath(p.path);
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
-          window.electronAPI.settings.setLastProject(projectId);
+          if (shouldRememberProject(location.search)) window.electronAPI.settings.setLastProject(projectId);
           // 加载项目开发状态 + 同步任务（集中式 refreshAll）
           refreshAll(p.path);
           // 如果 URL 带有 session 参数，自动打开该会话
