@@ -23,34 +23,47 @@ import { webDeviceId } from './client-id';
 type Status = 'disconnected' | 'connecting' | 'connected';
 type JsonObject = Record<string, unknown>;
 
-function openSocket(address: string, port: number, timeoutMs = 4_000): Promise<WebSocket> {
+function openSocket(address: string, port: number, signal: AbortSignal, timeoutMs = 4_000): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(new Error('连接已取消')); return; }
     const socket = new WebSocket(`ws://${address}:${port}`);
-    const timer = setTimeout(() => {
-      socket.close();
-      reject(new Error(`无法连接 ${address}`));
-    }, timeoutMs);
+    const cleanup = (): void => { clearTimeout(timer); signal.removeEventListener('abort', cancel); socket.onopen = null; socket.onerror = null; };
+    const fail = (): void => { cleanup(); socket.close(); reject(new Error(`无法连接 ${address}`)); };
+    const cancel = (): void => { fail(); };
+    const timer = setTimeout(fail, timeoutMs);
+    signal.addEventListener('abort', cancel, { once: true });
     socket.onopen = () => {
-      clearTimeout(timer);
+      cleanup();
       resolve(socket);
     };
-    socket.onerror = () => {
-      clearTimeout(timer);
-      reject(new Error(`无法连接 ${address}`));
-    };
+    socket.onerror = fail;
   });
 }
 
 async function connectAny(addresses: string[], port: number): Promise<WebSocket> {
-  let lastError: unknown;
-  for (const address of addresses) {
-    try {
-      return await openSocket(address, port);
-    } catch (error) {
-      lastError = error;
-    }
+  if (addresses.length === 0) throw new Error('无法连接电脑，请确认两台设备在同一局域网');
+  const controller = new AbortController();
+  let winner = false;
+  const attempts = [...new Set(addresses)].map((address, index) => new Promise<WebSocket>((resolve, reject) => {
+    // Prefer the first address, but do not wait four seconds for each unreachable adapter.
+    const start = (): void => {
+      void Promise.resolve().then(() => openSocket(address, port, controller.signal)).then(socket => {
+        if (winner) { socket.close(); reject(new Error('连接已取消')); return; }
+        winner = true;
+        resolve(socket);
+      }, reject);
+    };
+    if (index === 0) { start(); return; }
+    const timer = setTimeout(start, index * 200);
+    controller.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('连接已取消')); }, { once: true });
+  }));
+  try {
+    return await Promise.any(attempts);
+  } catch {
+    throw new Error('无法连接电脑，请确认手机网络和电脑地址');
+  } finally {
+    controller.abort();
   }
-  throw lastError instanceof Error ? lastError : new Error('无法连接电脑，请确认两台设备在同一局域网');
 }
 
 function parseMessage(event: MessageEvent): JsonObject | null {

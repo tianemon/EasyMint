@@ -17,7 +17,7 @@
   "protocol/remote-client.ts": {
     "source": "connection/remote-client.ts",
     "sha256": "b55a99c868168db5be5e1f3c3beb2a6afc1393c6a6ea9576ddbead91d27b98c2",
-    "localSha256": "644eb5e9bf59af705f8b677e7da62d08fdf54d92954507bc8c60f274e696deed"
+    "localSha256": "54d453237670b0c35fa8ec018e9dc925ca06f9e42500be50d12943bab922896c"
   },
   "protocol/credential-store.ts": {
     "source": "security/credential-store.ts",

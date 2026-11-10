@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
+import { orderedLanAddresses } from "./lan-addresses";
 import {
   computeRemoteSecret,
   decryptRemoteMessage,
@@ -167,16 +168,7 @@ function timingSafeEqualBase64(actual: string, expected: string): boolean {
 
 /** 局域网 IPv4（私有地址段），供手机 WS 配对与手机网页静态服务的 Host/CSP 白名单共用。 */
 export function lanAddresses(): string[] {
-  const result = new Set<string>();
-  for (const entries of Object.values(os.networkInterfaces())) {
-    for (const entry of entries ?? []) {
-      if (entry.family !== "IPv4" || entry.internal) continue;
-      const [a, b] = entry.address.split(".").map(Number);
-      const isPrivate = a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-      if (isPrivate) result.add(entry.address);
-    }
-  }
-  return [...result];
+  return orderedLanAddresses(os.networkInterfaces());
 }
 
 /** 只转发手机端首版需要的事件，避免把主进程内部广播或本机路径意外暴露出去。每次连接都重建是浪费。 */
