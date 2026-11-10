@@ -399,7 +399,7 @@ describe("native Pi extension discovery", () => {
       .map((root) => path.join(root, "@earendil-works", "pi-coding-agent", "package.json"))
       .find((file) => fs.existsSync(file));
     expect(manifestPath).toBeDefined();
-    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.5.0");
+    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.5.2");
     const { parseGitUrl } = await import(pathToFileURL(path.join(path.dirname(manifestPath!), "dist", "utils", "git.js")).href);
     const forms = ["git:github:owner/repo", "git:github.com/owner/repo@tag", "https://github.com/owner/repo.git", "git:git@github.com:owner/repo.git"];
     const identities = forms.map((source) => {

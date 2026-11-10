@@ -36,6 +36,7 @@ const PROVIDER_FILES: Record<string, { name: string; file: string }> = {
   "qwen-token-plan":       { name: "Qwen Token Plan",        file: "qwen-token-plan.json" },
   "qwen-token-plan-cn":    { name: "Qwen Token Plan CN",     file: "qwen-token-plan-cn.json" },
   "qwen-token-plan-individual": { name: "Qwen Token Plan Individual", file: "qwen-token-plan-individual.json" },
+  "qwen-token-plan-individual-cn": { name: "Qwen Token Plan Individual CN", file: "qwen-token-plan-individual-cn.json" },
   "xiaomi":                { name: "Xiaomi MiMo",            file: "xiaomi.json" },
   "xiaomi-token-plan-ams": { name: "MiMo Token Plan AMS",    file: "xiaomi-token-plan-ams.json" },
   "xiaomi-token-plan-cn":  { name: "MiMo Token Plan CN",     file: "xiaomi-token-plan-cn.json" },
@@ -68,7 +69,7 @@ const PROVIDER_FILES: Record<string, { name: string; file: string }> = {
 };
 
 // 展示过滤：数据层完整（表内可查），但不在设置页供应商列表展示的供应商。
-// 当前仅 qwen-token-plan-individual 需要展示；baseten / azure-openai-responses 保留数据不展示。
+// baseten / azure-openai-responses 保留数据不展示。
 const HIDDEN_PROVIDER_IDS = new Set(["baseten", "azure-openai-responses"]);
 
 function findDataDir(): string {

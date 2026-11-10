@@ -26,6 +26,9 @@ function findDataDir(): string | undefined {
 }
 
 describe("静态供应商模型表", () => {
+  it("读取 Qwen Token Plan Individual 国内入口的 SDK 模型表", () => {
+    expect(getProviderStaticModels("qwen-token-plan-individual-cn").size).toBeGreaterThan(0);
+  });
   it("跨供应商窗口与能力索引也接受裸 id 和网关别名，只包含对话模型", () => {
     const models = getProviderStaticModels("deepseek");
     expect(models.size).toBeGreaterThan(0);

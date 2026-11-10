@@ -27,4 +27,8 @@ describe("供应商预设表", () => {
     const ids = presets.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("展示 Qwen Token Plan Individual 国内入口", () => {
+    expect(presets.find((p) => p.id === "qwen-token-plan-individual-cn")).toMatchObject({ brandKey: "qwen" });
+  });
 });

@@ -133,6 +133,7 @@ const PLATFORM_PRESETS: PlatformPreset[] = [
   { id: "qwen-token-plan",       label: "Qwen Token Plan",          brandKey: "qwen",      keyPlaceholder: "sk-..." },
   { id: "qwen-token-plan-cn",    label: "Qwen Token Plan CN",       brandKey: "qwen",      keyPlaceholder: "sk-..." },
   { id: "qwen-token-plan-individual", label: "Qwen Token Plan Individual", brandKey: "qwen", keyPlaceholder: "sk-..." },
+  { id: "qwen-token-plan-individual-cn", label: "Qwen Token Plan Individual CN", brandKey: "qwen", keyPlaceholder: "sk-..." },
   { id: "xiaomi",                label: "Xiaomi MiMo",              brandKey: "xiaomi",    keyPlaceholder: "sk-..." },
   { id: "xiaomi-token-plan-cn",  label: "MiMo Token Plan CN",       brandKey: "xiaomi",    keyPlaceholder: "sk-..." },
   { id: "xiaomi-token-plan-sgp", label: "MiMo Token Plan SGP",      brandKey: "xiaomi",    keyPlaceholder: "sk-..." },

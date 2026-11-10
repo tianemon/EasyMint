@@ -11,6 +11,14 @@ export async function getModelRuntime(store: Store) {
 export async function getSettingsManager(cwd: string, agentDir: string) {
   const SM = await getSettingsManagerClass();
   const mgr = await SM.create(cwd, agentDir);
+  // Pi 1.5.1 defaults to paid idle cache warming. Preserve the prior streaming default
+  // without writing settings, while honoring an explicit global choice.
+  const getCacheWarmingMode = mgr.getCacheWarmingMode.bind(mgr);
+  mgr.getCacheWarmingMode = () => {
+    const configured = mgr.getGlobalSettings().cacheWarming;
+    return configured === "off" || configured === "streaming" || configured === "idle"
+      ? getCacheWarmingMode() : "streaming";
+  };
   // EM's explicit compaction policy; does not rewrite imported settings.
   mgr.applyOverrides({ compaction: { enabled: true, reserveTokens: 4096 } });
   return mgr;
