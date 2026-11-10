@@ -24,6 +24,11 @@ describe('project visual pipeline', () => {
         expect(fs.existsSync(path.join(dir,'LIQUID-GLASS.md'))).toBe(false);
         const usage = fs.readFileSync(path.join(dir,'LIQUID-USAGE.md'),'utf8');
         expect(usage).toContain('# Liquid Glass integration');
+        for (const guidance of ['Web / Electron', '真实 DOM', '安卓原生 App', 'iOS 原生 App', '鸿蒙原生 App', '可能卡顿、延迟', '磨砂', '不含折射与色散']) {
+            expect(usage).toContain(guidance);
+        }
+        expect(usage).toBe(fs.readFileSync(path.join(resources,'visual-design/liquid-usage.md'),'utf8'));
+        expect(usage).not.toContain('private_docs');
         expect(usage).not.toContain('## Capture continuity and surface use');
         expect(usage).not.toContain('已确认的视觉经验');
         const app = JSON.parse(fs.readFileSync(path.join(dir,'liquid-app-preset.json'),'utf8'));

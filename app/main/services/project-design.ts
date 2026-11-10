@@ -128,7 +128,7 @@ export function saveProjectDesign(root: string, selection: VisualSelection, plat
         ]) files.set(`${DIR}/${destination}`, fs.readFileSync(path.join(materialRoot, source!), 'utf8'));
         files.set(`${DIR}/liquid-material-source.ts`, fs.readFileSync(path.join(materialRoot, 'liquid-material-source.txt'), 'utf8'));
         files.set(`${DIR}/liquid-webgl.ts`, fs.readFileSync(path.join(materialRoot, 'liquid-webgl-source.txt'), 'utf8'));
-        files.set(`${DIR}/PORTING.md`, files.get(`${DIR}/PORTING.md`)! + '\nLiquid Glass: read LIQUID-USAGE.md and the accepted platform presets. The primary Web backend is WebGL 2. Android AGSL source and the shared kernel are supplied. iOS 26+ can use native system glass with a declared fallback.\n');
+        files.set(`${DIR}/PORTING.md`, files.get(`${DIR}/PORTING.md`)! + '\nLiquid Glass: read LIQUID-USAGE.md before choosing an implementation. WebGL 2 suits directly rendered backgrounds; dynamic DOM capture can lag and may need a frosted fallback. Android AGSL source and the shared kernel are supplied; iOS 26+ can use native system glass with a declared fallback. Harmony native requires a separate platform implementation.\n');
     }
     files.set(`${DIR}/scene-contract.json`, JSON.stringify(createSceneContract(spec), null, 2)+'\n');
     files.set(`${DIR}/DESIGN.md`, sceneImplementationGuide(spec));

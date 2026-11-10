@@ -1,7 +1,19 @@
 # Liquid Glass integration
 
-- Generated WebGL template: keep `runtime.js` and `components.css` together with the generated HTML. Foreground controls remain normal DOM elements. For source integration, use `liquid-webgl.ts`, `liquid-material-source.ts`, `liquid-template-preset.json` and html2canvas 1.4.1; call `mountLiquidWebGL(root)` after layout and its returned cleanup on unmount.
-- Android: use the supplied `liquid-android-reference.kt` and AGSL asset on API 33+. Supply a background target that excludes the glass itself; keep input and touch controls above it. Declare a blur fallback on older systems.
-- iOS: use `expo-glass-effect` on supported iOS 26+ configurations, with a declared blur fallback. Pass the App theme explicitly and honor Reduce Transparency. System glass is a separate material from the supplied custom shader.
+先按目标平台和页面内容选择方案，再读对应源码。模板展示图是视觉参考，不代表所有平台可直接复用同一实现或达到相同帧率。
 
-For continuously changing DOM, the background acquisition must be adapted and measured on the target device; a smooth Canvas demo does not establish DOM capture performance. Preserve bundled license notices. Validate input, scrolling, theme changes and platform fallbacks on the target device. Preset files configure the supplied renderer; they are not native iOS glass parameters.
+| 目标 | 推荐方案 | 限制与回退 |
+| --- | --- | --- |
+| Web / Electron，背景可直接绘制到 Canvas | 使用模板的 WebGL 2 材质和 `liquid-template-preset.json`，从背景纹理采样，保留折射与色散 | 需要 WebGL 2；不可用时使用普通磨砂或半透明底。前景文字和可交互控件留在材质层之上。 |
+| Web，背景是真实 DOM（包括安卓、鸿蒙、iOS 浏览器） | 可使用随模板提供的 WebGL 运行器，但要按页面实现背景采集与更新，并在目标浏览器实测 | Canvas 演示流畅不代表 DOM 页面流畅。长列表、滚动、流式文字和图片会增加重绘与捕获成本，可能卡顿、延迟或出现过期背景。不要把首页截图当作实时背景，也不要仅按系统名称禁用效果。优先按页面和设备能力降级为磨砂，并说明降级后不含折射与色散。 |
+| 安卓原生 App（API 33+） | 使用随附 `liquid-android-reference.kt`、`liquid-material.agsl` 和 `liquid-app-preset.json`，在原生渲染层处理背景 | 背景目标必须排除玻璃自身和前景控件；旧系统或不支持时回退磨砂。采样、裁切、键盘和安全区需按实际设备验证。 |
+| iOS 原生 App（iOS 26+） | 优先使用系统 Liquid Glass；Expo / React Native 可使用 `expo-glass-effect`，并显式传入主题 | 需同时检查系统和构建配置是否支持；旧系统回退磨砂，开启“降低透明度”时使用不透明表面。系统玻璃不使用本模板的折射参数，不保证逐像素一致。 |
+| 鸿蒙原生 App | 结合目标 SDK 的实际渲染能力选择系统材质或自定义实现；无法实现时使用磨砂 | 本模板未提供鸿蒙原生液态玻璃实现；安卓 AGSL 参考不能直接视为鸿蒙原生方案。 |
+
+## Web 接入与验收
+
+生成的 HTML 将 `runtime.js` 和 `components.css` 放在一起。源码集成使用 `liquid-webgl.ts`、`liquid-material-source.ts`、`liquid-template-preset.json` 和 html2canvas 1.4.1；布局完成后调用 `mountLiquidWebGL(root)`，卸载时调用返回的清理函数。
+
+在真实目标设备上检查文字和图标可读性、深浅主题、键盘与安全区、背景内容滚动与实时更新、长会话帧率，以及 WebGL 不可用和降低透明度时的回退。移动浏览器中曾实测完整液态折射卡顿，普通磨砂更流畅；这是特定页面与设备的观察，不是对所有机型的性能保证。不要仅凭静态截图或演示页宣称跨平台一致。
+
+保留随附许可声明；预设中的画幅、位置和滚动值只用于演示，不覆盖目标页面的实际布局。
