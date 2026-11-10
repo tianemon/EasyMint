@@ -592,6 +592,7 @@ export default function App(): React.ReactElement {
     onOpenSettings={() => setPage('settings')} />;
   else if (page === 'settings') content = <SettingsScreen device={credential} connection={connection}
     themeMode={themeMode} onThemeMode={setThemeMode}
+    onDiagnose={() => client ? client.command('project.listOpen') : Promise.reject(new Error('电脑尚未连接'))}
     onBack={() => setPage('home')} onRepair={() => setPage('scanner')} onForget={forgetPc} />;
   else if (page === 'projects') content = <ProjectsScreen projects={projects} statusLabel={statusLabel}
     onBack={() => setPage('home')} onOpenProject={(item) => void refreshSessions(item)} />;
