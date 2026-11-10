@@ -113,6 +113,24 @@ describe("Pi MCP host integration", () => {
     expect(source.slice(start, start + 80)).not.toContain("async");
   });
 
+  it("does not delay a prompt while a direct MCP server is still connecting", async () => {
+    const marker = path.join(root, "started");
+    const code = `require('fs').writeFileSync(${JSON.stringify(marker)},'started');setInterval(()=>{},1000)`;
+    writeProject(config({ args: ["-e", code], exposure: "direct", timeout: 20000 }));
+    approveMcpServer(cwd, "echo");
+    const session = await create();
+    await waitFor(() => fs.existsSync(marker));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const outcome = await Promise.race([
+        session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "hello" }, { cwd }).then(() => "ready"),
+        new Promise<string>(resolve => { timer = setTimeout(() => resolve("blocked"), 1500); }),
+      ]);
+      expect(outcome).toBe("ready");
+      expect(getMcpStatus(cwd).find(item => item.name === "echo")?.state).not.toBe("connected");
+    } finally { if (timer) clearTimeout(timer); }
+  });
+
   it("publishes tools without enumerating resources and preserves non-object structured results", async () => {
     const resourceLog = path.join(root, "resources.log");
     writeProject(config({ args: [path.resolve("tests/fixtures/resource-mcp.cjs")], env: { EM_MCP_RESOURCE_LOG: resourceLog } }));

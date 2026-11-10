@@ -102,6 +102,8 @@ export async function createMcpSessionExtensions(options: {
   const mcpFactory = sdk.createMcpExtension({
     loadConfig,
     credentials,
+    // Tool discovery continues in the background; a slow direct MCP must not stall chat.
+    startupWaitMs: 0,
     logPath: path.join(options.agentDir, "mcp.log"),
     connectTimeoutMs: entry => rawDefinitions.get(entry.name)?.timeout ?? 8000,
     createTransport: (entry, cwd, authProvider) => new ProtectedMcpTransport({
