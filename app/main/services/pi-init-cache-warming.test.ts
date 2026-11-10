@@ -17,7 +17,7 @@ describe("Pi cache warming compatibility", () => {
     const contents = JSON.stringify(mode ? { cacheWarming: mode } : {});
     fs.writeFileSync(file, contents);
     const manager = await getSettingsManager(root, agentDir);
-    expect(manager.getCacheWarmingMode()).toBe(mode ?? "streaming");
+    expect(manager.getCacheWarmingMode()).toBe(mode ?? "idle");
     expect(fs.readFileSync(file, "utf8")).toBe(contents);
   });
 });
