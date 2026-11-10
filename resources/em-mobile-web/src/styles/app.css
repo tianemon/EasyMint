@@ -49,6 +49,11 @@ html[data-platform="ios"] .app { height: var(--vvh, 100vh); }
 .empty-hint { color: var(--text-muted); font-size: var(--fs-sm); padding: var(--s6) 0; text-align: center; }
 .error-banner { display: flex; align-items: center; gap: 6px; color: var(--danger); background: var(--danger-bg);
   border-radius: var(--radius-lg); padding: var(--s2) var(--s3); font-size: var(--fs-xs); margin-top: var(--s3); }
+/* 远程命令（开窗/列表刷新）失败：这些页面不接收 error，用全局条给可见反馈，点一下关闭 */
+.remote-error-banner { position: fixed; left: var(--chat-inset); right: var(--chat-inset);
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom)); z-index: 60;
+  color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg);
+  padding: var(--s2) var(--s3); font-size: var(--fs-xs); }
 
 /* ── Header：左右各固定 88，标题居中（照 App Header） ── */
 .header { flex: 0 0 auto; height: calc(54px + var(--header-safe-top, var(--safe-top, env(safe-area-inset-top))));

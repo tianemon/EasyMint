@@ -26,6 +26,7 @@ import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
 import { safeProjectDesignSection } from "./project-design";
+import { isSessionOpenElsewhere } from "./session-visibility";
 import { sumUsage, type UsageEntry } from "./usage-totals";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
@@ -2461,10 +2462,7 @@ export class AgentService {
    */
   private contextImageCache: SessionImageStatsCache = new Map();
 
-  /**
-   * 关闭 tab → 会话保留 2 分钟,2 分钟后直接 killChat(不做活跃判断——
-   * 关闭 tab 时已有活跃事件提示,用户仍关闭 = 不在意)。重开 tab 时前端调 cancelReclaim 取消。
-   */
+  /** 关闭标签后保留两分钟；运行中的回合、委派和后台命令完成后才回收。 */
   reclaimChat(sessionId: string): void {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
@@ -2484,7 +2482,21 @@ export class AgentService {
   private finishReclaim(sessionId: string): void {
     this.cancelReclaim(sessionId);
     const chat = this.findActiveChat(sessionId);
-    if (chat) void this.killChat(chat.chatId).catch(error => {
+    if (!chat) return;
+    if (isSessionOpenElsewhere(sessionId)) {
+      // Other windows/phones may later leave without issuing this tab's reclaim call.
+      this.reclaims.set(sessionId, setTimeout(() => this.finishReclaim(sessionId), 30_000));
+      return;
+    }
+    const owned = getOwnedSessionIds(sessionId);
+    const busy = this.isSessionRunning(sessionId) || !!chat.promptDone || !!chat.session?.isCompacting
+      || getRunningDelegations(sessionId).length > 0
+      || backgroundShellRegistry.list().some(shell => !!shell.sessionId && owned.has(shell.sessionId));
+    if (busy) {
+      this.reclaims.set(sessionId, setTimeout(() => this.finishReclaim(sessionId), 5_000));
+      return;
+    }
+    void this.killChat(chat.chatId).catch(error => {
       console.warn(`[agent] 延后回收未完成，保留会话：session=${sessionId}`, error);
     });
   }

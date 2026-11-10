@@ -118,7 +118,8 @@ import { migrateLegacySessionDirs } from "./services/session-dir-migration";
 import { migrateMcpConfigFiles } from "./services/mcp-config-migration";
 
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
-import { watchProjectWindow } from "./services/window-manager";
+import { listOpenProjectIds, waitForProjectWindow, watchProjectWindow } from "./services/window-manager";
+import { setDesktopSessions, removeDesktopSessions } from "./services/session-visibility";
 import { SessionCoordinator } from "./services/session-coordinator";
 import { RemoteCommandRouter } from "./services/remote-command-router";
 import { RemoteTerminalService } from "./services/remote-terminal-service";
@@ -241,7 +242,7 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     const fileService = new FileService();
     const agentService = new AgentService(store);
     const coordinator = new SessionCoordinator(projectService, agentService);
-    const commandRouter = new RemoteCommandRouter(coordinator, agentService, store, window);
+    const commandRouter = new RemoteCommandRouter(coordinator, agentService, store, window, openProjectRemotely);
     const remoteTerminalService = new RemoteTerminalService(
       (deviceId, command) => commandRouter.handle(deviceId, command),
       { port: store.getSettings().mobileAppPort ?? 47_778 },
@@ -314,7 +315,16 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     ipcMain.handle("app:open-update-cache", () => { openUpdateCacheDir(); });
 
     // tab 状态主进程备份（macOS 合盖 GPU 恢复时渲染进程 localStorage 不可靠）
-    ipcMain.handle("tab:save", (_e, data) => { tabBackup = data; });
+    ipcMain.handle("tab:save", (event, data) => {
+      tabBackup = data;
+      const sender = event.sender;
+      const win = BrowserWindow.fromWebContents(sender);
+      const tabs = Array.isArray(data?.tabs) ? data.tabs : [];
+      const open = tabs.filter((tab: { type?: string; sessionId?: unknown }) => tab.type === "chat" && typeof tab.sessionId === "string").map((tab: { sessionId: string }) => tab.sessionId);
+      const valid = () => !!win && !win.isDestroyed() && !sender.isDestroyed() && !sender.isCrashed() && /#\/project\//.test(sender.getURL());
+      const first = setDesktopSessions(sender.id, open, valid);
+      if (first) sender.once("destroyed", () => removeDesktopSessions(sender.id));
+    });
     ipcMain.handle("tab:restore", () => tabBackup);
 
     // NOTE: Orphan SDK session cleanup removed — will be replaced
@@ -620,15 +630,42 @@ app.on("activate", () => {
 
 // ── Multi-window IPC ──
 
-ipcMain.handle("window:open-project", async (_e, { projectId, sessionId, init }) => {
+/** 桌面 IPC 与手机远程共用的开窗入口（只负责开窗口，不判断项目是否已打开）。
+ *  远程触发不写「上次项目」：那是桌面端用户的状态，不该被手机端改。 */
+async function openProjectWindow(
+  projectId: string, sessionId?: string, init?: boolean, touchLastProject = true,
+): Promise<void> {
   const params = new URLSearchParams();
   if (sessionId) params.set("session", sessionId);
   if (init) params.set("init", "1");
   params.set("fresh", "1"); // 标记为新窗口，App.tsx 跳过 tab 恢复
   const qs = params.toString();
   const hash = qs ? `/project/${projectId}?${qs}` : `/project/${projectId}`;
-  if (sharedServices) sharedServices.store.setLastProjectId(projectId);
+  if (touchLastProject && sharedServices) sharedServices.store.setLastProjectId(projectId);
   await createWindow(hash);
+}
+
+/** 手机端 project.open：按项目 ID 合并并发请求，避免两台设备/连点开出两个窗口。 */
+const openingProjects = new Map<string, Promise<void>>();
+
+async function openProjectRemotely(projectId: string): Promise<void> {
+  const inflight = openingProjects.get(projectId);
+  if (inflight) return inflight;
+  const task = (async () => {
+    if (!sharedServices?.projectService.get(projectId)?.exists) {
+      throw new Error("项目不存在或路径不可用");
+    }
+    if (listOpenProjectIds().includes(projectId)) return;
+    // 等 watchProjectWindow 登记完成才返回，否则随后的 session.list 仍会撞 PROJECT_NOT_OPEN
+    await openProjectWindow(projectId, undefined, undefined, false);
+    await waitForProjectWindow(projectId);
+  })().finally(() => { openingProjects.delete(projectId); });
+  openingProjects.set(projectId, task);
+  return task;
+}
+
+ipcMain.handle("window:open-project", async (_e, { projectId, sessionId, init }) => {
+  await openProjectWindow(projectId, sessionId, init);
 });
 
 ipcMain.handle("window:new", () => {

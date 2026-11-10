@@ -6,9 +6,12 @@ export const remotePermissionModeSchema = z.enum(["readonly", "standard", "full"
 
 export const remoteCommandNameSchema = z.enum([
   "project.listOpen",
+  "project.list",
+  "project.open",
   "session.list",
   "session.create",
   "session.snapshot",
+  "session.view",
   "session.send",
   "session.steer",
   "session.abort",
@@ -60,6 +63,12 @@ export interface RemoteOpenProject {
   id: string;
   name: string;
   status: "setup" | "development" | "completed";
+}
+
+/** project.list 的全部项目：open 表示桌面端当前是否有该项目的窗口。
+ *  手机端据此决定是否先发 project.open，避免 session.list/send 撞 PROJECT_NOT_OPEN。 */
+export interface RemoteProject extends RemoteOpenProject {
+  open: boolean;
 }
 
 export interface RemotePendingAsk {

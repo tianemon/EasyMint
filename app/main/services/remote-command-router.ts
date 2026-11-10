@@ -24,6 +24,7 @@ import type { Store } from "./store";
 import type { SessionCoordinator } from "./session-coordinator";
 import { trackUpload } from "./upload-cache";
 import { emHome } from "../utils/paths";
+import { setMobileView } from "./session-visibility";
 
 const textSchema = z.string().trim().max(100_000).default("");
 const permissionSchema = z.enum(["readonly", "standard", "full"]);
@@ -83,11 +84,26 @@ export class RemoteCommandRouter {
     private readonly agentService: AgentService,
     private readonly store: Store,
     private readonly mainWindow: BrowserWindow,
+    /** 手机端打开未打开的项目时，由主进程注入「打开桌面端项目窗口并等登记完成」。 */
+    private readonly openProject?: (projectId: string) => Promise<void>,
   ) {}
 
   async handle(deviceId: string, command: RemoteCommandEnvelope): Promise<unknown> {
     const name = command.payload.command;
+    if (name === "session.view") {
+      const { viewerId } = z.object({ viewerId: z.string().min(1).max(80).regex(/^[a-zA-Z0-9-]+$/) }).parse(command.payload.data);
+      if (command.sessionId) this.coordinator.getOpenProject(requireProjectId(command));
+      setMobileView(deviceId, viewerId, command.sessionId ?? null, command.connectionId, command.sequence);
+      return { ok: true };
+    }
     if (name === "project.listOpen") return this.coordinator.listOpenProjects();
+    if (name === "project.list") return this.coordinator.listProjects();
+    if (name === "project.open") {
+      const projectId = requireProjectId(command);
+      if (!this.openProject) throw Object.assign(new Error("此端不支持打开项目窗口"), { code: "UNSUPPORTED_COMMAND" });
+      await this.openProject(projectId);
+      return { ok: true, projectId };
+    }
     if (name === "session.list") return this.coordinator.listProjectSessions(requireProjectId(command));
     if (name === "session.snapshot") {
       return this.coordinator.getSessionSnapshot(requireProjectId(command), requireSessionId(command));
@@ -346,6 +362,7 @@ export class RemoteCommandRouter {
     return {
       // 手机端与桌面聊天输入栏一致：模型选择只暴露当前生效供应商的配置，
       // 不让远程端切到未选中的供应商或看到无关模型。
+      features: { sessionView: true },
       currentProvider: currentProvider ?? null,
       providers: config && currentProvider ? [{
         id: currentProvider,

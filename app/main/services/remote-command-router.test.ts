@@ -8,7 +8,8 @@ import { createDelegation, resetRegistry } from "./task/registry";
 import type { AgentService } from "./agent-service";
 import type { SessionCoordinator } from "./session-coordinator";
 import type { Store } from "./store";
-import type { RemoteCommandEnvelope, RemoteCommandName } from "../../shared/remote-protocol";
+import type { RemoteCommandEnvelope, RemoteCommandName, RemoteProject } from "../../shared/remote-protocol";
+import { isSessionOpenElsewhere, removeMobileConnection } from "./session-visibility";
 
 /**
  * 远程停止命令（shell.stop / delegation.stop）的归属校验。
@@ -156,5 +157,70 @@ describe("RemoteCommandRouter · delegation.stop", () => {
       taskIndex: 0,
     }))).rejects.toThrow();
     expect(stopDelegationTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("RemoteCommandRouter · 手机端列全部项目与开窗", () => {
+  const routerWith = (
+    coordinator: Partial<SessionCoordinator>,
+    openProject?: (projectId: string) => Promise<void>,
+  ) => new RemoteCommandRouter(
+    coordinator as unknown as SessionCoordinator,
+    {} as unknown as AgentService,
+    {} as unknown as Store,
+    {} as unknown as Electron.BrowserWindow,
+    openProject,
+  );
+
+  it("keeps mobile presence independent from message subscriptions and supports leaving", async () => {
+    const router = routerWith({ getOpenProject: vi.fn() as never });
+    const command = envelope("session.view", { viewerId: "viewer-1" });
+    command.sessionId = "view-session";
+    await expect(router.handle("device-1", command)).resolves.toEqual({ ok: true });
+    expect(isSessionOpenElsewhere("view-session")).toBe(true);
+    const leave = envelope("session.view", { viewerId: "viewer-1" });
+    delete leave.sessionId;
+    leave.sequence = command.sequence + 1;
+    await router.handle("device-1", leave);
+    expect(isSessionOpenElsewhere("view-session")).toBe(false);
+    removeMobileConnection("device-1", command.connectionId);
+  });
+
+  it("project.list 返回全部项目（含未打开的标记）", async () => {
+    const projects: RemoteProject[] = [{ id: "p1", name: "P1", status: "development", open: false }];
+    const listProjects = vi.fn(() => projects);
+    const router = routerWith({ listProjects });
+    await expect(router.handle("device-1", envelope("project.list", {}))).resolves.toEqual(projects);
+    expect(listProjects).toHaveBeenCalledOnce();
+  });
+
+  it("project.open 调用注入的开窗回调并带上项目 ID", async () => {
+    const openProject = vi.fn(async () => {});
+    const router = routerWith({}, openProject);
+    await expect(router.handle("device-1", envelope("project.open", {})))
+      .resolves.toEqual({ ok: true, projectId: "project-1" });
+    expect(openProject).toHaveBeenCalledExactlyOnceWith("project-1");
+  });
+
+  it("未注入开窗回调时明确拒绝，不静默成功", async () => {
+    const router = routerWith({});
+    await expect(router.handle("device-1", envelope("project.open", {})))
+      .rejects.toThrow("不支持打开项目窗口");
+  });
+
+  it("缺少项目 ID 时拒绝开窗，且不触发回调", async () => {
+    const openProject = vi.fn(async () => {});
+    const router = routerWith({}, openProject);
+    const command = envelope("project.open", {});
+    command.projectId = undefined;
+    await expect(router.handle("device-1", command)).rejects.toThrow();
+    expect(openProject).not.toHaveBeenCalled();
+  });
+
+  it("开窗回调失败时不返回成功", async () => {
+    const openProject = vi.fn(async () => { throw new Error("项目窗口未就绪"); });
+    const router = routerWith({}, openProject);
+    await expect(router.handle("device-1", envelope("project.open", {})))
+      .rejects.toThrow("项目窗口未就绪");
   });
 });

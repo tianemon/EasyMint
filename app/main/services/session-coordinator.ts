@@ -7,7 +7,7 @@ import { readCache } from "./session-cache";
 import { backgroundShellRegistry } from "./background-shell/registry";
 import { getRunningSummary } from "./task/registry";
 import { appEventBus } from "./app-event-bus";
-import type { RemoteOpenProject, RemoteThinkingInfo } from "../../shared/remote-protocol";
+import type { RemoteOpenProject, RemoteProject, RemoteThinkingInfo } from "../../shared/remote-protocol";
 
 export class RemoteAccessError extends Error {
   constructor(
@@ -50,6 +50,14 @@ export class SessionCoordinator {
     return this.projectService.list()
       .filter((project) => open.has(project.id) && project.exists)
       .map(({ id, name, status }) => ({ id, name, status }));
+  }
+
+  /** 手机端「浏览所有项目」：只过滤掉路径不可用的，窗口是否打开作为 open 标记返回。 */
+  listProjects(): RemoteProject[] {
+    const open = new Set(listOpenProjectIds());
+    return this.projectService.list()
+      .filter((project) => project.exists)
+      .map(({ id, name, status }) => ({ id, name, status, open: open.has(id) }));
   }
 
   async listProjectSessions(projectId: string) {

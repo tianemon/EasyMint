@@ -47,3 +47,19 @@ export function closeProjectWindows(projectId: string): void {
     }
   }
 }
+
+/** 等窗口把 projectId 登记进 projectWindows（loadURL 是异步的，靠 did-navigate 触发 sync）。
+ *  isOpen / 超时 / 轮询间隔可注入，便于单测覆盖超时与延迟登记，不依赖真实 Electron 窗口。 */
+export async function waitForProjectWindow(
+  projectId: string,
+  opts: { isOpen?: (id: string) => boolean; timeoutMs?: number; pollMs?: number } = {},
+): Promise<void> {
+  const isOpen = opts.isOpen ?? ((id: string) => listOpenProjectIds().includes(id));
+  const deadline = Date.now() + (opts.timeoutMs ?? 5_000);
+  while (!isOpen(projectId)) {
+    if (Date.now() > deadline) {
+      throw new Error("项目窗口已在桌面端打开，但尚未就绪，请返回项目列表重试");
+    }
+    await new Promise((resolve) => setTimeout(resolve, opts.pollMs ?? 50));
+  }
+}

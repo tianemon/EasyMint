@@ -67,6 +67,9 @@ export default function App(): React.ReactElement {
   const [project, setProject] = useState<OpenProject | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [session, setSession] = useState<SessionListItem | null>(null);
+  const viewerId = useRef(`web-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const viewCapabilityClient = useRef<TransportClient | null>(null);
+  const [viewSupported, setViewSupported] = useState(false);
   const [chatOrigin, setChatOrigin] = useState<'home' | 'sessions'>('home');
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
@@ -76,6 +79,43 @@ export default function App(): React.ReactElement {
   const [renameTitle, setRenameTitle] = useState('');
   const [menuSession, setMenuSession] = useState<SessionListItem | null>(null);
   const [viewingShell, setViewingShell] = useState<ChatShell | null>(null);
+  useEffect(() => {
+    viewCapabilityClient.current = null;
+    setViewSupported(false);
+    if (!client || connection !== 'connected') return;
+    let cancelled = false;
+    let pending = false;
+    const probe = () => {
+      if (pending) return;
+      pending = true;
+      void client.command<ModelCapabilities>('capability.models').then((capabilities) => {
+        if (!cancelled) {
+          window.clearInterval(timer);
+          if (capabilities.features?.sessionView) { viewCapabilityClient.current = client; setViewSupported(true); }
+        }
+      }).catch(() => {}).finally(() => { pending = false; });
+    };
+    const timer = window.setInterval(probe, 20_000);
+    probe();
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [client, connection]);
+  useEffect(() => {
+    if (!client || connection !== 'connected' || !viewSupported || viewCapabilityClient.current !== client) return;
+    const announce = () => {
+      const visible = page === 'chat' && document.visibilityState === 'visible' && session?.sessionId && session.sessionId !== DRAFT_SESSION_ID && project?.id;
+      void client.command('session.view', visible
+        ? { projectId: project.id, sessionId: session.sessionId, data: { viewerId: viewerId.current } }
+        : { data: { viewerId: viewerId.current } }).catch(() => {});
+    };
+    announce();
+    const timer = page === 'chat' ? window.setInterval(announce, 20_000) : undefined;
+    document.addEventListener('visibilitychange', announce);
+    return () => {
+      if (timer !== undefined) window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', announce);
+      void client.command('session.view', { data: { viewerId: viewerId.current } }).catch(() => {});
+    };
+  }, [client, connection, viewSupported, page, project?.id, session?.sessionId]);
   const [isLeader, setIsLeader] = useState<boolean | null>(null);
 
   const [runtime, setRuntime] = useState<Record<string, SessionRuntime>>({});
@@ -308,36 +348,53 @@ export default function App(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credential, isLeader]);
 
+  const openingProjectRef = useRef(false);
+
   const refreshProjects = useCallback(async () => {
     if (!client) return;
+    // 开窗 inflight 时 project:open-windows-changed 也会触发本刷新：只更新列表，
+    // 不切页、不抢 busy，否则会把正在进入会话页的流程拽回项目列表。
+    const opening = openingProjectRef.current;
     try {
-      setBusy(true);
-      setProjects(await client.command<OpenProject[]>('project.listOpen'));
-      setPage('projects');
-    } catch (e) { fail(e); } finally { setBusy(false); }
+      if (!opening) setBusy(true);
+      setProjects(await client.command<OpenProject[]>('project.list'));
+      if (!opening) setPage('projects');
+    } catch (e) { fail(e); } finally { if (!opening) setBusy(false); }
   }, [client, fail]);
 
   const refreshSessions = useCallback(async (selected: OpenProject | null = project) => {
     if (!client || !selected) return;
     try {
       setBusy(true);
-      setSessions(await client.command<SessionListItem[]>('session.list', { projectId: selected.id }));
-      setProject(selected);
+      let target = selected;
+      // 未打开的项目先让桌面端开窗口；project.open 会等窗口登记完成才返回
+      if (!target.open) {
+        openingProjectRef.current = true;
+        await client.command('project.open', { projectId: target.id });
+        target = { ...target, open: true };
+        setProjects((prev) => prev.map((item) => (item.id === target.id ? target : item)));
+      }
+      setSessions(await client.command<SessionListItem[]>('session.list', { projectId: target.id }));
+      setProject(target);
       setPage('sessions');
-    } catch (e) { fail(e); } finally { setBusy(false); }
+    } catch (e) { fail(e); } finally { openingProjectRef.current = false; setBusy(false); }
   }, [client, fail, project]);
 
   const projectIdRef = useRef<string | null>(project?.id ?? null);
   projectIdRef.current = project?.id ?? null;
 
-  const refreshHomeSessions = useCallback(async () => {
+  const refreshHomeSessions = useCallback(async (revealProjects = false) => {
     if (!client) return;
     try {
-      const openProjects = await client.command<OpenProject[]>('project.listOpen');
-      const selected = openProjects.find((item) => item.id === projectIdRef.current) ?? openProjects[0] ?? null;
-      setProjects(openProjects);
+      const projects = await client.command<OpenProject[]>('project.list');
+      // 首页只拉已打开项目的会话；未打开的从项目列表点进去时会先开窗
+      const selected = projects.find((item) => item.id === projectIdRef.current && item.open)
+        ?? projects.find((item) => item.open) ?? null;
+      setProjects(projects);
       setProject(selected);
       setSessions(selected ? await client.command<SessionListItem[]>('session.list', { projectId: selected.id }) : []);
+      // 桌面端没有任何已打开项目时，别把用户丢在空白会话页
+      if (revealProjects && !selected) setPage('projects');
     } catch (e) { fail(e); }
   }, [client, fail]);
   const refreshHomeSessionsRef = useRef(refreshHomeSessions);
@@ -351,7 +408,7 @@ export default function App(): React.ReactElement {
 
   useEffect(() => {
     if (connection !== 'connected' || !credential) return;
-    void refreshHomeSessions();
+    void refreshHomeSessions(true);
     void markDeviceConnected(credential.pcId).catch(() => undefined);
   }, [connection, credential, refreshHomeSessions]);
 
@@ -554,6 +611,9 @@ export default function App(): React.ReactElement {
       <AmbientBackground />
       <div className="app-shell">
         {content}
+        {error && !busy && page !== 'scanner' && page !== 'home' && (
+          <div className="remote-error-banner" role="alert" onClick={() => setError('')}>{error}</div>
+        )}
         <SessionMenuModal visible={settingsOpen} session={menuSession} renameTitle={renameTitle}
           onRenameTitleChange={setRenameTitle}
           onDismiss={() => { setSettingsOpen(false); setMenuSession(null); }}

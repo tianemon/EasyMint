@@ -3,9 +3,12 @@ export const PROTOCOL_VERSION = 1 as const;
 export type PermissionMode = 'readonly' | 'standard' | 'full';
 export type CommandName =
   | 'project.listOpen'
+  | 'project.list'
+  | 'project.open'
   | 'session.list'
   | 'session.create'
   | 'session.snapshot'
+  | 'session.view'
   | 'session.send'
   | 'session.steer'
   | 'session.abort'
@@ -59,6 +62,8 @@ export interface OpenProject {
   id: string;
   name: string;
   status: 'setup' | 'development' | 'completed';
+  /** project.list 返回：桌面端当前是否已有该项目的窗口（未打开时先发 project.open）。 */
+  open?: boolean;
 }
 
 export interface SessionListItem {
@@ -138,6 +143,7 @@ export interface BackgroundAgent {
 }
 
 export interface ModelCapabilities {
+  features?: { sessionView?: boolean };
   currentProvider: string | null;
   providers: Array<{
     id: string;

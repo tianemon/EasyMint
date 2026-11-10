@@ -86,7 +86,7 @@ export const useTabStore = create<TabState>()(
         const tab = get().tabs.find((t) => t.id === id);
         if (tab?.sessionId) {
           useChatStore.getState().evictSession(tab.sessionId);
-          // 关闭 tab → 主进程回收:空闲即 kill / 运行中延迟(委派/shell/回合结束后 kill,5 分钟超时兜底)
+          // 关闭标签后主进程延迟回收；运行中任务与其他查看者结束后再释放。
           if (tab.type === "chat") {
             window.electronAPI?.agent?.reclaimChat?.(tab.sessionId).catch(() => {});
           }

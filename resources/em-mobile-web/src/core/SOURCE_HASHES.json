@@ -1,8 +1,8 @@
 {
   "protocol/types.ts": {
     "source": "protocol/types.ts",
-    "sha256": "c8edfb0d967e9edc62316fbaf8006b56a8a475e9c0b2e2a7a9b17846ce8c62da",
-    "localSha256": "c8edfb0d967e9edc62316fbaf8006b56a8a475e9c0b2e2a7a9b17846ce8c62da"
+    "sha256": "c75a0898e74401ae87cd7ca43847090a6af97a7f54b1bf4b5c3a889c204f890b",
+    "localSha256": "c75a0898e74401ae87cd7ca43847090a6af97a7f54b1bf4b5c3a889c204f890b"
   },
   "protocol/crypto.ts": {
     "source": "security/crypto.ts",

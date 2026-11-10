@@ -3,6 +3,9 @@ import type { AgentSessionEvent } from "./pi-sdk";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { AgentService } from "./agent-service";
 import type { Store } from "./store";
+import { removeDesktopSessions, setDesktopSessions } from "./session-visibility";
+import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
+import { createDelegation, finishDelegation, resetRegistry } from "./task/registry";
 
 const sent = vi.hoisted(() => ({ events: [] as Array<{ channel: string; data: unknown }>, dispose: vi.fn(async () => {}) }));
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" }, BrowserWindow: { getAllWindows: () => [] } }));
@@ -11,7 +14,7 @@ vi.mock("./ipc-broadcast", () => ({
   broadcastEvent: (channel: string, data: unknown) => { sent.events.push({ channel, data }); return { sequence: sent.events.length }; },
 }));
 vi.mock("./pi-session", async importOriginal => ({ ...await importOriginal<typeof import("./pi-session")>(), disposePiSession: sent.dispose }));
-afterEach(() => { sent.events.length = 0; sent.dispose.mockClear(); vi.restoreAllMocks(); vi.useRealTimers(); });
+afterEach(() => { sent.events.length = 0; sent.dispose.mockClear(); resetRegistry(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 function setup(run: (emit: (event: AgentSessionEvent) => void) => Promise<void>) {
   const listeners = new Set<(event: AgentSessionEvent) => void>();
@@ -32,6 +35,54 @@ function setup(run: (emit: (event: AgentSessionEvent) => void) => Promise<void>)
 const stream = () => sent.events.filter(event => event.channel === "agent:stream").map(event => event.data as { type: string; outcome?: string });
 
 describe("host run status ownership", () => {
+  it("keeps a closed tab's running session until it finishes", async () => {
+    vi.useFakeTimers();
+    const { service } = setup(async () => {});
+    const running = (service as unknown as { activePromptSessions: Set<string> }).activePromptSessions;
+    const kill = vi.spyOn(service, "killChat").mockResolvedValue();
+    running.add("session");
+    service.reclaimChat("session");
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(kill).not.toHaveBeenCalled();
+    running.delete("session");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).toHaveBeenCalledOnce();
+  });
+  it("does not reclaim a session still open in another window", async () => {
+    vi.useFakeTimers();
+    const { service } = setup(async () => {});
+    const kill = vi.spyOn(service, "killChat").mockResolvedValue();
+    setDesktopSessions(77, ["session"]);
+    try {
+      service.reclaimChat("session");
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(kill).not.toHaveBeenCalled();
+    } finally { removeDesktopSessions(77); }
+  });
+  it("keeps background commands alive after their tab closes", async () => {
+    vi.useFakeTimers();
+    const { service } = setup(async () => {});
+    const shell = vi.spyOn(backgroundShellRegistry, "list").mockReturnValue([{ sessionId: "session" } as BackgroundShell]);
+    const kill = vi.spyOn(service, "killChat").mockResolvedValue();
+    service.reclaimChat("session");
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(kill).not.toHaveBeenCalled();
+    shell.mockReturnValue([]);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).toHaveBeenCalledOnce();
+  });
+  it("keeps delegated tasks alive after their tab closes", async () => {
+    vi.useFakeTimers();
+    const { service } = setup(async () => {});
+    const task = createDelegation("session", [{ task: "work" }]);
+    const kill = vi.spyOn(service, "killChat").mockResolvedValue();
+    service.reclaimChat("session");
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(kill).not.toHaveBeenCalled();
+    finishDelegation(task, "completed");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).toHaveBeenCalledOnce();
+  });
   it("registers system-triggered runs and publishes completion only after prompt settlement", async () => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });

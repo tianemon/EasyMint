@@ -36,5 +36,21 @@ describe("remote protocol", () => {
       unexpected: true,
     })).toThrow();
   });
+
+  it("接受列全部项目与打开项目窗口命令", () => {
+    for (const command of ["project.list", "project.open"] as const) {
+      const parsed = remoteCommandEnvelopeSchema.parse({
+        version: 1,
+        connectionId: "connection-1",
+        sequence: 1,
+        sentAt: Date.now(),
+        kind: "command",
+        requestId: "request-1",
+        projectId: "project-1",
+        payload: { command, data: {} },
+      });
+      expect(parsed.payload.command).toBe(command);
+    }
+  });
 });
 

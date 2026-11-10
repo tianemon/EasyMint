@@ -23,6 +23,7 @@ import {
 import type { AppEvent } from "./app-event-bus";
 import { appEventBus } from "./app-event-bus";
 import { emHome } from "../utils/paths";
+import { removeMobileConnection } from "./session-visibility";
 
 const DEFAULT_PORT = 47_778;
 const OFFER_TTL_MS = 60_000;
@@ -396,6 +397,7 @@ export class RemoteTerminalService extends EventEmitter {
     for (const [socket, connection] of this.connections) {
       if (connection.deviceId !== deviceId) continue;
       this.connections.delete(socket);
+      removeMobileConnection(connection.deviceId, connection.connectionId);
       socket.close(1008, "device revoked");
     }
     if (existed) {
@@ -526,6 +528,7 @@ export class RemoteTerminalService extends EventEmitter {
     for (const [socket, connection] of this.connections) {
       if (this.isDeviceAllowed(connection.deviceId)) continue;
       this.connections.delete(socket);
+      removeMobileConnection(connection.deviceId, connection.connectionId);
       socket.close(1008, "channel disabled");
       disconnected = true;
     }
@@ -575,7 +578,10 @@ export class RemoteTerminalService extends EventEmitter {
     this.offers.clear();
     this.compactOffers.clear();
     this.lookupAttempts.clear();
-    for (const socket of this.connections.keys()) socket.close(1001, "server shutdown");
+    for (const [socket, connection] of this.connections) {
+      removeMobileConnection(connection.deviceId, connection.connectionId);
+      socket.close(1001, "server shutdown");
+    }
     this.connections.clear();
     this.projectSubscriptions.clear();
     this.sessionSubscriptions.clear();
@@ -614,6 +620,7 @@ export class RemoteTerminalService extends EventEmitter {
       const connection = this.connections.get(socket);
       if (connection) {
         this.connections.delete(socket);
+        removeMobileConnection(connection.deviceId, connection.connectionId);
         this.emit("devices-changed");
       }
       for (const [requestId, pending] of this.pendingPairs) {
