@@ -1,12 +1,13 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { ExtensionAPI, InlineExtension, LoadedMcpConfig, McpHostController, McpHostStatus, McpServerEntry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, InlineExtension, LoadedMcpConfig, McpHostController, McpHostStatus, McpServerEntry, ToolDefinition, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { scanMcpServers, getMcpServerConfig, expandServerConfig, definitionFingerprint, getMcpConfigPath, validateMcpServer, type McpServerConfig, type McpServerStatus } from "./mcp-service";
 import { normalizePermissionMode, type PermissionMode } from "./permission/execution-context";
 import { ProtectedMcpTransport } from "./mcp-transport";
 import { EncryptedMcpAuthBackend } from "./mcp-auth-store";
 import { emAgentDir } from "../utils/paths";
 import { createPiExtensionUi } from "./pi-extension-ui";
+import { mcpSearchGuidance } from "./mcp-tool-search";
 
 interface SessionMcp {
   manager: object;
@@ -99,6 +100,13 @@ export async function createMcpSessionExtensions(options: {
     }
   };
   const trustedTools = new Set<string>();
+  const allowNamespace = (tool: ToolInfo): boolean => {
+    if (record.disposed || record.mode() === "readonly" || !trustedTools.has(tool.name)) return false;
+    const server = tool.namespace?.aliases?.[0];
+    if (!server) return false;
+    if (!rawDefinitions.has(server)) return record.mode() === "full";
+    try { validateCurrent(server); return true; } catch { return false; }
+  };
   const mcpFactory = sdk.createMcpExtension({
     loadConfig,
     credentials,
@@ -132,9 +140,34 @@ export async function createMcpSessionExtensions(options: {
     updateConfig: () => { throw new Error("请通过 EasyMint 设置页修改 MCP 配置"); },
   });
   // Track names registered by the trusted factories, rather than trusting arbitrary mcp__ names.
-  const wrapFactory = (factory: (pi: ExtensionAPI) => void) => (pi: ExtensionAPI) => {
+  const wrapFactory = (factory: (pi: ExtensionAPI) => void, describeSearch = false) => (pi: ExtensionAPI) => {
     const facade = Object.create(pi) as ExtensionAPI;
-    facade.registerTool = definition => { trustedTools.add(definition.name); pi.registerTool(definition); };
+    facade.registerTool = definition => {
+      trustedTools.add(definition.name);
+      if (!describeSearch || definition.name !== "tool_search") { pi.registerTool(definition); return; }
+      // This factory is Pi's tool_search; its result details are { loaded: string[] }.
+      const search = definition as unknown as ToolDefinition;
+      pi.registerTool({ ...search,
+        description: `${search.description}\nTo read MCP server guidance, search its exact server name; use the returned nextQuery to read further parts.`,
+        execute: async (...args) => {
+          const input = args[1] as { query?: unknown; limit?: unknown };
+          const query = typeof input.query === "string" ? input.query.trim() : "";
+          const validLimit = input.limit === undefined || (typeof input.limit === "number" && Number.isInteger(input.limit) && input.limit > 0);
+          const tools = pi.getAllTools();
+          const paging = /@\d+$/.test(query);
+          const namespace = query.toLowerCase();
+          const active = new Set(pi.getActiveTools());
+          const requested = tools.filter(tool => tool.namespace?.name.toLowerCase() === namespace
+            && (tool.exposure === "deferred" || tool.exposure === "codemode") && allowNamespace(tool));
+          const reread = namespace.startsWith("mcp__") && requested.length > 0 && requested.every(tool => active.has(tool.name));
+          // Paging and rereading an already-loaded namespace must not activate unrelated tools via BM25.
+          if (validLimit && (paging || reread) && mcpSearchGuidance(tools, [], query, allowNamespace)) {
+            return { content: [{ type: "text" as const, text: "Server guidance follows." }], details: { loaded: [] } };
+          }
+          return search.execute(...args);
+        },
+      });
+    };
     factory(facade);
   };
   return [
@@ -167,7 +200,7 @@ export async function createMcpSessionExtensions(options: {
       pi.on("session_shutdown", () => { record.disposed = true; sessions.delete(record); });
     } },
     { name: "easymint-codemode", hidden: true, factory: wrapFactory(sdk.createCodemodeExtension({ models: false })) },
-    { name: "easymint-tool-search", hidden: true, factory: wrapFactory(sdk.createToolSearchExtension()) },
+    { name: "easymint-tool-search", hidden: true, factory: wrapFactory(sdk.createToolSearchExtension(), true) },
     { name: "easymint-mcp-identity", hidden: true, factory: pi => {
       const restrictReadonly = () => {
         if (record.mode() === "readonly") pi.setActiveTools(pi.getActiveTools().filter(name => !trustedTools.has(name)));
@@ -178,6 +211,19 @@ export async function createMcpSessionExtensions(options: {
       pi.on("tool_call", event => {
         if (!trustedTools.has(event.toolName)) return;
         if (record.disposed || record.mode() === "readonly") return { block: true, reason: "只读模式不启用 MCP 或 codemode" };
+      });
+      pi.on("tool_result", event => {
+        if (record.disposed || record.mode() === "readonly" || event.toolName !== "tool_search" || event.isError) return;
+        const tools = pi.getAllTools();
+        if (tools.find(tool => tool.name === "tool_search")?.sourceInfo.path !== "<inline:easymint-tool-search>") return;
+        const details = event.details as { loaded?: unknown } | undefined;
+        const loaded = Array.isArray(details?.loaded) ? details.loaded.filter((item): item is string => typeof item === "string") : [];
+        const query = typeof event.input.query === "string" ? event.input.query : "";
+        const guidance = mcpSearchGuidance(tools, loaded, query, allowNamespace);
+        if (!guidance) return;
+        const content = loaded.length ? event.content : [{ type: "text" as const, text: "No additional tools loaded; server guidance follows." }];
+        return { content: [...content, { type: "text" as const, text: guidance }],
+          ...(event.structuredContent !== undefined ? { structuredContent: event.structuredContent } : {}) };
       });
     } },
   ];

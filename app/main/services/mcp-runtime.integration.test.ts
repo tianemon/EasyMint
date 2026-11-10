@@ -155,6 +155,25 @@ describe("Pi MCP host integration", () => {
     expect(reconnected.systemPromptOptions.sections?.mcp_servers).toBe(first);
   }, 15000);
 
+  it("does not expose deferred server guidance after permission or approval changes", async () => {
+    const instructions = "Server-specific untrusted guidance";
+    const base = config({ exposure: "deferred", env: { EM_ECHO_INSTRUCTIONS: instructions } });
+    writeProject(base); approveMcpServer(cwd, "echo");
+    let mode = "standard";
+    const session = await create(() => mode);
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    const emit = () => session.extensionRunner.emitToolResult({ type: "tool_result", toolName: "tool_search",
+      toolCallId: "search", input: { query: "echo" }, content: [{ type: "text", text: "Loaded tool" }],
+      details: { loaded: ["mcp__echo__echo"] }, isError: false });
+    expect(JSON.stringify(await emit())).toContain(instructions);
+    mode = "readonly";
+    expect(JSON.stringify((await emit()) ?? null)).not.toContain(instructions);
+    mode = "standard";
+    writeProject({ ...base, description: "changed without reapproval" });
+    expect(scanMcpServers(cwd)[0]?.pendingApproval).toBe(true);
+    expect(JSON.stringify((await emit()) ?? null)).not.toContain(instructions);
+  }, 15000);
+
   it("publishes tools without enumerating resources and preserves non-object structured results", async () => {
     const resourceLog = path.join(root, "resources.log");
     writeProject(config({ args: [path.resolve("tests/fixtures/resource-mcp.cjs")], env: { EM_MCP_RESOURCE_LOG: resourceLog } }));

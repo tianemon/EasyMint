@@ -5,7 +5,7 @@ import { parse } from "shell-quote";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ModelRuntime, type AgentSession } from "@earendil-works/pi-coding-agent";
 import { getCurrentSystemPrompt, getCurrentTools, type Message } from "@earendil-works/pi-ai";
-import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { getModelRuntime } from "./pi-init";
 import { createPiSession, disposePiSession } from "./pi-session";
 import { approveMcpServer } from "./mcp-service";
@@ -66,4 +66,56 @@ it("preserves the actual two-turn model prefix when MCP instructions arrive betw
   expect(getCurrentSystemPrompt(requests[1]!)).not.toContain("Untrusted server instruction");
   expect(getCurrentTools(requests[1]!)).toEqual(getCurrentTools(requests[0]!));
   expect(requests[1]!.filter(message => message.role === "user")).toHaveLength(2);
+}, 15000);
+
+it("delivers deferred server instructions as untrusted paged search results without enabling codemode", async () => {
+  const instructions = "A".repeat(4095) + "😀" + "end-of-server-instructions";
+  fs.writeFileSync(path.join(cwd, ".easymint/mcp.json"), JSON.stringify({ mcpServers: { echo: {
+    type: "stdio", command: process.execPath, args: [path.resolve("tests/fixtures/echo-mcp.cjs")],
+    exposure: "deferred", timeout: 10000, env: { EM_ECHO_INSTRUCTIONS: instructions },
+  }, zzz: { type: "stdio", command: process.execPath, args: [path.resolve("tests/fixtures/echo-mcp.cjs")],
+    exposure: "deferred", timeout: 10000, env: { EM_ECHO_INSTRUCTIONS: "Unrelated server guidance" } } } }));
+  approveMcpServer(cwd, "echo");
+  approveMcpServer(cwd, "zzz");
+  const runtime = await ModelRuntime.create({ modelsPath: null, authPath: path.join(root, "auth.json"), allowModelNetwork: false });
+  const faux = fauxProvider({ provider: "deferred-fixture", models: [{ id: "fixture" }], tokensPerSecond: 0 });
+  runtime.registerNativeProvider(faux.provider); await runtime.refresh({ allowNetwork: false });
+  vi.mocked(getModelRuntime).mockResolvedValue(runtime);
+  const outputs: string[] = [];
+  let nextQuery = "";
+  const lastResult = (messages: Message[]): string => JSON.stringify(messages.filter(message => message.role === "toolResult").at(-1)?.content);
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall("tool_search", { query: "mcp__echo__echo", limit: 1 }), { stopReason: "toolUse" }),
+    context => {
+      const text = lastResult(context.messages); outputs.push(text);
+      const result = context.messages.filter(message => message.role === "toolResult").at(-1);
+      const guidance = result?.content.find(block => block.type === "text" && block.text.includes("Untrusted third-party"));
+      if (!guidance || guidance.type !== "text") throw new Error("missing MCP guidance");
+      nextQuery = JSON.parse(guidance.text.slice(guidance.text.indexOf("\n") + 1)).servers[0].nextQuery;
+      return fauxAssistantMessage("first page read");
+    },
+    () => fauxAssistantMessage(fauxToolCall("tool_search", { query: nextQuery }), { stopReason: "toolUse" }),
+    context => { outputs.push(lastResult(context.messages)); return fauxAssistantMessage("second page read"); },
+    fauxAssistantMessage(fauxToolCall("tool_search", { query: "mcp__echo" }), { stopReason: "toolUse" }),
+    context => { outputs.push(lastResult(context.messages)); return fauxAssistantMessage("server guidance reread"); },
+  ]);
+  session = await createPiSession({ cwd, agentDir, store: new Store(root), model: runtime.getModel("deferred-fixture", "fixture")!,
+    permissionMode: "standard", canUseTool: async () => ({ behavior: "allow" }) });
+  await vi.waitFor(() => expect(getMcpStatus(cwd).map(status => status.state)).toEqual(["connected", "connected"]), { timeout: 5000 });
+  expect(session.getActiveToolNames()).toContain("tool_search");
+  expect(session.getActiveToolNames()).not.toContain("codemode");
+  await session.prompt("Find the echo tool and read its server guidance.");
+  expect(outputs[0]).toContain("Untrusted third-party MCP server data");
+  expect(outputs[0]).not.toContain("end-of-server-instructions");
+  expect(nextQuery).toBe("mcp__echo@4097");
+  expect(session.getActiveToolNames()).not.toContain("mcp__zzz__echo");
+  await session.prompt("Read the next page.");
+  expect(outputs[1]).toContain("end-of-server-instructions");
+  expect(outputs[1]).not.toContain("Unrelated server guidance");
+  expect(session.getActiveToolNames()).not.toContain("mcp__zzz__echo");
+  await session.prompt("Read the server guidance again.");
+  expect(outputs[2]).toContain("Untrusted third-party MCP server data");
+  expect(outputs[2]).not.toContain("Unrelated server guidance");
+  expect(session.getActiveToolNames()).not.toContain("mcp__zzz__echo");
+  expect(session.getActiveToolNames()).not.toContain("codemode");
 }, 15000);
