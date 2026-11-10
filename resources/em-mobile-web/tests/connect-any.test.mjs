@@ -27,7 +27,7 @@ function makeOffer(addresses) {
 }
 
 /** failHosts=onerror（含 CSP 拒绝的常见表现）；throwHosts=构造时同步抛（CSP 拒绝的强形式）。 */
-function installWebSocket({ failHosts = [], throwHosts = [], stallHosts = [], closed = [] }, ctx) {
+function installWebSocket({ failHosts = [], throwHosts = [], stallHosts = [], rejectPairHosts = [], closed = [] }, ctx) {
   const attempts = [];
   class FakeWebSocket {
     static CONNECTING = 0; static OPEN = 1; static CLOSED = 3;
@@ -45,6 +45,7 @@ function installWebSocket({ failHosts = [], throwHosts = [], stallHosts = [], cl
     }
     send(data) {
       if (JSON.parse(data).type !== 'mobile-pair-init') return;
+      if (rejectPairHosts.includes(this.host)) { queueMicrotask(() => this.onclose?.({ code: 1008, reason: 'invalid pairing offer' })); return; }
       const proof = crypto.createHmac('sha256', Buffer.from(ctx.attempt.keys.auth))
         .update(`pair-accepted:${ctx.offer.token}:${ctx.attempt.deviceId}`, 'utf8').digest('base64');
       queueMicrotask(() => this.onmessage?.({
@@ -69,6 +70,15 @@ test('前两个地址失败后第三个地址成功', async () => {
   const cred = await web.pairWithPc(offer, 'Web', () => {}, attempt);
   assert.deepEqual(attempts, ['10.0.0.1', '10.0.0.2', '10.0.0.3'], '必须尝试备用地址，不能只试第一个');
   assert.equal(cred.pcId, offer.pcId);
+});
+
+test('配对时错误电脑拒绝后继续尝试备用地址', async () => {
+  const offer = makeOffer(['10.0.0.1', '10.0.0.2']);
+  const attempt = web.createPairingAttempt(offer);
+  const attempts = installWebSocket({ rejectPairHosts: ['10.0.0.1'] }, { offer, attempt });
+  const credential = await web.pairWithPc(offer, 'Web', () => {}, attempt);
+  assert.equal(credential.pcId, offer.pcId);
+  assert.deepEqual(attempts, ['10.0.0.1', '10.0.0.2']);
 });
 
 test('全部地址失败才抛错（不提前放弃），且验证码仍先于失败回调', async () => {

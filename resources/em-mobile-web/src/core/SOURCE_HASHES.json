@@ -2,7 +2,7 @@
   "protocol/types.ts": {
     "source": "protocol/types.ts",
     "sha256": "13fca2057d2e72f83f18c97975113e3ec330964cbebc4b64ac5ed53f470bd8c9",
-    "localSha256": "13fca2057d2e72f83f18c97975113e3ec330964cbebc4b64ac5ed53f470bd8c9"
+    "localSha256": "2a0a93356b0cfcf41ed2c40a7864824e6a0e16aba87e9b63d23cfa845e7cc1e6"
   },
   "protocol/crypto.ts": {
     "source": "security/crypto.ts",
@@ -17,7 +17,7 @@
   "protocol/remote-client.ts": {
     "source": "connection/remote-client.ts",
     "sha256": "b55a99c868168db5be5e1f3c3beb2a6afc1393c6a6ea9576ddbead91d27b98c2",
-    "localSha256": "54d453237670b0c35fa8ec018e9dc925ca06f9e42500be50d12943bab922896c"
+    "localSha256": "4f9535733a52a3a2a0c917039c2e6e35e60ce63dca1b17131f9739432aac439f"
   },
   "protocol/credential-store.ts": {
     "source": "security/credential-store.ts",

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { BrowserWindow } from "electron";
 import { z } from "zod";
@@ -90,6 +91,16 @@ export class RemoteCommandRouter {
 
   async handle(deviceId: string, command: RemoteCommandEnvelope): Promise<unknown> {
     const name = command.payload.command;
+    if (name === "diagnostic.sample") {
+      const cpu = () => os.cpus().reduce((sum, item) => ({ idle: sum.idle + item.times.idle,
+        total: sum.total + Object.values(item.times).reduce((a, b) => a + b, 0) }), { idle: 0, total: 0 });
+      const before = cpu();
+      await new Promise(resolve => setTimeout(resolve, 250));
+      const after = cpu();
+      const elapsed = after.total - before.total;
+      return { cpuPercent: elapsed > 0 ? Math.max(0, Math.min(100, Math.round(100 * (1 - (after.idle - before.idle) / elapsed)))) : null,
+        memoryPercent: Math.round(100 * (1 - os.freemem() / os.totalmem())) };
+    }
     if (name === "session.view") {
       const { viewerId } = z.object({ viewerId: z.string().min(1).max(80).regex(/^[a-zA-Z0-9-]+$/) }).parse(command.payload.data);
       if (command.sessionId) this.coordinator.getOpenProject(requireProjectId(command));

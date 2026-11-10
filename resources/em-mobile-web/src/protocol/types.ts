@@ -3,6 +3,7 @@ export const PROTOCOL_VERSION = 1 as const;
 export type PermissionMode = 'readonly' | 'standard' | 'full';
 export type CommandName =
   | 'project.listOpen'
+  | 'diagnostic.sample'
   | 'project.list'
   | 'project.open'
   | 'session.list'

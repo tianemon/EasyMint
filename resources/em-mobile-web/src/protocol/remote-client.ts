@@ -22,6 +22,7 @@ import { webDeviceId } from './client-id';
 
 type Status = 'disconnected' | 'connecting' | 'connected';
 type JsonObject = Record<string, unknown>;
+class PairRejectedError extends Error {}
 
 function openSocket(address: string, port: number, signal: AbortSignal, timeoutMs = 4_000): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
@@ -40,29 +41,50 @@ function openSocket(address: string, port: number, signal: AbortSignal, timeoutM
   });
 }
 
-async function connectAny(addresses: string[], port: number): Promise<WebSocket> {
-  if (addresses.length === 0) throw new Error('无法连接电脑，请确认两台设备在同一局域网');
+async function connectAny<T>(
+  addresses: string[], port: number,
+  verify: (socket: WebSocket) => Promise<T>,
+  signal?: AbortSignal,
+): Promise<{ socket: WebSocket; value: T; address: string }> {
+  if (!addresses.length) throw new Error('无法连接电脑，请确认手机网络和电脑地址');
   const controller = new AbortController();
-  let winner = false;
-  const attempts = [...new Set(addresses)].map((address, index) => new Promise<WebSocket>((resolve, reject) => {
-    // Prefer the first address, but do not wait four seconds for each unreachable adapter.
-    const start = (): void => {
-      void Promise.resolve().then(() => openSocket(address, port, controller.signal)).then(socket => {
-        if (winner) { socket.close(); reject(new Error('连接已取消')); return; }
-        winner = true;
-        resolve(socket);
-      }, reject);
-    };
-    if (index === 0) { start(); return; }
-    const timer = setTimeout(start, index * 200);
-    controller.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('连接已取消')); }, { once: true });
-  }));
+  const abort = (): void => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  const sockets = new Set<WebSocket>();
+  const candidates = [...new Set(addresses)].map((address, index) => {
+    const attempt = new Promise<WebSocket>((resolve, reject) => {
+      const start = (): void => { void openSocket(address, port, controller.signal).then(socket => {
+        sockets.add(socket); resolve(socket);
+      }, reject); };
+      if (!index) { start(); return; }
+      const timer = setTimeout(start, index * 200);
+      controller.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('连接已取消')); }, { once: true });
+    });
+    return { address, result: attempt.then(socket => ({ socket }), () => ({ socket: null })) };
+  });
   try {
-    return await Promise.any(attempts);
-  } catch {
-    throw new Error('无法连接电脑，请确认手机网络和电脑地址');
+    while (candidates.length) {
+      const { candidate, outcome } = await Promise.race(candidates.map(candidate =>
+        candidate.result.then(outcome => ({ candidate, outcome }))));
+      candidates.splice(candidates.indexOf(candidate), 1);
+      if (!outcome.socket) continue;
+      try {
+        // Authenticate one socket at a time: the desktop replaces older connections for the same device.
+        const value = await verify(outcome.socket);
+        sockets.delete(outcome.socket);
+        return { socket: outcome.socket, value, address: candidate.address };
+      } catch (error) {
+        sockets.delete(outcome.socket);
+        outcome.socket.close();
+        if (error instanceof PairRejectedError) throw error;
+      }
+    }
+    throw new Error('无法连接或验证电脑，请检查网络或重新配对');
   } finally {
+    signal?.removeEventListener('abort', abort);
     controller.abort();
+    for (const socket of sockets) socket.close();
   }
 }
 
@@ -112,23 +134,21 @@ export async function pairWithPc(
   const { deviceId, publicKey, sharedSecret, keys } = attempt;
   // 先把验证码交给 UI 显示，再去连 WS：WS 不可达时码仍留在页面上等用户比对/重试。
   onVerificationCode(attempt.code);
-  const socket = await connectAny(offer.addresses, offer.port);
-
-  return await new Promise<PcCredential>((resolve, reject) => {
+  const result = await connectAny(offer.addresses, offer.port, socket => new Promise<PcCredential>((resolve, reject) => {
     const timeout = setTimeout(() => {
       socket.close();
       reject(new Error('电脑端确认超时，请重新扫码'));
     }, Math.max(1_000, offer.expiresAt - Date.now() + 60_000));
     const finish = (error?: Error, credential?: PcCredential) => {
       clearTimeout(timeout);
-      socket.close();
+      socket.onclose = null; socket.onerror = null; socket.onmessage = null;
       if (error) reject(error);
       else if (credential) resolve(credential);
     };
     socket.onmessage = (event) => {
       const message = parseMessage(event);
       if (message?.type === 'mobile-pair-rejected') {
-        finish(new Error('电脑端拒绝了配对'));
+        finish(new PairRejectedError('电脑端拒绝了配对'));
         return;
       }
       if (message?.type !== 'mobile-pair-accepted') return;
@@ -149,22 +169,13 @@ export async function pairWithPc(
       });
     };
     socket.onerror = () => finish(new Error('配对连接中断'));
-    socket.send(JSON.stringify({
-      type: 'mobile-pair-init',
-      token: offer.token,
-      deviceId,
-      deviceName,
-      publicKey,
-    }));
-  });
-}
-
-/** 电脑端明确拒绝了这台设备：凭证已失效，重连再多次也没用，必须重新配对。 */
-export class PairingRevokedError extends Error {
-  constructor(readonly reason: string) {
-    super('这台电脑上的配对已失效，请重新扫码配对');
-    this.name = 'PairingRevokedError';
-  }
+    socket.onclose = () => finish(new Error('配对连接中断'));
+    try {
+      socket.send(JSON.stringify({ type: 'mobile-pair-init', token: offer.token, deviceId, deviceName, publicKey }));
+    } catch { finish(new Error('配对连接中断')); }
+  }));
+  result.socket.close();
+  return result.value;
 }
 
 export class RemoteClient {
@@ -174,6 +185,8 @@ export class RemoteClient {
   private sendSequence = 0;
   private receiveSequence = 0;
   private intentionalClose = false;
+  private connectTask: Promise<void> | null = null;
+  private connectAbort: AbortController | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private pending = new Map<string, {
@@ -182,6 +195,16 @@ export class RemoteClient {
     timer: ReturnType<typeof setTimeout>;
   }>();
   private statusListeners = new Set<(status: Status) => void>();
+  private addressListeners = new Set<(address: string | null) => void>();
+
+  onAddress(listener: (address: string | null) => void): () => void {
+    this.addressListeners.add(listener);
+    return () => this.addressListeners.delete(listener);
+  }
+
+  private emitAddress(address: string | null): void {
+    for (const listener of this.addressListeners) listener(address);
+  }
   private revokedListeners = new Set<() => void>();
   private eventListeners = new Set<(event: RemoteEvent, envelope: RemoteEnvelope) => void>();
 
@@ -205,83 +228,61 @@ export class RemoteClient {
     return () => this.eventListeners.delete(listener);
   }
 
-  async connect(): Promise<void> {
-    if (this.socket?.readyState === WebSocket.OPEN) return;
+  connect(): Promise<void> {
+    if (this.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
+    if (this.connectTask) return this.connectTask;
     this.intentionalClose = false;
+    const controller = new AbortController();
+    this.connectAbort = controller;
+    const task = this.establish(controller.signal).finally(() => {
+      if (this.connectTask === task) { this.connectTask = null; this.connectAbort = null; }
+    });
+    this.connectTask = task;
+    return task;
+  }
+
+  private async establish(signal: AbortSignal): Promise<void> {
     this.emitStatus('connecting');
-    let socket: WebSocket;
+    let connected: { socket: WebSocket; value: string; address: string };
     try {
-      socket = await connectAny(this.credential.addresses, this.credential.port);
+      connected = await connectAny(this.credential.addresses, this.credential.port, socket => {
+        const connectionId = randomId();
+        const nonce = randomId();
+        return new Promise<string>((resolve, reject) => {
+          const cleanup = (): void => { clearTimeout(timer); signal.removeEventListener('abort', fail); };
+          const fail = (): void => { cleanup(); reject(new Error('连接认证失败')); };
+          const timer = setTimeout(fail, 5_000);
+          signal.addEventListener('abort', fail, { once: true });
+          socket.onmessage = (event) => {
+            const message = parseMessage(event);
+            if (message?.type !== 'mobile-hello-ack') return;
+            const expected = proof(this.keys.auth, `hello-ack:${this.credential.deviceId}:${connectionId}:${nonce}`);
+            if (message.connectionId !== connectionId || message.proof !== expected) { fail(); return; }
+            cleanup();
+            resolve(connectionId);
+          };
+          socket.onerror = fail;
+          socket.onclose = fail;
+          try {
+            socket.send(JSON.stringify({ type: 'mobile-hello', deviceId: this.credential.deviceId,
+              deviceName: this.credential.deviceName, connectionId, nonce,
+              proof: proof(this.keys.auth, `hello:${this.credential.deviceId}:${connectionId}:${nonce}`) }));
+          } catch { fail(); }
+        });
+      }, signal);
     } catch (error) {
-      // 先开手机、后开电脑：第一次必然连不上。这里不排重试的话，之后电脑起来了也没人再试
+      if (signal.aborted) throw error;
       this.emitStatus('disconnected');
       this.scheduleReconnect();
       throw error;
     }
+    const socket = connected.socket;
+    if (signal.aborted) { socket.close(); throw new Error('连接已取消'); }
     this.socket = socket;
-    this.connectionId = randomId();
+    this.connectionId = connected.value;
     this.sendSequence = 0;
     this.receiveSequence = 0;
-    const nonce = randomId();
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('连接认证超时')), 5_000);
-        socket.onmessage = (event) => {
-          const message = parseMessage(event);
-          if (message?.type !== 'mobile-hello-ack') return;
-          const expected = proof(
-            this.keys.auth,
-            `hello-ack:${this.credential.deviceId}:${this.connectionId}:${nonce}`,
-          );
-          if (message.connectionId !== this.connectionId || message.proof !== expected) {
-            clearTimeout(timer);
-            reject(new Error('电脑身份校验失败'));
-            return;
-          }
-          clearTimeout(timer);
-          resolve();
-        };
-        socket.onerror = () => {
-          clearTimeout(timer);
-          reject(new Error('连接认证失败'));
-        };
-        // 服务端拒绝时会主动 close(1008, reason)。注意区分原因：
-        //   unknown device / authentication failed → 这台设备的凭证已经不在电脑上了（被撤销/换了配对）
-        //   channel disabled → 用户只是关了开关，凭证仍然有效，别删
-        // 不识别这一条的话，撤销后手机会无限重连，界面一直停在「已配对」的空设备列表上。
-        socket.onclose = (event) => {
-          clearTimeout(timer);
-          const reason = event.reason ?? '';
-          if (event.code === 1008 && (reason === 'unknown device' || reason === 'authentication failed')) {
-            reject(new PairingRevokedError(reason));
-            return;
-          }
-          reject(new Error('连接认证失败'));
-        };
-        socket.send(JSON.stringify({
-          type: 'mobile-hello',
-          deviceId: this.credential.deviceId,
-          // 电脑端按它刷新设备名
-          deviceName: this.credential.deviceName,
-          connectionId: this.connectionId,
-          nonce,
-          proof: proof(this.keys.auth, `hello:${this.credential.deviceId}:${this.connectionId}:${nonce}`),
-        }));
-      });
-    } catch (error) {
-      socket.close();
-      this.socket = null;
-      this.emitStatus('disconnected');
-      if (error instanceof PairingRevokedError) {
-        // 不排重连：凭证已经不在电脑上了，重试只会一直撞 1008
-        this.intentionalClose = true;
-        for (const listener of this.revokedListeners) listener();
-        throw error;
-      }
-      this.scheduleReconnect();
-      throw error;
-    }
+    this.emitAddress(connected.address);
 
     socket.onmessage = (event) => this.handleMessage(event);
     socket.onerror = () => undefined;
@@ -291,7 +292,11 @@ export class RemoteClient {
   }
 
   close(): void {
+    this.emitAddress(null);
     this.intentionalClose = true;
+    this.connectAbort?.abort();
+    this.connectAbort = null;
+    this.connectTask = null;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.socket?.close();
@@ -372,6 +377,7 @@ export class RemoteClient {
   }
 
   private handleClose(event?: { code?: number; reason?: string }): void {
+    this.emitAddress(null);
     this.socket = null;
     this.rejectPending(new Error('与电脑的连接已中断'));
     this.emitStatus('disconnected');

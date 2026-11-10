@@ -46,6 +46,7 @@ import { SessionMenuModal } from './screens/SessionMenuModal';
 import { ShellOutputSheet } from './screens/ShellOutputSheet';
 import { useTheme } from './theme';
 import { t } from './i18n';
+import { captureChatFrames, type FrameResult } from '../core/connection-diagnostic';
 
 const HEALTH_PATH = 'health';
 
@@ -56,6 +57,26 @@ export default function App(): React.ReactElement {
   const [activePcId, setActivePcId] = useState<string | null>(null);
   const [client, setClient] = useState<TransportClient | null>(null);
   const [connection, setConnection] = useState<ConnectionStatus>('disconnected');
+  const [connectionAddress, setConnectionAddress] = useState<string | null>(null);
+  const [frameRunning, setFrameRunning] = useState(false);
+  const [frameResult, setFrameResult] = useState<FrameResult | null>(null);
+  const [previousFrameResult, setPreviousFrameResult] = useState<FrameResult | null>(null);
+  const [computerResources, setComputerResources] = useState<{ cpuPercent: number | null; memoryPercent: number } | null>(null);
+  const frameCancel = useRef<(() => void) | null>(null);
+  const frameGeneration = useRef(0);
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  useEffect(() => () => { frameGeneration.current++; frameCancel.current?.(); }, []);
+  const startFrameDiagnostic = (): void => {
+    frameCancel.current?.(); if (frameResult) setPreviousFrameResult(frameResult);
+    setFrameResult(null); setComputerResources(null); setFrameRunning(true);
+    const generation = ++frameGeneration.current;
+    void client?.command<{ cpuPercent: number | null; memoryPercent: number }>('diagnostic.sample')
+      .then(result => { if (generation === frameGeneration.current) setComputerResources(result); }).catch(() => {});
+    frameCancel.current = captureChatFrames(() => pageRef.current === 'chat' && document.visibilityState === 'visible', result => {
+      setFrameResult(result); setFrameRunning(false); frameCancel.current = null;
+    });
+  };
   const [bootReady, setBootReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingPcId, setPendingPcId] = useState<string | null>(null);
@@ -324,6 +345,7 @@ export default function App(): React.ReactElement {
     setClient(next);
     setConnection('connecting');
     const offStatus = next.onStatus(setConnection);
+    const offAddress = next.onAddress(setConnectionAddress);
     const offResume = next.onResume(() => {
       void refreshHomeSessionsRef.current?.();
     });
@@ -345,7 +367,7 @@ export default function App(): React.ReactElement {
         }
       })();
     });
-    return () => { offStatus(); offResume(); offRevoked(); next.dispose(); };
+    return () => { offStatus(); offAddress(); offResume(); offRevoked(); next.dispose(); setConnectionAddress(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credential, isLeader]);
 
@@ -591,6 +613,8 @@ export default function App(): React.ReactElement {
     onAddDevice={() => setPage('scanner')}
     onOpenSettings={() => setPage('settings')} />;
   else if (page === 'settings') content = <SettingsScreen device={credential} connection={connection}
+    connectionAddress={connectionAddress}
+    frameRunning={frameRunning} frameResult={frameResult} previousFrameResult={previousFrameResult} computerResources={computerResources} onFrameDiagnostic={startFrameDiagnostic}
     themeMode={themeMode} onThemeMode={setThemeMode}
     onDiagnose={() => client ? client.command('project.listOpen') : Promise.reject(new Error('电脑尚未连接'))}
     onBack={() => setPage('home')} onRepair={() => setPage('scanner')} onForget={forgetPc} />;

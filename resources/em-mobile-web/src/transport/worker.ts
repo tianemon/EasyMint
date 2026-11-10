@@ -77,6 +77,7 @@ ctx.onmessage = (event: MessageEvent): void => {
       if (client) client.close();
       client = new RemoteClient(message.credential as PcCredential);
       client.onStatus((status) => ctx.postMessage({ type: 'status', status }));
+      client.onAddress((address) => ctx.postMessage({ type: 'address', address }));
       client.onEvent((ev, envelope) => enqueue(ev, envelope));
       client.onPairingRevoked(() => ctx.postMessage({ type: 'revoked' }));
       void client.connect().catch((error) => ctx.postMessage({ type: 'connectError', error: errorBody(error) }));

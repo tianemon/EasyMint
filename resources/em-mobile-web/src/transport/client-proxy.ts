@@ -13,6 +13,7 @@ type Pending = {
 type WorkerMessage = {
   type: string;
   status?: ConnectionStatus;
+  address?: string | null;
   events?: Array<{ event: RemoteEvent; envelope: RemoteEnvelope }>;
   requestId?: string;
   revoked?: boolean;
@@ -31,6 +32,7 @@ export class TransportClient implements RemoteClientLike {
   private worker: Worker | null = null;
   private direct: RemoteClient | null = null;
   private statusListeners = new Set<(status: ConnectionStatus) => void>();
+  private addressListeners = new Set<(address: string | null) => void>();
   private eventListeners = new Set<(event: RemoteEvent, envelope: RemoteEnvelope) => void>();
   private resumeListeners = new Set<() => void>();
   private revokedListeners = new Set<() => void>();
@@ -62,6 +64,11 @@ export class TransportClient implements RemoteClientLike {
   onStatus(listener: (status: ConnectionStatus) => void): () => void {
     this.statusListeners.add(listener);
     return () => this.statusListeners.delete(listener);
+  }
+
+  onAddress(listener: (address: string | null) => void): () => void {
+    this.addressListeners.add(listener);
+    return () => this.addressListeners.delete(listener);
   }
 
   onEvent(listener: (event: RemoteEvent, envelope: RemoteEnvelope) => void): () => void {
@@ -136,6 +143,7 @@ export class TransportClient implements RemoteClientLike {
     this.pending.clear();
     this.encodePending.clear();
     this.statusListeners.clear();
+    this.addressListeners.clear();
     this.eventListeners.clear();
     this.resumeListeners.clear();
   }
@@ -153,6 +161,9 @@ export class TransportClient implements RemoteClientLike {
 
   private handleWorkerMessage(message: WorkerMessage): void {
     switch (message.type) {
+      case 'address':
+        for (const listener of this.addressListeners) listener(message.address ?? null);
+        break;
       case 'status':
         if (message.status) for (const listener of this.statusListeners) listener(message.status);
         break;
@@ -200,6 +211,7 @@ export class TransportClient implements RemoteClientLike {
     this.pending.clear();
     const direct = new RemoteClient(this.credential);
     direct.onStatus((status) => { for (const listener of this.statusListeners) listener(status); });
+    direct.onAddress((address) => { for (const listener of this.addressListeners) listener(address); });
     direct.onEvent((event, envelope) => { for (const listener of this.eventListeners) listener(event, envelope); });
     direct.onPairingRevoked(() => { for (const listener of this.revokedListeners) listener(); });
     this.direct = direct;

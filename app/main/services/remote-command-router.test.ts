@@ -59,6 +59,18 @@ function createRouter() {
   return { router, requireSession, stopDelegationTask };
 }
 
+it("returns bounded system resource diagnostics without project or session data", async () => {
+  const { router } = createRouter();
+  const result = await router.handle("device-1", envelope("diagnostic.sample", {})) as { cpuPercent: number | null; memoryPercent: number };
+  expect(Object.keys(result).sort()).toEqual(["cpuPercent", "memoryPercent"]);
+  if (result.cpuPercent !== null) {
+    expect(result.cpuPercent).toBeGreaterThanOrEqual(0);
+    expect(result.cpuPercent).toBeLessThanOrEqual(100);
+  }
+  expect(result.memoryPercent).toBeGreaterThanOrEqual(0);
+  expect(result.memoryPercent).toBeLessThanOrEqual(100);
+});
+
 function stubShells(shells: Array<{ id: string; sessionId?: string; logPath?: string }>): void {
   vi.spyOn(backgroundShellRegistry, "list")
     .mockReturnValue(shells.map((shell) => shell as unknown as BackgroundShell));

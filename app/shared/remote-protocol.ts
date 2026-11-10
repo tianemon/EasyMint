@@ -6,6 +6,7 @@ export const remotePermissionModeSchema = z.enum(["readonly", "standard", "full"
 
 export const remoteCommandNameSchema = z.enum([
   "project.listOpen",
+  "diagnostic.sample",
   "project.list",
   "project.open",
   "session.list",
