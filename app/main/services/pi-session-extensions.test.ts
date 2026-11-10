@@ -46,6 +46,10 @@ describe("Pi extension session integration", () => {
     const store = new Store(emDir);
     const onUiPrompt = vi.fn();
     const first = await createPiSession({ cwd, agentDir, store, onUiPrompt });
+    // No EM viewer-dependent extension may override Pi's own warming decision.
+    const decision = { type: "cache_warming_decision" as const, warmCost: 0.01, missCost: 1, continuationProbability: 0.15, action: "warm" as const };
+    expect(await first.extensionRunner.emitCacheWarmingDecision(decision)).toBe("warm");
+    expect(await first.extensionRunner.emitCacheWarmingDecision({ ...decision, action: "stop" })).toBe("stop");
     await first.extensionRunner.getUIContext().input("fixture prompt");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(onUiPrompt.mock.calls.map(call => call[0])).toEqual([true, false]);
