@@ -150,13 +150,14 @@ export interface EnvPanelHandle {
   retest: () => void;
 }
 
-export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitForUser = false, ref }: {
+export function EnvPanel({ variant = "settings", autoFix = false, onReady, onReport, waitForUser = false, ref }: {
   variant?: "onboarding" | "settings";
   /** **进入即自动装**：探测完自动开始安装（引导流程用，用户要求"不需要点击"）。
    *  只自动跑一次每种动作——失败/被系统授权框拒绝后不再自动重试，按钮留着交给用户决定。 */
   autoFix?: boolean;
   /** 必装项全部就绪时回调一次（引导流程据此自动进入下一步）。宿主需传稳定引用（useCallback）。 */
   onReady?: () => void;
+  onReport?: (report: EnvReportShape | null) => void;
   /** 保留就绪通知，但在检测和最短展示结束后显示状态，等待用户选择。 */
   waitForUser?: boolean;
   /** 宿主用它驱动重探。**面板自身不再渲染任何「重新检测」按钮**——
@@ -177,22 +178,31 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   const [progress, setProgress] = useState(0);
   const sandboxDisabled = useSettingsStore((s) => s.sandboxDisabled);
   const setSandboxDisabled = useSettingsStore((s) => s.setSandboxDisabled);
+  const generation = useRef(0);
+  const installingRef = useRef(false);
+  const publish = useCallback((value: EnvReportShape) => { setReport(value); onReport?.(value); }, [onReport]);
 
   const refresh = useCallback(async (reset = true): Promise<void> => {
+    if (installingRef.current) return;
+    const current = ++generation.current;
     setResult(null);
     setProbeFailed(false);
     setProbing(true); // 探测在飞时不要把上一次的结论当现状显示（尤其"正在检查"与"检查完毕"）
     try {
       const r = await (reset ? window.electronAPI.env.retest() : window.electronAPI.env.probe());
-      setReport(r);
+      if (current === generation.current) publish(r);
     } catch {
-      setProbeFailed(true); // 探测失败 ≠ 没装（文案必须区分开）
+      if (current === generation.current) { setProbeFailed(true); onReport?.(null); }
     } finally {
-      setProbing(false);
+      if (current === generation.current) setProbing(false);
     }
-  }, []);
+  }, [onReport, publish]);
 
   useEffect(() => { void refresh(false); }, [refresh]);
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.env?.onReport?.(() => { void refresh(false); });
+    return () => { if (typeof unsubscribe === "function") unsubscribe(); };
+  }, [refresh]);
 
   // 宿主「重新检测」的入口：重探并**重置沙盒失败缓存**（reset=true）——装好依赖后不重置的话，
   // 缓存的 fail-closed 会让用户以为白装了。
@@ -262,31 +272,39 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
 
   const install = async (selected = installable): Promise<void> => {
     if (selected.length === 0) return;
+    installingRef.current = true;
+    generation.current++;
+    setProbing(false);
     autoDoneOnce.add(selected.every(item => item.id === "windowsRuntime") ? "windowsRuntime" : "pkg"); // 手动点过一次也算——失败后按钮据此改口uiText("ui.extra.retryInstall")，别让用户以为是第一次
     setInstalling(true);
     setResult(null);
     try {
       const res = await window.electronAPI.env.install(selected.map((i) => i.id));
       setResult(res);
-      if (res.report) setReport(res.report);
+      if (res.report) publish(res.report);
     } catch (e) {
       setResult({ ok: false, reason: (e as Error).message });
     } finally {
+      installingRef.current = false;
       setInstalling(false);
     }
   };
 
   /** 一键修复 userns 放行：会弹系统授权框（改的是系统安全配置，必须由用户在系统弹窗里确认） */
   const fixUserns = async (): Promise<void> => {
+    installingRef.current = true;
+    generation.current++;
+    setProbing(false);
     setInstalling(true);
     setResult(null);
     try {
       const res = await window.electronAPI.env.fixUserns();
       setResult(res);
-      if (res.report) setReport(res.report);
+      if (res.report) publish(res.report);
     } catch (e) {
       setResult({ ok: false, reason: (e as Error).message });
     } finally {
+      installingRef.current = false;
       setInstalling(false);
     }
   };

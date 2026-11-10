@@ -10,13 +10,14 @@ import { PiImportSection } from "./PiImport";
 
 type DetectInfo = { found: boolean; version?: string; reason?: "not-found" | "probe-error" };
 
-function useDetect(cmd: "git" | "nodeRuntime" | "codegraph") {
+function useDetect(cmd: "git" | "nodeRuntime" | "codegraph", enabled = true) {
   const [info, setInfo] = useState<DetectInfo | null>(null);
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     // IPC 层报错也是「探测失败」而非「没装」——避免把异常断言成未安装
     window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false, reason: "probe-error" }));
-  }, [cmd, nonce]);
+  }, [cmd, nonce, enabled]);
   /** 重新检测：先置空显示「检测中...」，再触发一次 IPC——装了工具但没重启 EM 时用它重测 */
   const refresh = useCallback(() => {
     setInfo(null);
@@ -40,10 +41,10 @@ function EnvRow({ label, info, installUrl }: {
         ) : info.found ? (
           <span className="text-xs text-text-secondary">{info.version}</span>
         ) : (
-          <span className="text-xs text-danger">{t("settings.notInstalled")}</span>
+          <span className="text-xs text-danger">{t(info.reason === "probe-error" ? "settings.detectFailed" : "settings.notInstalled")}</span>
         )}
       </div>
-      {info && !info.found && installUrl && (
+      {info && !info.found && info.reason !== "probe-error" && installUrl && (
         <a
           href={installUrl}
           target="_blank"
@@ -79,7 +80,15 @@ function CodegraphRow({ info }: { info: DetectInfo | null }) {
 
 function EnvCheckSection(): JSX.Element {
   const { t } = useTranslation();
-  const git = useDetect("git");
+  const isWindows = typeof window !== "undefined" && window.electronAPI?.platform === "win32";
+  const git = useDetect("git", !isWindows);
+  const [windowsGit, setWindowsGit] = useState<DetectInfo | null>(null);
+  const onEnvironmentReport = useCallback((report: EnvReportShape | null) => {
+    if (!isWindows) return;
+    const runtime = report?.items.find(item => item.id === "windowsRuntime");
+    setWindowsGit(runtime ? { found: runtime.status === "ok", version: runtime.version,
+      reason: runtime.status === "missing" ? "not-found" : "probe-error" } : { found: false, reason: "probe-error" });
+  }, [isWindows]);
   const nodeRt = useDetect("nodeRuntime");
   const codegraph = useDetect("codegraph");
   // 「重新检测」= 三个检测器 + 环境面板重探。按钮与动作都是共用的那一份
@@ -96,10 +105,10 @@ function EnvCheckSection(): JSX.Element {
         />
       </div>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden">
-        <EnvRow label="Git" info={git.info} installUrl="https://git-scm.com/downloads" />
+        <EnvRow label="Git" info={isWindows ? windowsGit : git.info} installUrl={isWindows ? undefined : "https://git-scm.com/downloads"} />
         <EnvRow label="Node.js" info={nodeRt.info} installUrl="https://nodejs.org/" />
         <CodegraphRow info={codegraph.info} />
-        <EnvPanel ref={envPanel} variant="settings" />
+        <EnvPanel ref={envPanel} variant="settings" onReport={onEnvironmentReport} />
       </div>
     </section>
   );

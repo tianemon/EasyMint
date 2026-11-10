@@ -16,11 +16,13 @@ const report = (status: EnvItemShape["status"]): EnvReportShape => ({
 const probe = vi.fn(), install = vi.fn();
 /** 主进程阶段事件的订阅者：让单测能注入 done/verifying，验证读数门槛。 */
 let progressHandler: ((ev: { phase: string }) => void) | null = null;
+let reportHandler: (() => void) | null = null;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  probe.mockReset(); install.mockReset(); progressHandler = null;
+  probe.mockReset(); install.mockReset(); progressHandler = null; reportHandler = null;
   Object.assign(window, { electronAPI: { env: {
     probe, retest: probe, install, cancel: vi.fn(),
+    onReport: (cb: () => void) => { reportHandler = cb; return () => { reportHandler = null; }; },
     onProgress: (cb: (ev: { phase: string }) => void) => {
       progressHandler = cb;
       return () => { progressHandler = null; };
@@ -28,6 +30,7 @@ beforeEach(() => {
   } } });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
+
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it("引导页工作屏幕显示数字百分比，并随最短停留推进", async () => {
@@ -90,4 +93,26 @@ it("automatically prepares the portable runtime once, independently of sandbox s
   const state = { autoFix: true, hasReport: true, probeFailed: false, probing: false, installing: false, sandboxDisabled: true, installableCount: 0, fixableCount: 0, runtimeCount: 1 };
   expect(nextAutoAction({ ...state, done: new Set() })).toBe("windowsRuntime");
   expect(nextAutoAction({ ...state, done: new Set(["windowsRuntime"]) })).toBeNull();
+});
+
+it("refreshes the runtime report after background preparation", async () => {
+  probe.mockResolvedValueOnce(report("missing")).mockResolvedValueOnce(report("ok"));
+  const onReport = vi.fn();
+  await act(async () => root.render(createElement(EnvPanel, { onReport })));
+  expect(onReport.mock.lastCall?.[0].items[0].status).toBe("missing");
+  await act(async () => { reportHandler?.(); });
+  expect(onReport.mock.lastCall?.[0].items[0].status).toBe("ok");
+});
+
+it("does not let an old probe overwrite the result of runtime installation", async () => {
+  let finishProbe!: (value: EnvReportShape) => void;
+  probe.mockResolvedValueOnce(report("missing")).mockImplementationOnce(() => new Promise(resolve => { finishProbe = resolve; }));
+  install.mockResolvedValue({ ok: true, report: report("ok") });
+  const onReport = vi.fn();
+  await act(async () => root.render(createElement(EnvPanel, { onReport })));
+  await act(async () => { reportHandler?.(); });
+  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && /安装/.test(b.textContent ?? ""));
+  await act(async () => button!.click());
+  await act(async () => finishProbe(report("missing")));
+  expect(onReport.mock.lastCall?.[0].items[0].status).toBe("ok");
 });
