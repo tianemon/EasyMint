@@ -25,7 +25,7 @@ import { createWithPermissionGate, withSessionCreationLock } from "./session-per
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
-import { projectDesignSection } from "./project-design";
+import { safeProjectDesignSection } from "./project-design";
 import { sumUsage, type UsageEntry } from "./usage-totals";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
@@ -808,7 +808,7 @@ export class AgentService {
     if (env) parts.push(env);
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
-    const visual = projectDesignSection(projectPath);
+    const visual = safeProjectDesignSection(projectPath);
     if (visual) parts.push(visual);
 
     // 权限边界（三档 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，

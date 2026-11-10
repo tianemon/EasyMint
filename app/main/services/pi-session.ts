@@ -38,7 +38,7 @@ import { discoverAvailableExtensions, recordPiExtensionError, recordPiExtensionS
 import { createPiExtensionUi } from "./pi-extension-ui";
 import { normalizePermissionMode } from "./permission/execution-context";
 import { createMcpSessionExtensions, disposeMcpSession } from "./mcp-runtime";
-import { projectDesignSection } from "./project-design";
+import { safeProjectDesignSection } from "./project-design";
 import { trackRoutingSession } from "./auto-model-routing";
 import { completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
 import type { AgentDeliveryMode } from "./agent-context-rules";
@@ -210,12 +210,8 @@ async function buildSession(
     additionalThemePaths: packagePaths(installedPackages.themes),
     extensionFactories: [...mcpExtensions, permissionExtension, {
       name: "easymint-project-visual", hidden: true, factory: pi => {
-        pi.on("before_agent_start", (event, ctx) => {
-          let visual: string;
-          try { visual = projectDesignSection(opts.cwd); } catch (error) {
-            ctx.abort();
-            throw error;
-          }
+        pi.on("before_agent_start", (event) => {
+          const visual = safeProjectDesignSection(opts.cwd);
           const base = event.systemPrompt.replace(/<easymint_project_visual>[\s\S]*?<\/easymint_project_visual>/g, "").trimEnd();
           if (visual || base !== event.systemPrompt.trimEnd()) return { systemPrompt: base + visual };
         });
@@ -267,15 +263,15 @@ async function buildSession(
   // Pi 1.3 catches before_agent_start errors (extensions/runner.js). Validate public
   // turn entry points before Pi mutates history; the hook also aborts queued turns.
   const prompt = session.prompt.bind(session);
-  session.prompt = async (...args) => { projectDesignSection(opts.cwd); return prompt(...args); };
+  session.prompt = async (...args) => { safeProjectDesignSection(opts.cwd); return prompt(...args); };
   const customMessage = session.sendCustomMessage.bind(session);
-  session.sendCustomMessage = async (...args) => { projectDesignSection(opts.cwd); return customMessage(...args); };
+  session.sendCustomMessage = async (...args) => { safeProjectDesignSection(opts.cwd); return customMessage(...args); };
   const userMessage = session.sendUserMessage.bind(session);
-  session.sendUserMessage = async (...args) => { projectDesignSection(opts.cwd); return userMessage(...args); };
+  session.sendUserMessage = async (...args) => { safeProjectDesignSection(opts.cwd); return userMessage(...args); };
   const steer = session.steer.bind(session);
-  session.steer = async (...args) => { projectDesignSection(opts.cwd); return steer(...args); };
+  session.steer = async (...args) => { safeProjectDesignSection(opts.cwd); return steer(...args); };
   const followUp = session.followUp.bind(session);
-  session.followUp = async (...args) => { projectDesignSection(opts.cwd); return followUp(...args); };
+  session.followUp = async (...args) => { safeProjectDesignSection(opts.cwd); return followUp(...args); };
   routingReleases.set(session, trackRoutingSession(modelRuntime, session));
   // reload 期间切档的兜底：工厂已在 reload 中执行（单个 await 内无法抢占），但不再把
   // 扩展事件与 UI 绑定进会话；调用方（agent-service 的创建门禁）会弃用此会话按收紧后的模式重建。

@@ -95,6 +95,16 @@ export function projectDesignSection(root: string): string {
         ensureProjectDesign(root);
     return spec ? `\n<easymint_project_visual>\n## Project visual system\n${visualSpecPrompt(spec)}\nThe code and files in this project are authoritative. Preserve user-edited files. Never switch to the legacy blue seed templates when this contract exists.\n</easymint_project_visual>\n` : '';
 }
+/** 视觉资源不可用时保留对话，并向模型明确说明约束缺失；不把文件内容或异常原文注入提示词。 */
+export function safeProjectDesignSection(root: string): string {
+    try { return projectDesignSection(root); }
+    catch (error) {
+        console.warn('[project-design] 视觉资源不可用：', error instanceof Error ? error.message : String(error));
+        const conflict = error instanceof Error && error.message === 'Design recovery conflicts with a changed file; original files and transaction retained';
+        const reason = conflict ? '视觉资源恢复与现有文件发生冲突，原文件和事务记录已保留。' : '视觉配置或资源缺失、损坏或无法读取。';
+        return `\n<easymint_project_visual>\n项目视觉约束暂不可用：${reason} 对普通对话继续处理；如果任务涉及设计或界面，先告知用户视觉约束未生效，检查现有项目文件并保留用户改动，不要假定默认视觉方案或擅自覆盖、删除设计资源。\n</easymint_project_visual>\n`;
+    }
+}
 export function saveProjectDesign(root: string, selection: VisualSelection, platformSpec?: string, resources = getResourcesDir()): VisualSpec {
     root = path.resolve(root);
     if (!fs.statSync(root).isDirectory())
