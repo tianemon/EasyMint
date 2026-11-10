@@ -1,8 +1,8 @@
 {
   "protocol/types.ts": {
     "source": "protocol/types.ts",
-    "sha256": "c75a0898e74401ae87cd7ca43847090a6af97a7f54b1bf4b5c3a889c204f890b",
-    "localSha256": "c75a0898e74401ae87cd7ca43847090a6af97a7f54b1bf4b5c3a889c204f890b"
+    "sha256": "13fca2057d2e72f83f18c97975113e3ec330964cbebc4b64ac5ed53f470bd8c9",
+    "localSha256": "13fca2057d2e72f83f18c97975113e3ec330964cbebc4b64ac5ed53f470bd8c9"
   },
   "protocol/crypto.ts": {
     "source": "security/crypto.ts",
@@ -125,5 +125,10 @@
     "sha256": "2dfb64eae3ad2578d13ac3d42f95661999b0545b8e9011289cda81b1a94d665a",
     "localSha256": "7932de0673173a5507c1592f82dbe33cc198d647f054c480a44852a3e36cce5b",
     "rewritten": true
+  },
+  "core/project-access.ts": {
+    "source": "session/project-access.ts",
+    "sha256": "76ab6458b3aac49fc125765a900db7839ecad6905f6d31a6a3647acd0d228bff",
+    "localSha256": "76ab6458b3aac49fc125765a900db7839ecad6905f6d31a6a3647acd0d228bff"
   }
 }

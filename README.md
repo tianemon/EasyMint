@@ -274,6 +274,8 @@ Mint 内置的联网搜索与网页正文提取由 [Tavily](https://tavily.com) 
 
 EasyMint 在**同一局域网内**提供手机与桌面端的连接。扫码配对后，手机端可浏览电脑上的项目并打开会话：发送消息、查看模型思考与工具调用过程、回答提问、查看后台任务与子 Agent 进度，并随消息附带图片与文档。进入尚未打开的项目时，桌面端会打开对应项目窗口。
 
+连接旧版桌面端时，手机端会显示电脑上已打开的项目。
+
 手机客户端仓库：[**tianemon/EasyMintMobile**](https://github.com/tianemon/EasyMintMobile)
 
 - **安装**：到 [EasyMintMobile 的 Releases](https://github.com/tianemon/EasyMintMobile/releases) 下载 Android APK 安装（iOS 需要自行签名，该仓库里带本地打包脚本）

@@ -362,7 +362,7 @@ export class RemoteCommandRouter {
     return {
       // 手机端与桌面聊天输入栏一致：模型选择只暴露当前生效供应商的配置，
       // 不让远程端切到未选中的供应商或看到无关模型。
-      features: { sessionView: true },
+      features: { sessionView: true, projectBrowse: true },
       currentProvider: currentProvider ?? null,
       providers: config && currentProvider ? [{
         id: currentProvider,

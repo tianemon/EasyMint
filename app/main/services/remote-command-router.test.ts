@@ -172,6 +172,16 @@ describe("RemoteCommandRouter · 手机端列全部项目与开窗", () => {
     openProject,
   );
 
+  it("advertises project browsing before clients use the new commands", async () => {
+    const router = new RemoteCommandRouter(
+      {} as SessionCoordinator, {} as AgentService,
+      { getSettings: () => ({}) } as unknown as Store,
+      {} as Electron.BrowserWindow,
+    );
+    await expect(router.handle("device-1", envelope("capability.models", {})))
+      .resolves.toMatchObject({ features: { projectBrowse: true, sessionView: true } });
+  });
+
   it("keeps mobile presence independent from message subscriptions and supports leaving", async () => {
     const router = routerWith({ getOpenProject: vi.fn() as never });
     const command = envelope("session.view", { viewerId: "viewer-1" });

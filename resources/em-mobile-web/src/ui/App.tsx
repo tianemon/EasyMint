@@ -26,6 +26,7 @@ import { Alert } from '../core/alert';
 import { useRemoteEvents } from '../core/useRemoteEvents';
 import type { RemoteEventsStore } from '../core/useRemoteEvents';
 import { useSessionActions } from '../core/useSessionActions';
+import { listRemoteProjects } from '../core/project-access';
 import type { SessionActionsStore } from '../core/useSessionActions';
 import { createTransportClient } from '../transport/client-proxy';
 import type { TransportClient } from '../transport/client-proxy';
@@ -357,7 +358,7 @@ export default function App(): React.ReactElement {
     const opening = openingProjectRef.current;
     try {
       if (!opening) setBusy(true);
-      setProjects(await client.command<OpenProject[]>('project.list'));
+      setProjects(await listRemoteProjects(client));
       if (!opening) setPage('projects');
     } catch (e) { fail(e); } finally { if (!opening) setBusy(false); }
   }, [client, fail]);
@@ -386,7 +387,7 @@ export default function App(): React.ReactElement {
   const refreshHomeSessions = useCallback(async (revealProjects = false) => {
     if (!client) return;
     try {
-      const projects = await client.command<OpenProject[]>('project.list');
+      const projects = await listRemoteProjects(client);
       // 首页只拉已打开项目的会话；未打开的从项目列表点进去时会先开窗
       const selected = projects.find((item) => item.id === projectIdRef.current && item.open)
         ?? projects.find((item) => item.open) ?? null;

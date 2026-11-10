@@ -143,7 +143,7 @@ export interface BackgroundAgent {
 }
 
 export interface ModelCapabilities {
-  features?: { sessionView?: boolean };
+  features?: { sessionView?: boolean; projectBrowse?: boolean };
   currentProvider: string | null;
   providers: Array<{
     id: string;

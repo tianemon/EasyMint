@@ -11,9 +11,9 @@ export function ProjectsScreen({ projects, statusLabel, onBack, onOpenProject }:
 }): React.ReactElement {
   return (
     <div className="screen">
-      <Header title="所有项目" onBack={onBack} right={<span className="header-status">{statusLabel}</span>} />
+      <Header title="项目" onBack={onBack} right={<span className="header-status">{statusLabel}</span>} />
       <div className="screen-body projects-body">
-        {projects.length === 0 && <div className="list-empty">还没有项目</div>}
+        {projects.length === 0 && <div className="list-empty">没有可访问的项目</div>}
         {projects.map((project, index) => (
           <button key={project.id} type="button" className="project-row" onClick={() => onOpenProject(project)}>
             {index > 0 && <span className="divider-line" />}

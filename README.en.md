@@ -272,6 +272,8 @@ Configure planning and execution models, then select `easymint-auto` under the p
 
 Connect a phone to the desktop application on the **same local network**. After QR-code pairing, browse the computer's projects and open conversations to send messages, view model thinking and tool calls, answer questions, monitor background tasks and subagents, and attach images or documents. Opening a project that is not already open creates its window on the desktop.
 
+When connected to an older desktop version, the phone shows projects already open on the computer.
+
 Mobile repository: [**tianemon/EasyMintMobile**](https://github.com/tianemon/EasyMintMobile).
 
 - **Install**: download the Android APK from [EasyMintMobile Releases](https://github.com/tianemon/EasyMintMobile/releases). iOS requires your own signing; the repository includes local build scripts.
