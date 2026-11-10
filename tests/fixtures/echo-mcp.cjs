@@ -1,9 +1,13 @@
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const { ListToolsRequestSchema, CallToolRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
+const fs = require("node:fs");
 
-const server = new Server({ name: "echo-test", version: "1.0.0" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "echo-test", version: "1.0.0" }, { capabilities: { tools: {} }, ...(process.env.EM_ECHO_INSTRUCTIONS ? { instructions: process.env.EM_ECHO_INSTRUCTIONS } : {}) });
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  if (process.env.EM_ECHO_LIST_GATE) {
+    while (!fs.existsSync(process.env.EM_ECHO_LIST_GATE)) await new Promise(resolve => setTimeout(resolve, 20));
+  }
   if (process.env.EM_ECHO_LIST_DELAY_MS) await new Promise(resolve => setTimeout(resolve, Number(process.env.EM_ECHO_LIST_DELAY_MS)));
   return {
     tools: [{

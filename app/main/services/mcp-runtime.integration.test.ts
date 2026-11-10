@@ -131,6 +131,30 @@ describe("Pi MCP host integration", () => {
     } finally { if (timer) clearTimeout(timer); }
   });
 
+  it.each([undefined, "Configured echo summary"])("keeps the MCP prompt stable as server instructions arrive (configured: %s)", async description => {
+    const instructions = "Third-party echo instructions stay available on demand.";
+    writeProject(config({ description, timeout: 5000,
+      env: { EM_ECHO_LIST_DELAY_MS: "700", EM_ECHO_INSTRUCTIONS: instructions } }));
+    approveMcpServer(cwd, "echo");
+    const session = await create();
+    const before = await session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "first" }, { cwd });
+    expect(getMcpStatus(cwd)[0]?.state).not.toBe("connected");
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    const after = await session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "second" }, { cwd });
+    const first = before.systemPromptOptions.sections?.mcp_servers;
+    const second = after.systemPromptOptions.sections?.mcp_servers;
+    expect(first).toContain("mcp__echo");
+    expect(second).toBe(first);
+    expect(second).not.toContain(instructions);
+    if (description) expect(second).toContain(description);
+    expect(JSON.stringify((await script(session, 'text(JSON.stringify(await describeNamespace("mcp__echo")));')).content)).toContain(instructions);
+    expect(JSON.stringify((await script(session, echoCode)).content)).toContain("echo:hello");
+    expect(await retryMcpServer("echo", cwd)).toMatchObject({ ok: true });
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    const reconnected = await session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "third" }, { cwd });
+    expect(reconnected.systemPromptOptions.sections?.mcp_servers).toBe(first);
+  }, 15000);
+
   it("publishes tools without enumerating resources and preserves non-object structured results", async () => {
     const resourceLog = path.join(root, "resources.log");
     writeProject(config({ args: [path.resolve("tests/fixtures/resource-mcp.cjs")], env: { EM_MCP_RESOURCE_LOG: resourceLog } }));
@@ -302,6 +326,8 @@ describe("Pi MCP host integration", () => {
     expect(session.getAllTools().find(tool => tool.name === "mcp__echo__echo")?.exposure).toBe("hidden");
     approveMcpServer(cwd, "echo"); reloadMcpTools();
     await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    const after = await session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "after change" }, { cwd });
+    expect(after.systemPromptOptions.sections?.mcp_servers).toContain("changed");
     expect(JSON.stringify((await script(session, echoCode)).content)).toContain("echo:hello");
   }, 15000);
 

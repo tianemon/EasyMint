@@ -2,9 +2,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("version-pinned Pi MCP patch", () => {
+  it("keeps upstream summary behavior by default and allows an explicit stable-summary opt-out", async () => {
+    const module = await import(pathToFileURL(path.resolve("node_modules/@earendil-works/pi-coding-agent/dist/extensions/mcp/index.js")).href);
+    const entry = { name: "fixture", source: "fixture", config: { type: "stdio", command: "fixture", exposure: "codemode" } };
+    const before = [{ entry }];
+    const after = [{ entry, connection: { instructions: "external server instructions" } }];
+    expect(module.renderServersSection(before)).not.toBe(module.renderServersSection(after));
+    expect(module.renderServersSection(before, false)).toBe(module.renderServersSection(after, false));
+    expect(module.renderServersSection(after, false)).not.toContain("external server instructions");
+  });
   it("generates deterministically from clean 1.5.2 and refuses unrecognized source changes", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-patch-"));
     try {

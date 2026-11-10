@@ -102,6 +102,9 @@ export async function createMcpSessionExtensions(options: {
   const mcpFactory = sdk.createMcpExtension({
     loadConfig,
     credentials,
+    // Third-party instructions remain available through describeNamespace, but do not
+    // mutate the cached system prefix when a server connects after the first prompt.
+    includeServerInstructionsInSummary: false,
     // Tool discovery continues in the background; a slow direct MCP must not stall chat.
     startupWaitMs: 0,
     logPath: path.join(options.agentDir, "mcp.log"),

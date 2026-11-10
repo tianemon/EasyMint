@@ -37,6 +37,14 @@ function patch(file, before, after) {
   }
   sources[file] = source.replace(before, after);
 }
+// Keep configured summaries stable across asynchronous connections. The default remains
+// upstream behavior; EM opts out of promoting server-provided instructions into the prompt.
+patch("dist/extensions/mcp/index.js", `function serverSummary(server) {
+    const text = server.entry.config.description?.trim() || server.connection?.instructions || "";`, `function serverSummary(server, includeServerInstructions = true) {
+    const text = server.entry.config.description?.trim() || (includeServerInstructions ? server.connection?.instructions : undefined) || "";`);
+patch("dist/extensions/mcp/index.js", `export function renderServersSection(servers) {`, `export function renderServersSection(servers, includeServerInstructions = true) {`);
+patch("dist/extensions/mcp/index.js", `truncate(serverSummary(server), perServer)`, `truncate(serverSummary(server, includeServerInstructions), perServer)`);
+patch("dist/extensions/mcp/index.js", `const section = renderServersSection(servers);`, `const section = renderServersSection(servers, options.includeServerInstructionsInSummary !== false);`);
 patch("dist/extensions/mcp/index.js", "        const emitChange = () => {", `        const hostStatus = () => servers.map(server => ({
             name: server.entry.name,
             state: !isEnabled(server) ? "disabled" : server.connection?.state ?? "connecting",
@@ -213,6 +221,8 @@ export interface McpHostController {
 `;
 patch("dist/extensions/mcp/index.d.ts", `export interface McpExtensionOptions {`, `${hooks}
 export interface McpExtensionOptions {
+    /** Allow server instructions as fallback in the always-on server summary (default true). */
+    includeServerInstructionsInSummary?: boolean;
     onStatus?: (status: McpHostStatus[]) => void;
     onController?: (controller: McpHostController) => void;
     connectTimeoutMs?: (entry: McpServerEntry) => number;`);
