@@ -7,7 +7,7 @@ import { ProtectedMcpTransport } from "./mcp-transport";
 import { EncryptedMcpAuthBackend } from "./mcp-auth-store";
 import { emAgentDir } from "../utils/paths";
 import { createPiExtensionUi } from "./pi-extension-ui";
-import { mcpSearchGuidance } from "./mcp-tool-search";
+import { mcpSearchGuidance, type McpResourceGuidance } from "./mcp-tool-search";
 
 interface SessionMcp {
   manager: object;
@@ -58,7 +58,10 @@ function configSource(scope: string, project: string): string {
 export async function createMcpSessionExtensions(options: {
   cwd: string; agentDir: string; owner: string; sessionId: string; manager: object; getMode: () => string | undefined;
 }): Promise<InlineExtension[]> {
-  const sdk = await import("@earendil-works/pi-coding-agent");
+  // Pi packages are ESM-only; keep their runtime imports dynamic in the CJS main bundle.
+  const [sdk, { mcpNamespace }] = await Promise.all([
+    import("@earendil-works/pi-coding-agent"), import("@earendil-works/pi-mcp"),
+  ]);
   const record: SessionMcp = { manager: options.manager, project: path.resolve(options.cwd), owners: new Set([options.owner, options.sessionId]),
     mode: () => record.disposed ? "readonly" : normalizePermissionMode(options.getMode()), statuses: [], disposed: false };
   const rawDefinitions = new Map<string, { fingerprint: string; timeout: number }>();
@@ -100,12 +103,48 @@ export async function createMcpSessionExtensions(options: {
     }
   };
   const trustedTools = new Set<string>();
-  const allowNamespace = (tool: ToolInfo): boolean => {
-    if (record.disposed || record.mode() === "readonly" || !trustedTools.has(tool.name)) return false;
-    const server = tool.namespace?.aliases?.[0];
-    if (!server) return false;
-    if (!rawDefinitions.has(server)) return record.mode() === "full";
-    try { validateCurrent(server); return true; } catch { return false; }
+  let searchApi: ExtensionAPI | undefined;
+  const searchContext = (pi: ExtensionAPI, query: string) => {
+    const servers = record.controller?.serverGuidance() ?? [];
+    const byName = new Map(servers.map(server => [server.name, server]));
+    const approvals = new Map<string, boolean>();
+    const allowServer = (name: string): boolean => {
+      if (record.disposed || record.mode() === "readonly") return false;
+      if (approvals.has(name)) return approvals.get(name)!;
+      const server = byName.get(name);
+      let allowed = false;
+      if (server?.scope === "extension") allowed = record.mode() === "full";
+      else if (server && rawDefinitions.has(name)) {
+        try { validateCurrent(name); allowed = true; } catch { /* stale or unapproved */ }
+      }
+      approvals.set(name, allowed);
+      return allowed;
+    };
+    const allowTool = (tool: ToolInfo): boolean => {
+      const server = tool.namespace?.aliases?.[0];
+      return !!server && trustedTools.has(tool.name) && allowServer(server);
+    };
+    const base = query.trim().replace(/@\d+$/, "").toLowerCase();
+    const target = servers.find(server => mcpNamespace(server.name).toLowerCase() === base)
+      ?? servers.find(server => server.name.toLowerCase() === base);
+    const resources: McpResourceGuidance[] = target && target.hasResources && target.exposure !== "hidden"
+      && target.instructions?.trim() && allowServer(target.name)
+      ? [{ name: mcpNamespace(target.name), aliases: [target.name], instructions: target.instructions }] : [];
+    return { tools: pi.getAllTools(), target, resources, allowTool, allowServer };
+  };
+  const guidanceOnlyServer = (pi: ExtensionAPI, input: Record<string, unknown>): string | undefined => {
+    const query = typeof input.query === "string" ? input.query.trim() : "";
+    const validLimit = input.limit === undefined || (typeof input.limit === "number" && Number.isInteger(input.limit) && input.limit > 0);
+    if (!query || !validLimit) return;
+    const state = searchContext(pi, query);
+    if (!state.target || !state.allowServer(state.target.name)) return;
+    if (/@\d+$/.test(query)) return state.target.name;
+    const namespace = mcpNamespace(state.target.name).toLowerCase();
+    const requested = state.tools.filter(tool => tool.namespace?.name.toLowerCase() === namespace
+      && (tool.exposure === "deferred" || tool.exposure === "codemode") && state.allowTool(tool));
+    const active = new Set(pi.getActiveTools());
+    if ((requested.length > 0 && requested.every(tool => active.has(tool.name)))
+      || (requested.length === 0 && state.resources.length > 0)) return state.target.name;
   };
   const mcpFactory = sdk.createMcpExtension({
     loadConfig,
@@ -113,6 +152,10 @@ export async function createMcpSessionExtensions(options: {
     // Third-party instructions remain available through describeNamespace, but do not
     // mutate the cached system prefix when a server connects after the first prompt.
     includeServerInstructionsInSummary: false,
+    toolSearchGuidanceServer: input => {
+      if (!searchApi) return;
+      try { return guidanceOnlyServer(searchApi, input); } catch { return; }
+    },
     // Tool discovery continues in the background; a slow direct MCP must not stall chat.
     startupWaitMs: 0,
     logPath: path.join(options.agentDir, "mcp.log"),
@@ -150,24 +193,19 @@ export async function createMcpSessionExtensions(options: {
       pi.registerTool({ ...search,
         description: `${search.description}\nTo read MCP server guidance, search its exact server name; use the returned nextQuery to read further parts.`,
         execute: async (...args) => {
-          const input = args[1] as { query?: unknown; limit?: unknown };
-          const query = typeof input.query === "string" ? input.query.trim() : "";
-          const validLimit = input.limit === undefined || (typeof input.limit === "number" && Number.isInteger(input.limit) && input.limit > 0);
-          const tools = pi.getAllTools();
-          const paging = /@\d+$/.test(query);
-          const namespace = query.toLowerCase();
-          const active = new Set(pi.getActiveTools());
-          const requested = tools.filter(tool => tool.namespace?.name.toLowerCase() === namespace
-            && (tool.exposure === "deferred" || tool.exposure === "codemode") && allowNamespace(tool));
-          const reread = namespace.startsWith("mcp__") && requested.length > 0 && requested.every(tool => active.has(tool.name));
-          // Paging and rereading an already-loaded namespace must not activate unrelated tools via BM25.
-          if (validLimit && (paging || reread) && mcpSearchGuidance(tools, [], query, allowNamespace)) {
-            return { content: [{ type: "text" as const, text: "Server guidance follows." }], details: { loaded: [] } };
+          const input = args[1] as Record<string, unknown>;
+          const query = typeof input.query === "string" ? input.query : "";
+          const state = searchContext(pi, query);
+          // Do not run BM25 for a guidance-only request; it could activate unrelated tools.
+          if (guidanceOnlyServer(pi, input)) {
+            const guidance = mcpSearchGuidance(state.tools, [], query, state.allowTool, state.resources);
+            return { content: [{ type: "text" as const, text: guidance ? "Server guidance follows." : "No server guidance is currently available." }], details: { loaded: [] } };
           }
           return search.execute(...args);
         },
       });
     };
+    if (describeSearch) searchApi = pi;
     factory(facade);
   };
   return [
@@ -219,7 +257,8 @@ export async function createMcpSessionExtensions(options: {
         const details = event.details as { loaded?: unknown } | undefined;
         const loaded = Array.isArray(details?.loaded) ? details.loaded.filter((item): item is string => typeof item === "string") : [];
         const query = typeof event.input.query === "string" ? event.input.query : "";
-        const guidance = mcpSearchGuidance(tools, loaded, query, allowNamespace);
+        const state = searchContext(pi, query);
+        const guidance = mcpSearchGuidance(state.tools, loaded, query, state.allowTool, state.resources);
         if (!guidance) return;
         const content = loaded.length ? event.content : [{ type: "text" as const, text: "No additional tools loaded; server guidance follows." }];
         return { content: [...content, { type: "text" as const, text: guidance }],

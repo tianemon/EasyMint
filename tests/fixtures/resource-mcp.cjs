@@ -5,8 +5,9 @@ require("node:readline").createInterface({ input: process.stdin }).on("line", li
   if (message.id === undefined) return;
   let result;
   if (message.method === "initialize") result = { protocolVersion: message.params.protocolVersion,
-    capabilities: { tools: {}, resources: {} }, serverInfo: { name: "resource-fixture", version: "1" } };
-  else if (message.method === "tools/list") result = { tools: [{ name: "shape", description: "Return structured JSON", inputSchema: {
+    capabilities: { tools: {}, resources: {} }, serverInfo: { name: "resource-fixture", version: "1" },
+    ...(process.env.EM_RESOURCE_INSTRUCTIONS ? { instructions: process.env.EM_RESOURCE_INSTRUCTIONS } : {}) };
+  else if (message.method === "tools/list") result = { tools: process.env.EM_RESOURCE_ONLY ? [] : [{ name: "shape", description: "Return structured JSON", inputSchema: {
     type: "object", properties: { shape: { type: "string", enum: ["array", "null"] } }, required: ["shape"],
   } }] };
   else if (message.method === "resources/list" || message.method === "resources/templates/list") {

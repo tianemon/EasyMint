@@ -19,6 +19,10 @@ vi.mock("./sandbox/manager", () => ({
   ensureSandbox: sandbox.initialize, isSandboxBypassedForMode: (mode: string) => mode === "full",
   wrapForSandbox: sandbox.wrap,
 }));
+vi.mock("./mcp-service", async original => {
+  const actual = await original<typeof import("./mcp-service")>();
+  return { ...actual, scanMcpServers: vi.fn(actual.scanMcpServers) };
+});
 
 let root: string, cwd: string, agentDir: string;
 const active: AgentSession[] = [];
@@ -172,6 +176,91 @@ describe("Pi MCP host integration", () => {
     writeProject({ ...base, description: "changed without reapproval" });
     expect(scanMcpServers(cwd)[0]?.pendingApproval).toBe(true);
     expect(JSON.stringify((await emit()) ?? null)).not.toContain(instructions);
+  }, 15000);
+
+  it("reads resource-only server guidance on demand without enumerating resources", async () => {
+    const instructions = "Resource-only server guidance";
+    const resourceLog = path.join(root, "resources.log");
+    const base = config({ exposure: "deferred", args: [path.resolve("tests/fixtures/resource-mcp.cjs")],
+      env: { EM_RESOURCE_ONLY: "1", EM_RESOURCE_INSTRUCTIONS: instructions, EM_MCP_RESOURCE_LOG: resourceLog } });
+    writeProject(base); approveMcpServer(cwd, "echo");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    expect(session.getAllTools().some(tool => tool.namespace?.name === "mcp__echo")).toBe(false);
+    const args = { query: "echo" }, toolCall = { id: "resource-guidance", name: "tool_search", arguments: args };
+    await session.agent.beforeToolCall!({ toolCall, args } as never);
+    const search = session.agent.state.tools.find(tool => tool.name === "tool_search")!;
+    const result = await search.execute(toolCall.id, args, new AbortController().signal);
+    const enriched = await session.agent.afterToolCall!({ toolCall, args, result, isError: false } as never);
+    expect(JSON.stringify(enriched ?? result)).toContain(instructions);
+    expect(JSON.stringify(enriched ?? result)).toContain("Untrusted third-party");
+    expect(fs.existsSync(resourceLog)).toBe(false);
+    writeProject({ ...base, description: "modified without reapproval" });
+    const blocked = await session.agent.afterToolCall!({ toolCall, args, result, isError: false } as never);
+    expect(JSON.stringify(blocked ?? result)).not.toContain(instructions);
+  }, 15000);
+
+  it("does not wait for unrelated connecting servers while paging guidance", async () => {
+    const gate = path.join(root, "slow-server-gate");
+    fs.mkdirSync(path.join(cwd, ".easymint"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".easymint/mcp.json"), JSON.stringify({ mcpServers: {
+      echo: config({ exposure: "deferred", timeout: 15000, env: { EM_ECHO_LIST_GATE: gate } }),
+      echo2: config({ exposure: "deferred", env: { EM_ECHO_INSTRUCTIONS: "Target server guidance" } }),
+    } }));
+    approveMcpServer(cwd, "echo"); approveMcpServer(cwd, "echo2");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd).find(item => item.name === "echo2")?.state === "connected");
+    expect(getMcpStatus(cwd).find(item => item.name === "echo")?.state).not.toBe("connected");
+    const args = { query: "mcp__echo2@0" }, toolCall = { id: "page", name: "tool_search", arguments: args };
+    session.agent.state.messages.push({ role: "assistant", content: [{ type: "toolCall", ...toolCall }], timestamp: Date.now() } as never);
+    const pending = session.agent.beforeToolCall!({ toolCall, args } as never);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const outcome = await Promise.race([pending.then(() => "ready"), new Promise<string>(resolve => { timer = setTimeout(() => resolve("blocked"), 1500); })]);
+      expect(outcome).toBe("ready");
+      expect(getMcpStatus(cwd).find(item => item.name === "echo")?.state).not.toBe("connected");
+      const search = session.agent.state.tools.find(tool => tool.name === "tool_search")!;
+      const result = await search.execute(toolCall.id, args, new AbortController().signal);
+      const enriched = await session.agent.afterToolCall!({ toolCall, args, result, isError: false } as never);
+      expect(JSON.stringify(enriched ?? result)).toContain("Target server guidance");
+    } finally {
+      if (timer) clearTimeout(timer);
+      fs.writeFileSync(gate, "ready");
+      await pending;
+    }
+  }, 15000);
+
+  it("does not search other servers when a requested guidance page does not exist", async () => {
+    fs.mkdirSync(path.join(cwd, ".easymint"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".easymint/mcp.json"), JSON.stringify({ mcpServers: {
+      echo: config({ exposure: "deferred" }), zzz: config({ exposure: "deferred" }),
+    } }));
+    approveMcpServer(cwd, "echo"); approveMcpServer(cwd, "zzz");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd).every(item => item.state === "connected"));
+    const args = { query: "mcp__echo@0" }, toolCall = { id: "missing-page", name: "tool_search", arguments: args };
+    session.agent.state.messages.push({ role: "assistant", content: [{ type: "toolCall", ...toolCall }], timestamp: Date.now() } as never);
+    await session.agent.beforeToolCall!({ toolCall, args } as never);
+    const search = session.agent.state.tools.find(tool => tool.name === "tool_search")!;
+    const result = await search.execute(toolCall.id, args, new AbortController().signal);
+    expect(JSON.stringify(result.content)).toContain("No server guidance is currently available");
+    expect(session.getActiveToolNames()).not.toContain("mcp__echo__echo");
+    expect(session.getActiveToolNames()).not.toContain("mcp__zzz__echo");
+  }, 15000);
+
+  it("revalidates a server once per result, not once for every registered tool", async () => {
+    const instructions = "Many tools share this guidance";
+    writeProject(config({ exposure: "deferred", env: { EM_ECHO_INSTRUCTIONS: instructions, EM_ECHO_TOOL_COUNT: "200" } }));
+    approveMcpServer(cwd, "echo");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    expect(session.getAllTools().filter(tool => tool.namespace?.name === "mcp__echo")).toHaveLength(200);
+    vi.mocked(scanMcpServers).mockClear();
+    const result = await session.extensionRunner.emitToolResult({ type: "tool_result", toolName: "tool_search",
+      toolCallId: "search", input: { query: "tool_0" }, content: [{ type: "text", text: "Loaded tool" }],
+      details: { loaded: ["mcp__echo__tool_0"] }, isError: false });
+    expect(JSON.stringify(result)).toContain(instructions);
+    expect(vi.mocked(scanMcpServers)).toHaveBeenCalledTimes(1);
   }, 15000);
 
   it("publishes tools without enumerating resources and preserves non-object structured results", async () => {

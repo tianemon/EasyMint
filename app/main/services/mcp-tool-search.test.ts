@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ToolInfo } from "@earendil-works/pi-coding-agent";
 import { mcpSearchGuidance } from "./mcp-tool-search";
 
@@ -48,5 +48,30 @@ describe("on-demand MCP search guidance", () => {
     expect(result.servers).toHaveLength(4);
     expect(result.omittedServers).toEqual(["mcp__server4", "mcp__server5"]);
     expect(payload(mcpSearchGuidance(tools, [], "mcp__server5", () => true)).servers[0]?.instructions).toBe("data5");
+  });
+
+  it("checks only matched servers and deduplicates authorization within a request", () => {
+    const tools = Array.from({ length: 200 }, (_, i) => tool("one", "guidance", `tool_${i}`));
+    const allow = vi.fn(() => true);
+    expect(mcpSearchGuidance(tools, [tools[0]!.name], "search", allow)).toContain("guidance");
+    expect(allow).toHaveBeenCalledTimes(1);
+    allow.mockClear();
+    expect(mcpSearchGuidance(tools, tools.map(item => item.name), "search", allow)).toContain("guidance");
+    expect(allow).toHaveBeenCalledTimes(1);
+  });
+
+  it("can page explicitly selected resource-only server metadata", () => {
+    const resources = [{ name: "mcp__data", aliases: ["data"], instructions: "R".repeat(4100) }];
+    const first = payload(mcpSearchGuidance([], [], "data", () => false, resources)).servers[0]!;
+    expect(first.nextQuery).toBe("mcp__data@4096");
+    const second = payload(mcpSearchGuidance([], [], first.nextQuery!, () => false, resources)).servers[0]!;
+    expect(first.instructions + second.instructions).toBe(resources[0]!.instructions);
+    expect(mcpSearchGuidance([], [], "other", () => false, resources)).toBeUndefined();
+  });
+
+  it("prefers the canonical namespace over another server's identically spelled alias", () => {
+    const tools = [tool("mcp__echo", "other server"), tool("echo", "requested server")];
+    const result = payload(mcpSearchGuidance(tools, [], "mcp__echo@0", () => true));
+    expect(result.servers.map(server => server.instructions)).toEqual(["requested server"]);
   });
 });

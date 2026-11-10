@@ -45,6 +45,13 @@ patch("dist/extensions/mcp/index.js", `function serverSummary(server) {
 patch("dist/extensions/mcp/index.js", `export function renderServersSection(servers) {`, `export function renderServersSection(servers, includeServerInstructions = true) {`);
 patch("dist/extensions/mcp/index.js", `truncate(serverSummary(server), perServer)`, `truncate(serverSummary(server, includeServerInstructions), perServer)`);
 patch("dist/extensions/mcp/index.js", `const section = renderServersSection(servers);`, `const section = renderServersSection(servers, options.includeServerInstructionsInSummary !== false);`);
+patch("dist/extensions/mcp/index.js", `            const reach = tool.reachesTools?.(event.input);
+            if (reach !== undefined) {`, `            const guidanceServer = event.toolName === "tool_search" ? options.toolSearchGuidanceServer?.(event.input) : undefined;
+            const reach = tool.reachesTools?.(event.input);
+            if (guidanceServer !== undefined) {
+                waiting = readyServers.filter((server) => server.entry.name === guidanceServer);
+            }
+            else if (reach !== undefined) {`);
 patch("dist/extensions/mcp/index.js", "        const emitChange = () => {", `        const hostStatus = () => servers.map(server => ({
             name: server.entry.name,
             state: !isEnabled(server) ? "disabled" : server.connection?.state ?? "connecting",
@@ -108,6 +115,11 @@ patch("dist/extensions/mcp/index.js", '        pi.registerCommand("mcp", {', `  
         };
         const hostController = {
             status: hostStatus,
+            serverGuidance: () => servers.filter(isEnabled).map(server => ({
+                name: server.entry.name, scope: server.entry.scope ?? "global", exposure: exposureOf(server.entry),
+                hasResources: !!server.connection?.hasResources,
+                instructions: server.connection?.state === "connected" ? server.connection.instructions : undefined,
+            })),
             close: closeHostSession,
             reload: () => {
                 const work = hostReload.then(async () => {
@@ -211,6 +223,7 @@ export interface McpHostStatus {
 }
 export interface McpHostController {
     status(): McpHostStatus[];
+    serverGuidance(): Array<{ name: string; scope: string; exposure: string; hasResources: boolean; instructions?: string }>;
     close(): Promise<void>;
     reload(): Promise<void>;
     ready(): Promise<void>;
@@ -223,6 +236,8 @@ patch("dist/extensions/mcp/index.d.ts", `export interface McpExtensionOptions {`
 export interface McpExtensionOptions {
     /** Allow server instructions as fallback in the always-on server summary (default true). */
     includeServerInstructionsInSummary?: boolean;
+    /** Exact server needed by a guidance-only search; other searches retain Pi's normal readiness policy. */
+    toolSearchGuidanceServer?: (input: Record<string, unknown>) => string | undefined;
     onStatus?: (status: McpHostStatus[]) => void;
     onController?: (controller: McpHostController) => void;
     connectTimeoutMs?: (entry: McpServerEntry) => number;`);

@@ -96,7 +96,7 @@ it("delivers deferred server instructions as untrusted paged search results with
     },
     () => fauxAssistantMessage(fauxToolCall("tool_search", { query: nextQuery }), { stopReason: "toolUse" }),
     context => { outputs.push(lastResult(context.messages)); return fauxAssistantMessage("second page read"); },
-    fauxAssistantMessage(fauxToolCall("tool_search", { query: "mcp__echo" }), { stopReason: "toolUse" }),
+    fauxAssistantMessage(fauxToolCall("tool_search", { query: "echo" }), { stopReason: "toolUse" }),
     context => { outputs.push(lastResult(context.messages)); return fauxAssistantMessage("server guidance reread"); },
   ]);
   session = await createPiSession({ cwd, agentDir, store: new Store(root), model: runtime.getModel("deferred-fixture", "fixture")!,
@@ -117,5 +117,33 @@ it("delivers deferred server instructions as untrusted paged search results with
   expect(outputs[2]).toContain("Untrusted third-party MCP server data");
   expect(outputs[2]).not.toContain("Unrelated server guidance");
   expect(session.getActiveToolNames()).not.toContain("mcp__zzz__echo");
+  expect(session.getActiveToolNames()).not.toContain("codemode");
+}, 15000);
+
+it("delivers resource-only server guidance to the model without listing resources", async () => {
+  const instructions = "Resource-only untrusted guidance";
+  const resourceLog = path.join(root, "resource-list.log");
+  fs.writeFileSync(path.join(cwd, ".easymint/mcp.json"), JSON.stringify({ mcpServers: { resource_only: {
+    type: "stdio", command: process.execPath, args: [path.resolve("tests/fixtures/resource-mcp.cjs")],
+    exposure: "deferred", timeout: 10000,
+    env: { EM_RESOURCE_ONLY: "1", EM_RESOURCE_INSTRUCTIONS: instructions, EM_MCP_RESOURCE_LOG: resourceLog },
+  } } }));
+  approveMcpServer(cwd, "resource_only");
+  const runtime = await ModelRuntime.create({ modelsPath: null, authPath: path.join(root, "auth.json"), allowModelNetwork: false });
+  const faux = fauxProvider({ provider: "resource-fixture", models: [{ id: "fixture" }], tokensPerSecond: 0 });
+  runtime.registerNativeProvider(faux.provider); await runtime.refresh({ allowNetwork: false });
+  vi.mocked(getModelRuntime).mockResolvedValue(runtime);
+  let modelResult = "";
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall("tool_search", { query: "resource_only" }), { stopReason: "toolUse" }),
+    context => { modelResult = JSON.stringify(context.messages.filter(message => message.role === "toolResult").at(-1)?.content); return fauxAssistantMessage("guidance read"); },
+  ]);
+  session = await createPiSession({ cwd, agentDir, store: new Store(root), model: runtime.getModel("resource-fixture", "fixture")!,
+    permissionMode: "standard", canUseTool: async () => ({ behavior: "allow" }) });
+  await vi.waitFor(() => expect(getMcpStatus(cwd)[0]?.state).toBe("connected"), { timeout: 5000 });
+  await session.prompt("Read the resource server guidance.");
+  expect(modelResult).toContain(instructions);
+  expect(modelResult).toContain("Untrusted third-party MCP server data");
+  expect(fs.existsSync(resourceLog)).toBe(false);
   expect(session.getActiveToolNames()).not.toContain("codemode");
 }, 15000);

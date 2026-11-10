@@ -10,7 +10,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   }
   if (process.env.EM_ECHO_LIST_DELAY_MS) await new Promise(resolve => setTimeout(resolve, Number(process.env.EM_ECHO_LIST_DELAY_MS)));
   return {
-    tools: [{
+    tools: process.env.EM_ECHO_TOOL_COUNT ? Array.from({ length: Number(process.env.EM_ECHO_TOOL_COUNT) }, (_, i) => ({
+      name: `tool_${i}`, description: `Tool ${i}`, inputSchema: { type: "object", properties: {} },
+    })) : [{
       name: "echo",
       description: "Echo back text",
       inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
