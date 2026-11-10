@@ -268,9 +268,9 @@ In **Settings → Models → Native images and automatic models**, select an ima
 
 Configure planning and execution models, then select `easymint-auto` under the planning provider. Each new message starts with planning; successful file edits switch to execution, while retries keep their model. Replies show the actual provider and model. Wait for an active automatic-model run to finish before changing its configuration. Switching can lose prompt caching or trigger compaction; assess costs on your own workloads.
 
-## Mobile client (Android / iOS)
+## Mobile access (app and browser)
 
-Connect a phone to the desktop application on the **same local network**. After QR-code pairing, use the phone to send messages, view model thinking and tool calls, answer questions, monitor background tasks and subagents, and attach images or documents to conversations in the currently open desktop project.
+Connect a phone to the desktop application on the **same local network**. After QR-code pairing, browse the computer's projects and open conversations to send messages, view model thinking and tool calls, answer questions, monitor background tasks and subagents, and attach images or documents. Opening a project that is not already open creates its window on the desktop.
 
 Mobile repository: [**tianemon/EasyMintMobile**](https://github.com/tianemon/EasyMintMobile).
 
@@ -278,6 +278,12 @@ Mobile repository: [**tianemon/EasyMintMobile**](https://github.com/tianemon/Eas
 - **Pair**: open the desktop sidebar toolbox (工具箱), choose “Connect phone” (连接手机), scan the QR code, compare the six-digit code, and confirm on the desktop.
 
 The phone stores pairing credentials only. Projects, sessions, and messages stay on the computer. Communication uses P-256 ECDH and AES-256-GCM encryption. The desktop does not send project absolute paths or API keys to the phone.
+
+### Browser access
+
+The desktop application provides a browser channel independent of the mobile app under **Settings → Mobile browser access** (设置 → 手机浏览器访问). Once enabled, the desktop serves a static page on the local network. Scan the "Browser" QR code with a phone, compare the six-digit verification code, and confirm on the desktop; the browser can then access projects and sessions on the computer. The two channels are independent and can be used simultaneously.
+
+The static page listens on port 47779 by default; pairing and data transfer use the encrypted channel on port 47778. The page supports Android, HarmonyOS, and iOS browsers and can be added to the home screen. Paired devices are managed in settings, where they can be renamed or revoked.
 
 ## Interface language
 
