@@ -315,7 +315,7 @@ interface ElectronAPI {
     cancelFormAssist: (requestId: string) => Promise<void>;
     nativeAiModels: () => Promise<{ chat: Array<import("@shared/native-ai").ModelReference & { name: string }>; image: Array<import("@shared/native-ai").ModelReference & { name: string }> }>;
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; collaborationModeIds?: string[]; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     getDelegations: (sessionId: string) => Promise<DelegationSnapshotItem[]>;
@@ -368,6 +368,7 @@ interface ElectronAPI {
     onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
+    onGuidanceOffer: (callback: (data: { sessionId: string; reason: string }) => void) => () => void;
     onConfirmDev: (callback: (data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
@@ -621,7 +622,7 @@ interface ElectronAPI {
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   sessionCache: {
-    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; thinkingLevel?: string; contextUsage: number | null; updatedAt: number } | null>;
+    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; thinkingLevel?: string; collaborationModeIds?: string[]; contextUsage: number | null; updatedAt: number } | null>;
     write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
   };
@@ -697,6 +698,17 @@ interface ElectronAPI {
     create: (input: { name: string; description: string; prompt: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }>;
     update: (id: string, input: { name?: string; description?: string; prompt?: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }>;
     delete: (id: string) => Promise<void>;
+    restore: (id: string) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }>;
+  };
+  conversation: {
+    get: () => Promise<import("@shared/collaboration").ConversationConfig>;
+    saveMain: (input: import("@shared/collaboration").MainChatProfile) => Promise<import("@shared/collaboration").ConversationConfig>;
+    restoreMain: () => Promise<import("@shared/collaboration").ConversationConfig>;
+    saveMode: (input: Omit<import("@shared/collaboration").CollaborationMode, "id" | "builtin"> & { id?: string }) => Promise<import("@shared/collaboration").ConversationConfig>;
+    deleteMode: (id: string) => Promise<import("@shared/collaboration").ConversationConfig>;
+    restoreMode: (id: string) => Promise<import("@shared/collaboration").ConversationConfig>;
+    onChanged: (callback: (config: import("@shared/collaboration").ConversationConfig) => void) => () => void;
+    getModes: (sessionId: string, legacyDesigner?: boolean) => Promise<string[]>;
   };
   app: {
     getVersion: () => Promise<string>;

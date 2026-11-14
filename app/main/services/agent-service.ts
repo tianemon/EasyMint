@@ -17,7 +17,9 @@ import { broadcast, broadcastEvent } from "./ipc-broadcast";
 import { Store } from "./store";
 import { canRewindDetachedUser, isStaleSdkBusyRefusal } from "./rewind-policy";
 import { waitForAbortSettlement, settleSessionIdle } from "./abort-settlement";
-import { resolveEffectivePrompt } from "./system-prompt-manager";
+import { resolveEffectivePrompt, getConversationConfig, conversationPromptSection } from "./system-prompt-manager";
+import { UI_DESIGN_MODE_ID } from "../../shared/collaboration";
+import { createGuidanceTool } from "./tools/guidance-tool";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
 import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
@@ -62,7 +64,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile, PERMISSION_RULES_PROMPT } from "./prompt-sections";
-import { MINT_DESIGN_BOOST, THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
+import { THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
 import { resolveThinkingLevel } from "../../shared/thinking-levels";
 import { isPermissionModeTightening, normalizePermissionMode } from "./permission/execution-context";
 
@@ -756,6 +758,7 @@ export class AgentService {
         allTools.push(await createDependencyTool(projectPath));
         allTools.push(await createEnvironmentTool(projectPath));
         allTools.push(await createAskUserTool(sessionId));
+        allTools.push(await createGuidanceTool(sessionId));
         // 待办（todo_write）：进度条在 ChatPanel，worker 无 UI 不装
         const { createTodoWriteTool } = await import("./tools/todo-tool");
         allTools.push(await createTodoWriteTool(projectPath, sessionId));
@@ -790,16 +793,13 @@ export class AgentService {
     }
   }
 
-  private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean; learnInstalled?: boolean }): string {
+  private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean; learnInstalled?: boolean; collaborationModeIds?: string[] }): string {
     const parts: string[] = [];
 
     // Mint-D 主会话 = 基础 Mint prompt(或用户自定义) + 设计能力增强段(附加不替换)
     const effective = resolveEffectivePrompt();
-    if (effective) parts.push(effective);
-    if (isDesigner) {
-      const boost = MINT_DESIGN_BOOST;
-      if (boost) parts.push(boost);
-    }
+    if (opts?.worker) parts.push(effective);
+    else parts.push(conversationPromptSection(opts?.collaborationModeIds ?? (isDesigner ? [UI_DESIGN_MODE_ID] : []), effective));
 
     // skill 注入已收敛到 Pi 原生 <available_skills>（pi-session skillsOverride 并入四来源），
     // EM 自拼 skills 段（buildSkillsPrompt）退役——避免双重注入
@@ -1812,6 +1812,7 @@ export class AgentService {
     systemPayload?: SystemMessagePayload,
     /** 前端发起发送的 tab id(透传回 chat-session 广播,前端精确绑定 tab,防多新 tab 错配) */
     tabId?: string,
+    collaborationModeIds?: string[],
   ): Promise<{ chatId: string; sessionId: string }> {
     if (resumeSessionId) {
       if (this.startingSessions.has(resumeSessionId) || this.mutatingSessions.has(resumeSessionId)) {
@@ -1821,6 +1822,9 @@ export class AgentService {
     }
     try {
       const resolvedPath = path.resolve(resolveHome(projectPath));
+      const availableModes = getConversationConfig().modes;
+      const requestedModes = collaborationModeIds?.filter(id => availableModes.some(mode => mode.id === id));
+      if (resumeSessionId && requestedModes !== undefined) writeCache(resumeSessionId, { collaborationModeIds: requestedModes });
       // 无项目时 cwd 是 workspace 兜底目录——确保存在(不存在则 Pi 会话创建失败)
       if (!fs.existsSync(resolvedPath)) fs.mkdirSync(resolvedPath, { recursive: true });
 
@@ -1877,6 +1881,7 @@ export class AgentService {
               throw new Error("会话尚未停止，请稍后重试或关闭会话后重新打开");
             }
           }
+          if (requestedModes?.includes(UI_DESIGN_MODE_ID) && normalizePermissionMode(readCache(resumeSessionId)?.permissionMode ?? permissionMode) !== "readonly") ensureDesignerTemplates(resolvedPath);
           this.launchPrompt(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
           return { chatId: existing.chatId, sessionId: existing.sessionId };
         }
@@ -1896,9 +1901,14 @@ export class AgentService {
 
       // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
       const designer = isDesigner || sessionAgentTypes.get(resumeSessionId ?? "") === "designer";
+      const modeIds = requestedModes ?? (resumeSessionId
+        ? readCache(resumeSessionId)?.collaborationModeIds ?? (designer ? [UI_DESIGN_MODE_ID] : [])
+        : [...new Set([...availableModes.filter(mode => mode.defaultEnabled).map(mode => mode.id), ...(isDesigner ? [UI_DESIGN_MODE_ID] : [])])]);
 
       // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
       const newSessionId = randomUUID();
+      writeCache(resumeSessionId ?? newSessionId, { collaborationModeIds: modeIds });
+      const getConversationPrompt = () => conversationPromptSection(readCache(resolveParentSessionId(resumeSessionId ?? newSessionId))?.collaborationModeIds ?? modeIds);
 
       // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
       // 前端在发首条消息前切的模式写的是 __new_xxx 临时缓存，主进程的 sessionId 是 randomUUID，
@@ -1958,7 +1968,8 @@ export class AgentService {
                 thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
                 store: this.store,
                 resumeSessionFile: info.path,
-                systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled }),
+                systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled, collaborationModeIds: modeIds }),
+                getConversationPrompt,
                 deliveryMode: "conversation",
                 extraTools,
                 canUseTool,
@@ -1978,7 +1989,8 @@ export class AgentService {
             agentDir: this.getAgentDir(),
             model: piModel ?? undefined,
             store: this.store,
-            systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled }),
+            systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled, collaborationModeIds: modeIds }),
+            getConversationPrompt,
             deliveryMode: "conversation",
             extraTools,
             canUseTool,
@@ -2011,6 +2023,7 @@ export class AgentService {
             const migrate: Record<string, unknown> = {};
             if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
             if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
+            if (tmp.collaborationModeIds !== undefined) migrate.collaborationModeIds = tmp.collaborationModeIds;
             if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
           }
         }
@@ -2036,8 +2049,7 @@ export class AgentService {
           currentModel: session.model?.id,
         };
 
-        if (isDesigner) {
-          created.agentType = "designer";
+        if (modeIds.includes(UI_DESIGN_MODE_ID) && normalizePermissionMode(readCache(resumeSessionId ?? newSessionId)?.permissionMode ?? permissionMode) !== "readonly") {
           if (resolvedPath) {
             // 种子模板/品牌库播种（与委派 designer 子 Agent 的入口共用同一函数）
             ensureDesignerTemplates(resolvedPath);

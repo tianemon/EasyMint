@@ -39,7 +39,10 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  restoreTemplate,
 } from "./services/agent-templates";
+import { getConversationConfig, saveMainChat, restoreMainChat, saveCollaborationMode, deleteCollaborationMode, restoreCollaborationMode } from "./services/system-prompt-manager";
+import { UI_DESIGN_MODE_ID } from "../shared/collaboration";
 import {
   scanSkills,
   readSkill,
@@ -360,10 +363,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
     return agentService.setModel(sessionId, model);
   });
-  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId }) => {
+  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds }) => {
     bindPiExtensionWindow(projectPath, event.sender.id);
     try {
-      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId);
+      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds));
       broadcast("agent:stream", {
         type: "user_message",
         sessionId: result.sessionId,
@@ -472,6 +475,23 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent-template:create", (_e, { input }) => createTemplate(input));
   ipcMain.handle("agent-template:update", (_e, { id, input }) => updateTemplate(id, input));
   ipcMain.handle("agent-template:delete", (_e, { id }) => { deleteTemplate(id); });
+  ipcMain.handle("agent-template:restore", (_e, { id }) => restoreTemplate(id));
+  ipcMain.handle("conversation:config", () => getConversationConfig());
+  ipcMain.handle("conversation:modes", (_e, { sessionId, legacyDesigner }) => {
+    const saved = readCache(sessionId)?.collaborationModeIds;
+    if (saved !== undefined) return saved;
+    if (legacyDesigner || getDesignSessionIds().includes(sessionId)) return [UI_DESIGN_MODE_ID];
+    return sessionId.startsWith("__new_") ? getConversationConfig().modes.filter(mode => mode.defaultEnabled).map(mode => mode.id) : [];
+  });
+  const conversationChanged = (config: ReturnType<typeof getConversationConfig>) => {
+    broadcast("conversation:changed", config);
+    return config;
+  };
+  ipcMain.handle("conversation:save-main", (_e, { input }) => conversationChanged(saveMainChat(input)));
+  ipcMain.handle("conversation:restore-main", () => conversationChanged(restoreMainChat()));
+  ipcMain.handle("conversation:save-mode", (_e, { input }) => conversationChanged(saveCollaborationMode(input)));
+  ipcMain.handle("conversation:delete-mode", (_e, { id }) => conversationChanged(deleteCollaborationMode(id)));
+  ipcMain.handle("conversation:restore-mode", (_e, { id }) => conversationChanged(restoreCollaborationMode(id)));
 
   // skill:*
   ipcMain.handle("pi-extension:list", guard(z.object({ projectPath: pathString.optional() }).loose(), ({ projectPath }) => discoverAvailableExtensions({ projectPath })));

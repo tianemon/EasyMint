@@ -8,7 +8,7 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { Store } from "../store";
-import { getTemplate, listTemplates } from "../agent-templates";
+import { listTemplates } from "../agent-templates";
 import { runSubagents } from "./executor";
 import { createDelegation, resolveParentSessionId, getRunningSummary, setTaskStatus } from "./registry";
 import { writeTaskStatus } from "./task-file";
@@ -89,12 +89,12 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
   // 动态生成 agent 参数描述:列出所有可用模板(id + 名称 + 描述),Mint 可见可选。
   // 这里**不特判任何业务角色**——某模板特有的调用要求由该模板自己在 description 里声明
   // （如 mint-designer 的"委派须写明起点"），随下面的清单一起带出。
-  const templates = listTemplates();
+  const templates = listTemplates().filter(template => template.id !== "mint");
   const agentDesc = templates.length > 0
     ? "可选 Agent 模板:\n" + templates.map((t) =>
         `  - ${t.id}: ${t.name}——${t.description}`).join("\n")
         + "\n选择适合任务的模板;省略则不指定模板,创建标准子 Agent(无模板人设)。"
-    : "可选模板名: builder(编码)、evaluator(验收)。";
+    : "可选模板名: default-builder(编码)、default-evaluator(验收)。";
 
   return defineTool({
     name: "task",
@@ -105,14 +105,14 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       + "主要用途是**长任务的上下文隔离**：大量阅读、探索或实验的中间过程留在独立会话，返回有边界的结论与证据。"
       + "也可用 tasks 数组**异步并行**搜集不同资料或探索互不依赖的方向，或对指定范围做**独立复核**。"
       + agentDesc,
-    promptSnippet: "委派子 Agent 执行任务（默认无模板白板，可指定 builder/evaluator 等模板）",
+    promptSnippet: "委派子 Agent 执行任务（默认无模板白板，可指定 default-builder/default-evaluator 等模板）",
     // 注意：promptGuidelines 只在 Pi 的默认提示词模式下被拼进 Guidelines 段；EM 走 systemPromptOverride
     // （buildSystemPrompt 的 customPrompt 分支，@earendil-works/pi-coding-agent/dist/core/system-prompt.js
     // 的 15-35 行不消费该字段）→ 本数组**当前不进模型上下文**。保持只写「工具自身怎么用」：
     // 别把流程判断标准塞进来（写了既不生效、又会误导后来人）。需要模型读到的一律写进上面的 description。
     promptGuidelines: [
       "用途：长任务上下文隔离（主要）、独立方向异步并行、指定范围独立复核；是否采用由主会话的任务执行规则决定",
-      "通用任务（查资料、读代码、分析）省略 agent 参数，用默认白板子 Agent；特定角色（写代码→builder、验收→evaluator、UI 设计→mint-designer 等）才指定 agent",
+      "通用任务（查资料、读代码、分析）省略 agent 参数，用默认白板子 Agent；特定角色（写代码→default-builder、验收→default-evaluator 等）才指定 agent",
       "已有正式 task.json 任务时传 taskId 关联，完成/失败自动回写状态；临时研究或复核不要求创建 task.json",
     ],
     parameters: {
@@ -120,7 +120,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       properties: {
         agent: {
           type: "string" as const,
-          description: "可选的 Agent 模板名(如 builder、evaluator),省略则创建标准子 Agent(无模板人设)",
+          description: "可选的 Agent 模板名(如 default-builder、default-evaluator),省略则创建标准子 Agent(无模板人设)",
         },
         description: {
           type: "string" as const,
@@ -181,7 +181,6 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           const prompt = buildPrompt(
             (t.description as string) || "",
             (t.prompt as string) || "",
-            taskAgent,
           );
           tasks.push({
             agent: taskAgent,
@@ -201,7 +200,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         }
         tasks.push({
           agent: agentName,
-          task: buildPrompt(desc, (params.prompt as string) || "", agentName),
+          task: buildPrompt(desc, (params.prompt as string) || ""),
           title: desc,
           description: desc,
           prompt: (params.prompt as string) || undefined,
@@ -344,9 +343,9 @@ export async function createAgentTemplateTool(): Promise<ToolDefinition> {
     name: "create_agent_template",
     label: "创建 Agent 模板",
     description:
-      "创建自定义的子 Agent 模板,指定名称/职责/人格 prompt/供应商+模型/思考级别。"
+      "创建自定义的子 Agent 模板，指定名称、职责说明和模板提示词。模型与思考级别跟随主会话。"
       + "创建后 Mint 可用 task 工具的 agent 参数选择该模板进行委派。"
-      + "示例:\"Mint-D\"用于设计,\"测试员\"跑测试,\"审查员\"只读代码审查。",
+      + "示例：\"测试员\"跑测试，\"审查员\"只读代码审查。",
     promptSnippet: "创建可复用的子 Agent 模板（名字+职责+人设，供 task 委派选用）",
     promptGuidelines: [
       "需要反复委派同一类任务（写测试、UI 设计、代码审查等）时，先建模板再委派",
@@ -378,15 +377,8 @@ export async function createAgentTemplateTool(): Promise<ToolDefinition> {
   } as any) as ToolDefinition;
 }
 
-function buildPrompt(description: string, prompt: string, agentName: string | undefined): string {
+function buildPrompt(description: string, prompt: string): string {
   const parts: string[] = [];
-  if (agentName) {
-    const tpl = getTemplate(agentName);
-    if (tpl) {
-      parts.push(tpl.prompt);
-      parts.push("");
-    }
-  }
   parts.push(`## 任务: ${description}`);
   if (prompt) {
     parts.push("");

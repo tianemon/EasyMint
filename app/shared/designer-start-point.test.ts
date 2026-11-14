@@ -49,6 +49,6 @@ describe("设计起点契约", () => {
       expect(MINT_DESIGN_BOOST).toContain(f);
     }
     expect(MINT_DESIGN_BOOST).toContain("你负责指定");
-    expect(MINT_DESIGN_BOOST).toContain("必须写进它的 prompt");
+    expect(MINT_DESIGN_BOOST).toContain("必须写进子任务的 prompt");
   });
 });

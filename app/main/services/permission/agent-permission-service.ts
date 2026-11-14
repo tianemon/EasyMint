@@ -244,7 +244,7 @@ const READONLY_ALLOWED_TOOLS = new Set([
   // 不属于只读档可承诺的无写入、无联网路径。
   "read", "ls",
   // EasyMint 自身的纯查询工具；它们不启动进程、不写持久状态、不访问网络。
-  "list_issues", "list_agents", "read_agent_log", "search_experiences", "ask_user",
+  "list_issues", "list_agents", "read_agent_log", "search_experiences", "ask_user", "offer_domain_guidance",
   // 子 Agent 结构化返回工具；只在已存在的只读 worker 中出现。
   "yield",
 ]);

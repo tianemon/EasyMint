@@ -17,6 +17,7 @@ import { getActiveModel, getModelRuntime } from "../pi-init";
 import { supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
 import { ensureDesignerTemplates } from "../designer-seed";
+import { normalizePermissionMode } from "../permission/execution-context";
 import { safeProjectDesignSection } from "../project-design";
 import { createProjectDesignTool } from "../project-design-tool";
 import { resolveThinkingLevel } from "../../../shared/thinking-levels";
@@ -164,7 +165,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
 
   // designer 类模板：先把种子模板/品牌库播进项目。原先只有「主会话以 designer 启动」才播种，
   // 走 task 委派 mint-designer 的子 Agent 会去翻一个不存在的 .easymint/templates/（白耗回合）
-  if (opts.agent && getTemplate(opts.agent)?.agentType === "designer") {
+  if (opts.agent && !opts.readOnly && normalizePermissionMode(opts.permissionMode) !== "readonly" && getTemplate(opts.agent)?.agentType === "designer") {
     ensureDesignerTemplates(resolvedPath);
   }
 

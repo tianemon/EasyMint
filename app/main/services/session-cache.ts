@@ -23,6 +23,8 @@ export interface SessionCache {
   model?: string;
   /** 本会话用户选过的思考等级——持久化后重开会话不再被全局设置覆盖 */
   thinkingLevel?: string;
+  collaborationModeIds?: string[];
+  guidanceDeclined?: boolean;
   contextUsage: number | null;
   updatedAt: number;
 }

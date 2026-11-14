@@ -1,4 +1,5 @@
 import type { UiLanguageState } from "../shared/i18n/locale";
+import type { ConversationConfig, MainChatProfile, CollaborationMode } from "../shared/collaboration";
 import { contextBridge, ipcRenderer } from "electron";
 
 /** 与 main/services/mobile-web-service.ts 的 MobileWebStatus 对齐。 */
@@ -188,6 +189,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
     create: (input: { name: string; description: string; prompt: string; agentType?: string }) => ipcRenderer.invoke("agent-template:create", { input }),
     update: (id: string, input: { name?: string; description?: string; prompt?: string; agentType?: string }) => ipcRenderer.invoke("agent-template:update", { id, input }),
     delete: (id: string) => ipcRenderer.invoke("agent-template:delete", { id }),
+    restore: (id: string) => ipcRenderer.invoke("agent-template:restore", { id }),
+  },
+  conversation: {
+    get: (): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:config"),
+    getModes: (sessionId: string, legacyDesigner?: boolean): Promise<string[]> => ipcRenderer.invoke("conversation:modes", { sessionId, legacyDesigner }),
+    saveMain: (input: MainChatProfile): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-main", { input }),
+    restoreMain: (): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-main"),
+    saveMode: (input: Omit<CollaborationMode, "id" | "builtin"> & { id?: string }): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-mode", { input }),
+    deleteMode: (id: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:delete-mode", { id }),
+    restoreMode: (id: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-mode", { id }),
+    onChanged: (callback: (config: ConversationConfig) => void) => {
+      const listener = (_event: unknown, config: ConversationConfig) => callback(config);
+      ipcRenderer.on("conversation:changed", listener);
+      return () => ipcRenderer.removeListener("conversation:changed", listener);
+    },
   },
   task: {
     read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),
@@ -342,7 +358,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     nativeAiModels: () => ipcRenderer.invoke("agent:nativeAiModels"),
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; collaborationModeIds?: string[]; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) =>
       ipcRenderer.invoke("agent:steer", { sessionId, text, images, tabId }),
@@ -420,6 +436,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stderr", handler);
       return () => ipcRenderer.removeListener("agent:stderr", handler);
+    },
+    onGuidanceOffer: (callback: (data: { sessionId: string; reason: string }) => void) => {
+      const handler = (_event: unknown, data: { sessionId: string; reason: string }) => callback(data);
+      ipcRenderer.on("agent:guidance-offer", handler);
+      return () => ipcRenderer.removeListener("agent:guidance-offer", handler);
     },
     onConfirmDev: (callback: (data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => callback(data);

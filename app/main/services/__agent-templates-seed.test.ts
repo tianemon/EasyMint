@@ -12,7 +12,7 @@ vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir(
  *  ① 已废弃的 model / provider / thinkingLevel 在启动播种时被清掉
  *     （本机 mint-designer 就残留过一个永不生效的 thinkingLevel=max）；
  *  ② 模板**不再有**这三个字段——它们回不来；
- *  ③ 内置模板只读：原先 Builder/Evaluator 的「受限编辑」正是靠那三个字段存在的。
+ *  ③ 内置执行模板保留名称与运行配置边界，正文覆盖项跨启动保留。
  */
 describe("seedDefaults 的模板字段卫生", () => {
   let home: string;
@@ -50,14 +50,14 @@ describe("seedDefaults 的模板字段卫生", () => {
 
     mod.seedDefaults();
 
-    for (const id of ["mint", "mint-designer", "default-builder"]) {
+    for (const id of ["mint", "default-builder"]) {
       const t = byId(id)!;
       expect(t.model, `${id} 的 model 应被清掉`).toBeUndefined();
       expect(t.provider, `${id} 的 provider 应被清掉`).toBeUndefined();
       expect(t.thinkingLevel, `${id} 的 thinkingLevel 应被清掉`).toBeUndefined();
     }
     // 清理只针对废弃字段，人设内容原样保留
-    expect(byId("mint-designer")!.name).toBe("Mint-D");
+    expect(byId("mint-designer")).toBeUndefined();
   });
 
   it("新建的内置模板本身就不带这三个字段", () => {
@@ -88,10 +88,8 @@ describe("seedDefaults 的模板字段卫生", () => {
       { id:"custom-designer",name:"Custom",description:"用户说明",prompt:"用户设计规则",agentType:"custom" },
     ]);
     mod.seedDefaults();
-    expect(byId("mint-designer")!.name).toBe("我的设计师");
-    expect(byId("mint-designer")!.description).toContain("showcase");
-    expect(byId("mint-designer")!.description).toContain("有 VisualSpec 时默认");
-    expect(byId("mint-designer")!.prompt).toContain("showcase");
+    expect(byId("mint-designer")).toBeUndefined();
+    expect(mod.getTemplate("mint-designer")!.prompt).toContain("showcase");
     expect(byId("custom-designer")!.description).toBe("用户说明");
     expect(byId("custom-designer")!.prompt).toBe("用户设计规则");
   });
@@ -145,10 +143,10 @@ describe("内置模板权限", () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it("四个内置模板都不可修改（Builder/Evaluator 的「受限编辑」随三个字段一并消失）", () => {
+  it("内置执行模板保留名称，主对话使用独立配置入口", () => {
     writeStore([]);
     mod.seedDefaults();
-    for (const id of ["mint", "mint-designer", "default-builder", "default-evaluator"]) {
+    for (const id of ["mint", "default-builder", "default-evaluator"]) {
       expect(() => mod.updateTemplate(id, { name: "改名" }), `${id} 应拒绝修改`).toThrow();
     }
   });

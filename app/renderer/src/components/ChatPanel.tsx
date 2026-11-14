@@ -40,6 +40,10 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
+import { CollaborationModePicker } from "./CollaborationModePicker";
+import { useConversationConfig, useConversationStore } from "../stores/conversation-store";
+import { useCollaborationModes } from "../hooks/useCollaborationModes";
+import { DOMAIN_GUIDANCE_MODE_ID } from "@shared/collaboration";
 import { ExecutionTimer } from "./ExecutionTimer";
 import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
@@ -298,180 +302,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const pendingThinkingLevelRef = useRef<string | null>(null);
   // 手动切换时所在的会话 id:null = 会话创建前的选择(属"即将创建的新会话",不被新会话重置覆盖)
   const manualThinkingSidRef = useRef<string | null>(null);
-  // 新会话角色模板:发送首条消息前可选(Mint 默认 / Mint-D 设计模式),发送后不再显示
-  const [chatRole, setChatRole] = useState<"mint" | "mint-d">("mint");
-  // 角色滑块几何:宽度跟随选中项(不等分,JS 测量 offsetWidth/offsetLeft)
-  const roleSliderRef = useRef<HTMLDivElement>(null);
-  const roleBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [sliderBox, setSliderBox] = useState<{ left: number; width: number; trackW: number } | null>(null);
-  const syncSlider = useCallback(() => {
-    const idx = chatRole === "mint" ? 0 : 1;
-    const btn = roleBtnRefs.current[idx];
-    const track = roleSliderRef.current;
-    if (btn && track) {
-      const width = btn.offsetWidth + 3; // 左右外边距 1.5px
-      // 轨道无 border——视觉层 inset-0 尺寸 = offsetWidth/offsetHeight 本身;
-      // 滑块 offsetLeft 相对轨道 padding box = 同一坐标系,无需偏移
-      const trackW = track.offsetWidth;
-      // 滑块对准选中项按钮(不做余量约束——贴边时气泡鼓出可能略越轨道,换取位置精确)
-      const left = btn.offsetLeft - 1.5;
-      setSliderBox({ left, width, trackW });
-    }
-  }, [chatRole]);
-  // Translated labels change button geometry without changing the selected role.
-  useLayoutEffect(() => { syncSlider(); }, [syncSlider, locale]);
-  // 滑块鼠标弹性(参考 liquid-glass logout:elasticity 0.35):鼠标靠近时滑块方向性拉伸,
-  // 距离衰减(激活区 200px),滞后过渡出"液体"感
-  const [sliderStretch, setSliderStretch] = useState({ x: 1, y: 1 });
-  // 滑块拖拽状态机:
-  // - dragStartRef:拖拽起点(同步 ref,非 null 即拖拽中——不用异步 state 判定)
-  // - dragLeftRef:拖拽中实时位置(同步 ref;dragLeft state 仅渲染镜像,值不变不 set)
-  // - 收尾统一走 endDrag(pointerup / window 兜底共用,幂等);
-  //   pointercancel / lostpointercapture 只清理不选中(位置不可信)
-  const [dragging, setDragging] = useState(false);
-  const [dragLeft, setDragLeft] = useState<number | null>(null);
-  const [sliderPressed, setSliderPressed] = useState(false);
-  const dragStartRef = useRef<{ x: number; left: number } | null>(null);
-  const dragLeftRef = useRef<number | null>(null);
-  // window 兜底监听引用:unmount 时移除(拖拽中关 tab 会残留监听,累积泄漏)
-  const winEndRef = useRef<((ev: PointerEvent) => void) | null>(null);
-  useEffect(() => () => {
-    dragStartRef.current = null;
-    dragLeftRef.current = null;
-    if (winEndRef.current) {
-      window.removeEventListener("pointerup", winEndRef.current);
-      window.removeEventListener("pointercancel", winEndRef.current);
-      winEndRef.current = null;
-    }
-  }, []);
-
-  // 统一收尾:moved<4 视为点击(重置到当前选中项),否则按落点选中最近选项
-  const endDrag = useCallback((clientX: number) => {
-    const start = dragStartRef.current;
-    if (!start) return; // 幂等:已收尾/无拖拽
-    const moved = Math.abs(clientX - start.x);
-    dragStartRef.current = null;
-    dragLeftRef.current = null;
-    setDragging(false);
-    setDragLeft(null);
-    setSliderPressed(false);
-    if (moved < 4) { syncSlider(); return; } // 视为点击当前项:重置滑块尺寸/位置到当前选中项
-    const track = roleSliderRef.current;
-    if (!track) return;
-    const pointerX = clientX - track.getBoundingClientRect().left;
-    let nearest = 0;
-    let minDist = Infinity;
-    roleBtnRefs.current.forEach((btn, i) => {
-      if (!btn) return;
-      const d = Math.abs(pointerX - (btn.offsetLeft + btn.offsetWidth / 2));
-      if (d < minDist) { minDist = d; nearest = i; }
+  const conversationConfig = useConversationConfig();
+  const collaboration = useCollaborationModes(sid, isDesigner);
+  const [guidanceOffer, setGuidanceOffer] = useState<{ sessionId: string; reason: string } | null>(null);
+  useEffect(() => {
+    if (!window.electronAPI.agent.onGuidanceOffer) return;
+    return window.electronAPI.agent.onGuidanceOffer(offer => {
+      if (offer.sessionId === sidRef.current) setGuidanceOffer(offer);
     });
-    // 用落点选项的几何直接重置滑块(拖拽中 sliderBox.width 被宽度适配改过;
-    // setChatRole 同值时无 effect 触发,不重置会残留别处的宽度)
-    const btn = roleBtnRefs.current[nearest];
-    if (btn) {
-      const width = btn.offsetWidth + 3; // 左右外边距 1.5px
-      const trackW = track.offsetWidth;
-      const left = btn.offsetLeft - 1.5;
-      setSliderBox({ left, width, trackW });
-    }
-    setChatRole(nearest === 0 ? "mint" : "mint-d");
-  }, [syncSlider]);
-
-  // 仅清理不选中(pointercancel/lostpointercapture:位置不可信,不触发切换)——
-  // 但仍要归位到当前选中项:拖拽中 sliderBox.width 可能被宽度适配改过,不重置会残留
-  const abortDrag = useCallback(() => {
-    dragStartRef.current = null;
-    dragLeftRef.current = null;
-    setDragging(false);
-    setDragLeft(null);
-    setSliderPressed(false);
-    syncSlider();
-  }, [syncSlider]);
-
-  const handleSliderPointerDown = useCallback((e: React.PointerEvent) => {
-    // 重新测量,并直接用按钮几何算起始位置(不依赖异步的 sliderBox state)
-    syncSlider();
-    const idx = chatRole === "mint" ? 0 : 1;
-    const btn = roleBtnRefs.current[idx];
-    if (!btn) return;
-    const startLeft = btn.offsetLeft - 1.5;
-    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* capture 失败:window 兜底监听仍能收尾 */ }
-    dragStartRef.current = { x: e.clientX, left: startLeft };
-    dragLeftRef.current = startLeft;
-    setDragging(true);
-    setSliderPressed(true);
-    // window 级兜底:capture 意外丢失后 up/cancel 不再路由到滑块——补一道监听保证收尾
-    const onWinEnd = (ev: PointerEvent) => {
-      window.removeEventListener("pointerup", onWinEnd);
-      window.removeEventListener("pointercancel", onWinEnd);
-      if (winEndRef.current === onWinEnd) winEndRef.current = null;
-      endDrag(ev.clientX);
-    };
-    winEndRef.current = onWinEnd;
-    window.addEventListener("pointerup", onWinEnd);
-    window.addEventListener("pointercancel", onWinEnd);
-  }, [chatRole, syncSlider, endDrag]);
-
-  const handleSliderPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragStartRef.current || !sliderBox || !roleSliderRef.current) return;
-    const track = roleSliderRef.current;
-    const trackRect = track.getBoundingClientRect();
-    // 实时位置从 ref 读(回调不随 dragLeft 重建,闭包永远最新)
-    const curLeft = dragLeftRef.current ?? dragStartRef.current.left;
-    const sliderRight = curLeft + sliderBox.width;
-    const dir = dragStartRef.current.left > curLeft ? -1 : 1; // 拖动方向:向左 -1 / 向右 1
-    let targetWidth = sliderBox.width;
-    if (dir >= 0) {
-      let targetIdx: number | null = null;
-      roleBtnRefs.current.forEach((btn, i) => {
-        if (!btn) return;
-        if (sliderRight >= btn.offsetLeft + btn.offsetWidth - 10 - 1) targetIdx = i;
-      });
-      if (targetIdx !== null) targetWidth = roleBtnRefs.current[targetIdx]!.offsetWidth + 3; // 左右外边距 1.5px
-    } else {
-      let targetIdx: number | null = null;
-      roleBtnRefs.current.forEach((btn, i) => {
-        if (!btn) return;
-        if (curLeft <= btn.offsetLeft + 10 + 1 && targetIdx === null) targetIdx = i;
-      });
-      if (targetIdx !== null) targetWidth = roleBtnRefs.current[targetIdx]!.offsetWidth + 3;
-    }
-    if (targetWidth !== sliderBox.width) setSliderBox({ ...sliderBox, width: targetWidth });
-    // 轨道 p-1=4px 内边距,clamp 滑块不越界(滑块左边缘距轨道边缘 ≥2.5px);值不变不触发渲染
-    const raw = dragStartRef.current.left + (e.clientX - dragStartRef.current.x);
-    const next = Math.min(Math.max(raw, 2.5), trackRect.width - targetWidth - 2.5);
-    if (dragLeftRef.current !== next) {
-      dragLeftRef.current = next;
-      setDragLeft(next);
-    }
-  }, [sliderBox]);
-
-  const handleSliderPointerUp = useCallback((e: React.PointerEvent) => {
-    endDrag(e.clientX);
-  }, [endDrag]);
-  const handleTrackMove = useCallback((e: React.MouseEvent) => {
-    // 拖拽中跳过弹性(滑块被抓着,弹性无意义且每帧 setState 拖累跟手)
-    if (dragStartRef.current) return;
-    const track = roleSliderRef.current;
-    if (!track || !sliderBox) return;
-    const rect = track.getBoundingClientRect();
-    // 滑块中心(位置随滑动变化):拉伸方向与强度基于鼠标相对滑块中心的距离
-    const cx = rect.left + sliderBox.left + sliderBox.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = e.clientX - cx;
-    const dy = e.clientY - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 8) { setSliderStretch({ x: 1, y: 1 }); return; }
-    const fade = Math.max(0, 1 - dist / 200);
-    const intensity = Math.min(dist / 300, 1) * 0.35 * fade;
-    const nx = dx / dist;
-    const ny = dy / dist;
-    setSliderStretch({
-      x: 1 + Math.abs(nx) * intensity * 0.3 - Math.abs(ny) * intensity * 0.15,
-      y: 1 + Math.abs(ny) * intensity * 0.3 - Math.abs(nx) * intensity * 0.15,
-    });
-  }, [sliderBox]);
+  }, [sid]);
+  useEffect(() => {
+    if (collaboration.ids.includes(DOMAIN_GUIDANCE_MODE_ID)) setGuidanceOffer(null);
+  }, [collaboration.ids]);
   const [leavingStartCard, setLeavingStartCard] = useState(false);
   // 首条消息发送:输入卡片从居中平滑下移到底部(FLIP + WAAPI)。
   // 目标位置可预测:卡片贴 ChatPanel 底部(input-card margin-bottom 16px),
@@ -2364,13 +2206,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
     try {
       currentChatRef.current = null;
-      const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
       // Cache ownership decides whether values may override the transcript. Wait for that small
       // local read so a very fast first send cannot race hydration and discard an explicit choice.
       await sessionHydrationRef.current;
-      // 新会话:角色取自空状态选择(chatRole);恢复会话:沿用 tab 的 isDesigner
-      const roleDesigner = sendSessionId ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
+      const collaborationModeIds = await collaboration.getIds();
       const overrides = sessionOverrides({
         existingSession: !!sendSessionId,
         modelOwned: sessionModelOwnedRef.current,
@@ -2378,7 +2218,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         model: chatModel || undefined,
         thinkingLevel: thinkingLevel ?? "medium",
       });
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", collaborationModeIds, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
       pendingSend.resolvedSessionId = result.sessionId;
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
       if (needsDeferredStop(pendingSend)) {
@@ -2411,7 +2251,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 不说这一句的话用户只看到「发送失败」，不知道上下文已经被截断了
       if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: uiText("ui.ChatPanel.thisMessageHasLeftTheContextSelect"), afterRewind: true } : {}) });
     }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatRole, tabId, applyStopRewind]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, collaboration.getIds, tabId, applyStopRewind]);
 
   // ── 消息流错误卡片操作(3.5) ──────────────────────────
   const handleDismissError = useCallback((card: FlowErrorCard) => {
@@ -2783,14 +2623,24 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (items.length) setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, [setEntryInContext]);
 
-  // 气泡动态鼓出:与当前宽度反比(窄滑块鼓多、宽滑块鼓少),两边视觉膨胀感一致;
-  // 基准=标准按钮宽(首渲染时 ref 未绑,回退 48+3)
-  const growX = sliderBox ? (14 * ((roleBtnRefs.current[0]?.offsetWidth ?? 48) + 3)) / sliderBox.width : 14;
-
   // 输入卡片(空态与非空态共用同一实例,仅外层容器不同)——包裹层做 FLIP 位移测量
   const inputWrapRef = useRef<HTMLDivElement>(null);
   const renderChatInput = (
     <div ref={inputWrapRef}>
+      {guidanceOffer?.sessionId === sid && !collaboration.ids.includes(DOMAIN_GUIDANCE_MODE_ID) && <div className="mx-[var(--chat-content-inset)] mb-2 text-xs text-text-secondary flex items-center flex-wrap gap-3">
+        <span>{guidanceOffer.reason}</span>
+        <button type="button" disabled={!collaboration.ready} className="text-accent" onClick={() => {
+          void collaboration.change([...collaboration.ids, DOMAIN_GUIDANCE_MODE_ID]);
+        }}>{uiText("collaboration.enableGuidance")}</button>
+        <button type="button" className="text-text-muted" onClick={() => {
+          setGuidanceOffer(null);
+          void window.electronAPI.sessionCache.write(sid, { guidanceDeclined: true }).catch(error => toast(uiText("collaboration.failed", { detail: appMessage(String(error)) })));
+        }}>{uiText("collaboration.notNow")}</button>
+      </div>}
+      <div className="mx-[var(--chat-content-inset)] mb-2">
+        <CollaborationModePicker modes={conversationConfig?.modes ?? []} selected={collaboration.ids}
+          disabled={!conversationConfig || !collaboration.ready} onChange={ids => { void collaboration.change(ids); }} />
+      </div>
       {/* 执行步骤条（Mint 执行追踪，用户只读）——todo_write 广播实时更新 */}
       <TodoStrip sessionId={sidRef.current} />
       {/* 打断丢弃插话的提示——紧贴输入卡：「我刚发出去那条到底发没发出去」与输入动作同一视线区域 */}
@@ -3070,85 +2920,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         className={`relative ${(!hasMessages || leavingStartCard) ? "flex-1 flex flex-col justify-center" : "shrink-0"}`}
         style={!hasMessages && !leavingStartCard ? { transform: "translateY(-195px)" } : undefined}
       >
-        {/* 空态模块:角色选择 + 输入卡片共用横向边距，始终对齐。
-            existingSid 会话(磁盘消息加载中)不显示角色选择——恢复会话沿用 tab 的 isDesigner */}
-        {!hasMessages && !existingSid && !leavingStartCard ? (
-          <div className="w-full flex flex-col gap-2">
-            <div className="flex items-center gap-2 mx-[var(--chat-content-inset)]">
-              <span className="text-sm text-text-muted">{uiText("ui.ChatPanel.agentCapabilities")}</span>
-              {/* 轨道(背景框):参考 liquid-glass user info card——blur 20px 雾面 + saturate 140,
-                  静止无弹性无 hover 光晕(示例 user card 无 onClick 即无 hover 效果);
-                  onMouseMove 仅作滑块弹性的鼠标跟踪源 */}
-              <div
-                ref={roleSliderRef}
-                className="group relative flex items-center rounded-full bg-glass-track p-1 backdrop-blur-[20px] backdrop-saturate-[1.4]"
-                onMouseMove={handleTrackMove}
-                onMouseLeave={() => setSliderStretch({ x: 1, y: 1 })}
-              >
-                {/* 滑块:常态=扁平半透明椭圆;抓取(sliderPressed)=透明气泡——底色全透明、
-                    气泡壁(外亮线+内暗线)+顶弧光,四周鼓出(宽动态 + 上下5px);
-                    弹性拉伸跟随鼠标;z-20 在按钮之上,接管拖拽/点击 */}
-                <div
-                  className={`absolute z-20 rounded-full ${sliderPressed ? "-top-[5px] -bottom-[5px] border border-glass-slider-border shadow-[0_2px_12px_rgba(0,0,0,0.12),inset_0_0_0_1px_rgba(0,0,0,0.18),inset_0_1px_2px_rgba(255,255,255,0.15)]" : "top-[2.5px] bottom-[2.5px] bg-glass-slider"} cursor-grab ${dragging ? "cursor-grabbing" : ""} ${sliderBox ? "opacity-100" : "opacity-0"}`}
-                  style={{
-                    left: (dragging && dragLeft !== null ? dragLeft : (sliderBox?.left ?? 0)) - (sliderPressed ? growX / 2 : 0),
-                    width: (sliderBox?.width ?? 0) + (sliderPressed ? growX + 0.5 : 0),
-                    transform: `scaleX(${sliderStretch.x}) scaleY(${sliderStretch.y})`,
-                    // 拖拽中:left 无过渡(跟手);width 带回弹缓动(适配选项宽度时弹性质感);结束恢复滑动过渡
-                    transition: dragging
-                      ? "width 0.3s cubic-bezier(0.34,1.3,0.64,1), transform 0.2s ease-out, opacity 0.2s ease"
-                      : "left 0.3s cubic-bezier(0.34,1.3,0.64,1), width 0.3s cubic-bezier(0.34,1.3,0.64,1), opacity 0.2s ease, transform 0.2s ease-out",
-                  }}
-                  onPointerDown={handleSliderPointerDown}
-                  onPointerMove={handleSliderPointerMove}
-                  onPointerUp={handleSliderPointerUp}
-                  onPointerCancel={abortDrag}
-                >
-                </div>
-                {/* 文字双层:灰层(未选中)全量显示;选中层(黑/白)同布局按滑块区域 clip-path 裁剪——
-                    滑块盖住多少文字,选中色实时显示多少(半字级跟随);同字重保证两层像素对齐;
-                    pointer-events-none 穿透点击 */}
-                <div className="absolute inset-0 z-40 p-1 flex items-center pointer-events-none">
-                  {(["mint", "mint-d"] as const).map((r) => (
-                    <div key={`lbl-${r}`} className="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs text-role-idle">
-                      {r === "mint" ? uiText("ui.ChatInput.standard") : uiText("ui.ChatPanel.enhancedUiDesign")}
-                    </div>
-                  ))}
-                  <div
-                    className="absolute inset-0 p-1 flex items-center text-role-selected"
-                    style={{
-                      clipPath: sliderBox
-                        ? `inset(0 ${sliderBox.trackW - (dragging && dragLeft !== null ? dragLeft : sliderBox.left) - sliderBox.width}px 0 ${dragging && dragLeft !== null ? dragLeft : sliderBox.left}px)`
-                        : undefined,
-                      // 非拖拽(点击切换)时选中色随滑块平滑扫过;拖拽中直接跟随
-                      transition: dragging ? undefined : "clip-path 0.3s cubic-bezier(0.34,1.3,0.64,1)",
-                    }}
-                  >
-                    {(["mint", "mint-d"] as const).map((r) => (
-                      <div key={`sel-${r}`} className="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs">
-                        {r === "mint" ? uiText("ui.ChatInput.standard") : uiText("ui.ChatPanel.enhancedUiDesign")}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {(["mint", "mint-d"] as const).map((r, i) => (
-                  <button
-                    key={r}
-                    type="button"
-                    ref={(el) => { roleBtnRefs.current[i] = el; }}
-                    onClick={() => setChatRole(r)}
-                    className="relative z-10 px-2.5 py-0.5 rounded-full text-xs text-transparent cursor-pointer"
-                  >
-                    {r === "mint" ? uiText("ui.ChatInput.standard") : uiText("ui.ChatPanel.enhancedUiDesign")}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {renderChatInput}
-          </div>
-        ) : (
-          renderChatInput
-        )}
+        {renderChatInput}
         {/* 回底/新消息气泡:悬浮在输入卡片上方居中,不属于卡片 DOM。
             只要滚离底部就常驻显示(正常浏览历史也显示)——圆圈箭头=回底部;
             输出结束且有新内容时=「新消息」胶囊带箭头 */}
@@ -3254,10 +3026,11 @@ function ImagePathOnlyTag(): JSX.Element {
 export function AssistantIdentity({ msg, live }: { msg: ChatMessage; live: boolean }): JSX.Element {
   useUiLocale();
   const role = msg.agentRole;
+  const profile = useConversationStore(state => state.config?.main);
   return <div className={`msg-in msg-assistant-identity${live ? " mint-live" : ""}`}>
     {role ? <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
-      : <MintAvatar size={28} className="mint-avatar" />}
-    <span>{role ?? "Mint"}</span>
+      : profile?.avatar ? <img src={profile.avatar} alt={profile.nickname} className="w-7 h-7 rounded-[var(--radius-lg)] object-cover" /> : <MintAvatar size={28} className="mint-avatar" />}
+    <span>{role ?? profile?.nickname ?? "Mint"}</span>
     {msg.outOfContext && <OutOfContextTag />}
     {msg.imageStripped && !msg.outOfContext && <ImageStrippedTag />}
     {role && msg.forwarded && <span className="text-text-secondary">{msg.forwardedFrom ? uiText("ui.ChatPanel.from", { v0: msg.forwardedFrom }) : uiText("ui.ChatPanel.forwarded")}</span>}
@@ -3288,6 +3061,7 @@ interface MemoChatMessageProps {
 
 export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlices, omitProcessKey, onInspectProcess, processActive, processInterrupted, conclusions, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
   useUiLocale();
+  const mainNickname = useConversationStore(state => state.config?.main.nickname ?? "Mint");
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
   // 思考/工具固定显示(无显示开关)——全部 entries 参与建块
@@ -3510,7 +3284,7 @@ export const MemoChatMessage = memo(function MemoChatMessage({ msg, runningSlice
 
   // 群聊消息:按 agentRole 标注角色(头像首字符 + 角色名 + 转发来源标记)
   const role = msg.agentRole;
-  const displayName = role ?? "Mint";
+  const displayName = role ?? mainNickname;
 
   return (
     <div className={`msg-in msg-ai-flow${hasConclusion && (msg.durationMs !== undefined || msg.usage) ? " msg-with-output-meta" : ""}`} onContextMenu={(e) => onContextMenu((e.target as HTMLElement).closest(".msg-conclusion") ? conclusionMessage : msg, e)} aria-label={displayName}>

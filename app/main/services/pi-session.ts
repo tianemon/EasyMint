@@ -63,6 +63,8 @@ export interface PiSessionOptions {
   /** 会话落盘目录（缺省 getPiSessionDir(cwd)）；子 Agent 传 subagents/ 子目录避免平级出现在列表 */
   sessionDir?: string;
   systemPrompt?: string;
+  /** 主对话每轮读取当前配置，保留 SDK 添加的技能、工具与项目上下文。 */
+  getConversationPrompt?: () => string;
   /** 对话角色默认 conversation；后台任务与委派入口显式传 task，不按模板文字猜测。 */
   deliveryMode?: AgentDeliveryMode;
   isDesigner?: boolean;
@@ -212,7 +214,13 @@ async function buildSession(
       name: "easymint-project-visual", hidden: true, factory: pi => {
         pi.on("before_agent_start", (event) => {
           const visual = safeProjectDesignSection(opts.cwd);
-          const base = event.systemPrompt.replace(/<easymint_project_visual>[\s\S]*?<\/easymint_project_visual>/g, "").trimEnd();
+          let base = event.systemPrompt.replace(/<easymint_project_visual>[\s\S]*?<\/easymint_project_visual>/g, "").trimEnd();
+          if (opts.getConversationPrompt) {
+            const current = opts.getConversationPrompt();
+            base = /<easymint_collaboration>[\s\S]*?<\/easymint_collaboration>/.test(base)
+              ? base.replace(/<easymint_collaboration>[\s\S]*?<\/easymint_collaboration>/g, () => current)
+              : `${base}\n\n${current}`;
+          }
           if (visual || base !== event.systemPrompt.trimEnd()) return { systemPrompt: base + visual };
         });
       },

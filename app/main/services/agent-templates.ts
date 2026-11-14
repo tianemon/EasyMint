@@ -2,19 +2,19 @@
  * Agent Template Service — CRUD for user-defined Agent templates.
  *
  * Templates are stored in ~/.easymint/agent-templates.json
- * Injected into SDK's options.agents when a session starts.
+ * task 工具按模板 ID 选择正文，执行器在创建子会话时组装系统提示词。
  *
  * **模板只承载人设**：子 Agent 的模型与思考等级一律跟随主会话
  * （2026-09-16 用户拍板「必须收敛到一处决定，取消全部子 agent 的配置入口」），
  * 模板上没有任何运行配置字段。
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT, MINT_SYSTEM_PROMPT } from "../../shared/prompts";
-import { DESIGNER_TEMPLATE_FILES, START_POINT_FREE, START_POINT_TEMPLATE_PREFIX, START_POINT_SHOWCASE } from "../../shared/designer-templates";
 import { emHome } from "../utils/paths";
+import { atomicWrite } from "./native-config-storage";
 
 // ── Types ──────────────────────────────────────────
 
@@ -30,6 +30,7 @@ export interface AgentTemplate {
   prompt: string;
   /** 任意自定义角色类型(原限定 mint|builder|evaluator|designer,现已放开) */
   agentType: string;
+  customized?: boolean;
 }
 
 export interface AgentTemplateInput {
@@ -55,17 +56,21 @@ function readAll(): AgentTemplate[] {
 
 function writeAll(templates: AgentTemplate[]): void {
   ensureDir();
-  writeFileSync(STORE_PATH, JSON.stringify(templates, null, 2));
+  atomicWrite(STORE_PATH, JSON.stringify(templates, null, 2));
 }
 
 // ── Public API ─────────────────────────────────────
 
 export function listTemplates(): AgentTemplate[] {
-  return readAll();
+  return readAll().filter(template => template.id !== "mint-designer");
 }
 
 export function getTemplate(id: string): AgentTemplate | undefined {
-  return readAll().find((t) => t.id === id);
+  // 旧委派记录仍可恢复；新的模板清单不再提供独立 Mint-D。
+  if (id === "mint-designer") return { id, name: "UI 设计", description: "旧设计任务兼容", prompt: DESIGNER_AGENT_PROMPT, agentType: "designer" };
+  const templates = readAll();
+  const aliases: Record<string, string> = { builder: "default-builder", evaluator: "default-evaluator" };
+  return templates.find(template => template.id === id) ?? templates.find(template => template.id === aliases[id]);
 }
 
 export function createTemplate(input: AgentTemplateInput): AgentTemplate {
@@ -76,23 +81,19 @@ export function createTemplate(input: AgentTemplateInput): AgentTemplate {
   return t;
 }
 
-/**
- * 内置模板:不可修改、不可删除。
- *
- * Mint / Mint-D 一向完全锁定;Builder / Evaluator 原为「受限编辑」(仅允许改
- * 供应商/模型/思考等级)——那三个字段随运行配置收敛而消失,受限编辑已无字段可编辑,
- * 故四个内置统一为只读。要定制请新建自定义模板。
- */
+/** 主对话独立配置；Builder/Evaluator 仅可编辑提示词，内置模板不可删除。 */
 const BUILTIN_TEMPLATE_IDS = new Set(["mint", "mint-designer", "default-builder", "default-evaluator"]);
 
 export function updateTemplate(id: string, input: Partial<AgentTemplateInput>): AgentTemplate {
   const templates = readAll();
   const idx = templates.findIndex((t) => t.id === id);
   if (idx === -1) throw new Error(`模板不存在: ${id}`);
+  if (id === "mint" || id === "mint-designer") throw new Error("请在主对话设置中修改");
   if (BUILTIN_TEMPLATE_IDS.has(id)) {
-    throw new Error("系统内置模板不可修改——如需定制请新建自定义模板");
-  }
-  templates[idx] = { ...templates[idx]!, ...input };
+    if (Object.keys(input).some(key => key !== "prompt")) throw new Error("内置执行模板仅支持修改提示词");
+    if (!input.prompt?.trim()) throw new Error("提示词不能为空");
+    templates[idx] = { ...templates[idx]!, prompt: input.prompt, customized: true };
+  } else templates[idx] = { ...templates[idx]!, ...input };
   writeAll(templates);
   return templates[idx]!;
 }
@@ -103,6 +104,17 @@ export function deleteTemplate(id: string): void {
   writeAll(templates);
 }
 
+export function restoreTemplate(id: string): AgentTemplate {
+  const baseline = DEFAULTS.find(template => template.id === id);
+  if (!baseline || id === "mint") throw new Error("该模板不支持恢复");
+  const templates = readAll();
+  const index = templates.findIndex(template => template.id === id);
+  if (index < 0) throw new Error("模板不存在");
+  templates[index] = { ...baseline };
+  writeAll(templates);
+  return templates[index]!;
+}
+
 const DEFAULTS: AgentTemplate[] = [
   {
     id: "mint",
@@ -110,17 +122,6 @@ const DEFAULTS: AgentTemplate[] = [
     description: "主会话助手。理解需求、直接推进实现与验证，并按任务需要协调子 Agent、整合结果。",
     prompt: MINT_SYSTEM_PROMPT,
     agentType: "mint",
-  },
-  {
-    id: "mint-designer",
-    name: "Mint-D",
-    description: "UI 设计师。将需求转化为 HTML 原型页面，在编辑器中预览。"
-      // 调用契约写在该模板自己身上：task 工具的模板清单由 id+名称+描述拼成，
-      // 这段因此会随清单带出、委派方（Mint）可见。task 工具**不特判任何业务角色**——
-      // 谁有特殊调用要求，谁在自己的描述里声明。
-      + `有 VisualSpec 时默认从 \`${START_POINT_SHOWCASE}\` 双端场景起步，沿用用户已选视觉契约；仅明确需要版式骨架时指定 \`${START_POINT_TEMPLATE_PREFIX}<文件名>\`（可用 ${DESIGNER_TEMPLATE_FILES.join(" / ")}）。无视觉契约时指定旧模板或 \`${START_POINT_FREE}\`（附方向）；子 Agent 不翻目录重新选型。`,
-    prompt: DESIGNER_AGENT_PROMPT,
-    agentType: "designer",
   },
   {
     id: "default-builder",
@@ -141,7 +142,7 @@ const DEFAULTS: AgentTemplate[] = [
 /** Sync default templates: update existing by id, add new ones, keep user templates */
 /** Default template IDs that have been removed in a newer version.
  *  On seed, these are purged from the user's local store. */
-const REMOVED_DEFAULT_IDS = new Set(["default-orchestrator"]);
+const REMOVED_DEFAULT_IDS = new Set(["default-orchestrator", "mint-designer"]);
 
 /** 系统内置模板 id:Mint 始终强制内置(不可修改,提示词随版本更新) */
 export const MINT_TEMPLATE_ID = "mint";
@@ -174,7 +175,7 @@ export function seedDefaults(): void {
     if (existing) {
       // All built-in roles are read-only; task exposes their descriptions to Mint.
       // Refresh the contract while preserving names and separate user-created templates.
-      synced.push({ ...existing, prompt: d.prompt, description: d.description });
+      synced.push({ ...existing, prompt: existing.customized && d.id !== "mint" ? existing.prompt : d.prompt, description: d.description });
     } else {
       synced.push({ ...d });
     }

@@ -46,7 +46,7 @@ describe("Mint 系统提示词 override 契约（纯替换架构）", () => {
     expect(PERMISSION_RULES_PROMPT).toContain("系统许可不等于用户授权");
   });
   it("Mint 身份在、Pi 默认身份句不在", () => {
-    expect(MINT_SYSTEM_PROMPT).toContain("你叫 Mint");
+    expect(MINT_SYSTEM_PROMPT).toContain("昵称、人格与用户规则以当前主对话配置为准");
     expect(MINT_SYSTEM_PROMPT).not.toContain("You are an expert coding assistant operating inside pi");
   });
   it("结构关键段存在（防结构漂移）", () => {

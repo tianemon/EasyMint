@@ -9,7 +9,7 @@ import * as piSessions from "./pi-session";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" }, BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
-vi.mock("./system-prompt-manager", () => ({ resolveEffectivePrompt: () => "CUSTOM_PROMPT" }));
+vi.mock("./system-prompt-manager", async importOriginal => ({ ...await importOriginal<object>(), resolveEffectivePrompt: () => "CUSTOM_PROMPT" }));
 vi.mock("./experience-service", async importOriginal => ({ ...await importOriginal<object>(), buildExperienceInjection: vi.fn(() => "EXPERIENCE_MARKER") }));
 
 function create(session?: object) {
@@ -44,7 +44,7 @@ describe("final prompt assembly", () => {
   it("keeps custom content, environment and permission rules exactly once, with language rules last", () => {
     const { internals } = create();
     const prompt = internals.buildSystemPrompt("/tmp/health-project", true);
-    expect(prompt.startsWith("CUSTOM_PROMPT")).toBe(true);
+    expect(prompt).toContain("CUSTOM_PROMPT");
     expect(prompt).toContain("/tmp/health-project");
     expect(prompt.split(PERMISSION_RULES_PROMPT)).toHaveLength(2);
     expect(prompt.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);

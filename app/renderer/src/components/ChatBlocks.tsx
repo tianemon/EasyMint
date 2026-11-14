@@ -40,6 +40,7 @@ const TOOL_LABELS: Record<string, string> = {
   get web_fetch() { return uiText("ui.ChatBlocks.fetchPage"); }, get web_search() { return uiText("ui.ChatBlocks.searchWeb"); },
   get todo_write() { return uiText("ui.ChatBlocks.updateSteps"); }, get todo_user() { return uiText("ui.ChatBlocks.userToDos"); },
   get ask_user() { return uiText("ui.ChatBlocks.askQuestion"); }, get describe_image() { return uiText("ui.ChatBlocks.viewImage"); },
+  get offer_domain_guidance() { return uiText("collaboration.offer"); },
   get search_mcp_tools() { return uiText("ui.ChatBlocks.findMcpTools"); }, call_mcp_tool: "MCP",
   get codemode() { return uiText("ui.ChatBlocks.runScript"); }, get tool_search() { return uiText("ui.ChatBlocks.findTools"); },
   get list_mcp_resources() { return uiText("ui.ChatBlocks.listResources"); }, get list_mcp_resource_templates() { return uiText("ui.ChatBlocks.listResourceTemplates"); }, get read_mcp_resource() { return uiText("ui.ChatBlocks.readResource"); },
@@ -89,7 +90,7 @@ function toolIconPaths(name: string): JSX.Element | null {
     case "todo_write": case "todo_user":
       return (<><path d="M16 13v2.2l1.6 1"/><path d="M3 12h3.458"/><path d="M3 19h3.832"/><path d="M3 5h18"/><circle cx="16" cy="15" r="6"/></>);
     // ask(message-circle-question-mark)
-    case "ask_user":
+    case "ask_user": case "offer_domain_guidance":
       return (<><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></>);
     // 图片(photo-ai)
     case "describe_image":

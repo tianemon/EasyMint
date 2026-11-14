@@ -16,6 +16,11 @@ export const toolArguments = (input: unknown): Record<string, unknown> => input 
 
 /** Shared wording for the live status and completed process, without dropping search terms. */
 export function toolActivity(name: string, input: unknown, state: ActivityState = "running") {
+  if (name === "offer_domain_guidance") {
+    const label = uiText("collaboration.offer");
+    const text = ["failed", "cancelled", "unfinished"].includes(state) ? uiText(`ui.ToolActivity.${state}`, { action: label }) : label;
+    return { text, fullText: text, icon: "ask_user", action: "ask" as const, label };
+  }
   const args = toolArguments(input);
   const action = aliases[name.toLowerCase()] ?? "external";
   const path = rawText(args.path ?? args.file_path ?? args.directory);
