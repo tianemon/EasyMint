@@ -1,3 +1,4 @@
+import { registerMemoryIpc } from "./services/memory/ipc";
 import { FORM_ASSIST_KINDS } from "../shared/form-assist";
 import { FormAssistService } from "./services/form-assist-service";
 import { saveProjectDesign } from "./services/project-design";
@@ -154,6 +155,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     if (!request || typeof request.providerId !== "string") return {ok:false,reason:"unsupported"};
     return accountUsage.query(request.providerId, request.force === true, request.cachedOnly === true);
   });
+  registerMemoryIpc(agentService.memory);
   const formAssist = new FormAssistService(async () => {
     const repository = await getNativeConfig(store);
     const runtime = await repository.getRuntime();
@@ -249,7 +251,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("project:get", (_e, { id }) => projectService.get(id));
   ipcMain.handle("project:update", (_e, { id, patch }) => projectService.update(id, patch));
-  ipcMain.handle("project:import", (_e, { dirPath }) => projectService.import_(dirPath));
+  ipcMain.handle("project:import", async (_e, { dirPath }) => {
+    const project=projectService.import_(dirPath);
+    if(project.isNew)await agentService.memory.importProject(project.id,project.path);
+    return project;
+  });
 
   // project:rename-exec — 委托 projectService.rename() + 进度事件 + relaunch
   ipcMain.handle("project:rename-exec", async (_e, { oldPath, newName }: { oldPath: string; newName: string }) => {
@@ -363,10 +369,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
     return agentService.setModel(sessionId, model);
   });
-  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds }) => {
+  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds, memoryMode }) => {
     bindPiExtensionWindow(projectPath, event.sender.id);
     try {
-      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds));
+      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds), memoryMode === undefined ? undefined : z.enum(["record", "use", "off"]).parse(memoryMode));
       broadcast("agent:stream", {
         type: "user_message",
         sessionId: result.sessionId,
@@ -647,7 +653,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.onSessionRenamed(id);
     return renameSession(id, title, projectPath);
   });
-  ipcMain.handle("conv:delete", async (_e, { id, projectPath }) => {
+  ipcMain.handle("conv:delete", async (_e, { id, projectPath, clearMemories = false }) => {
+    if (typeof clearMemories !== "boolean") throw new Error("Invalid memory deletion choice");
     // Step 1: gracefully interrupt and kill the chat
     const chat = agentService.findActiveChat(id);
     if (chat) await agentService.killChat(chat.chatId);
@@ -655,7 +662,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     //   delete the session file. Without the delay the SDK may
     //   recreate an empty file from a still-alive file descriptor.
     await new Promise((r) => setTimeout(r, 150));
-    return deleteSession(id, projectPath);
+    const deleted = await deleteSession(id, projectPath);
+    try { await agentService.memory.detach(id, clearMemories, projectPath); }
+    catch(error) { throw new Error(`会话记录已删除，但记忆关联更新未完成，请在记忆设置检查：${(error as Error).message}`); }
+    return deleted;
   });
   ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
   ipcMain.handle("conv:archiveSession", (_e, { sessionId }) => { archiveSession(sessionId); });

@@ -9,7 +9,7 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const esbuild = require("esbuild");
-const { mainOptions, preloadOptions, windowsSandboxWorkerOptions, reportBundle } = require("./build.cjs");
+const { mainOptions, preloadOptions, windowsSandboxWorkerOptions, memoryWorkerOptions, reportBundle } = require("./build.cjs");
 
 const root = path.join(__dirname, "..");
 const node = process.execPath;
@@ -21,6 +21,7 @@ async function main() {
     esbuild.build(mainOptions({ logLevel: "info", metafile: true })),
     esbuild.build(preloadOptions({ logLevel: "info", metafile: true })),
     esbuild.build(windowsSandboxWorkerOptions({ logLevel: "info", metafile: true })),
+    esbuild.build(memoryWorkerOptions({ logLevel: "info", metafile: true })),
   ]);
   // 产物 ≥1MiB 时补一行"谁贡献的"（esbuild 的 ⚠️ 只说大小，不说来源）
   reportBundle(results);

@@ -84,6 +84,14 @@ function preloadOptions(overrides = {}) {
   };
 }
 
+function memoryWorkerOptions(overrides = {}) {
+  return mainOptions({
+    entryPoints: [path.join(ROOT, "app/main/services/memory/worker.ts")],
+    outfile: path.join(ROOT, "app/main/dist/memory-worker.cjs"),
+    ...overrides,
+  });
+}
+
 function windowsSandboxWorkerOptions(overrides = {}) {
   return {
     entryPoints: [path.join(ROOT, "app/main/services/sandbox/windows-sandbox-worker.ts")],
@@ -94,7 +102,7 @@ function windowsSandboxWorkerOptions(overrides = {}) {
   };
 }
 
-module.exports = { EXTERNALS, mainOptions, preloadOptions, windowsSandboxWorkerOptions, reportBundle };
+module.exports = { EXTERNALS, mainOptions, preloadOptions, windowsSandboxWorkerOptions, memoryWorkerOptions, reportBundle };
 
 /**
  * esbuild 会给 **≥ 1 MiB** 的产物加 ⚠️。出处：esbuild `internal/logger/logger.go`
@@ -181,6 +189,7 @@ if (require.main === module) {
     Promise.all([
       esbuild.build(mainOptions({ logLevel: "info", metafile: true })),
       esbuild.build(windowsSandboxWorkerOptions({ logLevel: "info", metafile: true })),
+      esbuild.build(memoryWorkerOptions({ logLevel: "info", metafile: true })),
     ]).then(reportBundle).catch((e) => {
       console.error("[build] 构建失败:", e.message);
       process.exit(1);

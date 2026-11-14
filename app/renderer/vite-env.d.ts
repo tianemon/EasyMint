@@ -258,6 +258,7 @@ interface MobileWebStatus {
 }
 
 interface ElectronAPI {
+  memory: import("../shared/memory").MemoryApi;
   platform: string;
   piExtension: {
     list: (projectPath?: string) => Promise<Array<{ id: string; name: string; path: string; scope: "user" | "project"; source: string; origin: "pi" | "em"; enabledInPi: boolean; approved: boolean; fingerprint: string; status: "ready" | "pending" | "disabled" | "missing" | "error"; error?: string; tools?: number; commands?: number }>>;
@@ -315,7 +316,7 @@ interface ElectronAPI {
     cancelFormAssist: (requestId: string) => Promise<void>;
     nativeAiModels: () => Promise<{ chat: Array<import("@shared/native-ai").ModelReference & { name: string }>; image: Array<import("@shared/native-ai").ModelReference & { name: string }> }>;
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; collaborationModeIds?: string[]; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; collaborationModeIds?: string[]; memoryMode?: import("../shared/memory").MemoryMode; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     getDelegations: (sessionId: string) => Promise<DelegationSnapshotItem[]>;
@@ -599,7 +600,7 @@ interface ElectronAPI {
     messages: (id: string, projectPath: string) => Promise<{ type: string; uuid: string; session_id: string; message: unknown; parent_tool_use_id: string | null; out_of_context?: boolean; image_stripped?: boolean }[]>;
     rename: (id: string, title: string, projectPath: string) => Promise<void>;
     designSessions: () => Promise<string[]>;
-    delete: (id: string, projectPath: string) => Promise<void>;
+    delete: (id: string, projectPath: string, clearMemories?: boolean) => Promise<void>;
     togglePin: (id: string) => Promise<boolean>;
     archiveSession: (sessionId: string) => Promise<void>;
     unarchiveSession: (sessionId: string) => Promise<void>;
@@ -640,6 +641,7 @@ interface ElectronAPI {
       apiKeys?: Record<string, string>; model?: string;
       manageSkillEnabled?: boolean;
       learnEnabled?: boolean;
+      memory?: import("../shared/memory").MemorySettings;
       importExternalSkills?: boolean;
       availableModels?: string[]; contextThreshold?: number;
       chatThinkingLevel?: string;

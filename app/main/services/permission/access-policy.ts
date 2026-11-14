@@ -88,6 +88,7 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
     path.join(emHome(), "mcp-oauth.json"),
     // 与原生配置共用的迁移备份可能含auth和旧提示词，不能当作普通项目资料。
     path.join(emHome(), "config-backups"),
+    path.join(emHome(), "memory"),
     // 配对凭据：`paired-devices.json` 存 `key`（base64 配对密钥）、`paired-mobile-devices.json` 存
     // `sharedSecret`（派生会话密钥的根）。读到它 = 能接入用户的设备通道，属凭据而非普通状态。
     path.join(emHome(), "paired-devices.json"),
@@ -135,6 +136,7 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     // 自定义系统提示词会成为后续会话的 system prompt，不能只按普通会话状态处理。
     path.join(emHome(), "system-prompts.json"),
     path.join(emHome(), "config-backups"),
+    path.join(emHome(), "memory"),
     // 会**随会话进模型上下文**的三类落盘内容：技能（描述进 `<skills>` 分节、正文由 use_skill 读）、
     // 经验（`buildExperienceInjection` 在会话构建时注入，每轮随行）、子 Agent 模板
     // （`id + 名称 + 描述` 拼进 task 工具描述）。它们与 mcp-instructions.json 同属

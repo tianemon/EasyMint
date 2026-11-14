@@ -1,3 +1,4 @@
+import { MemoryTab } from "./settings/MemoryTab";
 import { useTranslation } from "react-i18next";
 import "../lib/i18n";
 import { useEffect, useState, useCallback } from "react";
@@ -10,7 +11,7 @@ import { AgentTab } from "./settings/AgentTab";
 import { ProvidersTab } from "./settings/ProvidersTab";
 import { AboutTab } from "./settings/AboutTab";
 
-export type SettingsTab = "general" | "appearance" | "plugins" | "providers" | "agent" | "about";
+export type SettingsTab = "general" | "appearance" | "plugins" | "providers" | "agent" | "memory" | "about";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "providers", label: "settings.providers" },
   { id: "plugins", label: "settings.plugins" },
   { id: "agent", label: "settings.agent" },
+  { id: "memory", label: "memory.title" },
   { id: "about", label: "settings.about" },
 ];
 
@@ -103,6 +105,8 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
             <PluginsTab projectPath={projectPath} />
           ) : activeTab === "agent" ? (
             <AgentTab />
+          ) : activeTab === "memory" ? (
+            <MemoryTab projectPath={projectPath} />
           ) : activeTab === "providers" ? (
             <ProvidersTab />
           ) : activeTab === "about" ? (

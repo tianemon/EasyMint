@@ -30,11 +30,11 @@ import { ensureDesignerTemplates } from "./designer-seed";
 import { isSessionOpenElsewhere } from "./session-visibility";
 import { sumUsage, type UsageEntry } from "./usage-totals";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
-import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
-import { createRetireExperiencesTool } from "./tools/experience-tool";
+import { createMemoryTool } from "./tools/memory-tool";
+import { MemoryService, type MemorySessionContext } from "./memory/service";
+import { estimateMemoryTokens } from "./memory/context";
 import { createEnvironmentTool } from "./tools/environment-tool";
 import { createDependencyTool } from "./tools/dependency-tool";
-import { buildExperienceInjection } from "./experience-service";
 import { createImportTools } from "./import-tools";
 import { registerSessionIdMapping, abortDelegations, abortTask, getRunningSummary, getRunningDelegations, getOwnedSessionIds, resolveParentSessionId } from "./task/registry";
 import type { TaskStatus } from "./task/types";
@@ -626,13 +626,31 @@ export async function createAskUserTool(sessionId: string): Promise<ToolDefiniti
           createdAt,
         });
       });
-      return { content: [{ type: "text" as const, text: answer }] };
+      return { content: [{ type: "text" as const, text: answer }], ...(!answer.startsWith("（") ? { details: { memoryUserEvidence: answer } } : {}) };
     },
   } as any) as ToolDefinition;
 }
 
 export class AgentService {
+  readonly memory: MemoryService;
   constructor(private store: Store) {
+    this.memory = new MemoryService(store, {
+      changed: settings => broadcast("memory:changed", { settings }),
+      getBackend: async () => { const config = await getNativeConfig(store); const runtime = await config.getRuntime(); return { runtime, model: config.getDefaultModel() }; },
+      busy: () => this.activePromptSessions.size > 0 || this.activeRuns.size > 0 || [...this.activeChats.values()].some(chat => getRunningDelegations(chat.sessionId).length > 0 || backgroundShellRegistry.list().some(shell => shell.sessionId === chat.sessionId && shell.status === "running")),
+      getSession: id => { const chat = this.findActiveChat(id); return chat?.session ? { entries: chat.session.sessionManager.getEntries() } : undefined; },
+    });
+    void this.memory.initialize().catch(error => console.warn("[memory] 初始化未完成，旧资料保留:", (error as Error).message));
+  }
+  memoryContext(id: string, projectPath?: string): MemorySessionContext {
+    const sessionId = resolveParentSessionId(id), chat = this.findActiveChat(sessionId);
+    if (!chat?.session) throw new Error("当前会话尚未就绪");
+    const session = chat.session, projection = session.sessionManager.buildSessionProjection();
+    const usage = session.getContextUsage();
+    const window = usage?.contextWindow ?? session.model?.contextWindow;
+    const tokens = usage?.tokens ?? estimateMemoryTokens(JSON.stringify(projection.messages) + session.systemPrompt) + 2048;
+    return { sessionId, projectPath: projectPath ?? chat.projectPath, current: () => this.memoryContext(sessionId, projectPath), entries: session.sessionManager.getEntries(), projection: projection.entries,
+      ...(window ? { usage: { tokens, contextWindow: window } } : {}) };
   }
   /** 输出期间被跳过重绑的会话存在 → 回合结束后补一次 refreshActiveSessionsModel */
   private _deferredRefreshNeeded = false;
@@ -687,8 +705,8 @@ export class AgentService {
   private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string, opts?: { worker?: boolean }): Promise<{
     tools: ToolDefinition[];
     canUseTool: CanUseToolFn;
-    /** 经验工具族（learn / search_experiences / retire_experiences）是否已注册（会话级快照——提示注入按此判断，不按实时设置） */
-    learnInstalled: boolean;
+    /** 主对话记忆工具声明是否已注册（功能与写入权限另在宿主实时校验） */
+    memoryInstalled: boolean;
   }> {
     // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）。
     // cwd 用于标准（半沙盒）模式的越界写判定——只允许写当前工作空间内的文件。
@@ -769,29 +787,19 @@ export class AgentService {
       if (this.store.getSettings().manageSkillEnabled) {
         allTools.push(await createManageSkillTool(projectPath));
       }
-      // learn / search_experiences / retire_experiences 受独立开关控制（D8：自沉淀默认关闭；三工具同进退）。
-      // 沉淀与退役都**直接落盘、不等用户确认**（判断是模型的职责）；worker 不装——子 Agent 的沉淀
-      // 会写进主 Agent 的经验库，且 worker 无终端可纠正，交由主 Agent 统一判断。
-      // 注册结果作为提示组装的快照返回——活跃会话工具集固定于创建时，提示注入必须与快照一致，
-      // 不能按实时设置判断（中途开开关会提示指向本会话不存在的工具——实测发生过）
-      let learnInstalled = false;
-      if (!opts?.worker && this.store.getSettings().learnEnabled) {
-        allTools.push(
-          await createLearnTool({ projectPath }),
-          await createSearchExperiencesTool(projectPath),
-          await createRetireExperiencesTool({ projectPath }),
-        );
-        learnInstalled = true;
-      }
+      // One fixed declaration; live settings and per-chat mode gate all operations in the host.
+      // Background workers do not own user memory. Legacy experience tools no longer write a second store.
+      const memoryInstalled = !opts?.worker;
+      if (memoryInstalled) allTools.push(await createMemoryTool(this.memory, () => this.memoryContext(sessionId, projectPath)));
 
-      return { tools: allTools, canUseTool, learnInstalled };
+      return { tools: allTools, canUseTool, memoryInstalled };
     } catch (e) {
       console.error("[agent] tool creation failed:", e);
-      return { tools: [], canUseTool, learnInstalled: false };
+      return { tools: [], canUseTool, memoryInstalled: false };
     }
   }
 
-  private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean; learnInstalled?: boolean; collaborationModeIds?: string[] }): string {
+  private buildSystemPrompt(projectPath: string, _isDesigner?: boolean, _opts?: { worker?: boolean; memoryInstalled?: boolean; collaborationModeIds?: string[] }): string {
     const parts: string[] = [];
 
     parts.push("你运行在 EasyMint 桌面应用中。当前身份由主对话配置或任务调度提供；实际工具、权限与宿主事件以运行时为准。");
@@ -809,14 +817,6 @@ export class AgentService {
     // 减少无谓的越界尝试；工具被拒时错误消息会带统一策略的规则、目标和阶段
     parts.push(PERMISSION_RULES_PROMPT);
 
-    // 历史经验注入（learn 开关开启 且**本会话真的装了经验工具**时）：按作用域、时效与新鲜度选择有限索引，
-    // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search。
-    // worker 不注入：子会话没有 learn/search/retire 工具（见 buildExtraTools 的注册条件），
-    // 注入了等于指导模型调不存在的工具，也会把子会话的注入计成「送达」抬高价值分
-    if (!opts?.worker && opts?.learnInstalled) {
-      const exp = buildExperienceInjection(projectPath);
-      if (exp) parts.push(exp);
-    }
 
     return parts.join("\n\n");
   }
@@ -846,6 +846,7 @@ export class AgentService {
     // 标记进行中回合（steer 用它区分「真在运行」vs「isStreaming 残留」——超时中断后
     // SDK isStreaming 可能残留 true，若无此标记 steer 会把消息入队永不消费）
     this.activePromptSessions.add(sessionId);
+    this.memory?.frontActivity();
 
     // 回合内节流上报使用率:长工具回合(连续几十次工具调用)内上下文可能暴涨(工具结果大),
     // 只在回合结束上报会错过 EM 弹窗阈值 → SDK 兜底(98%)直接压缩,用户感知"跳过阈值"。
@@ -961,6 +962,10 @@ export class AgentService {
           },
         });
       await send;
+      if (chat && this.memory) {
+        const file = session.sessionManager.getSessionFile();
+        if (file) void this.memory.capture(this.memoryContext(sessionId), file).catch(error => console.warn("[memory] 结论排队未完成:", (error as Error).message));
+      }
 
       // (系统消息通知走 injectSystemMessage 的 triggerTurn: false 路径,不经此回合)
       const pr = pendingResult as PiChatEvent | null;
@@ -1284,6 +1289,7 @@ export class AgentService {
       // 打断路径没有界面可提示（用户按的是停止，撤回失败只是消息留在上下文里，不会两版并存）→ 只记日志；
       // 落点不符时没写 pin、文件尾仍在原处，重开即原样
       if (!rewind.ok) console.warn(`[agent] 打断撤回未生效：${rewind.error}（startId=${startId}）`);
+      else await this.memory.sourceChanged(chat.sessionId, chat.projectPath, session.sessionManager.getEntries());
       return rewind.ok;
     } catch (e) {
       console.warn(`[agent] 打断撤回失败：${(e as Error).name}: ${(e as Error).message}`);
@@ -1474,6 +1480,7 @@ export class AgentService {
       try {
         const rewind = await this.rewindBranchTo(session, rewindId);
         if (!rewind.ok) return rewind;
+        await this.memory.sourceChanged(chat.sessionId, chat.projectPath, mgr.getEntries());
         return toPrompt ? { ok: true, promptEntryId: rewindId } : { ok: true };
       } catch (e) {
         const err = e as Error;
@@ -1583,6 +1590,7 @@ export class AgentService {
           : null;
         const editId = mgr.appendContextEdit(targetEntryId, replacement);
         session.refreshContext();
+        await this.memory.sourceChanged(chat.sessionId, chat.projectPath, mgr.getEntries());
         console.log(`[agent] ${verb}：目标 ${targetEntryId} → 编辑条目 ${editId}（leaf=${mgr.getLeafId() ?? "null"}，模型上下文 ${session.messages.length} 条）`);
         return { ok: true };
       } catch (e) {
@@ -1686,6 +1694,7 @@ export class AgentService {
         session.sessionManager.appendContextEdit(candidate.entryId, { content: content as Array<{ type: "text"; text: string }> });
       }
       session.refreshContext();
+      await this.memory.sourceChanged(sessionId, chat!.projectPath, session.sessionManager.getEntries());
       rollback = null;
       return { ok: true, removedBytes: chosen.reduce((total, entry) => total + entry.encodedBytes, 0), removedImages: chosen.reduce((total, entry) => total + entry.imageCount, 0) };
     } catch (error) {
@@ -1762,6 +1771,7 @@ export class AgentService {
         mgr.appendContextEdit(candidate.entryId, { content: content as Array<{ type: "text"; text: string }> });
       }
       session.refreshContext();
+      await this.memory.sourceChanged(sessionId, chat!.projectPath, session.sessionManager.getEntries());
       rollback = null;
       return {
         ok: true,
@@ -1803,6 +1813,7 @@ export class AgentService {
     /** 前端发起发送的 tab id(透传回 chat-session 广播,前端精确绑定 tab,防多新 tab 错配) */
     tabId?: string,
     collaborationModeIds?: string[],
+    memoryMode?: import("../../shared/memory").MemoryMode,
   ): Promise<{ chatId: string; sessionId: string }> {
     if (resumeSessionId) {
       if (this.startingSessions.has(resumeSessionId) || this.mutatingSessions.has(resumeSessionId)) {
@@ -1918,8 +1929,10 @@ export class AgentService {
         }
       }
 
+      if (memoryMode && !resumeSessionId) writeCache(newSessionId, { memoryMode });
+
       // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
-      const { tools: extraTools, canUseTool, learnInstalled } = await this.buildExtraTools(
+      const { tools: extraTools, canUseTool, memoryInstalled } = await this.buildExtraTools(
         resolvedPath,
         resumeSessionId ?? newSessionId,
         chatId,
@@ -1964,8 +1977,9 @@ export class AgentService {
                 thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
                 store: this.store,
                 resumeSessionFile: info.path,
-                systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled, collaborationModeIds: modeIds }),
+                systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { memoryInstalled, collaborationModeIds: modeIds }),
                 getConversationPrompt,
+                getMemoryReference: prompt => this.memory.reference(this.memoryContext(resumeSessionId, resolvedPath), prompt),
                 deliveryMode: "conversation",
                 extraTools,
                 canUseTool,
@@ -1985,8 +1999,9 @@ export class AgentService {
             agentDir: this.getAgentDir(),
             model: piModel ?? undefined,
             store: this.store,
-            systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled, collaborationModeIds: modeIds }),
+            systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { memoryInstalled, collaborationModeIds: modeIds }),
             getConversationPrompt,
+            getMemoryReference: prompt => this.memory.reference(this.memoryContext(newSessionId, resolvedPath), prompt),
             deliveryMode: "conversation",
             extraTools,
             canUseTool,
@@ -2020,6 +2035,7 @@ export class AgentService {
             if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
             if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
             if (tmp.collaborationModeIds !== undefined) migrate.collaborationModeIds = tmp.collaborationModeIds;
+            if (tmp.memoryMode !== undefined) migrate.memoryMode = tmp.memoryMode;
             if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
           }
         }
@@ -2972,6 +2988,7 @@ export class AgentService {
   }
 
   async shutdown(): Promise<void> {
+    await this.memory?.close();
     const closing: Promise<void>[] = [];
     for (const [id, chat] of this.activeChats) {
       chat.abortController.abort();

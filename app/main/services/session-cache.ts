@@ -25,6 +25,7 @@ export interface SessionCache {
   thinkingLevel?: string;
   collaborationModeIds?: string[];
   guidanceDeclined?: boolean;
+  memoryMode?: import("../../shared/memory").MemoryMode;
   contextUsage: number | null;
   updatedAt: number;
 }

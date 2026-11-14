@@ -130,6 +130,7 @@
     ],
     "asarUnpack": [
       "app/main/dist/windows-sandbox-worker.cjs",
+      "app/main/dist/memory-worker.cjs",
       "node_modules/@anthropic-ai/sandbox-runtime/vendor/**",
       "node_modules/@earendil-works/pi-tui/native/**",
       "node_modules/@oh-my-pi/**",

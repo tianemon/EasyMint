@@ -1,3 +1,5 @@
+import { toast } from "./ui/Toast";
+import { Checkbox } from "./ui/Checkbox";
 import { appMessage } from "../lib/i18n";
 import { formatDate } from "../lib/locale-format";
 import { appText } from "../lib/i18n";
@@ -113,19 +115,23 @@ export function SessionHistory({
 
   // 删除前先弹确认(自定义弹窗,与项目弹层风格一致)——直接删除不可恢复
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [clearMemories,setClearMemories] = useState(false);
   const handleDelete = () => {
     if (!menu.sessionId) return;
+    setClearMemories(false);
     setPendingDelete(menu.sessionId);
     setMenu((m) => ({ ...m, visible: false }));
   };
   const doDelete = async (sessionId: string) => {
+    try {
     // 先结束内存会话(若活跃)——否则删除记录后会话还在后台跑(委派/shell 继续),列表消失无法管理
     await window.electronAPI.agent.killSession(sessionId);
     const path = projectPath || getWorkspaceDir();
-    await window.electronAPI.conv.delete(sessionId, path);
+    await window.electronAPI.conv.delete(sessionId, path, clearMemories);
     onSessionDelete?.(sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
     setPendingDelete(null);
+    } catch(error) { toast(appText(String(error))); }
   };
 
   // 关闭该会话的 tab(归档/结束会话时:会话从列表移除,tab 不应残留)
@@ -266,6 +272,8 @@ export function SessionHistory({
             <div className="text-sm font-medium text-text-primary mb-2">{uiText("ui.SessionHistory.deleteSession")}</div>
             <p className="text-xs text-text-secondary mb-4">
               {uiText("ui.SessionHistory.delete")}{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? uiText("ui.SessionHistory.thisSession")}{uiText("ui.SessionHistory.sessionRecordsWillBePermanentlyDeletedThis")}</p>
+            <div className="flex items-center gap-2 text-xs text-text-secondary mb-2"><Checkbox checked={clearMemories} onChange={setClearMemories} ariaLabel={uiText("memory.clearOnDelete")} />{uiText("memory.clearOnDelete")}</div>
+            <p className="text-xs text-text-secondary mb-4">{uiText("memory.deleteMemoryHelp")}</p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"

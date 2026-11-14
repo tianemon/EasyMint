@@ -1,0 +1,132 @@
+/** Memory contracts shared by the host, tools and settings. */
+export const MEMORY_KINDS = ["background", "preference", "attention", "activity", "decision", "lesson"] as const;
+export type MemoryKind = typeof MEMORY_KINDS[number];
+export type MemoryState = "confirmed" | "candidate" | "rejected";
+export type MemoryLifecycle = "active" | "archived" | "retired";
+export type MemoryMode = "record" | "use" | "off";
+export interface MemorySource {
+  ref: string;
+  type: "session" | "manual" | "legacy";
+  sessionId?: string;
+  entryId?: string;
+  hash?: string;
+  anchorRef?: string;
+  timezone?: string;
+  quote?: string;
+  role?: "user" | "assistant";
+  deleted?: boolean;
+}
+export interface MemoryRecord {
+  key: string;
+  id: string;
+  scope: "global" | "project";
+  projectId?: string;
+  kind: MemoryKind;
+  text: string;
+  details?: string;
+  tags: string[];
+  state: MemoryState;
+  lifecycle: MemoryLifecycle;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+  occurredAt: number;
+  timeBasis?: "occurred" | "recorded";
+  substantiveAt: number;
+  expiresAt?: number;
+  archivedAt?: number;
+  lowSince?: number;
+  pinned: boolean;
+  importance: "normal" | "high";
+  sources: MemorySource[];
+  reason?: string;
+  invalidatedAt?: number;
+  legacy?: Record<string, unknown>;
+}
+export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "legacy"> & { matchedRevision?:number; projectName?:string; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
+export interface MemoryWrite {
+  kind: MemoryKind;
+  text: string;
+  details?: string;
+  tags?: string[];
+  occurredAt?: number;
+  expiresAt?: number;
+  importance?: "normal" | "high";
+}
+export interface MemoryQuery {
+  query?: string;
+  projectId?: string;
+  scope?: "global" | "project" | "both" | "recent";
+  state?: MemoryState | "all";
+  lifecycle?: MemoryLifecycle | "all";
+  history?: boolean;
+  kind?: MemoryKind;
+  from?: number;
+  to?: number;
+  offset?: number;
+  limit?: number;
+}
+export interface MemoryPage { items: MemorySummary[]; total: number; next?: number }
+export interface MemorySettings {
+  enabled: boolean;
+  background: boolean;
+  dailyTokens: number;
+  enabledAt?: number;
+}
+export const DEFAULT_MEMORY_SETTINGS: MemorySettings = { enabled: false, background: false, dailyTokens: 30_000 };
+export function parseMemorySettings(raw: unknown, legacyEnabled = false): MemorySettings {
+  const r = raw && typeof raw === "object" ? raw as Partial<MemorySettings> : {};
+  return { enabled: typeof r.enabled === "boolean" ? r.enabled : raw === undefined && legacyEnabled,
+    background: typeof r.enabled === "boolean" && r.background === true,
+    dailyTokens: Number.isFinite(r.dailyTokens) ? Math.min(1_000_000, Math.max(1_000, Math.round(r.dailyTokens!))) : DEFAULT_MEMORY_SETTINGS.dailyTokens,
+    ...(typeof r.enabledAt === "number" && Number.isFinite(r.enabledAt) ? { enabledAt: r.enabledAt } : {}) };
+}
+export interface MemoryConclusion {
+  ref: string;
+  sessionId: string;
+  entryId: string;
+  sessionFile: string;
+  projectId?: string;
+  projectPath: string;
+  timestamp: number;
+  hash: string;
+  version?:number;
+  anchorRef?: string;
+  timezone?: string;
+}
+export interface MemoryMigrationReport {
+  directory: string;
+  backup: string;
+  imported: number;
+  unchanged: number;
+  conflicts: number;
+  missing: string[];
+  errors: string[];
+}
+export interface MemoryStatus {
+  failed?:number;
+  lastError?:string;
+  count: number;
+  pending: number;
+  usedTokens: number;
+  error?: string;
+}
+export interface MemoryDocumentConfig { projectId: string; directory: string; revision: number; error?: string }
+
+export interface MemoryDocumentView { directory:string; legacy?:string; backup?:string; generation:number; error?:string }
+export interface MemoryDocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
+export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView }
+export interface MemoryApi {
+  onChanged(callback:(settings?:MemorySettings,session?:{sessionId:string;mode:MemoryMode})=>void):()=>void;
+  state(projectPath?:string):Promise<MemoryView>;
+  configure(patch:Partial<Pick<MemorySettings,"enabled"|"background"|"dailyTokens">>):Promise<MemorySettings>;
+  query(query:MemoryQuery & {projectPath?:string}):Promise<MemoryPage>;
+  read(key:string,projectPath?:string):Promise<{item?:MemoryRecord;revisions:MemoryRecord[]}>;
+  save(input:MemoryWrite & {scope:"global"|"project";projectPath?:string;pinned?:boolean}):Promise<MemoryRecord>;
+  update(key:string,revision:number,patch:Partial<MemoryWrite> & Pick<Partial<MemoryRecord>,"state"|"lifecycle"|"pinned">,projectPath?:string):Promise<MemoryRecord>;
+  forget(key:string,projectPath?:string):Promise<void>;
+  analyze():Promise<void>;
+  previewDocuments(projectPath:string,directory?:string):Promise<MemoryDocumentPreview>;
+  adoptDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;
+  sessionMode(sessionId:string,mode?:MemoryMode):Promise<MemoryMode>;
+}

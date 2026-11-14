@@ -27,6 +27,7 @@ function baseName(p: string): string {
 // 自定义工具按类别配图标:agent=bot, 知识技能=wrench, MCP=plug, 项目=folder-kanban,
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
+  get memory() { return uiText("memory.title"); },
   get generate_image() { return uiText("pi.generateImage"); },
   get bash() { return uiText("ui.ChatBlocks.command"); }, get edit() { return uiText("menu.edit"); }, get read() { return uiText("ui.ChatBlocks.view"); }, get write() { return uiText("ui.ChatBlocks.write"); }, get grep() { return uiText("ui.ChatBlocks.searchFiles"); },
   get find() { return uiText("ui.ChatBlocks.findFiles"); }, get ls() { return uiText("ui.ChatBlocks.listDirectory"); }, powershell: "PowerShell",
@@ -67,7 +68,7 @@ function toolIconPaths(name: string): JSX.Element | null {
     case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
       return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
     // 知识/技能(wrench)
-    case "use_skill": case "manage_skill": case "learn": case "search_experiences":
+    case "memory": case "use_skill": case "manage_skill": case "learn": case "search_experiences":
     case "import_skill": case "import_mcp_server":
       return (<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>);
     // MCP 工具调用(plug 插头)
@@ -923,6 +924,11 @@ function toolDetailLabel(item: ToolItem): string | null {
     if (name) return uiText("ui.ChatBlocks.skill3", { v0: name, v1: action ? `（${action}）` : "" });
     if (action) return uiText("ui.ChatBlocks.skillManagement", { v0: action });
     return uiText("ui.ChatBlocks.skillManagement2");
+  }
+  if (n === "memory") {
+    const action=String(inp.action ?? "");
+    const labels:Record<string,string>={save:uiText("memory.add"),search:uiText("memory.search"),read:uiText("ui.ChatBlocks.view"),update:uiText("memory.edit"),forget:uiText("memory.forget")};
+    return labels[action] ?? uiText("memory.title");
   }
   if (n === "learn") {
     const skill = (typeof inp.skill === "object" && inp.skill !== null ? inp.skill : undefined) as Record<string, unknown> | undefined;

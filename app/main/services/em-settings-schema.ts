@@ -86,6 +86,7 @@ export const EM_PATH = {
   // ── skills ──
   skillsManageEnabled: "skills.manageEnabled",
   skillsLearnEnabled: "skills.learnEnabled",
+  memory: "capabilities.memory",
   skillsImportExternal: "skills.importExternal",
   skillsHidden: "skills.hidden",
   extensionsApproved: "extensions.approved",
@@ -142,6 +143,7 @@ export const SETTINGS_FIELDS = [
   [EM_PATH.appearanceStatusActiveDark, "activeStatusGroupDark"],
   [EM_PATH.skillsManageEnabled, "manageSkillEnabled"],
   [EM_PATH.skillsLearnEnabled, "learnEnabled"],
+  [EM_PATH.memory, "memory"],
   [EM_PATH.skillsImportExternal, "importExternalSkills"],
   [EM_PATH.mobileAppEnabled, "mobileAppEnabled"],
   [EM_PATH.mobileConnectionGuideDismissed, "mobileConnectionGuideDismissed"],

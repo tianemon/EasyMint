@@ -1,3 +1,4 @@
+import { parseMemorySettings, type MemorySettings } from "../../shared/memory";
 import { parseNativeAiSettings, type NativeAiSettings } from "../../shared/native-ai";
 import fs from "fs";
 import { normalizeUiLanguage, type UiLanguage } from "../../shared/i18n/locale";
@@ -32,6 +33,8 @@ interface Project {
   lastOpenedAt: string;
   status: "setup" | "development" | "completed";
   description: string;
+  /** 新空项目创建时的自动记录选择；导入已有目录不自动接管旧记录。 */
+  autoMemoryRecords?: boolean;
 }
 
 export interface Settings {
@@ -44,8 +47,9 @@ export interface Settings {
   apiKeys?: Record<string, string>;
   /** 允许 AI 在会话中写 managed skill 区（manage_skill 工具注册开关，D8 默认关闭） */
   manageSkillEnabled?: boolean;
-  /** 允许 AI 自沉淀（learn / search_experiences / retire_experiences 三工具同开的注册开关，D8 默认关闭） */
+  /** 旧经验开关，仅作统一记忆首次启用的兼容读取；不授权后台模型分析。 */
   learnEnabled?: boolean;
+  memory?: MemorySettings;
   /** 发现外部生态 skill 目录（~/.claude/skills、<p>/.github/skills 等，只读发现，默认开启） */
   importExternalSkills?: boolean;
   lastProjectId?: string;
@@ -281,6 +285,7 @@ export class Store {
       apiKeys: dropLegacyEncryptedApiKeys(emData.apiKeys as Record<string, string> | undefined),
       manageSkillEnabled: emData.manageSkillEnabled as boolean | undefined,
       learnEnabled: emData.learnEnabled as boolean | undefined,
+      memory: parseMemorySettings(emData.memory,emData.learnEnabled === true),
       importExternalSkills: emData.importExternalSkills as boolean | undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,

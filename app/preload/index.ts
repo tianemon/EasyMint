@@ -98,6 +98,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => { ipcRenderer.removeListener("env:report", handler as never); };
     },
   },
+  memory: {
+    onChanged: (callback: (settings?: import("../shared/memory").MemorySettings, session?: { sessionId: string; mode: import("../shared/memory").MemoryMode }) => void) => { const handler = (_event: Electron.IpcRendererEvent, payload: { settings?: import("../shared/memory").MemorySettings; session?: { sessionId: string; mode: import("../shared/memory").MemoryMode } }) => callback(payload?.settings,payload?.session); ipcRenderer.on("memory:changed", handler); return () => ipcRenderer.removeListener("memory:changed", handler); },
+    state: (projectPath?: string) => ipcRenderer.invoke("memory:state", { projectPath }),
+    configure: (patch: Parameters<import("../shared/memory").MemoryApi["configure"]>[0]) => ipcRenderer.invoke("memory:configure", patch),
+    query: (query: Parameters<import("../shared/memory").MemoryApi["query"]>[0]) => ipcRenderer.invoke("memory:query", query),
+    read: (key: string, projectPath?: string) => ipcRenderer.invoke("memory:read", { key, projectPath }),
+    save: (input: Parameters<import("../shared/memory").MemoryApi["save"]>[0]) => ipcRenderer.invoke("memory:save", input),
+    update: (key: string, revision: number, patch: Parameters<import("../shared/memory").MemoryApi["update"]>[2], projectPath?: string) => ipcRenderer.invoke("memory:update", { key, revision, patch, projectPath }),
+    forget: (key: string, projectPath?: string) => ipcRenderer.invoke("memory:forget", { key, projectPath }),
+    analyze: () => ipcRenderer.invoke("memory:analyze"),
+    previewDocuments: (projectPath: string, directory?: string) => ipcRenderer.invoke("memory:preview-documents", { projectPath, directory }),
+    adoptDocuments: (projectPath: string, directory: string, hash: string) => ipcRenderer.invoke("memory:adopt-documents", { projectPath, directory, hash }),
+    sessionMode: (sessionId: string, mode?: import("../shared/memory").MemoryMode) => ipcRenderer.invoke("memory:session-mode", { sessionId, mode }),
+  } satisfies import("../shared/memory").MemoryApi,
   conv: {
     list: (projectPath: string) => ipcRenderer.invoke("conv:list", { projectPath }),
     listDesign: (projectPath: string) => ipcRenderer.invoke("conv:listDesign", { projectPath }) as Promise<Array<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number; archivedAt?: number }>>,
@@ -105,7 +119,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     messages: (id: string, projectPath: string) => ipcRenderer.invoke("conv:messages", { id, projectPath }),
     rename: (id: string, title: string, projectPath: string) => ipcRenderer.invoke("conv:rename", { id, title, projectPath }),
     designSessions: () => ipcRenderer.invoke("conv:design-sessions") as Promise<string[]>,
-    delete: (id: string, projectPath: string) => ipcRenderer.invoke("conv:delete", { id, projectPath }),
+    delete: (id: string, projectPath: string, clearMemories = false) => ipcRenderer.invoke("conv:delete", { id, projectPath, clearMemories }),
     togglePin: (id: string) => ipcRenderer.invoke("conv:togglePin", { id }),
     archiveSession: (sessionId: string) => ipcRenderer.invoke("conv:archiveSession", { sessionId }),
     unarchiveSession: (sessionId: string) => ipcRenderer.invoke("conv:unarchiveSession", { sessionId }),
@@ -358,7 +372,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     nativeAiModels: () => ipcRenderer.invoke("agent:nativeAiModels"),
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; collaborationModeIds?: string[]; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; collaborationModeIds?: string[]; memoryMode?: import("../shared/memory").MemoryMode; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; tabId?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) =>
       ipcRenderer.invoke("agent:steer", { sessionId, text, images, tabId }),

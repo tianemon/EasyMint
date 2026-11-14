@@ -50,6 +50,7 @@ const KLASS_FN = {
 const DECLARED = [
   // ── credential：高敏凭据（只读档与标准档都不可读；完全访问免读、但仍禁写）──
   { entry: "em-settings.json", klass: "credential", why: "含API 密钥与供应商设置" },
+  { entry: "memory", klass: "credential", also: "persistence", why: "全局／项目记忆及迁移备份，仅经结构化范围接口读写" },
   { entry: "config-backups", klass: "credential", also: "persistence", why: "配置迁移备份可能同时含凭据、提示词和模板，不得经普通工具改写" },
   { entry: "agent/mcp-auth-v2.json", klass: "credential", why: "Pi MCP URL 绑定的系统钥匙串密文" },
   { entry: "agent/mcp-auth-v2.json.lockdir", klass: "credential", why: "MCP 凭据读改写锁" },
@@ -117,6 +118,7 @@ const LITERALS = String.raw`((?:"[^"]+"\s*,\s*)*"[^"]+")`;
  * 这正是本脚本的软肋：它认形式，而形式是可以绕的（实测：mcp-instructions.json 就是这么写的）。
  */
 const INDIRECT = [
+  /join\(\s*this\.store\.getDataDir\(\)\s*,\s*((?:"[^"]+"\s*,\s*)*"[^"]+")/g,
   /join\(\s*path\.dirname\(getMcpConfigPath\(\)\)\s*,\s*((?:"[^"]+"\s*,\s*)*"[^"]+")/g,
 ];
 const PATTERNS = [

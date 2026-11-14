@@ -65,6 +65,7 @@ export interface PiSessionOptions {
   systemPrompt?: string;
   /** 主对话每轮读取当前配置，保留 SDK 添加的技能、工具与项目上下文。 */
   getConversationPrompt?: () => string;
+  getMemoryReference?: (prompt: string) => Promise<import("@earendil-works/pi-coding-agent").BeforeAgentStartEventResult["message"] | undefined>;
   /** 对话角色默认 conversation；后台任务与委派入口显式传 task，不按模板文字猜测。 */
   deliveryMode?: AgentDeliveryMode;
   isDesigner?: boolean;
@@ -212,7 +213,7 @@ async function buildSession(
     additionalThemePaths: packagePaths(installedPackages.themes),
     extensionFactories: [...mcpExtensions, permissionExtension, {
       name: "easymint-project-visual", hidden: true, factory: pi => {
-        pi.on("before_agent_start", (event) => {
+        pi.on("before_agent_start", async (event) => {
           const visual = safeProjectDesignSection(opts.cwd).trim();
           const sections = event.systemPromptOptions.sections;
           const open = "<easymint_project_visual>", close = "</easymint_project_visual>";
@@ -225,6 +226,10 @@ async function buildSession(
             const current = ["easymint_project_visual", ...(opts.getConversationPrompt ? ["easymint_collaboration"] : [])]
               .filter(key => sections[key]).map(key => `<${key}>\n${sections[key]}\n</${key}>`).join("\n\n");
             event.systemPromptOptions.forceSystemPrompt += current ? `\n\n${current}` : "";
+          }
+          if (opts.getMemoryReference && event.messageType === "user") {
+            try { const message = await opts.getMemoryReference(event.prompt); if (message) return { message }; }
+            catch (error) { console.warn("[memory] 本轮参考未加载:", (error as Error).message); }
           }
         });
       },

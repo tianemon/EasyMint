@@ -1,3 +1,4 @@
+import type { MemoryMode } from "@shared/memory";
 import { useProcessDisclosure } from "./chat-process-disclosure";
 import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runningTurnPosition, executionLabel } from "./chat-turn-presentation";
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
@@ -192,6 +193,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const initialSid = existingSid ?? tempSidRef.current!;
   const [sid, setSid] = useState<string>(initialSid);
+  const [memoryMode,setMemoryMode] = useState<MemoryMode>("record");
+  const memoryModeRef = useRef<MemoryMode>("record");
+  const memoryModeRevisionRef = useRef(0);
+  const memoryHydration = useRef<Promise<void>>(Promise.resolve());
+  const memoryModeWriteRef = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    let cancelled = false;
+    const revision = memoryModeRevisionRef.current;
+    const off=window.electronAPI.memory?.onChanged?.((_settings,change)=>{
+      if(change && change.sessionId === (existingSid ?? initialSid)) { memoryModeRevisionRef.current++;setMemoryMode(change.mode);memoryModeRef.current=change.mode; }
+    });
+    memoryHydration.current = window.electronAPI.memory?.sessionMode(existingSid ?? initialSid).then(mode => {
+      if (!cancelled && revision === memoryModeRevisionRef.current) { setMemoryMode(mode); memoryModeRef.current = mode; }
+    }).catch(error => console.warn("[memory] 会话模式读取失败", error)) ?? Promise.resolve();
+    return () => { cancelled = true; off?.(); };
+  }, [existingSid, initialSid]);
+
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
@@ -2210,6 +2228,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // Cache ownership decides whether values may override the transcript. Wait for that small
       // local read so a very fast first send cannot race hydration and discard an explicit choice.
       await sessionHydrationRef.current;
+      await memoryHydration.current;
+      await memoryModeWriteRef.current;
       const collaborationModeIds = await collaboration.getIds();
       const overrides = sessionOverrides({
         existingSession: !!sendSessionId,
@@ -2218,7 +2238,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         model: chatModel || undefined,
         thinkingLevel: thinkingLevel ?? "medium",
       });
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", collaborationModeIds, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", collaborationModeIds, memoryMode: memoryModeRef.current, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
       pendingSend.resolvedSessionId = result.sessionId;
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
       if (needsDeferredStop(pendingSend)) {
@@ -2719,6 +2739,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         onPreviewImage={openViewer}
         permissionMode={permissionMode}
         onPermissionModeChange={handlePermissionModeChange}
+        memoryMode={memoryMode}
+        onMemoryModeChange={mode => {
+          const revision = ++memoryModeRevisionRef.current;
+          const prior = memoryModeRef.current;
+          memoryModeRef.current = mode; setMemoryMode(mode);
+          const pending=window.electronAPI.memory.sessionMode(sidRef.current, mode).then(()=>undefined);
+          memoryModeWriteRef.current=pending;
+          void pending.catch(error => {
+            if (revision === memoryModeRevisionRef.current) { memoryModeRef.current = prior; setMemoryMode(prior); }
+            toast(appText(String(error)));
+          });
+        }}
         chatModel={chatModel || storeModel}
         onModelChange={handleModelChange}
         thinkingLevel={thinkingLevel}

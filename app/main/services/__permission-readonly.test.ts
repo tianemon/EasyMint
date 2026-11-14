@@ -93,9 +93,15 @@ describe("只读档纯读白名单", () => {
   });
 
   it("明确审查过的纯读工具放行", () => {
-    for (const name of ["read", "ls", "list_issues", "list_agents", "read_agent_log", "search_experiences", "ask_user"]) {
+    for (const name of ["read", "ls", "list_issues", "list_agents", "read_agent_log", "ask_user"]) {
       expect(readonlyDenyReason(name), name).toBeNull();
     }
+  });
+
+  it("统一记忆只放行查询动作，已退出注册的旧经验工具不再保留白名单", () => {
+    for(const action of ["search","read"])expect(readonlyDenyReason("memory",{action})).toBeNull();
+    for(const action of ["save","update","forget","unknown"])expect(readonlyDenyReason("memory",{action})).not.toBeNull();
+    expect(readonlyDenyReason("search_experiences")).not.toBeNull();
   });
 
   it("可能按需下载二进制的搜索工具默认拒绝", () => {

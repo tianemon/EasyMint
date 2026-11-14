@@ -15,10 +15,10 @@ vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
 vi.mock("./experience-service", async importOriginal => ({ ...await importOriginal<object>(), buildExperienceInjection: vi.fn(() => "EXPERIENCE_MARKER") }));
 
 function create(session?: object) {
-  const service = new AgentService({ getSettings: () => ({ learnEnabled: true }) } as unknown as Store);
+  const service = new AgentService({ getSettings: () => ({ learnEnabled: true, memory: { enabled: false } }) } as unknown as Store);
   const internals = service as unknown as {
     activeChats: Map<string, unknown>;
-    buildSystemPrompt(path: string, designer?: boolean, opts?: { worker?: boolean; learnInstalled?: boolean }): string;
+    buildSystemPrompt(path: string, designer?: boolean, opts?: { worker?: boolean; memoryInstalled?: boolean }): string;
   };
   if (session) internals.activeChats.set("chat-health", { chatId: "chat-health", sessionId: "session-health", session, abortController: new AbortController() });
   return { service, internals };
@@ -51,12 +51,12 @@ describe("final prompt assembly", () => {
     expect(prompt.split(PERMISSION_RULES_PROMPT)).toHaveLength(2);
     expect(prompt).not.toContain(THINKING_LANGUAGE_PROMPT);
   });
-  it("does not inject experiences when the tools were not installed even if settings enable them", () => {
+  it("never places dynamic experiences in the system prefix, regardless of tool registration", () => {
     const { internals } = create();
-    expect(internals.buildSystemPrompt("/tmp", false, { learnInstalled: false })).not.toContain("EXPERIENCE_MARKER");
+    expect(internals.buildSystemPrompt("/tmp", false, { memoryInstalled: false })).not.toContain("EXPERIENCE_MARKER");
     expect(buildExperienceInjection).not.toHaveBeenCalled();
-    expect(internals.buildSystemPrompt("/tmp", false, { learnInstalled: true })).toContain("EXPERIENCE_MARKER");
-    expect(internals.buildSystemPrompt("/tmp", false, { worker: true, learnInstalled: true })).not.toContain("EXPERIENCE_MARKER");
+    expect(internals.buildSystemPrompt("/tmp", false, { memoryInstalled: true })).not.toContain("EXPERIENCE_MARKER");
+    expect(internals.buildSystemPrompt("/tmp", false, { worker: true, memoryInstalled: true })).not.toContain("EXPERIENCE_MARKER");
   });
 });
 

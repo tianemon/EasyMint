@@ -177,8 +177,6 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
 
   // AI 写入开关（D8：默认关闭，界面一键开启）
   const [manageSkillEnabled, setManageSkillEnabled] = useState(false);
-  // AI 自沉淀开关（learn / search_experiences / retire_experiences 三件同开，D8：默认关闭）
-  const [learnEnabled, setLearnEnabled] = useState(false);
   // 外部生态目录发现（~/.claude/skills 等，只读发现，默认开启）
   const [importExternal, setImportExternal] = useState(true);
   // Skill 导入（粘贴链接/目录路径）
@@ -223,7 +221,6 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
     window.electronAPI.settings.get()
       .then((s) => {
         setManageSkillEnabled(!!s.manageSkillEnabled);
-        setLearnEnabled(!!s.learnEnabled);
         setImportExternal(s.importExternalSkills !== false);
       })
       .catch((e: unknown) => setLoadError(String(e)));
@@ -265,16 +262,6 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       await window.electronAPI.settings.set("manageSkillEnabled", v);
     } catch (e: unknown) {
       setManageSkillEnabled(!v);
-      setLoadError(String(e));
-    }
-  };
-
-  const saveLearnEnabled = async (v: boolean) => {
-    setLearnEnabled(v);
-    try {
-      await window.electronAPI.settings.set("learnEnabled", v);
-    } catch (e: unknown) {
-      setLearnEnabled(!v);
       setLoadError(String(e));
     }
   };
@@ -423,14 +410,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
           </div>
 
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs text-text-primary">{uiText("ui.PluginsTab.allowAiToRetainExperience")}</p>
-              <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                {uiText("ui.PluginsTab.mintCanSaveUsefulLessonsAfterTasks")}</p>
-            </div>
-            <Toggle checked={learnEnabled} onChange={saveLearnEnabled} />
-          </div>
+
 
           {showForm ? (
             <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2">
