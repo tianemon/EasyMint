@@ -119,9 +119,9 @@ function TemplatePromptForm({ template, onClose, onSavingChange }: { template: T
     finally { setSaving(false); onSavingChange(false); }
   };
   return <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void save(); }}>
-    <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 py-4">
-    <label className="block"><span className="block text-[length:var(--text-11)] text-text-secondary mb-1">{uiText("collaboration.templatePrompt")}</span>
-      <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary" required rows={18} value={prompt} onChange={event => setPrompt(event.target.value)} /></label>
+    <div className="settings-body flex flex-col flex-1 min-h-0 overflow-y-auto px-6 py-4">
+    <label className="flex flex-col flex-1 min-h-40"><span className="block text-[length:var(--text-11)] text-text-secondary mb-1">{uiText("collaboration.templatePrompt")}</span>
+      <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary flex-1 min-h-0" required value={prompt} onChange={event => setPrompt(event.target.value)} /></label>
     </div>
     <div className="flex items-center justify-end gap-3 px-4 py-2 shrink-0">
       <button type="button" disabled={saving} onClick={() => void save(true)} className="mr-auto text-xs text-text-secondary">{uiText("collaboration.restore")}</button>
@@ -161,21 +161,21 @@ function TemplateForm({ initial, onSave, onCancel, onSavingChange }: {
 
   return (
     <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void handleSave(); }}>
-      <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
-      <div>
+      <div className="settings-body flex flex-col flex-1 min-h-0 overflow-y-auto px-6 py-4 gap-3">
+      <div className="shrink-0">
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">{uiText("ui.AgentTemplateSettings.name")}</label>
         <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
           placeholder={uiText("ui.AgentTemplateSettings.eGTester")} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
-      <div>
+      <div className="shrink-0">
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">{uiText("ui.AgentTemplateSettings.shortDescription")}</label>
         <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
           placeholder={uiText("ui.AgentTemplateSettings.eGWritesUnitTests")} value={desc} onChange={(e) => setDesc(e.target.value)} />
       </div>
-      <div>
+      <div className="flex flex-col flex-1 min-h-40">
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">{uiText("ui.AgentTemplateSettings.roleResponsibilitiesPromptSystemPrompt")}</label>
-        <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary disabled:opacity-60"
-          rows={4} placeholder={uiText("ui.AgentTemplateSettings.defineTheAgentSBehaviorExpertiseAnd")}
+        <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary disabled:opacity-60 flex-1 min-h-0"
+          placeholder={uiText("ui.AgentTemplateSettings.defineTheAgentSBehaviorExpertiseAnd")}
           value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       </div>
       </div>
