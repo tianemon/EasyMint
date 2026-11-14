@@ -56,30 +56,67 @@ it("edits only the execution template prompt and sends no main-chat profile fiel
   await act(async () => root.render(createElement(AgentTemplateSettings)));
   const builder = [...host.querySelectorAll("div.group")].find(row => row.textContent?.includes("Builder"))!;
   await act(async () => builder.querySelector<HTMLButtonElement>("button")!.click());
-  expect(host.querySelectorAll("input")).toHaveLength(0);
-  expect(host.querySelectorAll("textarea")).toHaveLength(1);
-  await input(host.querySelector("textarea")!, "New builder instructions");
-  await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  const dialog = document.querySelector('[role="dialog"]')!;
+  expect(dialog).not.toBeNull();
+  expect(dialog.querySelectorAll("input")).toHaveLength(0);
+  expect(dialog.querySelectorAll("textarea")).toHaveLength(1);
+  expect(dialog.querySelector(".overflow-y-auto")!.contains(dialog.querySelector('button[type="submit"]'))).toBe(false);
+  await input(dialog.querySelector("textarea")!, "New builder instructions");
+  await act(async () => dialog.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   expect(update).toHaveBeenCalledWith("default-builder", { prompt: "New builder instructions" });
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  const main = [...host.querySelectorAll("div.group")].find(row => row.textContent?.includes("Mint"))!;
+  await act(async () => main.querySelector<HTMLButtonElement>("button")!.click());
+  const mainDialog = document.querySelector('[role="dialog"]')!;
+  expect(mainDialog.querySelectorAll("textarea")).toHaveLength(2);
+  expect(mainDialog.querySelector(".overflow-y-auto")!.contains(mainDialog.querySelector('button[type="submit"]'))).toBe(false);
+  await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("keeps a saving template dialog open until its request settles", async () => {
+  let finish!: () => void;
+  update.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+  await act(async () => root.render(createElement(AgentTemplateSettings)));
+  const builder = [...host.querySelectorAll("div.group")].find(row => row.textContent?.includes("Builder"))!;
+  await act(async () => builder.querySelector<HTMLButtonElement>("button")!.click());
+  const dialog = document.querySelector('[role="dialog"]')!;
+  await act(async () => dialog.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(dialog.querySelector<HTMLButtonElement>('[aria-label="关闭"]')!.disabled).toBe(true);
+  await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+  await act(async () => {
+    const overlay = dialog.parentElement!;
+    overlay.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    overlay.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+  expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+  await act(async () => finish());
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
 });
 
 it("creates a custom mode without configuring an icon and supports stacked selections", async () => {
   await act(async () => root.render(createElement(CollaborationSettings)));
   await clickText("新增模式");
-  const fields = host.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])');
+  const editor = document.querySelector('[role="dialog"]')!;
+  const fields = editor.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])');
   await input(fields[0]!, "Writing"); await input(fields[1]!, "When writing reports");
-  await input(host.querySelector("textarea")!, "Write short paragraphs");
-  await act(async () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
-  await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  await input(editor.querySelector("textarea")!, "Write short paragraphs");
+  await act(async () => editor.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  await act(async () => editor.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   expect(saveMode).toHaveBeenCalledWith({ id: undefined, name: "Writing", scenario: "When writing reports", prompt: "Write short paragraphs", defaultEnabled: true, builtin: false });
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
   const change = vi.fn();
   await act(async () => root.render(createElement(CollaborationModePicker, { modes: config.modes, selected: ["ui-design"], onChange: change })));
   await act(async () => host.querySelector("button")!.click());
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.querySelectorAll("svg")).toHaveLength(0);
+  expect([...dialog.querySelectorAll("svg")].every(svg => svg.closest('[role="checkbox"]'))).toBe(true);
   expect(dialog.textContent).toContain("进入陌生领域时");
-  await act(async () => dialog.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1]!.click());
+  expect(host.querySelector("button")!.textContent).not.toContain("协作模式");
+  expect(dialog.classList.contains("w-max")).toBe(true);
+  await act(async () => dialog.querySelectorAll<HTMLButtonElement>('[role="checkbox"]')[1]!.click());
   expect(change).toHaveBeenCalledWith(["ui-design", "domain-guidance"]);
+  expect(change).toHaveBeenCalledOnce();
 });
 
 it("localizes untouched built-in mode labels while keeping user wording", async () => {

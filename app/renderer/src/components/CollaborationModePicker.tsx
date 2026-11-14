@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CollaborationMode } from "@shared/collaboration";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { modeDisplay } from "../lib/collaboration";
+import { Checkbox } from "./ui/Checkbox";
 
 export function CollaborationModePicker({ modes, selected, onChange, disabled }: {
   modes: CollaborationMode[];
@@ -10,7 +11,8 @@ export function CollaborationModePicker({ modes, selected, onChange, disabled }:
   onChange: (ids: string[]) => void;
   disabled?: boolean;
 }): JSX.Element {
-  useUiLocale();
+  const locale = useUiLocale();
+  const labelId = useId();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const trigger = useRef<HTMLButtonElement>(null);
@@ -24,7 +26,7 @@ export function CollaborationModePicker({ modes, selected, onChange, disabled }:
       left: Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8)),
       top: Math.max(8, anchor.top - bounds.height - 8),
     });
-  }, [open, modes.length]);
+  }, [open, modes, locale]);
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -46,19 +48,23 @@ export function CollaborationModePicker({ modes, selected, onChange, disabled }:
     };
   }, [open]);
   return <>
-    <button ref={trigger} type="button" disabled={disabled} aria-expanded={open} aria-haspopup="dialog"
+    <span id={labelId} className="text-sm text-text-muted">{uiText("collaboration.title")}</span>
+    <button ref={trigger} type="button" disabled={disabled} aria-expanded={open} aria-haspopup="dialog" aria-labelledby={`${labelId} ${labelId}-value`}
       onClick={() => setOpen(value => !value)} className="inp-sel flex items-center gap-1 disabled:opacity-50">
-      {uiText("collaboration.title")} · {names.join(" + ") || uiText("ui.ChatInput.standard")} <span aria-hidden="true">⌄</span>
+      <span id={`${labelId}-value`}>{names.join(" + ") || uiText("ui.ChatInput.standard")}</span>
     </button>
     {open && createPortal(<div ref={panel} role="dialog" aria-label={uiText("collaboration.title")}
-      className="fixed z-dropdown w-80 max-w-[calc(100vw-16px)] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-y-auto max-h-[70vh]"
+      className="fixed z-dropdown w-max max-w-[calc(100vw-16px)] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-y-auto max-h-[70vh]"
       style={{ left: position.left, top: position.top }}>
-      {modes.map(mode => <label key={mode.id} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-hover cursor-pointer">
-        <input type="checkbox" checked={selected.includes(mode.id)} disabled={disabled} className="mt-1 accent-accent"
-          onChange={event => onChange(event.target.checked ? [...selected, mode.id] : selected.filter(id => id !== mode.id))} />
-        <span className="min-w-0"><span className="text-xs font-medium text-text-primary">{modeDisplay(mode, "name")}</span>
-          {mode.scenario && <span className="block text-[length:var(--text-11)] text-text-secondary mt-1">{modeDisplay(mode, "scenario")}</span>}</span>
-      </label>)}
+      {modes.map(mode => {
+        const checked = selected.includes(mode.id);
+        const toggle = () => { if (!disabled) onChange(checked ? selected.filter(id => id !== mode.id) : [...selected, mode.id]); };
+        return <div key={mode.id} onClick={toggle} className="flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover cursor-pointer whitespace-nowrap">
+          <Checkbox checked={checked} disabled={disabled} onChange={toggle} ariaLabel={modeDisplay(mode, "name")} />
+          <span className="text-xs font-medium text-text-primary shrink-0">{modeDisplay(mode, "name")}</span>
+          {mode.scenario && <span title={modeDisplay(mode, "scenario")} className="truncate text-[length:var(--text-11)] text-text-secondary">{modeDisplay(mode, "scenario")}</span>}
+        </div>;
+      })}
     </div>, document.body)}
   </>;
 }

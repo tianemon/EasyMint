@@ -4,6 +4,7 @@ import { confirmDialog } from "./ui/ConfirmDialog";
 import { MainChatSettings } from "./settings/ConversationSettings";
 import { toast } from "./ui/Toast";
 import { appMessage } from "../lib/i18n";
+import { PromptEditorDialog } from "./PromptEditorDialog";
 
 interface Template {
   id: string; name: string; description: string; prompt: string; agentType: string;
@@ -19,6 +20,7 @@ export function AgentTemplateSettings(): JSX.Element {
   const [editing, setEditing] = useState<Template | null>(null);
   const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editorSaving, setEditorSaving] = useState(false);
 
   const load = () => {
     window.electronAPI.agentTemplates.list()
@@ -46,14 +48,17 @@ export function AgentTemplateSettings(): JSX.Element {
     load();
   };
 
-  if (editing?.id === "mint") return <MainChatSettings onClose={() => { setEditing(null); load(); }} />;
-  if (editing && BUILTIN_IDS.has(editing.id)) return <TemplatePromptForm template={editing} onClose={() => { setEditing(null); load(); }} />;
-  if (adding || editing) {
-    return <TemplateForm initial={editing} onSave={handleSave} onCancel={() => { setEditing(null); setAdding(false); }} />;
-  }
+  const closeEditor = () => { setEditing(null); setAdding(false); load(); };
 
   return (
     <div className="space-y-3">
+      {(adding || editing) && <PromptEditorDialog
+        title={editing?.id === "mint" ? uiText("collaboration.mainChat") : editing ? `${uiText("ui.AgentTemplateSettings.editTemplate")} · ${editing.name}` : uiText("ui.AgentTemplateSettings.newTemplate2")}
+        onClose={closeEditor} busy={editorSaving}>
+        {editing?.id === "mint" ? <MainChatSettings onClose={closeEditor} onSavingChange={setEditorSaving} />
+          : editing && BUILTIN_IDS.has(editing.id) ? <TemplatePromptForm template={editing} onClose={closeEditor} onSavingChange={setEditorSaving} />
+            : <TemplateForm initial={editing} onSave={handleSave} onCancel={closeEditor} onSavingChange={setEditorSaving} />}
+      </PromptEditorDialog>}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium text-text-secondary">{uiText("ui.AgentTemplateSettings.agentTemplates")}</h3>
@@ -77,7 +82,7 @@ export function AgentTemplateSettings(): JSX.Element {
             </div>
             <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
               {BUILTIN_IDS.has(tpl.id) ? (
-                // 内置模板：统一进入表单页只读浏览
+                // 主对话与执行模板使用各自的字段编辑器。
                 <button onClick={() => setEditing(tpl)}
                   className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors">{uiText("menu.edit")}</button>
               ) : (
@@ -96,11 +101,12 @@ export function AgentTemplateSettings(): JSX.Element {
   );
 }
 
-function TemplatePromptForm({ template, onClose }: { template: Template; onClose: () => void }): JSX.Element {
+function TemplatePromptForm({ template, onClose, onSavingChange }: { template: Template; onClose: () => void; onSavingChange: (saving: boolean) => void }): JSX.Element {
   const [prompt, setPrompt] = useState(template.prompt);
   const [saving, setSaving] = useState(false);
   const save = async (restore = false) => {
     setSaving(true);
+    onSavingChange(true);
     try {
       if (restore) {
         const result = await window.electronAPI.agentTemplates.restore(template.id);
@@ -110,13 +116,14 @@ function TemplatePromptForm({ template, onClose }: { template: Template; onClose
         onClose();
       }
     } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); }
-    finally { setSaving(false); }
+    finally { setSaving(false); onSavingChange(false); }
   };
-  return <form className="bg-surface-alt rounded-[var(--radius-lg)] p-4 space-y-3" onSubmit={event => { event.preventDefault(); void save(); }}>
-    <h3 className="text-sm font-medium text-text-secondary">{template.name}</h3>
+  return <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void save(); }}>
+    <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 py-4">
     <label className="block"><span className="block text-[length:var(--text-11)] text-text-secondary mb-1">{uiText("collaboration.templatePrompt")}</span>
       <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary" required rows={18} value={prompt} onChange={event => setPrompt(event.target.value)} /></label>
-    <div className="flex items-center justify-end gap-3">
+    </div>
+    <div className="flex items-center justify-end gap-3 px-4 py-2 shrink-0">
       <button type="button" disabled={saving} onClick={() => void save(true)} className="mr-auto text-xs text-text-secondary">{uiText("collaboration.restore")}</button>
       <button type="button" disabled={saving} onClick={onClose} className="text-xs text-text-secondary">{uiText("common.cancel")}</button>
       <button type="submit" disabled={saving || !prompt.trim()} className="btn-accent px-4 py-1.5 rounded-[var(--radius-lg)] text-xs disabled:opacity-50">{uiText("ui.AgentTemplateSettings.save")}</button>
@@ -131,28 +138,30 @@ function TemplatePromptForm({ template, onClose }: { template: Template; onClose
  * （2026-09-16 用户拍板「取消全部子 agent 的配置入口」）。若将来有人想加回来，
  * 先想清楚"两处配置冲突时谁赢"——那正是这次被取消的原因。
  */
-function TemplateForm({ initial, onSave, onCancel }: {
+function TemplateForm({ initial, onSave, onCancel, onSavingChange }: {
   initial: Template | null;
-  onSave: (data: { name: string; description: string; prompt: string }) => void;
+  onSave: (data: { name: string; description: string; prompt: string }) => Promise<void>;
   onCancel: () => void;
+  onSavingChange: (saving: boolean) => void;
 }): JSX.Element {
   useUiLocale();
-  const editMode = initial != null;
   const [name, setName] = useState(initial?.name || "");
   const [desc, setDesc] = useState(initial?.description || "");
   const [prompt, setPrompt] = useState(initial?.prompt || "");
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !prompt.trim()) return;
-    onSave({ name: name.trim(), description: desc.trim(), prompt: prompt.trim() });
+    setSaving(true);
+    onSavingChange(true);
+    try { await onSave({ name: name.trim(), description: desc.trim(), prompt: prompt.trim() }); }
+    catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); }
+    finally { setSaving(false); onSavingChange(false); }
   };
 
   return (
-    <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-text-secondary">{editMode ? uiText("ui.AgentTemplateSettings.editTemplate") : uiText("ui.AgentTemplateSettings.newTemplate2")}</h3>
-        <button onClick={onCancel} className="text-[length:var(--text-11)] text-text-secondary hover:text-text-primary">{uiText("common.cancel")}</button>
-      </div>
+    <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void handleSave(); }}>
+      <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">{uiText("ui.AgentTemplateSettings.name")}</label>
         <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
@@ -169,13 +178,14 @@ function TemplateForm({ initial, onSave, onCancel }: {
           rows={4} placeholder={uiText("ui.AgentTemplateSettings.defineTheAgentSBehaviorExpertiseAnd")}
           value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       </div>
-      <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:bg-surface-hover">{uiText("common.cancel")}</button>
-          <button onClick={handleSave}
-            disabled={!name.trim() || !prompt.trim()}
+      </div>
+      <div className="flex justify-end gap-2 px-4 py-2 shrink-0">
+        <button type="button" onClick={onCancel} disabled={saving} className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:bg-surface-hover">{uiText("common.cancel")}</button>
+          <button type="submit"
+            disabled={saving || !name.trim() || !prompt.trim()}
             className={`px-4 py-1.5 rounded-[var(--radius-lg)] text-xs font-medium ${name.trim() && prompt.trim() ? "btn-accent" : "opacity-40 cursor-not-allowed bg-surface text-text-secondary"}`}>
             {uiText("ui.AgentTemplateSettings.save")}</button>
       </div>
-    </div>
+    </form>
   );
 }

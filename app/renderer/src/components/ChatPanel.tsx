@@ -2637,7 +2637,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           void window.electronAPI.sessionCache.write(sid, { guidanceDeclined: true }).catch(error => toast(uiText("collaboration.failed", { detail: appMessage(String(error)) })));
         }}>{uiText("collaboration.notNow")}</button>
       </div>}
-      <div className="mx-[var(--chat-content-inset)] mb-2">
+      <div className="mx-[var(--chat-content-inset)] mb-2 flex items-center gap-2">
         <CollaborationModePicker modes={conversationConfig?.modes ?? []} selected={collaboration.ids}
           disabled={!conversationConfig || !collaboration.ready} onChange={ids => { void collaboration.change(ids); }} />
       </div>
