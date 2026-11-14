@@ -6,6 +6,7 @@ import { MintAvatar } from "../MintAvatar";
 import { toast } from "../ui/Toast";
 import { modeDisplay } from "../../lib/collaboration";
 import { PromptEditorDialog } from "../PromptEditorDialog";
+import { Checkbox } from "../ui/Checkbox";
 
 const inputClass = "em-input w-full px-2.5 py-1.5 text-xs text-text-primary";
 const labelClass = "block text-[length:var(--text-11)] text-text-secondary mb-1";
@@ -102,7 +103,12 @@ export function CollaborationSettings(): JSX.Element {
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.modeName")}</span><input required maxLength={40} className={inputClass} value={modeDisplay(draft, "name")} onChange={event => editField({ name: event.target.value })} /></label>
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.scenario")}</span><input maxLength={200} className={inputClass} value={modeDisplay(draft, "scenario")} onChange={event => editField({ scenario: event.target.value })} /></label>
     <label className="flex flex-col flex-1 min-h-40"><span className={labelClass}>{uiText("collaboration.prompt")}</span><textarea required className={`${inputClass} flex-1 min-h-0`} value={draft.prompt} onChange={event => editField({ prompt: event.target.value })} /></label>
-    <label className="flex items-center gap-2 text-xs text-text-secondary shrink-0"><input type="checkbox" checked={draft.defaultEnabled} onChange={event => editField({ defaultEnabled: event.target.checked })} />{uiText("collaboration.defaultEnabled")}</label>
+    <div className="flex items-center gap-2 text-xs text-text-secondary shrink-0 cursor-pointer"
+      onClick={() => { if (!saving) editField({ defaultEnabled: !draft.defaultEnabled }); }}>
+      <Checkbox checked={draft.defaultEnabled} disabled={saving} ariaLabel={uiText("collaboration.defaultEnabled")}
+        onChange={checked => editField({ defaultEnabled: checked })} />
+      <span>{uiText("collaboration.defaultEnabled")}</span>
+    </div>
     </div>
     <div className="flex justify-end gap-3 px-4 py-2 shrink-0">
       {editing?.builtin && <button type="button" disabled={saving} className="mr-auto text-xs text-text-secondary" onClick={() => void submit("restore")}>{uiText("collaboration.restore")}</button>}
