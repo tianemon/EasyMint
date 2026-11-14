@@ -268,7 +268,8 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     }
     // Seed default Agent templates on first launch
     const { seedDefaults } = require("./services/agent-templates");
-    seedDefaults();
+    const promptWarning = seedDefaults();
+    if (promptWarning) console.warn("[prompts]", promptWarning);
     // Seed bundled skills (~/.easymint/skills/) — only if not already installed
     const { seedBundledSkills } = require("./services/skill-service");
     seedBundledSkills();

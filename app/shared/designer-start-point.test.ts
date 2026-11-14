@@ -1,3 +1,8 @@
+import { getPromptDefaults } from "../main/services/system-prompt-manager";
+import { vi } from "vitest";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const MINT_DESIGN_BOOST = getPromptDefaults().modes.find(item => item.id === "ui-design")!.prompt;
+const DESIGNER_AGENT_PROMPT = getPromptDefaults().legacyDesigner;
 /**
  * 「设计起点由谁定」的契约锚定（2026-09-16）。
  *
@@ -8,7 +13,7 @@
  * 现在拆开：清单只给主会话，子 Agent 只认主会话指定的起点。谁把清单搬回共享段，这里就红。
  */
 import { describe, it, expect } from "vitest";
-import { DESIGNER_AGENT_PROMPT, MINT_DESIGN_BOOST } from "./prompts";
+
 import { DESIGNER_TEMPLATE_FILES } from "./designer-templates";
 
 describe("设计起点契约", () => {

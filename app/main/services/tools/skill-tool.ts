@@ -23,7 +23,7 @@ function text(t: string): { content: Array<{ type: "text"; text: string }> } {
 }
 
 export async function createSkillTool(projectPath: string | undefined, hooks: SkillToolHooks = {}): Promise<ToolDefinition> {
-  const defineTool = await getDefineToolFn();
+  const defineTool = await getDefineToolFn(true);
   return defineTool({
     name: "use_skill",
     label: "加载技能",
@@ -84,7 +84,7 @@ export async function createSkillTool(projectPath: string | undefined, hooks: Sk
 }
 
 export async function createManageSkillTool(projectPath: string | undefined): Promise<ToolDefinition> {
-  const defineTool = await getDefineToolFn();
+  const defineTool = await getDefineToolFn(true);
   return defineTool({
     name: "manage_skill",
     label: "管理技能",

@@ -473,9 +473,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // agent-template:*
   ipcMain.handle("agent-template:list", () => listTemplates());
   ipcMain.handle("agent-template:create", (_e, { input }) => createTemplate(input));
-  ipcMain.handle("agent-template:update", (_e, { id, input }) => updateTemplate(id, input));
-  ipcMain.handle("agent-template:delete", (_e, { id }) => { deleteTemplate(id); });
-  ipcMain.handle("agent-template:restore", (_e, { id }) => restoreTemplate(id));
+  ipcMain.handle("agent-template:update", (_e, { id, input, revision }) => updateTemplate(id, input, revision));
+  ipcMain.handle("agent-template:delete", (_e, { id, revision }) => { deleteTemplate(id, revision); });
+  ipcMain.handle("agent-template:restore", (_e, { id, revision }) => restoreTemplate(id, revision));
   ipcMain.handle("conversation:config", () => getConversationConfig());
   ipcMain.handle("conversation:modes", (_e, { sessionId, legacyDesigner }) => {
     const saved = readCache(sessionId)?.collaborationModeIds;
@@ -487,11 +487,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     broadcast("conversation:changed", config);
     return config;
   };
-  ipcMain.handle("conversation:save-main", (_e, { input }) => conversationChanged(saveMainChat(input)));
-  ipcMain.handle("conversation:restore-main", () => conversationChanged(restoreMainChat()));
+  ipcMain.handle("conversation:save-main", (_e, { input, revision }) => conversationChanged(saveMainChat(input, revision)));
+  ipcMain.handle("conversation:restore-main", (_e, { revision } = {}) => conversationChanged(restoreMainChat(revision)));
   ipcMain.handle("conversation:save-mode", (_e, { input }) => conversationChanged(saveCollaborationMode(input)));
-  ipcMain.handle("conversation:delete-mode", (_e, { id }) => conversationChanged(deleteCollaborationMode(id)));
-  ipcMain.handle("conversation:restore-mode", (_e, { id }) => conversationChanged(restoreCollaborationMode(id)));
+  ipcMain.handle("conversation:delete-mode", (_e, { id, revision }) => conversationChanged(deleteCollaborationMode(id, revision)));
+  ipcMain.handle("conversation:restore-mode", (_e, { id, revision }) => conversationChanged(restoreCollaborationMode(id, revision)));
 
   // skill:*
   ipcMain.handle("pi-extension:list", guard(z.object({ projectPath: pathString.optional() }).loose(), ({ projectPath }) => discoverAvailableExtensions({ projectPath })));

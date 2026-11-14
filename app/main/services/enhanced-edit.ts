@@ -17,6 +17,7 @@ export async function createEnhancedEditTool(cwd: string): Promise<ToolDefinitio
     ...native,
     name: "edit",
     label: "edit",
+    description: `${native.description}\n本工具编辑文件，不编辑聊天气泡；用户消息上的铅笔是界面功能。用户说上条edit改错时，先核对所指文件并修正，不把界面操作当作文件修改。`,
     async execute(
       _toolCallId: string,
       params: Record<string, unknown>,

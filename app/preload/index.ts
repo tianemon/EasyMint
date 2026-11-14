@@ -187,18 +187,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     list: () => ipcRenderer.invoke("agent-template:list"),
     // 模板只有人设字段——子 Agent 的模型/思考等级一律跟随主会话（2026-09-16 拍板收敛到一处）
     create: (input: { name: string; description: string; prompt: string; agentType?: string }) => ipcRenderer.invoke("agent-template:create", { input }),
-    update: (id: string, input: { name?: string; description?: string; prompt?: string; agentType?: string }) => ipcRenderer.invoke("agent-template:update", { id, input }),
-    delete: (id: string) => ipcRenderer.invoke("agent-template:delete", { id }),
-    restore: (id: string) => ipcRenderer.invoke("agent-template:restore", { id }),
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; agentType?: string }, revision?: string) => ipcRenderer.invoke("agent-template:update", { id, input, revision }),
+    delete: (id: string, revision?: string) => ipcRenderer.invoke("agent-template:delete", { id, revision }),
+    restore: (id: string, revision?: string) => ipcRenderer.invoke("agent-template:restore", { id, revision }),
   },
   conversation: {
     get: (): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:config"),
     getModes: (sessionId: string, legacyDesigner?: boolean): Promise<string[]> => ipcRenderer.invoke("conversation:modes", { sessionId, legacyDesigner }),
-    saveMain: (input: MainChatProfile): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-main", { input }),
-    restoreMain: (): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-main"),
+    saveMain: (input: MainChatProfile, revision?: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-main", { input, revision }),
+    restoreMain: (revision?: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-main", { revision }),
     saveMode: (input: Omit<CollaborationMode, "id" | "builtin"> & { id?: string }): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-mode", { input }),
-    deleteMode: (id: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:delete-mode", { id }),
-    restoreMode: (id: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-mode", { id }),
+    deleteMode: (id: string, revision?: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:delete-mode", { id, revision }),
+    restoreMode: (id: string, revision?: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-mode", { id, revision }),
     onChanged: (callback: (config: ConversationConfig) => void) => {
       const listener = (_event: unknown, config: ConversationConfig) => callback(config);
       ipcRenderer.on("conversation:changed", listener);

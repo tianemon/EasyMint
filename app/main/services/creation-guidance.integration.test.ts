@@ -1,3 +1,7 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+import { vi } from "vitest";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,7 +10,7 @@ import { createAgentSession, DefaultResourceLoader, loadSkillsFromDir, ModelRunt
   SessionManager, SettingsManager, type AgentSession } from '@earendil-works/pi-coding-agent';
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai/providers/faux';
 import type { Message } from '@earendil-works/pi-ai';
-import { MINT_SYSTEM_PROMPT, CREATION_COLLABORATION, buildInitTriggerPrompt,
+import { CREATION_COLLABORATION, buildInitTriggerPrompt,
   buildDirectCreatePrompt, systemMessage } from '../../shared/prompts';
 
 const roots: string[] = [], sessions: AgentSession[] = [];

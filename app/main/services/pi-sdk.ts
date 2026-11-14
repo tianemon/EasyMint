@@ -177,9 +177,15 @@ export async function getCreateExtraBuiltinTools(): Promise<{
   };
 }
 
-export async function getDefineToolFn() {
+export async function getDefineToolFn(deliverGuidelines = false) {
   const sdk = await getSdk();
-  return sdk.defineTool;
+  if (!deliverGuidelines) return sdk.defineTool;
+  // customPrompt不消费SDK默认Guidelines段；由已评估的工具显式选用，不影响经验工具。
+  return ((definition: Parameters<typeof sdk.defineTool>[0]) => sdk.defineTool({
+    ...definition,
+    description: [definition.description, ...(definition.promptGuidelines ?? []).filter(rule => !definition.description.includes(rule))].join("\n"),
+    promptGuidelines: [],
+  })) as typeof sdk.defineTool;
 }
 
 /** Read-only parsing helpers; importing a transcript must never open/write the source session. */

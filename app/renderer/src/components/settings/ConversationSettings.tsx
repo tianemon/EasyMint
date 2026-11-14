@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CollaborationMode, MainChatProfile } from "@shared/collaboration";
 import { uiText, useUiLocale, appMessage } from "../../lib/i18n";
 import { useConversationConfig, useConversationStore } from "../../stores/conversation-store";
@@ -10,27 +10,38 @@ import { Checkbox } from "../ui/Checkbox";
 
 const inputClass = "em-input w-full px-2.5 py-1.5 text-xs text-text-primary";
 const labelClass = "block text-[length:var(--text-11)] text-text-secondary mb-1";
+function reloadAfterConflict(): void {
+  void useConversationStore.getState().load().catch(error => console.error("[conversation] reload", error));
+}
 
 export function MainChatSettings({ onClose, onSavingChange }: { onClose: () => void; onSavingChange?: (saving: boolean) => void }): JSX.Element {
   const config = useConversationConfig();
   if (!config) return <p className="text-xs text-text-secondary">{uiText("ui.AgentTemplateSettings.loading")}</p>;
-  return <MainChatForm initial={config.main} onClose={onClose} onSavingChange={onSavingChange} />;
+  return <MainChatForm initial={config.main} initialRevision={config.mainRevision} onClose={onClose} onSavingChange={onSavingChange} />;
 }
 
-function MainChatForm({ initial, onClose, onSavingChange }: { initial: MainChatProfile; onClose: () => void; onSavingChange?: (saving: boolean) => void }): JSX.Element {
+function MainChatForm({ initial, initialRevision, onClose, onSavingChange }: { initial: MainChatProfile; initialRevision?: string; onClose: () => void; onSavingChange?: (saving: boolean) => void }): JSX.Element {
   useUiLocale();
   const [profile, setProfile] = useState(initial);
+  const [revision, setRevision] = useState(initialRevision);
+  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const updateSaving = (value: boolean) => { setSaving(value); onSavingChange?.(value); };
   const update = useConversationStore(state => state.setConfig);
+  useEffect(() => {
+    if (!dirty) { setProfile(initial); setRevision(initialRevision); }
+  }, [initial, initialRevision, dirty]);
+  const edit = (value: Partial<MainChatProfile>) => { setDirty(true); setProfile(current => ({ ...current, ...value })); };
   const save = async (restore = false) => {
     updateSaving(true);
     try {
-      const config = restore ? await window.electronAPI.conversation.restoreMain() : await window.electronAPI.conversation.saveMain(profile);
+      const config = restore ? await window.electronAPI.conversation.restoreMain(revision) : await window.electronAPI.conversation.saveMain(profile, revision);
       update(config);
       setProfile(config.main);
+      setRevision(config.mainRevision);
+      if (restore) setDirty(false);
       if (!restore) onClose();
-    } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); }
+    } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); reloadAfterConflict(); }
     finally { updateSaving(false); }
   };
   const upload = async (file: File) => {
@@ -46,7 +57,7 @@ function MainChatForm({ initial, onClose, onSavingChange }: { initial: MainChatP
         const context = canvas.getContext("2d");
         if (!context) throw new Error(uiText("collaboration.avatarInvalid"));
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        setProfile(value => ({ ...value, avatar: canvas.toDataURL("image/webp", 0.9) }));
+        edit({ avatar: canvas.toDataURL("image/webp", 0.9) });
       } finally { image.close(); }
     } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); }
     finally { updateSaving(false); }
@@ -61,11 +72,11 @@ function MainChatForm({ initial, onClose, onSavingChange }: { initial: MainChatP
       </label>
     </div>
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.nickname")}</span>
-      <input className={inputClass} required maxLength={40} placeholder={uiText("collaboration.nicknamePlaceholder")} value={profile.nickname} onChange={event => setProfile({ ...profile, nickname: event.target.value })} /></label>
+      <input className={inputClass} required maxLength={40} placeholder={uiText("collaboration.nicknamePlaceholder")} value={profile.nickname} onChange={event => edit({ nickname: event.target.value })} /></label>
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.personality")}</span>
-      <textarea className={`${inputClass} h-28 resize-none`} placeholder={uiText("collaboration.personalityPlaceholder")} value={profile.personality} onChange={event => setProfile({ ...profile, personality: event.target.value })} /></label>
+      <textarea className={`${inputClass} h-28 resize-none`} placeholder={uiText("collaboration.personalityPlaceholder")} value={profile.personality} onChange={event => edit({ personality: event.target.value })} /></label>
     <label className="flex flex-col flex-1 min-h-40"><span className={labelClass}>{uiText("collaboration.rules")}</span>
-      <textarea className={`${inputClass} flex-1 min-h-0 resize-none`} rows={5} placeholder={uiText("collaboration.rulesPlaceholder")} value={profile.rules} onChange={event => setProfile({ ...profile, rules: event.target.value })} /></label>
+      <textarea className={`${inputClass} flex-1 min-h-0 resize-none`} rows={5} placeholder={uiText("collaboration.rulesPlaceholder")} value={profile.rules} onChange={event => edit({ rules: event.target.value })} /></label>
     </div>
     <div className="flex justify-end items-center gap-3 px-4 py-2 shrink-0">
       <button type="button" disabled={saving} onClick={() => void save(true)} className="mr-auto text-xs text-text-secondary hover:text-text-primary">{uiText("collaboration.restore")}</button>
@@ -86,16 +97,18 @@ export function CollaborationSettings(): JSX.Element {
   const submit = async (action: "save" | "delete" | "restore") => {
     setSaving(true);
     try {
-      const result = action === "delete" && editing ? await window.electronAPI.conversation.deleteMode(editing.id)
-        : action === "restore" && editing ? await window.electronAPI.conversation.restoreMode(editing.id)
+      const result = action === "delete" && editing ? await window.electronAPI.conversation.deleteMode(editing.id, editing.revision)
+        : action === "restore" && editing ? await window.electronAPI.conversation.restoreMode(editing.id, editing.revision)
           : await window.electronAPI.conversation.saveMode({ ...draft, id: editing?.id || undefined });
       update(result);
       if (action === "restore") setEditing(result.modes.find(mode => mode.id === editing?.id) ?? null);
       else { setEditing(null); setAdding(false); }
-    } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); }
+    } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); reloadAfterConflict(); }
     finally { setSaving(false); }
   };
-  const editField = (value: Partial<CollaborationMode>) => setEditing({ ...draft, id: "", builtin: false, ...editing, ...value });
+  const editField = (value: Partial<CollaborationMode>) => setEditing({ ...draft, id: "", builtin: false, ...editing, ...value,
+    customizedFields: [...new Set([...(editing?.customizedFields ?? []), ...(["name", "scenario"] as const).filter(key => value[key] !== undefined)])],
+  });
   const closeEditor = () => { setAdding(false); setEditing(null); };
   const editor = (adding || editing) && <PromptEditorDialog title={editing?.id ? modeDisplay(editing, "name") : uiText("collaboration.addMode")} onClose={closeEditor} busy={saving}>
     <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void submit("save"); }}>

@@ -1,169 +1,77 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
-vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
-
-/**
- * 模板**只承载人设**（2026-09-16 用户拍板：子 agent 只跟随主会话的模型配置，
- * 取消全部子 agent 的配置入口）。三条不变式在这里锚住，它们都属于
- * "删掉不会立刻报错、但会在几周后让人误判"的那一类：
- *  ① 已废弃的 model / provider / thinkingLevel 在启动播种时被清掉
- *     （本机 mint-designer 就残留过一个永不生效的 thinkingLevel=max）；
- *  ② 模板**不再有**这三个字段——它们回不来；
- *  ③ 内置执行模板保留名称与运行配置边界，正文覆盖项跨启动保留。
- */
-describe("seedDefaults 的模板字段卫生", () => {
-  let home: string;
-  let mod: typeof import("./agent-templates");
-  let storePath: string;
-
-  const writeStore = (templates: unknown[]): void => {
-    mkdirSync(path.join(home, ".easymint"), { recursive: true });
-    writeFileSync(storePath, JSON.stringify(templates, null, 2), "utf-8");
-  };
-  const readStore = (): Array<Record<string, unknown>> =>
-    JSON.parse(readFileSync(storePath, "utf-8"));
-  const byId = (id: string): Record<string, unknown> | undefined =>
-    readStore().find((t) => t.id === id);
-
-  beforeAll(async () => {
-    // DATA_DIR 在模块顶层求值，故必须先改掉 homedir 再 import
-    home = mkdtempSync(path.join(os.tmpdir(), "em-tpl-seed-"));
-    storePath = path.join(home, ".easymint", "agent-templates.json");
-    vi.spyOn(os, "homedir").mockReturnValue(home);
-    mod = await import("./agent-templates");
+vi.mock("electron", () => ({ app: { isPackaged: false } }));
+let root: string;
+beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), "em-template-config-")); vi.stubEnv("EASYMINT_HOME", root); vi.resetModules(); });
+afterEach(() => { vi.unstubAllEnvs(); fs.rmSync(root, { recursive: true, force: true }); });
+describe("unified execution templates", () => {
+  it("keeps the settings entry usable when startup encounters invalid prompt JSON", async () => {
+    const file = path.join(root, "system-prompts.json"); fs.writeFileSync(file, "{broken");
+    const templates = await import("./agent-templates");
+    expect(templates.seedDefaults()).toContain("初始化未完成");
+    const manager = await import("./system-prompt-manager");
+    expect(manager.getConversationConfig().warning).toContain("合法 JSON");
+    expect(manager.getConversationConfig().main.nickname).toBe("Mint");
+    expect(fs.readFileSync(file, "utf8")).toBe("{broken");
   });
-
-  afterAll(() => {
-    vi.restoreAllMocks();
-    rmSync(home, { recursive: true, force: true });
+  it("resolves exact historical IDs before aliases and never treats prototype names as aliases", async () => {
+    fs.writeFileSync(path.join(root, "system-prompts.json"), JSON.stringify({ version: 2, main: {}, modes: [], templates: [
+      { id: "builder", name: "Historical", description: "Desc", prompt: "EXACT_BUILDER", agentType: "custom" },
+      { id: "toString", name: "Historical2", description: "Desc", prompt: "EXACT_PROTOTYPE_NAME", agentType: "custom" },
+    ] }));
+    const templates = await import("./agent-templates");
+    expect(templates.getTemplate("builder")?.prompt).toBe("EXACT_BUILDER");
+    expect(templates.getTemplate("toString")?.prompt).toBe("EXACT_PROTOTYPE_NAME");
+    expect(templates.getTemplate("constructor")).toBeUndefined();
+    expect(templates.getTemplate("evaluator")?.id).toBe("default-evaluator");
   });
-
-  it("清理既有 json 里的 model / provider / thinkingLevel（含 mint-designer 的历史残留）", () => {
-    writeStore([
-      { id: "mint", name: "Mint", description: "d", prompt: "p", agentType: "mint" },
-      { id: "mint-designer", name: "Mint-D", description: "d", prompt: "p", agentType: "designer", thinkingLevel: "max", model: "claude-opus-4-6" },
-      { id: "default-builder", name: "Builder", description: "d", prompt: "p", agentType: "builder", thinkingLevel: "high", provider: "deepseek" },
-    ]);
-
-    mod.seedDefaults();
-
-    for (const id of ["mint", "default-builder"]) {
-      const t = byId(id)!;
-      expect(t.model, `${id} 的 model 应被清掉`).toBeUndefined();
-      expect(t.provider, `${id} 的 provider 应被清掉`).toBeUndefined();
-      expect(t.thinkingLevel, `${id} 的 thinkingLevel 应被清掉`).toBeUndefined();
-    }
-    // 清理只针对废弃字段，人设内容原样保留
-    expect(byId("mint-designer")).toBeUndefined();
-  });
-
-  it("新建的内置模板本身就不带这三个字段", () => {
-    writeStore([]);
-
-    mod.seedDefaults();
-
+  it("resolves builtins without materializing a second user file", async () => {
+    const templates = await import("./agent-templates"); templates.seedDefaults();
     for (const id of ["default-builder", "default-evaluator"]) {
-      expect("model" in byId(id)!).toBe(false);
-      expect("thinkingLevel" in byId(id)!).toBe(false);
+      const template = templates.getTemplate(id)!; expect(template.prompt).toContain("CodeGraph 可用时");
+      expect(template).not.toHaveProperty("model"); expect(template).not.toHaveProperty("thinkingLevel");
     }
+    expect(fs.existsSync(path.join(root, "agent-templates.json"))).toBe(false);
+    expect(templates.getTemplate("mint")).toBeUndefined();
   });
-
-  it("自定义模板原样保留（它的字段没被误伤）", () => {
-    writeStore([
-      { id: "custom-1", name: "审查员", description: "d", prompt: "p", agentType: "custom" },
-    ]);
-
-    mod.seedDefaults();
-
-    expect(byId("custom-1")!.name).toBe("审查员");
-    expect(byId("custom-1")!.agentType).toBe("custom");
+  it("keeps custom templates, readonly historical metadata, and prompt edits across initialization", async () => {
+    fs.writeFileSync(path.join(root, "agent-templates.json"), JSON.stringify([
+      { id: "default-builder", name: "历史构建者", description: "保留说明", prompt: "MY_RULES", agentType: "builder", model: "retired" },
+      { id: "custom", name: "Custom", description: "Desc", prompt: "CUSTOM_RULES", agentType: "custom", thinkingLevel: "retired" },
+      { id: "mint-designer", name: "旧设计", description: "Old", prompt: "OLD_DESIGNER", agentType: "designer" },
+    ]));
+    const templates = await import("./agent-templates"); templates.seedDefaults(); templates.seedDefaults();
+    expect(templates.getTemplate("default-builder")).toMatchObject({ name: "历史构建者", description: "保留说明", prompt: "MY_RULES" });
+    expect(templates.getTemplate("custom")?.prompt).toBe("CUSTOM_RULES");
+    expect(templates.getTemplate("custom")).not.toHaveProperty("thinkingLevel");
+    expect(templates.listTemplates().some(item => item.id === "mint-designer")).toBe(false);
+    expect(templates.getTemplate("mint-designer")?.prompt).toContain("showcase");
+    const stored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts.json"), "utf8"));
+    expect(stored.legacyTemplates.find((item: { id: string }) => item.id === "mint-designer").prompt).toBe("OLD_DESIGNER");
+    templates.restoreTemplate("default-builder");
+    expect(templates.getTemplate("default-builder")).toMatchObject({ name: "历史构建者", description: "保留说明" });
+    expect(templates.getTemplate("default-builder")?.prompt).not.toBe("MY_RULES");
+    expect(templates.getTemplate("custom")?.prompt).toBe("CUSTOM_RULES");
   });
-
-  it("updates an installed designer's scene start contract while preserving custom roles and names", () => {
-    writeStore([
-      { id:"mint-designer",name:"我的设计师",description:"旧模板起点",prompt:"旧规则",agentType:"designer" },
-      { id:"custom-designer",name:"Custom",description:"用户说明",prompt:"用户设计规则",agentType:"custom" },
-    ]);
-    mod.seedDefaults();
-    expect(byId("mint-designer")).toBeUndefined();
-    expect(mod.getTemplate("mint-designer")!.prompt).toContain("showcase");
-    expect(byId("custom-designer")!.description).toBe("用户说明");
-    expect(byId("custom-designer")!.prompt).toBe("用户设计规则");
+  it("only allows builtin prompt edits and detects stale saves", async () => {
+    const templates = await import("./agent-templates"); const before = templates.getTemplate("default-builder")!;
+    expect(() => templates.updateTemplate("default-builder", { name: "Rename" })).toThrow();
+    expect(() => templates.updateTemplate("default-builder", { agentType: "custom" })).toThrow();
+    for (const id of ["mint", "default-builder", "default-evaluator"]) expect(() => templates.deleteTemplate(id)).toThrow();
+    templates.updateTemplate(before.id, { prompt: "NEW_RULES" }, before.revision);
+    expect(() => templates.updateTemplate(before.id, { prompt: "STALE" }, before.revision)).toThrow("其他窗口");
+    expect(templates.getTemplate(before.id)?.prompt).toBe("NEW_RULES");
   });
-
-  it("Mint 的提示词/描述始终强制内置", () => {
-    writeStore([
-      { id: "mint", name: "Mint", description: "旧描述", prompt: "旧提示词", agentType: "mint" },
-    ]);
-
-    mod.seedDefaults();
-
-    expect(byId("mint")!.prompt).not.toBe("旧提示词");
-    expect(byId("mint")!.description).not.toBe("旧描述");
-  });
-  it("只读执行角色同步提示词和用途描述，保留名称与自定义模板", () => {
-    writeStore([
-      { id: "default-builder", name: "我的编码助手", description: "保留说明", prompt: "旧规则", agentType: "builder" },
-      { id: "default-evaluator", name: "我的复核助手", description: "保留说明", prompt: "旧规则", agentType: "evaluator" },
-      { id: "custom-health", name: "Custom", description: "自定义", prompt: "用户规则", agentType: "custom" },
-    ]);
-    mod.seedDefaults();
-    for (const id of ["default-builder", "default-evaluator"]) {
-      expect(byId(id)!.prompt).toContain("CodeGraph 可用时");
-      expect(byId(id)!.description).not.toBe("保留说明");
-      expect(byId(id)!.name).toBe(id === "default-builder" ? "我的编码助手" : "我的复核助手");
-    }
-    expect(byId("custom-health")!.prompt).toBe("用户规则");
-    expect(byId("custom-health")!.description).toBe("自定义");
-  });
-});
-
-describe("内置模板权限", () => {
-  let home: string;
-  let mod: typeof import("./agent-templates");
-  let storePath: string;
-
-  const writeStore = (templates: unknown[]): void => {
-    mkdirSync(path.join(home, ".easymint"), { recursive: true });
-    writeFileSync(storePath, JSON.stringify(templates, null, 2), "utf-8");
-  };
-
-  beforeAll(async () => {
-    home = mkdtempSync(path.join(os.tmpdir(), "em-tpl-perm-"));
-    storePath = path.join(home, ".easymint", "agent-templates.json");
-    vi.spyOn(os, "homedir").mockReturnValue(home);
-    mod = await import("./agent-templates");
-  });
-
-  afterAll(() => {
-    vi.restoreAllMocks();
-    rmSync(home, { recursive: true, force: true });
-  });
-
-  it("内置执行模板保留名称，主对话使用独立配置入口", () => {
-    writeStore([]);
-    mod.seedDefaults();
-    for (const id of ["mint", "default-builder", "default-evaluator"]) {
-      expect(() => mod.updateTemplate(id, { name: "改名" }), `${id} 应拒绝修改`).toThrow();
-    }
-  });
-
-  it("内置模板不可删除", () => {
-    writeStore([]);
-    mod.seedDefaults();
-    for (const id of ["mint", "default-builder"]) {
-      expect(() => mod.deleteTemplate(id), `${id} 应拒绝删除`).toThrow();
-    }
-  });
-
-  it("自定义模板可改可删（模板机制本身保留）", () => {
-    writeStore([]);
-    const t = mod.createTemplate({ name: "测试员", description: "d", prompt: "p" });
-    expect(mod.updateTemplate(t.id, { name: "测试员2" }).name).toBe("测试员2");
-    mod.deleteTemplate(t.id);
-    expect(mod.getTemplate(t.id)).toBeUndefined();
+  it("custom templates retain IDs on edit and use the same config as the main profile", async () => {
+    const templates = await import("./agent-templates"); const manager = await import("./system-prompt-manager");
+    const custom = templates.createTemplate({ name: "测试员", description: "Desc", prompt: "RULES", agentType: "builder" });
+    expect(custom.agentType).toBe("builder");
+    manager.saveMainChat({ ...manager.getConversationConfig().main, nickname: "Mori" });
+    expect(templates.updateTemplate(custom.id, { name: "新名称" }, custom.revision).id).toBe(custom.id);
+    expect(manager.getConversationConfig().main.nickname).toBe("Mori");
+    expect(templates.listTemplates().find(item => item.id === "mint")?.name).toBe("Mori");
+    templates.deleteTemplate(custom.id); expect(templates.getTemplate(custom.id)).toBeUndefined();
   });
 });

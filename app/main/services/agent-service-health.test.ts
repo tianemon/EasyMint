@@ -1,15 +1,17 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+const THINKING_LANGUAGE_PROMPT = getPromptDefaults().main.rules.match(/<thinking_language>[\s\S]*?<\/thinking_language>/)![0];
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentService } from "./agent-service";
 import type { Store } from "./store";
 import { broadcast } from "./ipc-broadcast";
 import { buildExperienceInjection } from "./experience-service";
-import { THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
+
 import { PERMISSION_RULES_PROMPT } from "./prompt-sections";
 import * as piSessions from "./pi-session";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" }, BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
-vi.mock("./system-prompt-manager", async importOriginal => ({ ...await importOriginal<object>(), resolveEffectivePrompt: () => "CUSTOM_PROMPT" }));
+
 vi.mock("./experience-service", async importOriginal => ({ ...await importOriginal<object>(), buildExperienceInjection: vi.fn(() => "EXPERIENCE_MARKER") }));
 
 function create(session?: object) {
@@ -39,15 +41,15 @@ describe("final prompt assembly", () => {
     await service.runWorker("/tmp/health-project", "AUTHORIZED_TASK", {} as never);
     await vi.waitFor(() => expect(dispose).toHaveBeenCalledOnce());
     expect(factory).toHaveBeenCalledOnce();
-    expect(factory.mock.calls[0][0]).toMatchObject({ deliveryMode: "task", systemPrompt: expect.stringContaining("CUSTOM_PROMPT") });
+    expect(factory.mock.calls[0][0]).toMatchObject({ deliveryMode: "task", systemPrompt: expect.stringContaining("EasyMint") });
   });
-  it("keeps custom content, environment and permission rules exactly once, with language rules last", () => {
+  it("keeps the runtime base separate from editable role and thinking language preferences", () => {
     const { internals } = create();
     const prompt = internals.buildSystemPrompt("/tmp/health-project", true);
-    expect(prompt).toContain("CUSTOM_PROMPT");
+    expect(prompt).not.toContain("项目经理 + 架构师");
     expect(prompt).toContain("/tmp/health-project");
     expect(prompt.split(PERMISSION_RULES_PROMPT)).toHaveLength(2);
-    expect(prompt.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);
+    expect(prompt).not.toContain(THINKING_LANGUAGE_PROMPT);
   });
   it("does not inject experiences when the tools were not installed even if settings enable them", () => {
     const { internals } = create();

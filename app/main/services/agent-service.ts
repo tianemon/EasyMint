@@ -17,7 +17,7 @@ import { broadcast, broadcastEvent } from "./ipc-broadcast";
 import { Store } from "./store";
 import { canRewindDetachedUser, isStaleSdkBusyRefusal } from "./rewind-policy";
 import { waitForAbortSettlement, settleSessionIdle } from "./abort-settlement";
-import { resolveEffectivePrompt, getConversationConfig, conversationPromptSection } from "./system-prompt-manager";
+import { getConversationConfig, conversationPromptSection } from "./system-prompt-manager";
 import { UI_DESIGN_MODE_ID } from "../../shared/collaboration";
 import { createGuidanceTool } from "./tools/guidance-tool";
 import { getActiveModel } from "./pi-init";
@@ -27,7 +27,6 @@ import { createWithPermissionGate, withSessionCreationLock } from "./session-per
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
-import { safeProjectDesignSection } from "./project-design";
 import { isSessionOpenElsewhere } from "./session-visibility";
 import { sumUsage, type UsageEntry } from "./usage-totals";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
@@ -64,7 +63,6 @@ import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile, PERMISSION_RULES_PROMPT } from "./prompt-sections";
-import { THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
 import { resolveThinkingLevel } from "../../shared/thinking-levels";
 import { isPermissionModeTightening, normalizePermissionMode } from "./permission/execution-context";
 
@@ -796,10 +794,7 @@ export class AgentService {
   private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean; learnInstalled?: boolean; collaborationModeIds?: string[] }): string {
     const parts: string[] = [];
 
-    // Mint-D 主会话 = 基础 Mint prompt(或用户自定义) + 设计能力增强段(附加不替换)
-    const effective = resolveEffectivePrompt();
-    if (opts?.worker) parts.push(effective);
-    else parts.push(conversationPromptSection(opts?.collaborationModeIds ?? (isDesigner ? [UI_DESIGN_MODE_ID] : []), effective));
+    parts.push("你运行在 EasyMint 桌面应用中。当前身份由主对话配置或任务调度提供；实际工具、权限与宿主事件以运行时为准。");
 
     // skill 注入已收敛到 Pi 原生 <available_skills>（pi-session skillsOverride 并入四来源），
     // EM 自拼 skills 段（buildSkillsPrompt）退役——避免双重注入
@@ -809,8 +804,6 @@ export class AgentService {
     if (env) parts.push(env);
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
-    const visual = safeProjectDesignSection(projectPath);
-    if (visual) parts.push(visual);
 
     // 权限边界（三档 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，
     // 减少无谓的越界尝试；工具被拒时错误消息会带统一策略的规则、目标和阶段
@@ -824,9 +817,6 @@ export class AgentService {
       const exp = buildExperienceInjection(projectPath);
       if (exp) parts.push(exp);
     }
-
-    // 思考语言段恒排最后——位置敏感，且必须晚于设计增强段与全部动态 section
-    parts.push(THINKING_LANGUAGE_PROMPT);
 
     return parts.join("\n\n");
   }
@@ -1908,7 +1898,13 @@ export class AgentService {
       // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
       const newSessionId = randomUUID();
       writeCache(resumeSessionId ?? newSessionId, { collaborationModeIds: modeIds });
-      const getConversationPrompt = () => conversationPromptSection(readCache(resolveParentSessionId(resumeSessionId ?? newSessionId))?.collaborationModeIds ?? modeIds);
+      let lastPromptWarning: string | undefined;
+      const getConversationPrompt = () => {
+        const config = getConversationConfig();
+        if (config.warning && config.warning !== lastPromptWarning) broadcast("conversation:changed", config);
+        lastPromptWarning = config.warning;
+        return conversationPromptSection(readCache(resolveParentSessionId(resumeSessionId ?? newSessionId))?.collaborationModeIds ?? modeIds, config);
+      };
 
       // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
       // 前端在发首条消息前切的模式写的是 __new_xxx 临时缓存，主进程的 sessionId 是 randomUUID，

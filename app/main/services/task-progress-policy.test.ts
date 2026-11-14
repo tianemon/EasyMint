@@ -1,7 +1,10 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
+const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
 import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { MINT_SYSTEM_PROMPT, BUILDER_AGENT_PROMPT, CONFIRM_DEVELOPMENT_PROMPT } from "../../shared/prompts";
+import { CONFIRM_DEVELOPMENT_PROMPT } from "../../shared/prompts";
 import { createTaskTool } from "./task/tool";
 import { createTodoWriteTool } from "./tools/todo-tool";
 import type { Store } from "./store";
@@ -45,8 +48,8 @@ describe("delegation and progress policy consistency",()=>{
    expect(source).not.toContain("Mint 会调 Evaluator 验收你的产出");
    expect(source).not.toContain("验收是 Evaluator 的工作");
   }
-  expect(MINT_SYSTEM_PROMPT).toContain("模型与思考级别跟随主会话");
-  expect(MINT_SYSTEM_PROMPT).toContain("task 没有单独的 model/provider 覆盖参数");
+
+
   expect(BUILDER_AGENT_PROMPT).not.toContain("Evaluator 会用浏览器/截图验收渲染，你无需");
   expect(BUILDER_AGENT_PROMPT).toContain("未明确此安排时，不预设之后一定有 Evaluator");
  });

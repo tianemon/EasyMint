@@ -8,7 +8,7 @@ import { PromptEditorDialog } from "./PromptEditorDialog";
 import { useConversationConfig } from "../stores/conversation-store";
 
 interface Template {
-  id: string; name: string; description: string; prompt: string; agentType: string;
+  id: string; name: string; description: string; prompt: string; agentType: string; revision?: string;
 }
 
 /** 内置执行模板保留名称与职责，编辑入口仅开放模板正文。 */
@@ -35,7 +35,7 @@ export function AgentTemplateSettings(): JSX.Element {
   const handleSave = async (data: { name: string; description: string; prompt: string }) => {
     if (!data.name.trim() || !data.prompt.trim()) return;
     if (editing) {
-      await window.electronAPI.agentTemplates.update(editing.id, data);
+      await window.electronAPI.agentTemplates.update(editing.id, data, editing.revision);
     } else {
       await window.electronAPI.agentTemplates.create({ ...data, agentType: "custom" });
     }
@@ -46,7 +46,7 @@ export function AgentTemplateSettings(): JSX.Element {
   const handleDelete = async (id: string) => {
     const ok = await confirmDialog({ title: uiText("ui.AgentTemplateSettings.deleteThisTemplate"), message: uiText("ui.AgentTemplateSettings.thisCannotBeUndone"), confirmText: uiText("ui.AgentTemplateSettings.delete"), danger: true });
     if (!ok) return;
-    await window.electronAPI.agentTemplates.delete(id);
+    await window.electronAPI.agentTemplates.delete(id, templates.find(template => template.id === id)?.revision);
     load();
   };
 
@@ -103,16 +103,18 @@ export function AgentTemplateSettings(): JSX.Element {
 
 function TemplatePromptForm({ template, onClose, onSavingChange }: { template: Template; onClose: () => void; onSavingChange: (saving: boolean) => void }): JSX.Element {
   const [prompt, setPrompt] = useState(template.prompt);
+  const [revision, setRevision] = useState(template.revision);
   const [saving, setSaving] = useState(false);
   const save = async (restore = false) => {
     setSaving(true);
     onSavingChange(true);
     try {
       if (restore) {
-        const result = await window.electronAPI.agentTemplates.restore(template.id);
+        const result = await window.electronAPI.agentTemplates.restore(template.id, revision);
         setPrompt(result.prompt);
+        setRevision(result.revision);
       } else {
-        await window.electronAPI.agentTemplates.update(template.id, { prompt });
+        await window.electronAPI.agentTemplates.update(template.id, { prompt }, revision);
         onClose();
       }
     } catch (error) { toast(uiText("collaboration.failed", { detail: appMessage(error instanceof Error ? error.message : String(error)) })); }

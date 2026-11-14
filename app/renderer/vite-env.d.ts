@@ -694,19 +694,19 @@ interface ElectronAPI {
     onAuthEvent: (callback: (data: import("@shared/provider-auth").ProviderAuthEventMessage) => void) => () => void;
   };
   agentTemplates: {
-    list: () => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }[]>;
-    create: (input: { name: string; description: string; prompt: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }>;
-    update: (id: string, input: { name?: string; description?: string; prompt?: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }>;
-    delete: (id: string) => Promise<void>;
-    restore: (id: string) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string }>;
+    list: () => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string; revision?: string }[]>;
+    create: (input: { name: string; description: string; prompt: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string; revision?: string }>;
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; agentType?: string }, revision?: string) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string; revision?: string }>;
+    delete: (id: string, revision?: string) => Promise<void>;
+    restore: (id: string, revision?: string) => Promise<{ id: string; name: string; description: string; prompt: string; agentType: string; revision?: string }>;
   };
   conversation: {
     get: () => Promise<import("@shared/collaboration").ConversationConfig>;
-    saveMain: (input: import("@shared/collaboration").MainChatProfile) => Promise<import("@shared/collaboration").ConversationConfig>;
-    restoreMain: () => Promise<import("@shared/collaboration").ConversationConfig>;
+    saveMain: (input: import("@shared/collaboration").MainChatProfile, revision?: string) => Promise<import("@shared/collaboration").ConversationConfig>;
+    restoreMain: (revision?: string) => Promise<import("@shared/collaboration").ConversationConfig>;
     saveMode: (input: Omit<import("@shared/collaboration").CollaborationMode, "id" | "builtin"> & { id?: string }) => Promise<import("@shared/collaboration").ConversationConfig>;
-    deleteMode: (id: string) => Promise<import("@shared/collaboration").ConversationConfig>;
-    restoreMode: (id: string) => Promise<import("@shared/collaboration").ConversationConfig>;
+    deleteMode: (id: string, revision?: string) => Promise<import("@shared/collaboration").ConversationConfig>;
+    restoreMode: (id: string, revision?: string) => Promise<import("@shared/collaboration").ConversationConfig>;
     onChanged: (callback: (config: import("@shared/collaboration").ConversationConfig) => void) => () => void;
     getModes: (sessionId: string, legacyDesigner?: boolean) => Promise<string[]>;
   };

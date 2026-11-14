@@ -18,7 +18,6 @@ import { supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
 import { ensureDesignerTemplates } from "../designer-seed";
 import { normalizePermissionMode } from "../permission/execution-context";
-import { safeProjectDesignSection } from "../project-design";
 import { createProjectDesignTool } from "../project-design-tool";
 import { resolveThinkingLevel } from "../../../shared/thinking-levels";
 import { PERMISSION_RULES_PROMPT } from "../prompt-sections";
@@ -188,6 +187,11 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   // 再经 adaptSubagentThinkingLevel 按子 Agent 模型能力自适应（模型不支持的档会自动降）。
   // tpl 在这里取一次：模板只提供人格 prompt，不再提供任何运行配置。
   const tpl = opts.agent ? getTemplate(opts.agent) : undefined;
+  if (opts.agent && !tpl) return {
+    index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
+    exitCode: 1, output: "", stderr: `指定模板已不可用：${opts.agent}`, truncated: false,
+    durationMs: Date.now() - startMs, error: "指定执行模板不存在，请刷新模板清单后重试", tokens: 0, requests: 0,
+  };
   const subagentThinkingBase = subagentThinkingLevel(opts.parentThinkingLevel);
 
   const tools = opts.readOnly
@@ -238,7 +242,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const schemaHint = typeof opts.outputSchema === "object"
       ? `\n\n完成工作后，必须调 yield 工具返回结果。data 对象需包含以下字段: ${JSON.stringify(opts.outputSchema)}`
       : "";
-    const fullPrompt = (tpl?.prompt ? tpl.prompt + "\n\n" : "") + safeProjectDesignSection(resolvedPath) + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
+    const fullPrompt = (tpl?.prompt ? tpl.prompt + "\n\n" : "") + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
     const session2 = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model,
       // 思考等级跟随主会话，再按模型能力自适应
@@ -264,7 +268,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   // （tpl 与思考等级基础值已在函数早期解析，两个分支共用）
   const tplPrompt = tpl?.prompt;
   // The task belongs to the first user message below, not the stable role instructions.
-  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + safeProjectDesignSection(resolvedPath) + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
+  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
 
   try {
     const session = await createPiSession({

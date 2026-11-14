@@ -2194,7 +2194,7 @@
   "collaboration.description": "Description",
   "collaboration.descriptionPlaceholder": "Briefly describe responsibilities and suitable tasks",
   "collaboration.nicknamePlaceholder": "For example: Mint",
-  "collaboration.personalityPlaceholder": "Describe personality, tone, format and level of detail",
+  "collaboration.personalityPlaceholder": "Describe identity, role, personality, response style and level of detail",
   "collaboration.rulesPlaceholder": "Describe responsibilities, execution rules and deliverables",
   "collaboration.modeNamePlaceholder": "For example: Brand guidelines",
   "collaboration.scenarioPlaceholder": "For example: When writing brand copy or designing brand pages",

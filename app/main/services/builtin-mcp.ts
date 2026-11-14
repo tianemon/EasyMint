@@ -52,7 +52,7 @@ export async function createProductTools(projectPath?: string, getSessionId?: ()
     broadcast("agent:confirm-dev", { projectPath, sessionId });
     return "Development confirmation ready";
   })) as any);
-  tools.push(defineTool(noArgTool("refresh_tasks", "刷新任务列表", "通知前端重新加载 task.json。", () => {
+  tools.push(defineTool(noArgTool("refresh_tasks", "刷新任务列表", "新增／删除／修改 task.json 任务后通知前端重新加载；不替代实际任务验收。", () => {
     if (!projectPath) return "当前无项目路径";
     broadcast("agent:task-status", { taskId: "", status: "pending", projectPath });
     return "已通知前端刷新任务列表";

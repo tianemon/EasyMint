@@ -213,15 +213,19 @@ async function buildSession(
     extensionFactories: [...mcpExtensions, permissionExtension, {
       name: "easymint-project-visual", hidden: true, factory: pi => {
         pi.on("before_agent_start", (event) => {
-          const visual = safeProjectDesignSection(opts.cwd);
-          let base = event.systemPrompt.replace(/<easymint_project_visual>[\s\S]*?<\/easymint_project_visual>/g, "").trimEnd();
-          if (opts.getConversationPrompt) {
-            const current = opts.getConversationPrompt();
-            base = /<easymint_collaboration>[\s\S]*?<\/easymint_collaboration>/.test(base)
-              ? base.replace(/<easymint_collaboration>[\s\S]*?<\/easymint_collaboration>/g, () => current)
-              : `${base}\n\n${current}`;
+          const visual = safeProjectDesignSection(opts.cwd).trim();
+          const sections = event.systemPromptOptions.sections;
+          const open = "<easymint_project_visual>", close = "</easymint_project_visual>";
+          // 只切掉宿主生成的外壳，不解析／替换任意用户正文中的标签。
+          sections.easymint_project_visual = visual.startsWith(open) && visual.endsWith(close)
+            ? visual.slice(open.length, -close.length).trim() : visual;
+          if (opts.getConversationPrompt) sections.easymint_collaboration = opts.getConversationPrompt();
+          if (event.systemPromptOptions.forceSystemPrompt !== undefined) {
+            // 已授权扩展可以提供opaque基底；SDK的force会跳过sections，补上当轮宿主拥有的段。
+            const current = ["easymint_project_visual", ...(opts.getConversationPrompt ? ["easymint_collaboration"] : [])]
+              .filter(key => sections[key]).map(key => `<${key}>\n${sections[key]}\n</${key}>`).join("\n\n");
+            event.systemPromptOptions.forceSystemPrompt += current ? `\n\n${current}` : "";
           }
-          if (visual || base !== event.systemPrompt.trimEnd()) return { systemPrompt: base + visual };
         });
       },
     }],

@@ -1,13 +1,16 @@
+import { getPromptDefaults } from "../main/services/system-prompt-manager";
+import { vi } from "vitest";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
+const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
+const EVALUATOR_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-evaluator")!.prompt;
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import {
-  MINT_SYSTEM_PROMPT, BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT,
-  CREATION_COLLABORATION, buildInitTriggerPrompt, buildDirectCreatePrompt,
+import { CREATION_COLLABORATION, buildInitTriggerPrompt, buildDirectCreatePrompt,
   buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt,
-  buildInitInstruction, detectProfile, systemMessage,
-} from './prompts';
+  buildInitInstruction, detectProfile, systemMessage } from './prompts';
 
 const skills = ['creation-guide', 'creation-flow-intent', 'creation-flow-features',
   'creation-flow-prototype', 'creation-flow-techspec', 'creation-flow-cost'];

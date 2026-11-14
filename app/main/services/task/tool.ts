@@ -84,7 +84,7 @@ export function formatDelegationResult(result: BatchResult, stopSource?: TaskSto
 }
 
 export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefinition> {
-  const defineTool = await getDefineToolFn();
+  const defineTool = await getDefineToolFn(true);
 
   // 动态生成 agent 参数描述:列出所有可用模板(id + 名称 + 描述),Mint 可见可选。
   // 这里**不特判任何业务角色**——某模板特有的调用要求由该模板自己在 description 里声明
@@ -104,12 +104,10 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       + "发起后立即返回启动信息，子任务在后台执行，完成结果异步送回主会话，由 Mint 核实并汇总。"
       + "主要用途是**长任务的上下文隔离**：大量阅读、探索或实验的中间过程留在独立会话，返回有边界的结论与证据。"
       + "也可用 tasks 数组**异步并行**搜集不同资料或探索互不依赖的方向，或对指定范围做**独立复核**。"
+      + "子 Agent 看不到主对话历史，须在任务输入里补齐必要背景；深度为1，不再委派。模型与思考级别跟随主会话，task没有model/provider覆盖参数。启动信息不是完成，完成结果由异步通知提供，不重复派遣或空转轮询。"
       + agentDesc,
     promptSnippet: "委派子 Agent 执行任务（默认无模板白板，可指定 default-builder/default-evaluator 等模板）",
-    // 注意：promptGuidelines 只在 Pi 的默认提示词模式下被拼进 Guidelines 段；EM 走 systemPromptOverride
-    // （buildSystemPrompt 的 customPrompt 分支，@earendil-works/pi-coding-agent/dist/core/system-prompt.js
-    // 的 15-35 行不消费该字段）→ 本数组**当前不进模型上下文**。保持只写「工具自身怎么用」：
-    // 别把流程判断标准塞进来（写了既不生效、又会误导后来人）。需要模型读到的一律写进上面的 description。
+    // 通过显式适配将已核对指南送入工具description。
     promptGuidelines: [
       "用途：长任务上下文隔离（主要）、独立方向异步并行、指定范围独立复核；是否采用由主会话的任务执行规则决定",
       "通用任务（查资料、读代码、分析）省略 agent 参数，用默认白板子 Agent；特定角色（写代码→default-builder、验收→default-evaluator 等）才指定 agent",
@@ -128,7 +126,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         },
         prompt: {
           type: "string" as const,
-          description: "详细任务指令（单任务模式），相当于子 Agent 的 system prompt 追加内容",
+          description: "详细任务指令（单任务模式），作为子 Agent 的任务消息，不覆盖其系统契约",
         },
         taskId: {
           type: "string" as const,
@@ -338,7 +336,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 /** Mint 建模板工具:一句话创建 Agent 模板(阶段D)。
     注入到主会话工具集,Mint 可用它动态创建子 Agent 模板 */
 export async function createAgentTemplateTool(): Promise<ToolDefinition> {
-  const defineTool = await getDefineToolFn();
+  const defineTool = await getDefineToolFn(true);
   return defineTool({
     name: "create_agent_template",
     label: "创建 Agent 模板",

@@ -1,9 +1,12 @@
+import { getPromptDefaults } from "../../../../main/services/system-prompt-manager";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const DEFAULT_MAIN_CHAT = getPromptDefaults().main;
 // @vitest-environment happy-dom
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ConversationConfig } from "@shared/collaboration";
-import { DEFAULT_MAIN_CHAT, BUILTIN_MODE_DISPLAY } from "@shared/collaboration";
+
 import { uiI18n } from "../../lib/i18n";
 import { MainChatSettings, CollaborationSettings } from "./ConversationSettings";
 import { AgentTemplateSettings } from "../AgentTemplateSettings";
@@ -16,8 +19,8 @@ const saveMain = vi.fn(), saveMode = vi.fn(), update = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   config = { main: { ...DEFAULT_MAIN_CHAT, rules: "Existing rules" }, modes: [
-    { id: "ui-design", name: "UI 设计", scenario: "设计新界面时", prompt: "UI rules", defaultEnabled: false, builtin: true },
-    { id: "domain-guidance", name: "领域引导", scenario: "进入陌生领域时", prompt: "Guidance rules", defaultEnabled: false, builtin: true },
+    { id: "ui-design", name: "UI 设计", scenario: "设计新界面时", customizedFields: ["scenario"], prompt: "UI rules", defaultEnabled: false, builtin: true },
+    { id: "domain-guidance", name: "领域引导", scenario: "进入陌生领域时", customizedFields: ["scenario"], prompt: "Guidance rules", defaultEnabled: false, builtin: true },
   ] };
   saveMain.mockReset().mockImplementation(async main => { config = { ...config, main }; return config; });
   saveMode.mockReset().mockResolvedValue(config);
@@ -48,8 +51,22 @@ it("saves nickname, personality and rules as separate main-chat fields", async (
   await input(host.querySelectorAll("textarea")[0]!, "Concise style");
   await input(host.querySelectorAll("textarea")[1]!, "Updated rules");
   await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-  expect(saveMain).toHaveBeenCalledWith({ nickname: "Mori", avatar: "", personality: "Concise style", rules: "Updated rules" });
+  expect(saveMain).toHaveBeenCalledWith({ nickname: "Mori", avatar: "", personality: "Concise style", rules: "Updated rules" }, undefined);
   expect(host.textContent).not.toContain("适用范围");
+});
+
+it.each([false, true])("refreshes an untouched editor but preserves a dirty draft when the latest revision arrives (dirty=%s)", async dirty => {
+  config.main = { ...config.main, nickname: "Cached" }; config.mainRevision = "old-revision";
+  useConversationStore.getState().setConfig(config);
+  let resolve!: (value: ConversationConfig) => void;
+  window.electronAPI.conversation.get = () => new Promise(done => { resolve = done; });
+  await act(async () => root.render(createElement(MainChatSettings, { onClose: () => {} })));
+  if (dirty) await input(host.querySelector('input:not([type="file"])')!, "Draft");
+  const fresh = { ...config, main: { ...config.main, nickname: "Fresh" }, mainRevision: "fresh-revision" };
+  await act(async () => resolve(fresh));
+  expect((host.querySelector('input:not([type="file"])') as HTMLInputElement).value).toBe(dirty ? "Draft" : "Fresh");
+  await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(saveMain.mock.lastCall?.[1]).toBe(dirty ? "old-revision" : "fresh-revision");
 });
 
 it("edits only the execution template prompt and sends no main-chat profile fields", async () => {
@@ -67,7 +84,7 @@ it("edits only the execution template prompt and sends no main-chat profile fiel
   expect(dialog.querySelector(".overflow-y-auto")!.contains(dialog.querySelector('button[type="submit"]'))).toBe(false);
   await input(dialog.querySelector("textarea")!, "New builder instructions");
   await act(async () => dialog.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-  expect(update).toHaveBeenCalledWith("default-builder", { prompt: "New builder instructions" });
+  expect(update).toHaveBeenCalledWith("default-builder", { prompt: "New builder instructions" }, undefined);
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   const main = [...host.querySelectorAll("div.group")].find(row => row.textContent?.includes("Mint"))!;
   await act(async () => main.querySelector<HTMLButtonElement>("button")!.click());
@@ -138,7 +155,7 @@ it("creates a custom mode without configuring an icon and supports stacked selec
   await act(async () => defaultEnabled.click());
   expect(defaultEnabled.getAttribute("aria-checked")).toBe("true");
   await act(async () => editor.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-  expect(saveMode).toHaveBeenCalledWith({ id: undefined, name: "Writing", scenario: "When writing reports", prompt: "Write short paragraphs", defaultEnabled: true, builtin: false });
+  expect(saveMode).toHaveBeenCalledWith({ id: undefined, customizedFields: ["name", "scenario"], name: "Writing", scenario: "When writing reports", prompt: "Write short paragraphs", defaultEnabled: true, builtin: false });
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   const change = vi.fn();
   await act(async () => root.render(createElement(CollaborationModePicker, { modes: config.modes, selected: ["ui-design"], onChange: change })));
@@ -154,8 +171,8 @@ it("creates a custom mode without configuring an icon and supports stacked selec
 });
 
 it("localizes untouched built-in mode labels while keeping user wording", async () => {
-  config.modes[0] = { ...config.modes[0]!, name: BUILTIN_MODE_DISPLAY["ui-design"]!.name, scenario: BUILTIN_MODE_DISPLAY["ui-design"]!.scenario };
-  config.modes[1] = { ...config.modes[1]!, name: "我的引导", scenario: "我的场景" };
+  config.modes[0] = { ...config.modes[0]!, name: getPromptDefaults().modes[0]!.name, scenario: getPromptDefaults().modes[0]!.scenario, customizedFields: [] };
+  config.modes[1] = { ...config.modes[1]!, name: "我的引导", scenario: "我的场景", customizedFields: ["name", "scenario"] };
   await uiI18n.changeLanguage("en");
   await act(async () => root.render(createElement(CollaborationModePicker, { modes: config.modes, selected: [], onChange: () => {} })));
   await act(async () => host.querySelector("button")!.click());

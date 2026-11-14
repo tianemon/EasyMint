@@ -24,7 +24,7 @@ function summarize(projectPath: string, lead: string): string {
 }
 
 export async function createUserTodoTool(projectPath: string): Promise<ToolDefinition> {
-  const defineTool = await getDefineToolFn();
+  const defineTool = await getDefineToolFn(true);
   return defineTool({
     name: "todo_user",
     label: "管理用户待办",

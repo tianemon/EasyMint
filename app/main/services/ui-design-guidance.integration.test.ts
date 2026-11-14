@@ -1,8 +1,11 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+const MINT_DESIGN_BOOST = getPromptDefaults().modes.find(item => item.id === "ui-design")!.prompt;
+const DESIGNER_AGENT_PROMPT = getPromptDefaults().legacyDesigner;
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import { DESIGNER_AGENT_PROMPT, MINT_DESIGN_BOOST } from "../../shared/prompts";
+
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() }, BrowserWindow: { getAllWindows: () => [] } }));
 let root: string;
 const priorHome = process.env.EASYMINT_HOME, priorPi = process.env.PI_CODING_AGENT_DIR;
@@ -23,9 +26,10 @@ it("routes enhanced Mint and the seeded Mint-D through the actual SDK skill loca
   ]);
   const project = path.join(root, "project"); fs.mkdirSync(project);
   saveProjectDesign(project, { styleId: "glass" }, "technical", path.resolve("resources"));
-  const store = new Store(root), service = new AgentService(store);
-  const build = (service as unknown as { buildSystemPrompt(project:string,designer?:boolean):string }).buildSystemPrompt.bind(service);
-  const enhanced = build(project,true), standard = build(project,false);
+  const store = new Store(root);
+  void AgentService;
+  const manager = await import("./system-prompt-manager");
+  const enhanced = manager.conversationPromptSection(["ui-design"]), standard = manager.conversationPromptSection([]);
   expect(enhanced).toContain(MINT_DESIGN_BOOST);
   expect(standard).not.toContain(MINT_DESIGN_BOOST);
   seedDefaults();

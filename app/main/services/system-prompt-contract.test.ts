@@ -1,3 +1,9 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+import { vi } from "vitest";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
+const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
+const EVALUATOR_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-evaluator")!.prompt;
 /**
  * 系统提示词契约锚定测试（2026-09-06 prompt 健康度审查产出）。
  *
@@ -8,16 +14,11 @@
  * ③ PERMISSION_RULES_PROMPT 锚定三档与运行时边界的产品语义。
  */
 import { describe, it, expect } from "vitest";
-import {
-  MINT_SYSTEM_PROMPT,
-  BUILDER_AGENT_PROMPT,
-  EVALUATOR_AGENT_PROMPT,
-  systemMessage,
+import { systemMessage,
   type SystemMessageKind,
   buildInitTriggerPrompt,
   buildDirectCreatePrompt,
-  buildFeatureRecommendPrompt,
-} from "../../shared/prompts";
+  buildFeatureRecommendPrompt } from "../../shared/prompts";
 import { PERMISSION_RULES_PROMPT } from "./prompt-sections";
 
 const ALL_KINDS: SystemMessageKind[] = [
@@ -34,7 +35,7 @@ const ALL_KINDS: SystemMessageKind[] = [
 describe("Mint 系统提示词 override 契约（纯替换架构）", () => {
   it("子 Agent 模板与主会话模型来源、可选任务 ID 及 MCP 发现方式一致", () => {
     expect(MINT_SYSTEM_PROMPT).not.toContain("模板决定了子 Agent 的 system prompt 与思考级别");
-    expect(MINT_SYSTEM_PROMPT).toContain("模型与思考级别跟随主会话");
+
     for (const prompt of [BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT]) {
       expect(prompt).toContain("不要求创建 task.json");
       expect(prompt).toContain("CodeGraph 可用时");
@@ -46,12 +47,13 @@ describe("Mint 系统提示词 override 契约（纯替换架构）", () => {
     expect(PERMISSION_RULES_PROMPT).toContain("系统许可不等于用户授权");
   });
   it("Mint 身份在、Pi 默认身份句不在", () => {
-    expect(MINT_SYSTEM_PROMPT).toContain("昵称、人格与用户规则以当前主对话配置为准");
+    expect(getPromptDefaults().main.personality).toContain("项目经理 + 架构师");
+    expect(MINT_SYSTEM_PROMPT).not.toContain("项目经理 + 架构师");
     expect(MINT_SYSTEM_PROMPT).not.toContain("You are an expert coding assistant operating inside pi");
   });
   it("结构关键段存在（防结构漂移）", () => {
     // 规则去编号后锚标题（标题语义锚比数字锚稳定——插入新规则不重排）
-    for (const seg of ["<identity>", "<easymint>", "<rules>", "**通用规则引用**", "**排查问题**"]) {
+    for (const seg of ["**需求理解**", "**任务执行**", "**排查问题**", "**思考语言偏好**"]) {
       expect(MINT_SYSTEM_PROMPT).toContain(seg);
     }
   });

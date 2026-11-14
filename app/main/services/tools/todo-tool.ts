@@ -26,7 +26,7 @@ export async function createTodoWriteTool(
   projectPath: string,
   sessionId: string,
 ): Promise<ToolDefinition> {
-  const defineTool = await getDefineToolFn();
+  const defineTool = await getDefineToolFn(true);
   return defineTool({
     name: "todo_write",
     label: "更新步骤",

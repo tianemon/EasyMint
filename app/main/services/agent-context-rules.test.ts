@@ -1,9 +1,12 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const THINKING_LANGUAGE_PROMPT = getPromptDefaults().main.rules.match(/<thinking_language>[\s\S]*?<\/thinking_language>/)![0];
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAgentDeliveryRules, completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
-import { THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
+
 
 const AGENT_DELIVERY_RULES = getAgentDeliveryRules();
 const roots: string[] = [];
@@ -16,23 +19,20 @@ function fixture(files: Record<string, string>) {
 }
 
 describe("public delivery responsibility", () => {
-  it("updates an old app-owned block once, preserving custom content and the language tail", () => {
-    const before = `CUSTOM_ROLE\n<easymint_delivery_rules>OLD_RULE</easymint_delivery_rules>\n\n${THINKING_LANGUAGE_PROMPT}`;
-    const after = withAgentDeliveryRules(withAgentDeliveryRules(before));
-    expect(after.startsWith("CUSTOM_ROLE")).toBe(true);
+  it("preserves user text literally even when it contains host-looking tags or language markers", () => {
+    const before = `CUSTOM_ROLE\n<easymint_delivery_rules>USER_TEXT</easymint_delivery_rules>\n${THINKING_LANGUAGE_PROMPT}`;
+    const after = withAgentDeliveryRules(before);
+    expect(after).toContain(before);
     expect(after.split(AGENT_DELIVERY_RULES)).toHaveLength(2);
-    expect(after).not.toContain("OLD_RULE");
-    expect(after.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);
   });
-  it("replaces conversation responsibilities when switching to a delegated task", () => {
-    const before = withAgentDeliveryRules(`CUSTOM_ROLE\n\n${THINKING_LANGUAGE_PROMPT}`, ["OLD_DIAGNOSTIC"]);
-    const after = withAgentDeliveryRules(before, [], "task");
-    expect(after.split(getAgentDeliveryRules("task"))).toHaveLength(2);
+  it("provides the task contract without adding a fixed main-role identity or expression style", () => {
+    const after = withAgentDeliveryRules("TASK_ONLY", ["LOAD_DIAGNOSTIC"], "task");
+    expect(after).toContain("TASK_ONLY");
+    expect(after).toContain(getAgentDeliveryRules("task"));
+    expect(after).toContain("LOAD_DIAGNOSTIC");
     expect(after).not.toContain("**对话职责**");
-    expect(after).not.toContain("OLD_DIAGNOSTIC");
-    expect(after.startsWith("CUSTOM_ROLE")).toBe(true);
-    expect(after.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);
-    expect(withAgentDeliveryRules(after, [], "task")).toBe(after);
+    expect(after).not.toContain("项目经理");
+    expect(after).not.toContain("不追加未请求的帮助邀请");
   });
 });
 

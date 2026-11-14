@@ -1,3 +1,9 @@
+import { getPromptDefaults } from "./system-prompt-manager";
+const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
+const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
+const EVALUATOR_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-evaluator")!.prompt;
+const DESIGNER_AGENT_PROMPT = getPromptDefaults().legacyDesigner;
+const THINKING_LANGUAGE_PROMPT = getPromptDefaults().main.rules.match(/<thinking_language>[\s\S]*?<\/thinking_language>/)![0];
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,7 +15,7 @@ import { getModelRuntime } from "./pi-init";
 import { Store } from "./store";
 import { getAgentDeliveryRules } from "./agent-context-rules";
 import type { AgentDeliveryMode } from "./agent-context-rules";
-import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT, MINT_SYSTEM_PROMPT, THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
+
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() }, BrowserWindow: { getAllWindows: () => [], getFocusedWindow: () => null } }));
 vi.mock("./pi-init", async original => ({ ...await original<object>(), getModelRuntime: vi.fn() }));
@@ -73,7 +79,7 @@ describe("delivery rules in production sessions", () => {
     expect(fs.readdirSync(env.cwd).sort()).toEqual(Object.keys(files).sort());
   });
 
-  it.each(["conversation", "task"] as const)("sends %s rules once across a tool turn and disk resume, preserving the language tail", async mode => {
+  it.each(["conversation", "task"] as const)("sends %s rules once across a tool turn and disk resume, preserving the complete editable body", async mode => {
     const env = await setup({ "AGENTS.md": "USE_PNPM", "CLAUDE.md": "TEAM_RULE" });
     const requests: string[] = [];
     env.faux.setResponses([
@@ -83,7 +89,7 @@ describe("delivery rules in production sessions", () => {
     ]);
     const base = `CUSTOM_ROLE\n\n${THINKING_LANGUAGE_PROMPT}`;
     const first = await env.create(base, mode);
-    expect(first.resourceLoader.getSystemPrompt()?.endsWith(THINKING_LANGUAGE_PROMPT)).toBe(true);
+    expect(first.resourceLoader.getSystemPrompt()).toContain(base);
     await first.prompt("Read the existing project rule");
     const resumeSessionFile = first.sessionFile!;
     await disposePiSession(first);

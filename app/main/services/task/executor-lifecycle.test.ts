@@ -1,9 +1,12 @@
+import { getPromptDefaults } from "../system-prompt-manager";
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
+const DESIGNER_AGENT_PROMPT = getPromptDefaults().legacyDesigner;
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as agentTemplates from "../agent-templates";
-import { DESIGNER_AGENT_PROMPT } from "../../../shared/prompts";
+
 import { saveProjectDesign } from "../project-design";
 import { runSubagents } from "./executor";
 import { createDelegation, resetRegistry } from "./registry";
@@ -18,7 +21,7 @@ vi.mock("../ipc-broadcast", () => ({ broadcast: vi.fn() }));
 afterEach(() => { resetRegistry(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 
 describe("subagent lifecycle integration", () => {
-  it("includes the actual project contract in both regular and structured child prompts", async () => {
+  it("keeps task inputs separate from role prompts in regular and structured children", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-child-visual-"));
     try {
       saveProjectDesign(root, { styleId: "glass" }, "technical", path.resolve("resources"));
@@ -29,8 +32,8 @@ describe("subagent lifecycle integration", () => {
         mocks.create.mockResolvedValueOnce(session);
         const record = createDelegation("parent", [{ task, agent, outputSchema, readOnly: true }]);
         await runSubagents(record, { cwd: root, agentDir: root, store: {} as Store });
-        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("glass; palette");
-        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(".easymint/design/visual-spec.json");
+        expect(mocks.create.mock.lastCall?.[0].cwd).toBe(root);
+
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).not.toContain(task);
         expect(mocks.create.mock.lastCall?.[0].deliveryMode).toBe("task");
         if (agent) expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("ROLE_INSTRUCTIONS");
@@ -52,7 +55,7 @@ describe("subagent lifecycle integration", () => {
         await runSubagents(record,{cwd:root,agentDir:root,store:{} as Store});
         expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(DESIGNER_AGENT_PROMPT);
         expect(mocks.create.mock.lastCall?.[0].deliveryMode).toBe("task");
-        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("flat; palette");
+        expect(mocks.create.mock.lastCall?.[0].cwd).toBe(root); // 视觉规范由Pi适配层统一按cwd加载。
       }
     } finally { fs.rmSync(root,{recursive:true,force:true}); }
   });
