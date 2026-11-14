@@ -2173,8 +2173,8 @@
   "collaboration.changeAvatar": "Change avatar",
   "collaboration.avatarInvalid": "Choose a PNG, JPEG or WebP image smaller than 5 MB",
   "collaboration.nickname": "Nickname",
-  "collaboration.personality": "Personality and communication style",
-  "collaboration.rules": "Rules",
+  "collaboration.personality": "Personality",
+  "collaboration.rules": "Rule instructions",
   "collaboration.restore": "Restore defaults",
   "collaboration.modeName": "Mode name",
   "collaboration.scenario": "When to use",
@@ -2190,5 +2190,13 @@
   "collaboration.uiDesign": "UI design",
   "collaboration.uiDesignScenario": "When designing an interface, prototyping interactions, or refining an existing page’s layout and appearance.",
   "collaboration.domainGuidance": "Domain guidance",
-  "collaboration.domainGuidanceScenario": "When working in an unfamiliar field and you want to understand the preparation, approach, and tradeoffs as you go."
+  "collaboration.domainGuidanceScenario": "When working in an unfamiliar field and you want to understand the preparation, approach, and tradeoffs as you go.",
+  "collaboration.description": "Description",
+  "collaboration.descriptionPlaceholder": "Briefly describe responsibilities and suitable tasks",
+  "collaboration.nicknamePlaceholder": "For example: Mint",
+  "collaboration.personalityPlaceholder": "Describe personality, tone, format and level of detail",
+  "collaboration.rulesPlaceholder": "Describe responsibilities, execution rules and deliverables",
+  "collaboration.modeNamePlaceholder": "For example: Brand guidelines",
+  "collaboration.scenarioPlaceholder": "For example: When writing brand copy or designing brand pages",
+  "collaboration.modeRulesPlaceholder": "Describe this mode’s approach, rules and output requirements"
 }

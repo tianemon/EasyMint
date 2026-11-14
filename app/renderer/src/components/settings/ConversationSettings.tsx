@@ -61,11 +61,11 @@ function MainChatForm({ initial, onClose, onSavingChange }: { initial: MainChatP
       </label>
     </div>
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.nickname")}</span>
-      <input className={inputClass} required maxLength={40} value={profile.nickname} onChange={event => setProfile({ ...profile, nickname: event.target.value })} /></label>
+      <input className={inputClass} required maxLength={40} placeholder={uiText("collaboration.nicknamePlaceholder")} value={profile.nickname} onChange={event => setProfile({ ...profile, nickname: event.target.value })} /></label>
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.personality")}</span>
-      <textarea className={`${inputClass} h-28 resize-none`} value={profile.personality} onChange={event => setProfile({ ...profile, personality: event.target.value })} /></label>
+      <textarea className={`${inputClass} h-28 resize-none`} placeholder={uiText("collaboration.personalityPlaceholder")} value={profile.personality} onChange={event => setProfile({ ...profile, personality: event.target.value })} /></label>
     <label className="flex flex-col flex-1 min-h-40"><span className={labelClass}>{uiText("collaboration.rules")}</span>
-      <textarea className={`${inputClass} flex-1 min-h-0 resize-none`} rows={5} value={profile.rules} onChange={event => setProfile({ ...profile, rules: event.target.value })} /></label>
+      <textarea className={`${inputClass} flex-1 min-h-0 resize-none`} rows={5} placeholder={uiText("collaboration.rulesPlaceholder")} value={profile.rules} onChange={event => setProfile({ ...profile, rules: event.target.value })} /></label>
     </div>
     <div className="flex justify-end items-center gap-3 px-4 py-2 shrink-0">
       <button type="button" disabled={saving} onClick={() => void save(true)} className="mr-auto text-xs text-text-secondary hover:text-text-primary">{uiText("collaboration.restore")}</button>
@@ -100,9 +100,9 @@ export function CollaborationSettings(): JSX.Element {
   const editor = (adding || editing) && <PromptEditorDialog title={editing?.id ? modeDisplay(editing, "name") : uiText("collaboration.addMode")} onClose={closeEditor} busy={saving}>
     <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void submit("save"); }}>
     <div className="settings-body flex flex-col flex-1 min-h-0 overflow-y-auto px-6 py-4 gap-4">
-    <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.modeName")}</span><input required maxLength={40} className={inputClass} value={modeDisplay(draft, "name")} onChange={event => editField({ name: event.target.value })} /></label>
-    <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.scenario")}</span><input maxLength={200} className={inputClass} value={modeDisplay(draft, "scenario")} onChange={event => editField({ scenario: event.target.value })} /></label>
-    <label className="flex flex-col flex-1 min-h-40"><span className={labelClass}>{uiText("collaboration.prompt")}</span><textarea required className={`${inputClass} flex-1 min-h-0`} value={draft.prompt} onChange={event => editField({ prompt: event.target.value })} /></label>
+    <label className="block shrink-0"><span className={labelClass}>{uiText("ui.AgentTemplateSettings.name")}</span><input required maxLength={40} className={inputClass} placeholder={uiText("collaboration.modeNamePlaceholder")} value={modeDisplay(draft, "name")} onChange={event => editField({ name: event.target.value })} /></label>
+    <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.scenario")}</span><input maxLength={200} className={inputClass} placeholder={uiText("collaboration.scenarioPlaceholder")} value={modeDisplay(draft, "scenario")} onChange={event => editField({ scenario: event.target.value })} /></label>
+    <label className="flex flex-col flex-1 min-h-40"><span className={labelClass}>{uiText("collaboration.rules")}</span><textarea required className={`${inputClass} flex-1 min-h-0`} placeholder={uiText("collaboration.modeRulesPlaceholder")} value={draft.prompt} onChange={event => editField({ prompt: event.target.value })} /></label>
     <div className="flex items-center gap-2 text-xs text-text-secondary shrink-0 cursor-pointer"
       onClick={() => { if (!saving) editField({ defaultEnabled: !draft.defaultEnabled }); }}>
       <Checkbox checked={draft.defaultEnabled} disabled={saving} ariaLabel={uiText("collaboration.defaultEnabled")}

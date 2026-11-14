@@ -28,6 +28,12 @@ it("reads defaults without writing and preserves a legacy selected prompt throug
   const manager = await import("./system-prompt-manager");
   expect(manager.getConversationConfig().main).toMatchObject({ nickname: "Mint", avatar: "", personality: DEFAULT_MAIN_CHAT.personality });
   expect(manager.getConversationConfig().main.rules).toContain("<identity>");
+  expect(manager.getConversationConfig().main.personality).toContain("简单问题用短段落");
+  expect(manager.getConversationConfig().main.personality).toContain("与用户交互时使用用户所用的语言");
+  expect(manager.getConversationConfig().main.rules).not.toContain("简单问题用短段落");
+  expect(manager.getConversationConfig().main.rules).not.toContain("与用户交互时使用用户所用的语言");
+  expect(manager.getConversationConfig().main.rules).toContain("查证");
+  expect(manager.getConversationConfig().main.rules).toContain("授权");
   expect(fs.existsSync(path.join(root, "system-prompts.json"))).toBe(false);
   fs.writeFileSync(path.join(root, "system-prompts.json"), JSON.stringify({ prompts: [{ id: "custom", content: "LEGACY_BASE" }], defaultPromptId: "custom" }));
   manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, nickname: "Mori", personality: "PERSONALITY", rules: "USER_RULES" });
@@ -100,8 +106,15 @@ it("preserves edited execution templates across startup and keeps the main profi
   expect(templates.getTemplate("default-builder")?.prompt).toBe("BUILDER_OVERRIDE");
   expect(templates.listTemplates().some(template => template.id === "mint-designer")).toBe(false);
   expect(() => templates.updateTemplate("default-evaluator", { name: "Another name" })).toThrow();
+  const templatePath = path.join(root, "agent-templates.json");
+  const storedTemplates = JSON.parse(fs.readFileSync(templatePath, "utf8")) as Array<{ id: string; name: string; description: string }>;
+  storedTemplates.find(template => template.id === "default-builder")!.name = "Historical builder name";
+  storedTemplates.find(template => template.id === "default-builder")!.description = "Historical description";
+  fs.writeFileSync(templatePath, JSON.stringify(storedTemplates));
   templates.restoreTemplate("default-builder");
   expect(templates.getTemplate("default-builder")?.prompt).not.toBe("BUILDER_OVERRIDE");
+  expect(templates.getTemplate("default-builder")?.name).toBe("Historical builder name");
+  expect(templates.getTemplate("default-builder")?.description).toBe("Historical description");
   const manager = await import("./system-prompt-manager");
   manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, personality: "MAIN_ONLY_PERSONALITY" });
   const { AgentService } = await import("./agent-service");

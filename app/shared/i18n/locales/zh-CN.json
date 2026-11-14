@@ -2173,8 +2173,8 @@
   "collaboration.changeAvatar": "更换头像",
   "collaboration.avatarInvalid": "请选择小于 5 MB 的 PNG、JPEG 或 WebP 图片",
   "collaboration.nickname": "昵称",
-  "collaboration.personality": "人格（性格、表达与形式风格）",
-  "collaboration.rules": "规则",
+  "collaboration.personality": "人格",
+  "collaboration.rules": "规则提示词",
   "collaboration.restore": "恢复默认",
   "collaboration.modeName": "模式名称",
   "collaboration.scenario": "适用场景",
@@ -2190,5 +2190,13 @@
   "collaboration.uiDesign": "UI 设计",
   "collaboration.uiDesignScenario": "设计新界面、制作交互原型，或调整现有页面的视觉与布局时。",
   "collaboration.domainGuidance": "领域引导",
-  "collaboration.domainGuidanceScenario": "进入陌生或不熟悉的领域，希望边推进任务边理解准备、路径与取舍时。"
+  "collaboration.domainGuidanceScenario": "进入陌生或不熟悉的领域，希望边推进任务边理解准备、路径与取舍时。",
+  "collaboration.description": "描述",
+  "collaboration.descriptionPlaceholder": "简要描述职责和适用任务",
+  "collaboration.nicknamePlaceholder": "例如：Mint",
+  "collaboration.personalityPlaceholder": "描述性格、语气、表达形式和详略偏好",
+  "collaboration.rulesPlaceholder": "描述任务职责、执行规则和交付要求",
+  "collaboration.modeNamePlaceholder": "例如：品牌规范",
+  "collaboration.scenarioPlaceholder": "例如：撰写品牌文案或设计品牌页面时",
+  "collaboration.modeRulesPlaceholder": "描述此模式的工作方式、规则和输出要求"
 }

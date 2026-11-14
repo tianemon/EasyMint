@@ -19,7 +19,7 @@ beforeEach(() => {
     { id: "ui-design", name: "UI 设计", scenario: "设计新界面时", prompt: "UI rules", defaultEnabled: false, builtin: true },
     { id: "domain-guidance", name: "领域引导", scenario: "进入陌生领域时", prompt: "Guidance rules", defaultEnabled: false, builtin: true },
   ] };
-  saveMain.mockReset().mockImplementation(async main => ({ ...config, main }));
+  saveMain.mockReset().mockImplementation(async main => { config = { ...config, main }; return config; });
   saveMode.mockReset().mockResolvedValue(config);
   update.mockReset().mockResolvedValue({});
   Object.assign(window, { electronAPI: {
@@ -58,7 +58,11 @@ it("edits only the execution template prompt and sends no main-chat profile fiel
   await act(async () => builder.querySelector<HTMLButtonElement>("button")!.click());
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog).not.toBeNull();
-  expect(dialog.querySelectorAll("input")).toHaveLength(0);
+  const metadata = dialog.querySelectorAll("input");
+  expect(metadata).toHaveLength(2);
+  expect([...metadata].every(field => field.readOnly)).toBe(true);
+  expect(metadata[0]!.value).toBe("Builder");
+  expect(metadata[1]!.value).toBe("Implementation");
   expect(dialog.querySelectorAll("textarea")).toHaveLength(1);
   expect(dialog.querySelector(".overflow-y-auto")!.contains(dialog.querySelector('button[type="submit"]'))).toBe(false);
   await input(dialog.querySelector("textarea")!, "New builder instructions");
@@ -72,6 +76,30 @@ it("edits only the execution template prompt and sends no main-chat profile fiel
   expect(mainDialog.querySelector(".overflow-y-auto")!.contains(mainDialog.querySelector('button[type="submit"]'))).toBe(false);
   await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
   expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("uses the saved main nickname in both the template list and editor", async () => {
+  await act(async () => root.render(createElement(AgentTemplateSettings)));
+  expect(host.querySelector("h3")).toBeNull();
+  const main = [...host.querySelectorAll("div.group")].find(row => row.textContent?.includes("Mint"))!;
+  await act(async () => main.querySelector<HTMLButtonElement>("button")!.click());
+  let dialog = document.querySelector('[role="dialog"]')!;
+  await input(dialog.querySelector('input:not([type="file"])')!, "Mori");
+  await act(async () => dialog.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  const updated = [...host.querySelectorAll("div.group")].find(row => row.textContent?.includes("Mori"))!;
+  expect(updated).toBeDefined();
+  await act(async () => updated.querySelector<HTMLButtonElement>("button")!.click());
+  dialog = document.querySelector('[role="dialog"]')!;
+  expect(dialog.querySelector<HTMLInputElement>('input:not([type="file"])')!.value).toBe("Mori");
+  expect(dialog.querySelector("h3")!.textContent).toContain("Mori");
+});
+
+it("uses matching template field titles and helpful placeholders when adding a template", async () => {
+  await act(async () => root.render(createElement(AgentTemplateSettings)));
+  await clickText("+ 新建模板");
+  const dialog = document.querySelector('[role="dialog"]')!;
+  expect([...dialog.querySelectorAll("label")].map(label => label.textContent)).toEqual(["名称", "描述", "规则提示词"]);
+  expect([...dialog.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")].every(field => field.placeholder.trim())).toBe(true);
 });
 
 it("keeps a saving template dialog open until its request settles", async () => {
@@ -100,6 +128,8 @@ it("creates a custom mode without configuring an icon and supports stacked selec
   await clickText("新增模式");
   const editor = document.querySelector('[role="dialog"]')!;
   const fields = editor.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])');
+  expect([...fields].every(field => field.placeholder.trim())).toBe(true);
+  expect(editor.querySelector("textarea")!.placeholder).not.toBe("");
   await input(fields[0]!, "Writing"); await input(fields[1]!, "When writing reports");
   await input(editor.querySelector("textarea")!, "Write short paragraphs");
   expect(editor.querySelector('input[type="checkbox"]')).toBeNull();

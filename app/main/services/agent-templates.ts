@@ -4,7 +4,7 @@
  * Templates are stored in ~/.easymint/agent-templates.json
  * task 工具按模板 ID 选择正文，执行器在创建子会话时组装系统提示词。
  *
- * **模板只承载人设**：子 Agent 的模型与思考等级一律跟随主会话
+ * **模板承载职责与规则**：子 Agent 的模型与思考等级一律跟随主会话
  * （2026-09-16 用户拍板「必须收敛到一处决定，取消全部子 agent 的配置入口」），
  * 模板上没有任何运行配置字段。
  */
@@ -110,7 +110,7 @@ export function restoreTemplate(id: string): AgentTemplate {
   const templates = readAll();
   const index = templates.findIndex(template => template.id === id);
   if (index < 0) throw new Error("模板不存在");
-  templates[index] = { ...baseline };
+  templates[index] = { ...templates[index]!, prompt: baseline.prompt, customized: false };
   writeAll(templates);
   return templates[index]!;
 }
