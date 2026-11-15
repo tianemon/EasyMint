@@ -658,7 +658,14 @@ interface CommandTargets {
 function collectCommandTargets(command: string, depth = 0): CommandTargets {
   const result: CommandTargets = { reads: [], writes: [], destructive: [] };
   let parsed: ReturnType<typeof parseShell>;
-  try { parsed = parseShell(command); } catch { return result; }
+  // shell-quote 1.10 expands missing variables to "" by default. Resolve the
+  // supported home variables while quote context still exists, not afterwards
+  // (which would also expand single-quoted or escaped literal dollar signs).
+  // Unknown variables remain unknown instead of becoming an unrelated root path.
+  // Git Bash accepts drive paths with '/', while native '\\' would become an
+  // escape if an expanded outer-shell script is parsed again for bash -c.
+  const home=process.platform==="win32"?os.homedir().replaceAll("\\","/"):os.homedir();
+  try { parsed = parseShell(command,key=>key==="HOME" || key==="USERPROFILE"?home:`\${${key}}`); } catch { return result; }
 
   const separators = new Set(["&&", "||", ";", ";;", "|", "|&", "&", "(", ")", "<("]);
   let words: string[] = [];
@@ -733,12 +740,7 @@ function collectCommandTargets(command: string, depth = 0): CommandTargets {
 
 function cleanTarget(raw: string): string | null {
   const token = raw.replace(/^['"]|['"]$/g, "");
-  // `$HOME` / `${HOME}` / `$USERPROFILE` 之前不展开：这类写法不以 `/`、`~` 开头，
-  // 于是路径判定整条被跳过——`mv $HOME/.easymint/runtime-tools/git /d/x` 可以绕过保护面。
-  const expanded = token
-    .replace(/^\$\{?HOME\}?/i, os.homedir())
-    .replace(/^\$\{?USERPROFILE\}?/i, os.homedir());
-  return expanded && !expanded.startsWith("-") ? expanded : null;
+  return token && !token.startsWith("-") ? token : null;
 }
 
 /**

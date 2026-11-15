@@ -19,6 +19,8 @@ interface WorkerHandle {
   initialized: boolean;
   leases: Set<string>;
   revoking: boolean;
+  failure?:Error;
+  shutdown?:Promise<void>;
 }
 
 const workers = new Map<string, WorkerHandle>();
@@ -48,9 +50,13 @@ function workerEntrypoint(): string {
 
 /** 让这个 worker 上的所有等待一起失败，并把它换掉（超时 / 退出都走这里，避免留下"半死不活"的 worker） */
 function failWorker(worker: WorkerHandle, message: string): void {
-  for (const pending of worker.pending.values()) pending.reject(new Error(message));
+  if(worker.failure)return;
+  worker.failure=new Error(message);
+  for (const pending of worker.pending.values()) pending.reject(worker.failure);
   worker.pending.clear();
-  workers.delete(worker.key);
+  // A killed worker may emit exit after a replacement has acquired the same key.
+  // Only this instance's registration may be removed, and kill/settle run once.
+  if(workers.get(worker.key)===worker)workers.delete(worker.key);
   try { worker.child.kill(); } catch { /* 已退出 */ }
 }
 
@@ -77,6 +83,7 @@ function createWorker(key: string): WorkerHandle {
  * 下一条命令重新初始化，不会每次都再等一个超时。
  */
 function call(handle: WorkerHandle, message: WorkerRequestWithoutId): Promise<WindowsSandboxWorkerResponse> {
+  if(handle.failure)return Promise.reject(handle.failure);
   const id = requestId();
   const limit = message.type === "initialize" ? INIT_TIMEOUT_MS : CALL_TIMEOUT_MS;
   const note = message.type === "initialize"
@@ -122,7 +129,7 @@ export async function wrapWithWindowsWorker(
       if (released) return;
       released = true;
       handle.leases.delete(leaseId);
-      try { await call(handle, { type: "release", leaseId }); } catch { /* worker 已退出时 ACL 会随其 reset/退出收回 */ }
+      try { await call(handle, { type: "release", leaseId }); } catch { /* 失效实例不重放；后续初始化由 SRT 恢复 dead-PID 的授权记录。 */ }
       if (handle.revoking && handle.leases.size === 0) await shutdownWorker(handle);
     },
   };
@@ -138,10 +145,13 @@ export async function revokeWindowsExecutionOwners(ownerIds: readonly string[]):
   }));
 }
 
-async function shutdownWorker(worker: WorkerHandle, force = false): Promise<void> {
-  if (!workers.has(worker.key)) return;
-  try { await call(worker, { type: "shutdown", force }); }
-  finally { worker.child.kill(); workers.delete(worker.key); }
+function shutdownWorker(worker: WorkerHandle, force = false): Promise<void> {
+  if(worker.shutdown)return worker.shutdown;
+  if (workers.get(worker.key)!==worker || worker.failure) return Promise.resolve();
+  return worker.shutdown=(async()=>{
+    try { await call(worker, { type: "shutdown", force }); }
+    finally { failWorker(worker,"Windows 沙盒 worker 已关闭"); }
+  })();
 }
 
 export async function shutdownWindowsExecutionWorkers(): Promise<void> {
