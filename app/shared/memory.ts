@@ -113,6 +113,17 @@ export interface MemoryMigrationReport {
   conflicts: number;
   missing: string[];
   errors: string[];
+  projectId?: string;
+  projectName?: string;
+  projectPath?: string;
+  status?: "complete" | "attention" | "failed";
+  documentError?:string;
+}
+export interface MemoryMigrationProgress {
+  phase:"idle"|"opening"|"migrating"|"ready"|"error";
+  completed:number;
+  total:number;
+  projectName?:string;
 }
 export interface MemoryStatus {
   failed?:number;
@@ -121,13 +132,14 @@ export interface MemoryStatus {
   pending: number;
   usedTokens: number;
   error?: string;
+  countKnown?:boolean;
 }
 export interface MemoryDocumentConfig { projectId: string; directory: string; revision: number; error?: string }
 
-export interface MemoryDocumentView { directory:string; legacy?:string; backup?:string; generation:number; error?:string }
+export interface MemoryDocumentView { directory:string;relativeDirectory?:string;previousStateBackup?:string; legacy?:string; backup?:string; generation:number; error?:string }
 export interface MemoryDocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
 export interface MemoryDigest { content:string; hash:string; items:Array<{key:string;revision:number}>; file:string; error?:string }
-export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView; digest?:MemoryDigest }
+export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView; digest?:MemoryDigest; migration?:MemoryMigrationProgress; ready?:boolean;backupDirectory?:string }
 export interface MemoryApi {
   onChanged(callback:(settings?:MemorySettings,session?:{sessionId:string;mode:MemoryMode})=>void):()=>void;
   state(projectPath?:string):Promise<MemoryView>;
@@ -139,7 +151,10 @@ export interface MemoryApi {
   forget(key:string,projectPath?:string):Promise<void>;
   analyze():Promise<void>;
   summary(refresh?:boolean):Promise<MemoryDigest>;
+  retryMigrations(projectId?:string):Promise<void>;
+  openBackups():Promise<void>;
   previewDocuments(projectPath:string,directory?:string):Promise<MemoryDocumentPreview>;
   adoptDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;
+  repairDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;
   sessionMode(sessionId:string,mode?:MemoryMode):Promise<MemoryMode>;
 }

@@ -1,12 +1,41 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import type { MemoryRecord } from "../../../shared/memory";
 import { memoryDay } from "./codec";
 import { MemoryDatabase, hashText } from "./database";
 
 const MARKER = "<!-- easymint-memory-view:v1 -->";
 export interface DocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
-interface DocumentState { directory:string; projectRoot?:string; legacy?:string; hashes:Record<string,string>; monthFiles?:Record<string,string>; pending?:Record<string,{before?:string;after:string}>; backup?:string; generation:number; error?:string }
+interface DocumentState { directory:string; projectRoot?:string; relativeDirectory?:string; legacy?:string; hashes:Record<string,string>; monthFiles?:Record<string,string>; pending?:Record<string,{before?:string;after:string}>; backup?:string; previousStateBackup?:string; generation:number; error?:string }
+const windowsPath=(value:string)=>/^[a-z]:[\\/]|^(?:\\\\|\/\/)/iu.test(value);
+/** Persist only contained relative paths. Interpret the old host's syntax before relocating. */
+function relativePath(value:string,allowEmpty=false):string {
+  if(path.posix.isAbsolute(value) || path.win32.isAbsolute(value) || /^[a-z]:/iu.test(value) || value.includes("\0"))throw new Error("记录路径必须是项目内相对路径");
+  const parts=value.replaceAll("\\","/").split("/").filter(part=>part && part!==".");
+  if(parts.includes("..") || (!allowEmpty && !parts.length))throw new Error("记录路径越界或无效，请重新预览目录");
+  return parts.join("/");
+}
+export function relocatedDirectory(projectPath:string,state:Pick<DocumentState,"directory"|"projectRoot"|"relativeDirectory">):{directory:string;relativeDirectory:string} {
+  let relative=state.relativeDirectory;
+  if(relative===undefined){
+    const root=state.projectRoot ?? projectPath,flavor=windowsPath(root)?path.win32:path.posix;
+    if(!flavor.isAbsolute(root) || !flavor.isAbsolute(state.directory))throw new Error("旧记录目录无法定位，请重新预览并修复目录");
+    relative=flavor.relative(root,state.directory);
+    if(flavor===path.posix && relative.includes("\\"))throw new Error("旧记录目录存在歧义，请重新预览并修复目录");
+  }
+  const normalized=relativePath(relative,true),target=windowsPath(projectPath)?path.win32:path.posix;
+  return {directory:target.resolve(projectPath,...normalized.split("/")),relativeDirectory:normalized};
+}
+function normalizedFiles<T>(files:Record<string,T>):Record<string,T> {
+  const normalized:Record<string,T>={};
+  for(const [file,value] of Object.entries(files)){
+    const key=relativePath(file);
+    if(Object.hasOwn(normalized,key) && JSON.stringify(normalized[key])!==JSON.stringify(value))throw new Error(`记录路径归一后有冲突，未覆盖：${key}`);
+    normalized[key]=value;
+  }
+  return normalized;
+}
 function safeDirectory(root: string, directory: string): void {
   const relative = path.relative(path.resolve(root),path.resolve(directory));
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("开发记录目录必须位于当前项目内");
@@ -37,13 +66,16 @@ export function previewDocuments(projectPath: string, directory: string): Docume
   const manifest = files.map(file => [file,hashText(fs.readFileSync(path.join(directory,file)).toString("base64"))]);
   return { directory,files,bytes:files.reduce((n,file) => n+fs.statSync(path.join(directory,file)).size,0),hash:hashText(JSON.stringify(manifest)) };
 }
-export function adoptDocuments(db: MemoryDatabase, projectId: string, projectPath: string, directory: string, expectedHash: string, backupRoot: string): DocumentState {
+export function adoptDocuments(db: MemoryDatabase, projectId: string, projectPath: string, directory: string, expectedHash: string, backupRoot: string, repair=false): DocumentState {
   const existing = db.metadata<DocumentState>(`documents:${projectId}`);
-  if (existing) throw new Error("该项目已接管开发记录，请先处理现有导出状态");
+  if (existing && !repair) throw new Error("该项目已接管开发记录，请先处理现有导出状态");
+  if(repair && !existing)throw new Error("项目尚未接管开发记录，请先预览接管范围");
   const preview = previewDocuments(projectPath,directory);
   if (preview.hash !== expectedHash) throw new Error("旧开发记录已变化，请重新预览后接管");
-  const backup = path.join(backupRoot,`documents-${hashText(projectId).slice(0,16)}-${Date.now()}`);
+  const backup = path.join(backupRoot,`documents-${hashText(projectId).slice(0,16)}-${Date.now()}-${randomUUID()}`);
   fs.mkdirSync(backup,{recursive:true,mode:0o700});
+  const previousStateBackup=existing?path.join(backup,"previous-document-state.json"):undefined;
+  if(previousStateBackup)fs.writeFileSync(previousStateBackup,JSON.stringify(existing,null,2),{flag:"wx",mode:0o600});
   for (const file of preview.files) {
     const target = path.join(backup,file);
     fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o700});
@@ -60,7 +92,7 @@ export function adoptDocuments(db: MemoryDatabase, projectId: string, projectPat
     if (!fs.existsSync(destination)) fs.copyFileSync(nav,destination,fs.constants.COPYFILE_EXCL);
     else if (!fs.readFileSync(nav).equals(fs.readFileSync(destination))) throw new Error("旧入口保留副本冲突，未接管");
   }
-  const state:DocumentState = { directory,projectRoot:projectPath,legacy,backup,hashes:{},generation:-1 };
+  const state:DocumentState = { directory,projectRoot:projectPath,relativeDirectory:relativePath(path.relative(projectPath,directory),true),legacy,backup,previousStateBackup,hashes:{},generation:-1 };
   if (fs.existsSync(nav)) state.hashes["开发记录.md"] = hashText(fs.readFileSync(nav));
   db.setMetadata(`documents:${projectId}`,state);
   return generateDocuments(db,projectId,projectPath);
@@ -94,15 +126,28 @@ export function generateDocuments(db:MemoryDatabase,projectId:string,projectPath
   if (!state) throw new Error("项目尚未接管开发记录");
   const write=(file:string,text:string)=>writeOwned(state,file,text,()=>db.setMetadata(`documents:${projectId}`,state));
   try {
-    if(state.projectRoot && path.resolve(state.projectRoot)!==path.resolve(projectPath)) {
-      const relative=path.relative(state.projectRoot,state.directory);
-      if(relative.startsWith("..") || path.isAbsolute(relative))throw new Error("项目文档原目录越界，未自动调整");
-      state.directory=path.join(projectPath,relative);state.projectRoot=projectPath;
+    const relocated=relocatedDirectory(projectPath,state),hashes=normalizedFiles(state.hashes),pending=state.pending?normalizedFiles(state.pending):undefined;
+    const monthFiles=Object.fromEntries(Object.entries(state.monthFiles ?? {}).map(([month,file])=>{if(!/^\d{4}-\d{2}$/u.test(month))throw new Error("记录月份无效，未生成文件");return [month,relativePath(file)];}));
+    const legacyFile=state.legacy?relativePath(state.legacy):undefined;
+    const moved=state.directory!==relocated.directory || state.projectRoot!==projectPath || state.relativeDirectory!==relocated.relativeDirectory;
+    const targets=new Set([...Object.keys(hashes),...Object.keys(pending ?? {}),...Object.values(monthFiles),...(legacyFile?[legacyFile]:[])]),folded=new Map<string,string>();
+    for(const file of targets){
+      if(windowsPath(projectPath)){const key=file.toLowerCase(),prior=folded.get(key);if(prior && prior!==file)throw new Error(`记录文件名在Windows上有冲突，未覆盖：${file}`);folded.set(key,file);}
+      const full=path.join(relocated.directory,file);
+      safeDirectory(projectPath,path.dirname(full));
+      if(fs.existsSync(full) && fs.lstatSync(full).isSymbolicLink())throw new Error(`记录文件为符号链接，未覆盖：${file}`);
     }
+    state.directory=relocated.directory;state.relativeDirectory=relocated.relativeDirectory;state.projectRoot=projectPath;state.hashes=hashes;state.pending=pending;state.monthFiles=monthFiles;state.legacy=legacyFile;
     safeDirectory(projectPath,state.directory);
     safeDirectory(projectPath,path.join(state.directory,"开发记录"));
+    // Check ownership even when the database generation is unchanged: a failed
+    // relocation or external edit must not disappear on the next refresh.
+    for(const [file,hash] of Object.entries(state.hashes)){
+      const full=path.join(state.directory,file);
+      if(!fs.existsSync(full) || !fs.lstatSync(full).isFile() || fs.lstatSync(full).isSymbolicLink() || ![hash,state.pending?.[file]?.before,state.pending?.[file]?.after].includes(hashText(fs.readFileSync(full))))throw new Error(`${moved?"迁移后的托管记录缺失或已修改":"开发记录被外部修改或已移除"}，已保留，请预览修复目录：${file}`);
+    }
     const generation = db.metadata<number>("generation") ?? 0;
-    if (state.generation === generation && !state.error) return state;
+    if (state.generation === generation && !state.error && !moved) {db.setMetadata(`documents:${projectId}`,state);return state;}
     const records = db.projectHistory(projectId);
     const months = new Map<string,MemoryRecord[]>();
     for (const item of records) {
@@ -118,9 +163,9 @@ export function generateDocuments(db:MemoryDatabase,projectId:string,projectPath
     for (const [month,items] of months) {
       let file=state.monthFiles[month];
       if(!file) {
-        file=path.join("开发记录",`${month}-em.md`);
+        file=`开发记录/${month}-em.md`;
         let suffix=1;
-        while(fs.existsSync(path.join(state.directory,file)) && !state.hashes[file]) file=path.join("开发记录",`${month}-em-${++suffix}.md`);
+        while(fs.existsSync(path.join(state.directory,file)) && !state.hashes[file]) file=`开发记录/${month}-em-${++suffix}.md`;
         state.monthFiles[month]=file;
       }
       const text = `${MARKER}\n# ${month} 项目历史\n\n由应用从项目事件生成；历史保留不代表当前仍适用。请按日期和条目读取。\n\n${items.map(i => render(i,true)).join("\n")}\n`;

@@ -19,6 +19,7 @@ const methods = {
   migrate: (directory:string,projectId?:string) => migrateExperiences(db,directory,path.join(path.dirname((workerData as {file:string}).file),"backups"),projectId),
   previewDocuments,
   adoptDocuments: (projectId:string,projectPath:string,directory:string,hash:string) => adoptDocuments(db,projectId,projectPath,directory,hash,path.join(path.dirname((workerData as {file:string}).file),"backups")),
+  repairDocuments: (projectId:string,projectPath:string,directory:string,hash:string) => adoptDocuments(db,projectId,projectPath,directory,hash,path.join(path.dirname((workerData as {file:string}).file),"backups"),true),
   generateDocuments: (projectId:string,projectPath:string) => generateDocuments(db,projectId,projectPath),
   projectEventCount: db.projectEventCount.bind(db),
   documentStatus: (projectId:string) => documentStatus(db,projectId),

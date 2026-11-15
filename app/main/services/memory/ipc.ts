@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain,shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -72,6 +72,11 @@ export function registerMemoryIpc(service:MemoryService):void {
     await exportHuman(db,scope.project);
     broadcast("memory:changed",{});
   });
+  ipcMain.handle("memory:retry-migrations",(_event,payload)=>service.retryMigrations(z.string().optional().parse(payload?.projectId)));
+  ipcMain.handle("memory:open-backups",async()=>{
+    const directory=service.backupDirectory();await fs.promises.mkdir(directory,{recursive:true,mode:0o700});
+    const error=await shell.openPath(directory);if(error)throw new Error(error);
+  });
   ipcMain.handle("memory:summary",(_event,payload)=>service.summary(z.boolean().optional().parse(payload?.refresh) ?? false));
   ipcMain.handle("memory:analyze",()=>service.requestAnalysis());
   ipcMain.handle("memory:preview-documents",async(_event,payload)=>{
@@ -83,7 +88,13 @@ export function registerMemoryIpc(service:MemoryService):void {
   });
   ipcMain.handle("memory:adopt-documents",async(_event,payload)=>{
     const input=z.object({projectPath:z.string(),directory:z.string(),hash:z.string().length(64)}).strict().parse(payload),project=projectFor(input.projectPath)!;
-    return (await management()).call("adoptDocuments",project.id,project.path,input.directory,input.hash);
+    const result=await (await management()).call("adoptDocuments",project.id,project.path,input.directory,input.hash);
+    service.documentReport(project.id,result.error);broadcast("memory:changed",{});return result;
+  });
+  ipcMain.handle("memory:repair-documents",async(_event,payload)=>{
+    const input=z.object({projectPath:z.string(),directory:z.string(),hash:z.string().length(64)}).strict().parse(payload),project=projectFor(input.projectPath)!;
+    const result=await (await management()).call("repairDocuments",project.id,project.path,input.directory,input.hash);
+    service.documentReport(project.id,result.error);broadcast("memory:changed",{});return result;
   });
   ipcMain.handle("memory:session-mode",(_event,payload)=>withSessionCreationLock(async()=>{
     const input=z.object({sessionId:z.string().refine(isSafeSessionId),mode:z.enum(["record","use","off"]).optional()}).strict().parse(payload);

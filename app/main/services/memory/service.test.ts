@@ -25,6 +25,7 @@ function entries(id="s",text="已确认回答偏好，未改程序") {
 function setup(background=true) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"em-memory-service-"));
   const db=new MemoryDatabase(path.join(root,"memory","memory.sqlite"));
+  fs.mkdirSync(path.join(root,"project"));
   let settings={memory:{enabled:true,background,dailyTokens:100_000,enabledAt:0} as MemorySettings};
   const store={getDataDir:()=>root,getSettings:()=>settings,saveSettings:(value:typeof settings)=>{settings=value;},getProjects:()=>[{id:"p",name:"测试项目",path:path.join(root,"project"),createdAt:new Date(0).toISOString()}]} as unknown as Store;
   const sources=new Map<string,unknown[]>();
@@ -310,4 +311,69 @@ it("exposes historical timestamps, reasons and matched revisions through the reg
  expect(search.items[0]).toMatchObject({key:item.key,matchedRevision:1,occurredAt:"2025-01-02T00:00:00.000Z",timeBasis:"occurred",reason:"明确替代"});
  const previous=JSON.parse((await execute("read-history",{action:"read",key:item.key,revision:1,history:true})).content[0]!.text);
  expect(previous.content).toBe("旧决定");expect(previous.occurredAt).toBe("2025-01-02T00:00:00.000Z");
+});
+
+
+describe("migration isolation and recoverable transport",()=>{
+  it("keeps global memory usable when a project source fails, then retries only that source",async()=>{
+    const f=setup(false),port=(f.service as any).port as MemoryPort,original=port.call.bind(port);
+    const saved=f.db.save({kind:"preference",text:"现有全局偏好"},{source:{ref:"manual:global",type:"manual"},confirmed:true}).item;
+    let broken=true;
+    const migrate=vi.spyOn(port,"call").mockImplementation((async(method:string,...args:unknown[])=>{
+      if(method==="migrate"&&args[1]==="p"&&broken)throw new Error("项目目录暂时无权限");return (original as any)(method,...args);
+    }) as any);
+    await f.service.initialize();const partial=await f.service.state();
+    expect(partial.ready).toBe(true);expect(partial.status.countKnown).toBe(true);expect(partial.status.count).toBe(1);
+    expect(partial.reports.find(r=>r.projectId==="p")?.status).toBe("failed");
+    expect(await (await f.service.database()).call("get",saved.key)).toEqual(f.db.get(saved.key));
+    migrate.mockClear();broken=false;await f.service.retryMigrations("p");await f.service.initialize();
+    expect(migrate.mock.calls.filter(([method])=>method==="migrate").map(([, ,id])=>id)).toEqual(["p"]);
+    expect((await f.service.state()).reports.find(r=>r.projectId==="p")?.status).toBe("complete");
+    expect(f.db.status().count).toBe(1);
+  });
+  it("returns cached readiness while one slow source migrates, instead of waiting or reporting zero",async()=>{
+    const f=setup(false),port=(f.service as any).port as MemoryPort,original=port.call.bind(port);
+    f.db.save({kind:"preference",text:"原有记录"},{source:{ref:"manual:slow",type:"manual"},confirmed:true});
+    let enter!:()=>void,release!:()=>void;const entered=new Promise<void>(resolve=>{enter=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+    vi.spyOn(port,"call").mockImplementation((async(method:string,...args:unknown[])=>{
+      if(method==="migrate"&&args[1]==="p"){enter();await gate;}return (original as any)(method,...args);
+    }) as any);
+    const run=f.service.initialize();await entered;
+    try{const view=await f.service.state();expect(view.migration.phase).toBe("migrating");expect(view.status.count).toBe(1);expect(view.status.countKnown).toBe(true);expect(view.ready).toBe(true);}
+    finally{release();await run;}
+  });
+  it("recreates one failed owned client on concurrent retries without replaying failed writes",async()=>{
+    const f=setup(false),original=(f.service as any).port as MemoryPort;
+    const clients:Array<{unavailable:boolean;call:MemoryPort["call"];close:ReturnType<typeof vi.fn>}>=[];let loseWriteReply=false;
+    const factory=vi.fn(()=>{
+      const client={unavailable:false,call:vi.fn((async(method:string,...args:unknown[])=>{
+        if(clients.length===1){client.unavailable=true;throw new Error("worker boot failure");}
+        if(loseWriteReply && method==="save"){loseWriteReply=false;await (original.call as any)(method,...args);client.unavailable=true;throw new Error("write committed but reply lost");}
+        return (original.call as any)(method,...args);
+      }) as any) as MemoryPort["call"],close:vi.fn(async()=>undefined)};clients.push(client);return client;
+    });
+    (f.service as any).port=undefined;(f.service as any).deps.createPort=factory;
+    await expect(f.service.initialize()).rejects.toThrow("worker boot failure");expect(clients[0]!.close).toHaveBeenCalledOnce();
+    const failed=await f.service.state();expect(failed.ready).toBe(false);expect(failed.status.countKnown).toBe(false);expect(factory).toHaveBeenCalledOnce();
+    await Promise.all([f.service.retryMigrations(),f.service.retryMigrations(),f.service.state()]);await f.service.initialize();
+    expect(factory).toHaveBeenCalledTimes(2);expect((await f.service.state()).ready).toBe(true);
+    const healthy=clients[1]!;loseWriteReply=true;
+    await expect(f.service.saveFromAgent(f.context(),{kind:"preference",text:"已写入但回执丢失"},"global",undefined,"inference")).rejects.toThrow("write committed but reply lost");
+    expect(f.db.status().count).toBe(1);
+    await expect(f.service.database()).rejects.toThrow();await f.service.retryMigrations();await f.service.initialize();
+    expect(factory).toHaveBeenCalledTimes(3);expect(healthy.close).toHaveBeenCalledOnce();
+    expect(clients.flatMap(client=>(client.call as any).mock.calls).filter(([method]:[string])=>method==="save")).toHaveLength(1);
+    expect(f.db.status().count).toBe(1);
+    await f.service.close();expect(clients[2]!.close).toHaveBeenCalledOnce();
+  });
+});
+
+it("distinguishes an unavailable project root from an existing project with no legacy experiences",async()=>{
+ const f=setup(false),project=path.join(f.root,"project"),offline=path.join(f.root,"project-offline");
+ fs.renameSync(project,offline);await f.service.initialize();
+ let view=await f.service.state();expect(view.ready).toBe(true);expect(view.reports.find(report=>report.projectId==="p")?.status).toBe("failed");
+ expect(view.reports.find(report=>report.projectId==="p")?.errors.join(" ")).toContain("项目目录暂不可用");
+ fs.renameSync(offline,project);await f.service.retryMigrations("p");await f.service.initialize();
+ view=await f.service.state();expect(view.reports.find(report=>report.projectId==="p")?.status).toBe("complete");
+ expect(view.reports.find(report=>report.projectId==="p")?.imported).toBe(0);
 });

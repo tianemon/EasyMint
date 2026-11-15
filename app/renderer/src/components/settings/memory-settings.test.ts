@@ -84,3 +84,30 @@ it("lets a user include a global preference in the lightweight summary through e
  await act(async()=>dialog.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
  expect(save).toHaveBeenCalledWith(expect.objectContaining({scope:"global",summary:"重要的用户偏好"}));
 });
+it("opens imported candidates in their source project rather than the current project",async()=>{
+ view.ready=true;view.migration={phase:"ready",completed:2,total:2};
+ view.reports=[{directory:"/other/.easymint/experiences",backup:"/backups/source",imported:1,unchanged:0,conflicts:0,missing:[],errors:[],projectId:"other",projectPath:"/other",projectName:"另一个项目",status:"complete"}];
+ window.electronAPI.memory.state=vi.fn(async path=>({...structuredClone(view),projectId:path==="/other"?"other":"p"}));
+ await act(async()=>root.render(createElement(MemoryTab,{projectPath:"/project"})));await settle();await click("查看迁移结果");await click("查看待确认");await settle();
+ expect(query).toHaveBeenLastCalledWith(expect.objectContaining({projectPath:"/other",scope:"project",state:"candidate",view:"all"}));
+ expect(host.textContent).toContain("另一个项目");
+});
+it("discards a late document preview after switching project and binds a fresh repair to its source",async()=>{
+ view.ready=true;view.documents={directory:"/project/docs",generation:1,error:"需要修复"};
+ let release!:(value:unknown)=>void;const pending=new Promise(resolve=>{release=resolve;});
+ const preview=vi.fn().mockReturnValueOnce(pending).mockResolvedValue({directory:"/second/docs",files:["开发记录.md"],bytes:20,hash:"a".repeat(64)});
+ const repair=vi.fn().mockResolvedValue({directory:"/second/docs",generation:2});
+ Object.assign(window.electronAPI.memory,{previewDocuments:preview,repairDocuments:repair});
+ await act(async()=>root.render(createElement(MemoryTab,{projectPath:"/project"})));await settle();await click("预览修复范围");
+ await act(async()=>root.render(createElement(MemoryTab,{projectPath:"/second"})));await settle();
+ await act(async()=>release({directory:"/project/docs",files:["旧项目.md"],bytes:10,hash:"b".repeat(64)}));
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+ await click("预览修复范围");expect(document.querySelector('[role="dialog"]')?.textContent).toContain("/second/docs");await click("备份并修复");
+ expect(repair).toHaveBeenCalledExactlyOnceWith("/second","/second/docs","a".repeat(64));
+});
+it("keeps startup failure actionable and does not show an unqueried zero as an empty library",async()=>{
+ view.ready=false;view.status.countKnown=false;view.migration={phase:"error",completed:0,total:0};
+ const retry=vi.fn().mockResolvedValue(undefined);Object.assign(window.electronAPI.memory,{retryMigrations:retry});
+ await act(async()=>root.render(createElement(MemoryTab,{projectPath:"/project"})));await settle();
+ expect(query).not.toHaveBeenCalled();expect(host.textContent).not.toContain("共 0 条");await click("重试问题项");expect(retry).toHaveBeenCalledOnce();
+});

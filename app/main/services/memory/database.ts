@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import { hashText, scopeKey, memoryDay } from "./codec";
 export { hashText, scopeKey } from "./codec";
-import { mkdirSync } from "node:fs";
+import { mkdirSync,renameSync,existsSync,unlinkSync } from "node:fs";
 import path from "node:path";
 import type { MemoryConclusion, MemoryPage, MemoryQuery, MemoryRecord, MemorySource, MemorySummary, MemoryWrite } from "../../../shared/memory";
 import { MEMORY_KINDS, MEMORY_TEXT_LIMIT, MEMORY_DETAILS_LIMIT, MEMORY_SUMMARY_LIMIT } from "../../../shared/memory";
@@ -34,7 +34,9 @@ export class MemoryDatabase {
     if((application!==0 && application!==MEMORY_APPLICATION_ID) || (application===0 && populated))throw new Error("该路径已有未识别的数据库，原件未修改，请先确认来源");
     if(version.user_version===1 && application===MEMORY_APPLICATION_ID && file!==":memory:") {
       const backup=path.join(path.dirname(file),"backups");mkdirSync(backup,{recursive:true,mode:0o700});
-      this.db.prepare("VACUUM INTO ?").run(path.join(backup,`memory-v1-${Date.now()}-${randomUUID()}.sqlite`));
+      const target=path.join(backup,`memory-v1-${Date.now()}-${randomUUID()}.sqlite`),temporary=`${target}.pending`;
+      try {this.db.prepare("VACUUM INTO ?").run(temporary);renameSync(temporary,target);}
+      catch(error){if(existsSync(temporary))unlinkSync(temporary);throw error;}
     }
     // WAL changes may return SQLITE_BUSY immediately when two fresh connections switch modes.
     // Retry only that initialization step, off the UI thread; normal writes use SQLite transactions.

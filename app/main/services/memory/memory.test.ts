@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { MemoryDatabase } from "./database";
 import { migrateExperiences } from "./migration";
-import { adoptDocuments, generateDocuments, previewDocuments } from "./documents";
+import { adoptDocuments, generateDocuments, previewDocuments, relocatedDirectory } from "./documents";
 import { assertCondensed } from "./policy";
 
 const databases:MemoryDatabase[]=[];
@@ -274,4 +274,60 @@ it("reconfirms an expired fact with new evidence and exposes old versions throug
  expect(restored.expiresAt).toBeUndefined();expect(db.query().items[0]?.key).toBe(item.key);
  db.update(item.key,undefined,restored.revision,{text:"转而关注新的研究"});
  expect(db.query({view:"history",history:true}).items[0]?.matchedRevision).toBeTruthy();
+});
+
+
+describe("cross-host document metadata and explicit repair",()=>{
+  it("interprets old Windows/UNC roots before relocating in either direction",()=>{
+    expect(relocatedDirectory("/new/project",{projectRoot:"C:\\old\\项目",directory:"C:\\old\\项目\\private_docs"})).toEqual({directory:"/new/project/private_docs",relativeDirectory:"private_docs"});
+    expect(relocatedDirectory("/new/project",{projectRoot:"\\\\server\\share\\项目",directory:"\\\\server\\share\\项目\\docs"}).directory).toBe("/new/project/docs");
+    expect(relocatedDirectory("D:\\new\\项目",{projectRoot:"/old/project",directory:"/old/project/docs"}).directory).toBe("D:\\new\\项目\\docs");
+    for(const relativeDirectory of ["../outside","C:relative","C:\\outside","/outside","docs/../../outside"])
+      expect(()=>relocatedDirectory("/new/project",{directory:"unused",relativeDirectory})).toThrow();
+    expect(()=>relocatedDirectory("/new/project",{projectRoot:"C:\\old\\项目",directory:"D:\\outside"})).toThrow();
+  });
+  it("normalizes Windows hashes, pending writes, month files and legacy links without duplicate files",()=>{
+    const {root,db}=setup(),project=path.join(root,"project"),dir=path.join(project,"docs");fs.mkdirSync(project);
+    fs.mkdirSync(dir);fs.writeFileSync(path.join(dir,"开发记录.md"),"原入口");save(db,"跨主机保留事件");
+    const before=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,path.join(root,"backups"));
+    const win=(file:string)=>file.replaceAll("/","\\");
+    db.setMetadata("documents:p",{...before,projectRoot:"C:\\old\\项目",directory:"C:\\old\\项目\\docs",relativeDirectory:undefined,
+      hashes:Object.fromEntries(Object.entries(before.hashes).map(([file,hash])=>[win(file),hash])),
+      pending:Object.fromEntries(Object.entries(before.hashes).map(([file,hash])=>[win(file),{before:hash,after:hash}])),
+      monthFiles:Object.fromEntries(Object.entries(before.monthFiles!).map(([month,file])=>[month,win(file)]))});
+    const after=generateDocuments(db,"p",project);
+    expect(after.error).toBeUndefined();expect(after.relativeDirectory).toBe("docs");expect(after.directory).toBe(dir);
+    expect(Object.keys(after.hashes).some(file=>file.includes("\\"))).toBe(false);
+    expect(Object.keys(after.pending!).some(file=>file.includes("\\"))).toBe(false);
+    expect(after.monthFiles).toEqual(before.monthFiles);
+    expect(fs.readdirSync(path.join(dir,"开发记录"))).toEqual(["1970-01-em.md"]);
+    expect(fs.readFileSync(path.join(dir,"开发记录.md"),"utf8")).toContain("跨主机保留事件");
+  });
+  it("rejects unsafe persisted file names before changing any managed output",()=>{
+    const {root,db}=setup(),project=path.join(root,"project"),dir=path.join(project,"docs");fs.mkdirSync(project);save(db);
+    const before=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,path.join(root,"backups"));
+    const original=fs.readFileSync(path.join(dir,"开发记录.md"));
+    for(const file of ["../outside.md","C:\\outside.md","/outside.md","C:outside.md"]){
+      db.setMetadata("documents:p",{...before,generation:-1,hashes:{...before.hashes,[file]:"bad"}});
+      expect(generateDocuments(db,"p",project).error).toBeTruthy();
+      expect(fs.readFileSync(path.join(dir,"开发记录.md"))).toEqual(original);
+    }
+  });
+  it("repairs a moved or externally edited projection only after preview and byte-preserving backup",()=>{
+    const {root,db}=setup(),project=path.join(root,"project"),dir=path.join(project,"docs"),backup=path.join(root,"backups");fs.mkdirSync(project);save(db);
+    const before=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,backup);
+    const month=path.join(dir,"开发记录","1970-01-em.md");fs.writeFileSync(month,"用户修订的旧月记录");fs.writeFileSync(path.join(dir,"开发记录.md"),"人工入口");
+    const state={...before,projectRoot:"C:\\old\\project",directory:"C:\\old\\project\\docs",relativeDirectory:undefined};db.setMetadata("documents:p",state);
+    expect(generateDocuments(db,"p",project).error).toContain("缺失或已修改");
+    expect(generateDocuments(db,"p",project).error).toContain("外部修改或已移除");
+    const preview=previewDocuments(project,dir);fs.writeFileSync(path.join(dir,"开发记录.md"),"人工入口又变化");
+    expect(()=>adoptDocuments(db,"p",project,dir,preview.hash,backup,true)).toThrow("已变化");
+    const current=db.metadata("documents:p");
+    const repaired=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,backup,true);
+    expect(repaired.error).toBeUndefined();expect(JSON.parse(fs.readFileSync(repaired.previousStateBackup!,"utf8"))).toEqual(current);
+    expect(fs.readFileSync(path.join(repaired.backup!,"开发记录","1970-01-em.md"),"utf8")).toBe("用户修订的旧月记录");
+    expect(fs.readFileSync(month,"utf8")).toBe("用户修订的旧月记录");
+    expect(fs.readFileSync(path.join(dir,repaired.legacy!),"utf8")).toBe("人工入口又变化");
+    expect(repaired.monthFiles?.["1970-01"]).toBe("开发记录/1970-01-em-2.md");
+  });
 });

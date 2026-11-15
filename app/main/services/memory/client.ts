@@ -4,6 +4,8 @@ import type { MemoryMethods } from "./worker";
 
 export interface MemoryPort {
   call<K extends keyof MemoryMethods>(method:K,...args:Parameters<MemoryMethods[K]>):Promise<Awaited<ReturnType<MemoryMethods[K]>>>;
+  readonly unavailable?:boolean;
+  close?():Promise<void>;
 }
 /** The worker owns SQLite and filesystem migration/export; never touches Electron or credentials. */
 export class MemoryClient implements MemoryPort {
@@ -14,6 +16,7 @@ export class MemoryClient implements MemoryPort {
   private failure:Error|undefined;
   private pending=new Map<number,{resolve:(value:any)=>void;reject:(error:Error)=>void}>();
   private ready:Promise<void>;
+  get unavailable():boolean {return this.closing || Boolean(this.failure);}
   constructor(file:string,workerFile=path.join(__dirname,"memory-worker.cjs")) {
     this.worker=new Worker(workerFile.replace(/\.asar([\\/])/u,".asar.unpacked$1"),{workerData:{file}});
     this.ready=new Promise<void>((resolve,reject) => {

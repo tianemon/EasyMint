@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MemoryDocumentPreview, MemoryKind, MemoryPage, MemoryRecord, MemorySettings, MemoryState, MemorySummary, MemoryView } from "@shared/memory";
+import type { MemoryDocumentPreview, MemoryMigrationReport,MemoryKind, MemoryPage, MemoryRecord, MemorySettings, MemoryState, MemorySummary, MemoryView } from "@shared/memory";
 import { MEMORY_KINDS,MEMORY_TEXT_LIMIT,MEMORY_DETAILS_LIMIT,MEMORY_SUMMARY_LIMIT } from "@shared/memory";
+import {MemoryMigrationPanel} from "./MemoryMigrationPanel";
 import { Select } from "../Select";
 import { Checkbox } from "../ui/Checkbox";
 import { PromptEditorDialog } from "../PromptEditorDialog";
@@ -12,8 +13,10 @@ import { formatDate } from "../../lib/locale-format";
 const input="em-input w-full px-2.5 py-1.5 text-xs text-text-primary";
 const button="px-3 py-1.5 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover disabled:opacity-50";
 const kindLabel=(kind:MemoryKind)=>uiText(`memory.kind.${kind}`);
-export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
+export function MemoryTab({projectPath:hostProjectPath}:{projectPath?:string}):JSX.Element {
   useUiLocale();
+  const [inspectionPath,setInspectionPath]=useState<string|undefined>();
+  const projectPath=inspectionPath ?? hostProjectPath;
   const loadVersion=useRef(0),readVersion=useRef(0);
   const [view,setView]=useState<MemoryView|null>(null),[error,setError]=useState("");
   const [query,setQuery]=useState(""),[scope,setScope]=useState(projectPath?"both":"global");
@@ -23,20 +26,23 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
   const [editing,setEditing]=useState<MemoryRecord|"new"|null>(null),[revisions,setRevisions]=useState<MemoryRecord[]>([]);
   const [saving,setSaving]=useState(false),[analyzing,setAnalyzing]=useState(false),[refresh,setRefresh]=useState(0);
   const [documentDirectory,setDocumentDirectory]=useState("");
-  const [preview,setPreview]=useState<MemoryDocumentPreview|null>(null);
+  const [preview,setPreview]=useState<(MemoryDocumentPreview & {projectPath:string;repair:boolean})|null>(null),[changingDirectory,setChangingDirectory]=useState(false);
+  const [retrying,setRetrying]=useState(false);
   const [digestOpen,setDigestOpen]=useState(false);
+  useEffect(()=>{readVersion.current++;setView(null);setPage({items:[],total:0});setEditing(null);setPreview(null);setDigestOpen(false);setChangingDirectory(false);setDocumentDirectory("");},[projectPath]);
   const reload=useCallback(async()=>{
     const request=++loadVersion.current;
     try {const result=await window.electronAPI.memory.state(projectPath);if(request===loadVersion.current){setView(result);setError("");}}
     catch(cause){if(request===loadVersion.current)setError(appText(String(cause)));}
   },[projectPath]);
   useEffect(()=>{void reload();},[reload,refresh]);
-  useEffect(()=>{setScope(view?.projectId?"both":"global");},[view?.projectId]);
+  useEffect(()=>{if(view && !view.projectId)setScope(value=>value==="both"||value==="project"?"global":value);},[view?.projectId,Boolean(view)]);
+  useEffect(()=>{setInspectionPath(undefined);setScope(hostProjectPath?"both":"global");},[hostProjectPath]);
   useEffect(()=>window.electronAPI.memory.onChanged?.(()=>setRefresh(n=>n+1)),[]);
   useEffect(()=>{setOffset(0);},[query,scope,state,life,projectPath]);
   const visible=Boolean(view?.settings.enabled || (view?.status.count ?? 0)>0);
   useEffect(()=>{
-    if(!visible) return;
+    if(!visible || view?.ready===false) return;
     let cancelled=false;
     const timer=setTimeout(()=>{
       void window.electronAPI.memory.query({projectPath,query,scope:scope as "both"|"global"|"project"|"recent",state,
@@ -44,7 +50,7 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
         .then(result=>{if(!cancelled){setPage(result);setError("");}}).catch(cause=>{if(!cancelled)setError(appText(String(cause)));});
     },200);
     return ()=>{cancelled=true;clearTimeout(timer);};
-  },[visible,projectPath,query,scope,state,life,offset,refresh]);
+  },[visible,view?.ready,projectPath,query,scope,state,life,offset,refresh]);
   const configure=async(patch:Partial<MemorySettings>)=>{
     setSaving(true);
     try {await window.electronAPI.memory.configure(patch);await reload();setRefresh(n=>n+1);}
@@ -69,6 +75,13 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
     catch(cause){setError(appText(String(cause)));}
     finally{setSaving(false);}
   };
+  const retry=async(projectId?:string)=>{setRetrying(true);try{await window.electronAPI.memory.retryMigrations(projectId);await reload();}finally{setRetrying(false);}};
+  const reviewImported=(report:MemoryMigrationReport)=>{
+    if(report.projectId&&!report.projectPath){toast(uiText("memory.migrationProjectUnavailable"));return;}
+    readVersion.current++;setEditing(null);setMatchedRevision(undefined);setInspectionPath(report.projectPath);
+    setScope(report.projectId?"project":"global");setState("candidate");setLife("all");setOffset(0);
+  };
+  const migrating=view?.migration?.phase==="opening"||view?.migration?.phase==="migrating";
   return <div className="space-y-4 text-xs">
     <div className="flex items-center justify-between gap-3">
       <div><p className="text-text-primary">{uiText("memory.enabled")}</p><p className="text-text-secondary mt-1">{uiText("memory.enabledHelp")}</p></div>
@@ -78,6 +91,9 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
       <div><p className="text-text-primary">{uiText("memory.background")}</p><p className="text-text-secondary mt-1">{uiText("memory.backgroundHelp")}</p></div>
       <Checkbox checked={view?.settings.background??false} disabled={!view?.settings.enabled || saving} onChange={background=>void configure({background})} ariaLabel={uiText("memory.background")} />
     </div>
+    {!view && <p role="status" className="text-text-secondary">{uiText("memory.loadingState")}</p>}
+    {view && <MemoryMigrationPanel view={view} busy={retrying} onRetry={retry} onCandidates={reviewImported} onRepair={report=>{reviewImported(report);setChangingDirectory(true);setDocumentDirectory("");}} />}
+    {inspectionPath && inspectionPath!==hostProjectPath && <div className="flex items-center justify-between gap-2"><p className="text-text-secondary">{uiText("memory.inspectingProject",{project:view?.reports.find(report=>report.projectPath===inspectionPath)?.projectName ?? inspectionPath})}</p><button type="button" className={button} onClick={()=>{setInspectionPath(undefined);setScope(hostProjectPath?"both":"global");}}>{uiText("memory.returnCurrentProject")}</button></div>}
     {(error || view?.status.error) && <p role="alert" className="text-danger whitespace-pre-wrap break-words">{error || appText(view?.status.error)}</p>}
     {view && visible && <>
       <div className="flex flex-wrap items-center gap-3">
@@ -89,15 +105,15 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
           setAnalyzing(true);void window.electronAPI.memory.analyze().then(()=>setRefresh(n=>n+1)).catch(cause=>setError(appText(String(cause)))).finally(()=>setAnalyzing(false));
         }}>{uiText(analyzing?"memory.analyzing":"memory.analyze")}</button>
       </div>
-      {view.reports.some(r=>r.imported+r.unchanged+r.conflicts>0) && <p className="text-text-secondary">{uiText("memory.legacyPreserved")}</p>}
+
       <div className="flex items-center justify-between gap-2">
         <span className="text-text-secondary">{uiText("memory.summaryTitle")}</span>
-        <button className={button} onClick={()=>setDigestOpen(true)}>{uiText("memory.viewSummary")}</button>
+        <button className={button} disabled={!view.digest || view.ready===false} onClick={()=>setDigestOpen(true)}>{uiText("memory.viewSummary")}</button>
       </div>
       {view.digest?.error && <p className="text-danger">{appText(view.digest.error)}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <input className={`${input} flex-1 min-w-32`} placeholder={uiText("memory.search")} value={query} onChange={event=>setQuery(event.target.value)} />
-        <button className={`${button} text-accent`} onClick={()=>{readVersion.current++;setMatchedRevision(undefined);setEditing("new");setRevisions([]);}} disabled={saving}>{uiText("memory.add")}</button>
+        <button className={`${button} text-accent`} onClick={()=>{readVersion.current++;setMatchedRevision(undefined);setEditing("new");setRevisions([]);}} disabled={saving || view.ready===false}>{uiText("memory.add")}</button>
       </div>
       <div className="flex flex-wrap gap-2">
         <Select borderless value={scope} onChange={setScope} options={[{value:"global",label:uiText("memory.global")},...(view?.projectId?[{value:"project",label:uiText("memory.project")},{value:"both",label:uiText("memory.both")}]:[]),{value:"recent",label:uiText("memory.recent")}]} />
@@ -105,7 +121,7 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
         <Select borderless disabled={state!=="confirmed"} value={life} onChange={setLife} options={["current","history","all"].map(value=>({value,label:uiText(`memory.lifecycle.${value}`)}))} />
       </div>
       <div className="space-y-1">
-        {page.items.map(item=><div key={item.key} className="rounded-[var(--radius-lg)] bg-surface-alt px-3 py-2.5">
+        {view.ready!==false && page.items.map(item=><div key={item.key} className="rounded-[var(--radius-lg)] bg-surface-alt px-3 py-2.5">
           <button className="block w-full text-left" onClick={()=>void open(item)}>
             <span className="text-text-secondary">{kindLabel(item.kind)}{item.projectName?` · ${item.projectName}`:""} · {formatDate(item.occurredAt, {year:"numeric",month:"short",day:"numeric"})} · {uiText(item.lifecycle==="active"&&item.kind!=="activity"?"memory.lifecycle.current":"memory.lifecycle.history")}</span>
             {item.summary && <span className="ml-2 text-accent">{uiText("memory.inSummary")}</span>}
@@ -121,19 +137,21 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
             <button className={`${button} text-danger`} disabled={saving} onClick={()=>void forget(item)}>{uiText("memory.forget")}</button>
           </div>
         </div>)}
-        {!page.items.length && <p className="text-text-muted py-5 text-center">{uiText("memory.empty")}</p>}
+        {(view.ready===false || !page.items.length) && <p className="text-text-muted py-5 text-center">{uiText(view.ready===false?(view.migration?.phase==="error"?"memory.migrationUnavailable":"memory.loadingState"):migrating?"memory.migrationWorking":"memory.empty")}</p>}
       </div>
       <div className="flex items-center justify-end gap-2 text-text-secondary tabular-nums">
-        <span>{uiText("memory.count",{count:page.total})}</span>
+        <span>{view.ready===false || (migrating&&!page.items.length)?uiText("memory.loadingCount"):uiText("memory.count",{count:page.total})}</span>
         <button className={button} disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-15))}>{uiText("memory.previous")}</button>
         <button className={button} disabled={page.next===undefined} onClick={()=>setOffset(page.next!)}>{uiText("memory.next")}</button>
       </div>
-      {projectPath && view.projectId && <div className="space-y-2">
+      {projectPath && view.projectId && !migrating && view.ready!==false && <div className="space-y-2">
         <p className="text-text-primary">{uiText("memory.documents")}</p>
         <p className="text-text-secondary">{view.documents?uiText("memory.documentsManaged"):uiText("memory.documentsHelp")}</p>
+        {view.documents && <p className="text-text-muted break-all">{view.documents.relativeDirectory ?? view.documents.directory}</p>}
         {view.documents?.error && <p className="text-danger whitespace-pre-wrap">{appText(view.documents.error)}</p>}
-        {!view.documents && <input className={input} value={documentDirectory} onChange={event=>setDocumentDirectory(event.target.value)} placeholder={uiText("memory.directoryPlaceholder")} aria-label={uiText("memory.directory")} />}
-        {!view.documents && <button className={button} onClick={()=>{void window.electronAPI.memory.previewDocuments(projectPath,documentDirectory.trim()||undefined).then(setPreview).catch(cause=>setError(appText(String(cause))));}}>{uiText("memory.previewDocuments")}</button>}
+        {(!view.documents || changingDirectory || view.documents.error) && <input className={input} value={documentDirectory} onChange={event=>setDocumentDirectory(event.target.value)} placeholder={uiText("memory.directoryPlaceholder")} aria-label={uiText("memory.directory")} />}
+        {view.documents && !changingDirectory && !view.documents.error && <button type="button" className={button} onClick={()=>setChangingDirectory(true)}>{uiText("memory.changeDocumentDirectory")}</button>}
+        {(!view.documents || changingDirectory || view.documents.error) && <button type="button" className={button} onClick={()=>{const request=++readVersion.current,repair=Boolean(view.documents);void window.electronAPI.memory.previewDocuments(projectPath,documentDirectory.trim()||undefined).then(result=>{if(request===readVersion.current)setPreview({...result,projectPath,repair});}).catch(cause=>{if(request===readVersion.current)setError(appText(String(cause)));});}}>{uiText(view.documents?"memory.previewRepair":"memory.previewDocuments")}</button>}
       </div>}
     </>}
     {digestOpen && <PromptEditorDialog title={uiText("memory.summaryTitle")} onClose={()=>setDigestOpen(false)} busy={saving}>
@@ -141,17 +159,17 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
       <div className="flex justify-end gap-2 px-4 py-2 shrink-0"><button className={button} disabled={saving} onClick={()=>{setSaving(true);void window.electronAPI.memory.summary(true).then(digest=>{setView(value=>value?{...value,digest}:value);if(digest.error)toast(appText(digest.error));}).catch(cause=>toast(appText(String(cause)))).finally(()=>setSaving(false));}}>{uiText("memory.refreshSummary")}</button><button className={button} disabled={saving} onClick={()=>setDigestOpen(false)}>{uiText("common.close")}</button></div>
     </PromptEditorDialog>}
     {editing && <MemoryEditor key={editing==="new"?"new":`${editing.key}:${editing.revision}`} initial={editing} matchedRevision={matchedRevision} projectPath={view?.projectId?projectPath:undefined} revisions={revisions} onClose={()=>{readVersion.current++;setEditing(null);}} onSaved={()=>{setEditing(null);setRefresh(n=>n+1);}} />}
-    {preview && <PromptEditorDialog title={uiText("memory.adoptTitle")} onClose={()=>setPreview(null)} busy={saving}>
+    {preview && <PromptEditorDialog title={uiText(preview.repair?"memory.repairTitle":"memory.adoptTitle")} onClose={()=>{readVersion.current++;setPreview(null);}} busy={saving}>
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-3 text-xs text-text-secondary">
-        <p>{uiText("memory.adoptHelp")}</p><p className="break-all">{preview.directory}</p>
+        <p>{uiText(preview.repair?"memory.repairHelp":"memory.adoptHelp")}</p><p className="break-all">{preview.directory}</p>
         <p>{uiText("memory.adoptFiles",{count:preview.files.length})}</p>
         <ul className="space-y-1">{preview.files.map(file=><li key={file} className="break-all">{file}</li>)}</ul>
       </div>
-      <div className="flex justify-end gap-2 px-4 py-2"><button className={button} disabled={saving} onClick={()=>setPreview(null)}>{uiText("common.cancel")}</button>
+      <div className="flex justify-end gap-2 px-4 py-2"><button className={button} disabled={saving} onClick={()=>{readVersion.current++;setPreview(null);}}>{uiText("common.cancel")}</button>
         <button className="btn-accent rounded-[var(--radius-lg)] px-4 py-1.5 text-xs" disabled={saving} onClick={()=>{
-          setSaving(true);void window.electronAPI.memory.adoptDocuments(projectPath!,preview.directory,preview.hash).then(result=>{if(result.error)throw new Error(result.error);setPreview(null);setRefresh(n=>n+1);})
+          setSaving(true);void (preview.repair?window.electronAPI.memory.repairDocuments:window.electronAPI.memory.adoptDocuments)(preview.projectPath,preview.directory,preview.hash).then(result=>{if(result.error)throw new Error(result.error);setPreview(null);setChangingDirectory(false);setRefresh(n=>n+1);})
             .catch(cause=>toast(appText(String(cause)))).finally(()=>setSaving(false));
-        }}>{uiText("memory.adopt")}</button></div>
+        }}>{uiText(preview.repair?"memory.repair":"memory.adopt")}</button></div>
     </PromptEditorDialog>}
   </div>;
 }
