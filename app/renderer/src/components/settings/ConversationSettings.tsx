@@ -94,7 +94,9 @@ export function CollaborationSettings(): JSX.Element {
   const [saving, setSaving] = useState(false);
   const update = useConversationStore(state => state.setConfig);
   const draft = editing ?? { name: "", scenario: "", prompt: "", defaultEnabled: false };
+  const canSave = Boolean(modeDisplay(draft, "name").trim() && draft.prompt.trim());
   const submit = async (action: "save" | "delete" | "restore") => {
+    if (action === "save" && !canSave) return;
     setSaving(true);
     try {
       const result = action === "delete" && editing ? await window.electronAPI.conversation.deleteMode(editing.id, editing.revision)
@@ -111,7 +113,7 @@ export function CollaborationSettings(): JSX.Element {
   });
   const closeEditor = () => { setAdding(false); setEditing(null); };
   const editor = (adding || editing) && <PromptEditorDialog title={editing?.id ? modeDisplay(editing, "name") : uiText("collaboration.addMode")} onClose={closeEditor} busy={saving}>
-    <form className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void submit("save"); }}>
+    <form noValidate className="flex flex-col flex-1 min-h-0" onSubmit={event => { event.preventDefault(); event.stopPropagation(); void submit("save"); }}>
     <div className="settings-body flex flex-col flex-1 min-h-0 overflow-y-auto px-6 py-4 gap-4">
     <label className="block shrink-0"><span className={labelClass}>{uiText("ui.AgentTemplateSettings.name")}</span><input required maxLength={40} className={inputClass} placeholder={uiText("collaboration.modeNamePlaceholder")} value={modeDisplay(draft, "name")} onChange={event => editField({ name: event.target.value })} /></label>
     <label className="block shrink-0"><span className={labelClass}>{uiText("collaboration.scenario")}</span><input maxLength={200} className={inputClass} placeholder={uiText("collaboration.scenarioPlaceholder")} value={modeDisplay(draft, "scenario")} onChange={event => editField({ scenario: event.target.value })} /></label>
@@ -127,7 +129,7 @@ export function CollaborationSettings(): JSX.Element {
       {editing?.builtin && <button type="button" disabled={saving} className="mr-auto text-xs text-text-secondary" onClick={() => void submit("restore")}>{uiText("collaboration.restore")}</button>}
       {editing?.id && !editing.builtin && <button type="button" disabled={saving} className="mr-auto text-xs text-danger" onClick={() => void submit("delete")}>{uiText("ui.AgentTemplateSettings.delete")}</button>}
       <button type="button" disabled={saving} className="text-xs text-text-secondary" onClick={() => { setAdding(false); setEditing(null); }}>{uiText("common.cancel")}</button>
-      <button type="submit" disabled={saving} className="btn-accent rounded-[var(--radius-lg)] px-4 py-1.5 text-xs disabled:opacity-50">{uiText("ui.AgentTemplateSettings.save")}</button>
+      <button type="submit" disabled={saving || !canSave} className="btn-accent rounded-[var(--radius-lg)] px-4 py-1.5 text-xs disabled:opacity-50">{uiText("ui.AgentTemplateSettings.save")}</button>
     </div>
   </form></PromptEditorDialog>;
   return <div className="space-y-3">

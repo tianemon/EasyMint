@@ -93,9 +93,9 @@ export function MemoryTab({projectPath}:{projectPath?:string}):JSX.Element {
         <button className={`${button} text-accent`} onClick={()=>{readVersion.current++;setEditing("new");setRevisions([]);}} disabled={saving}>{uiText("memory.add")}</button>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Select value={scope} onChange={setScope} options={[{value:"global",label:uiText("memory.global")},...(view?.projectId?[{value:"project",label:uiText("memory.project")},{value:"both",label:uiText("memory.both")}]:[]),{value:"recent",label:uiText("memory.recent")}]} />
-        <Select value={state} onChange={value=>setState(value as typeof state)} options={["confirmed","candidate","rejected","all"].map(value=>({value,label:uiText(`memory.state.${value}`)}))} />
-        <Select value={life} onChange={setLife} options={["daily","active","archived","retired","all"].map(value=>({value,label:uiText(`memory.lifecycle.${value}`)}))} />
+        <Select borderless value={scope} onChange={setScope} options={[{value:"global",label:uiText("memory.global")},...(view?.projectId?[{value:"project",label:uiText("memory.project")},{value:"both",label:uiText("memory.both")}]:[]),{value:"recent",label:uiText("memory.recent")}]} />
+        <Select borderless value={state} onChange={value=>setState(value as typeof state)} options={["confirmed","candidate","rejected","all"].map(value=>({value,label:uiText(`memory.state.${value}`)}))} />
+        <Select borderless value={life} onChange={setLife} options={["daily","active","archived","retired","all"].map(value=>({value,label:uiText(`memory.lifecycle.${value}`)}))} />
       </div>
       <div className="space-y-1">
         {page.items.map(item=><div key={item.key} className="rounded-[var(--radius-lg)] bg-surface-alt px-3 py-2.5">
@@ -158,9 +158,9 @@ function MemoryEditor({initial,projectPath,revisions,onClose,onSaved}:{initial:M
   };
   return <PromptEditorDialog title={uiText(item?"memory.edit":"memory.add")} onClose={onClose} busy={saving}>
     <form className="flex flex-col flex-1 min-h-0" onSubmit={event=>{event.preventDefault();event.stopPropagation();void save();}}>
-      <div className="flex flex-col flex-1 min-h-0 gap-3 px-5 py-3 overflow-y-auto">
-        <div className="grid grid-cols-2 gap-3 shrink-0"><Select block value={kind} onChange={value=>setKind(value as MemoryKind)} options={MEMORY_KINDS.map(value=>({value,label:kindLabel(value)}))} />
-          <Select block value={scope} disabled={Boolean(item)} onChange={value=>setScope(value as typeof scope)} options={[{value:"global",label:uiText("memory.global")},...(projectPath?[{value:"project",label:uiText("memory.project")}]:[])]} /></div>
+      <div className="settings-body flex flex-col flex-1 min-h-0 gap-3 px-5 py-3 overflow-y-auto">
+        <div className="grid grid-cols-2 gap-3 shrink-0"><Select block borderless value={kind} onChange={value=>setKind(value as MemoryKind)} options={MEMORY_KINDS.map(value=>({value,label:kindLabel(value)}))} />
+          <Select block borderless value={scope} disabled={Boolean(item)} onChange={value=>setScope(value as typeof scope)} options={[{value:"global",label:uiText("memory.global")},...(projectPath?[{value:"project",label:uiText("memory.project")}]:[])]} /></div>
         <label className="block shrink-0 text-xs text-text-secondary">{uiText("memory.text")}<textarea required className={`${input} h-24 mt-1 resize-none`} maxLength={6000} value={text} onChange={event=>setText(event.target.value)} placeholder={uiText("memory.textPlaceholder")} /></label>
         <label className="flex flex-col flex-1 min-h-32 text-xs text-text-secondary">{uiText("memory.details")}<textarea className={`${input} mt-1 flex-1 min-h-0 resize-none`} maxLength={200_000} value={details} onChange={event=>setDetails(event.target.value)} placeholder={uiText("memory.detailsPlaceholder")} /></label>
         <div className="flex items-center gap-2 shrink-0 text-xs text-text-secondary"><Checkbox checked={pinned} onChange={setPinned} ariaLabel={uiText("memory.pinned")} />{uiText("memory.pinnedHelp")}</div>

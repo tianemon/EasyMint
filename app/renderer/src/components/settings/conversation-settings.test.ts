@@ -170,6 +170,26 @@ it("creates a custom mode without configuring an icon and supports stacked selec
   expect(change).toHaveBeenCalledOnce();
 });
 
+it("blocks empty and whitespace-only modes before calling the API, including direct form submission", async () => {
+  await act(async () => root.render(createElement(CollaborationSettings)));
+  await clickText("新增模式");
+  const dialog = document.querySelector('[role="dialog"]')!;
+  const form = dialog.querySelector("form")!;
+  const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const name = dialog.querySelector<HTMLInputElement>("input")!;
+  const prompt = dialog.querySelector("textarea")!;
+  expect(form.noValidate).toBe(true);
+  expect(submit.disabled).toBe(true);
+  await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(saveMode).not.toHaveBeenCalled();
+  await input(name, "Writing"); await input(prompt, "   ");
+  expect(submit.disabled).toBe(true);
+  await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(saveMode).not.toHaveBeenCalled();
+  await input(prompt, "Write short paragraphs");
+  expect(submit.disabled).toBe(false);
+});
+
 it("localizes untouched built-in mode labels while keeping user wording", async () => {
   config.modes[0] = { ...config.modes[0]!, name: getPromptDefaults().modes[0]!.name, scenario: getPromptDefaults().modes[0]!.scenario, customizedFields: [] };
   config.modes[1] = { ...config.modes[1]!, name: "我的引导", scenario: "我的场景", customizedFields: ["name", "scenario"] };

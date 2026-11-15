@@ -54,7 +54,7 @@ export function CollaborationModePicker({ modes, selected, onChange, disabled }:
       <span id={`${labelId}-value`}>{names.join(" + ") || uiText("ui.ChatInput.standard")}</span>
     </button>
     {open && createPortal(<div ref={panel} role="dialog" aria-label={uiText("collaboration.title")}
-      className="fixed z-dropdown w-max max-w-[calc(100vw-16px)] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-y-auto max-h-[70vh]"
+      className="fixed z-dropdown w-max max-w-[calc(100vw-16px)] rounded-[var(--radius-lg)] bg-surface-elevated shadow-xl overflow-y-auto max-h-[70vh]"
       style={{ left: position.left, top: position.top }}>
       {modes.map(mode => {
         const checked = selected.includes(mode.id);
