@@ -12,6 +12,8 @@ type RuntimeRunner = ConstructorParameters<typeof WindowsRuntimeService>[0]["run
 let run: Mock<RuntimeRunner>;
 let failBash: boolean;
 let leavePostInstall: boolean;
+let postInstallError: Error | undefined;
+let log: Mock<(line: string) => void>;
 let extracting: (() => Promise<void>) | undefined;
 const digest = (bytes: string) => createHash("sha256").update(bytes).digest("hex");
 beforeEach(() => {
@@ -23,7 +25,8 @@ beforeEach(() => {
   fs.writeFileSync(path.join(resources, "portable-git.7z.exe"), "verified archive");
   fs.writeFileSync(path.join(resources, "manifest.json"), JSON.stringify({ version: sourceManifest.version, arch: "x64", fileName: "portable-git.7z.exe", sha256: sourceManifest.archives.x64.sha256, extractor: { fileName: "7za.exe", sha256: digest("verified extractor") } }));
   fs.writeFileSync(path.join(resources, "7za.exe"), "verified extractor");
-  failBash = false; leavePostInstall = false; extracting = undefined;
+  log = vi.fn<(line: string) => void>();
+  failBash = false; leavePostInstall = false; postInstallError = undefined; extracting = undefined;
   run = vi.fn(async (file: string, args: string[], options: { cwd: string; signal?: AbortSignal }) => {
     if (args[0] === "x" || file.endsWith(".7z.exe")) {
       const stage = args.find(value => value.startsWith("-o"))!.slice(2);
@@ -36,13 +39,15 @@ beforeEach(() => {
       return "";
     }
     if (path.basename(file) === "git-bash.exe") {
+      // 真实行为：post-install.bat 末行自删，cmd 之后读不到文件 → 退出码 1。这里能复现。
       if (!leavePostInstall) { fs.unlinkSync(path.join(options.cwd, "post-install.bat")); fs.rmSync(path.join(options.cwd, "etc/post-install"), { recursive: true }); }
+      if (postInstallError) throw postInstallError;
       return "";
     }
     if (file.endsWith("git.exe")) return `git version ${sourceManifest.releaseTag.slice(1)}\n`;
     return failBash ? "not a valid runtime" : "git version fixture.windows.1\n__EM_RUNTIME_OK__";
   });
-  service = new WindowsRuntimeService({ arch: "x64", dataRoot: path.join(root, "owned"), resources, manifest: sourceManifest, run });
+  service = new WindowsRuntimeService({ arch: "x64", dataRoot: path.join(root, "owned"), resources, manifest: sourceManifest, run, log });
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -90,10 +95,70 @@ describe("bundled Windows runtime lifecycle", () => {
     oldRuntime(); leavePostInstall = true;
     await expect(service.ensure()).rejects.toThrow("initialization did not finish"); assertNoStage();
   });
+  it("accepts a non-zero post-install exit once the script and its marker are gone", async () => {
+    // 真实现场（2026-11-15）：`post-install.bat` 末行自删，cmd 随后报「找不到批处理文件。」并返回 1。
+    // 旧实现只看退出码，于是把已经装好的运行环境判成失败，用户永远装不上、面板永远显示未安装。
+    postInstallError = new Error("git-bash.exe exited 1: The batch file cannot be found.");
+    const paths = await service.ensure();
+    expect(fs.existsSync(paths.git)).toBe(true);
+    expect((await service.probe()).status).toBe("ready");
+    expect(log.mock.calls.some(call => String(call[0]).includes("post-install"))).toBe(true);
+    assertNoStage();
+  });
+  it("still fails when post-install exits non-zero and leaves its markers behind", async () => {
+    oldRuntime(); leavePostInstall = true;
+    postInstallError = new Error("git-bash.exe exited 1");
+    await expect(service.ensure()).rejects.toThrow(/exited 1/); assertNoStage();
+  });
+  it("reports an interrupted preparation instead of a plain missing runtime", async () => {
+    const paths = service.paths();
+    fs.mkdirSync(`${paths.root}.staging-dead`, { recursive: true });
+    const report = await service.probe();
+    expect(report.status).toBe("broken");
+    expect(report.detail).toContain("中断");
+  });
+  it("sweeps leftovers from an interrupted preparation before preparing again", async () => {
+    const stale = `${service.paths().root}.staging-dead`;
+    fs.mkdirSync(stale, { recursive: true }); fs.writeFileSync(path.join(stale, "half-extracted"), "partial");
+    await service.ensure();
+    expect(fs.existsSync(stale)).toBe(false);
+    expect((await service.probe()).status).toBe("ready");
+  });
   it("repairs missing executables from the pinned bundle after recheck", async () => {
     const paths = await service.ensure(); fs.unlinkSync(paths.bash); service.reset();
     expect((await service.probe()).status).toBe("broken");
     await service.ensure(); expect(fs.existsSync(paths.bash)).toBe(true); assertNoStage();
+  });
+  it("treats a partially moved runtime as not ready even while the cache says ready", async () => {
+    // 用户把运行时目录搬走一半（或杀软隔离了其中的文件）时，git.exe/bash.exe 可能都还在：
+    // 旧实现据此认为"就绪"，于是每条命令都去 spawn 一个残残缺的 Bash，工具调用直接卡住。
+    const paths = await service.ensure();
+    fs.unlinkSync(path.join(paths.root, "usr/bin/sed.exe"));
+    expect(service.prepared()).toBeUndefined();
+    await service.ensure();
+    expect(fs.existsSync(path.join(paths.root, "usr/bin/sed.exe"))).toBe(true);
+    expect((await service.probe()).status).toBe("ready");
+  });
+  it("drops readiness when the marker disappears", async () => {
+    const paths = await service.ensure();
+    fs.unlinkSync(path.join(paths.root, ".em-ready.json"));
+    expect(service.prepared()).toBeUndefined();
+  });
+  it("join never starts a preparation and only attaches to an in-flight one", async () => {
+    // 命令链路专用：缺运行时立刻返回 undefined（调用方据此报"请到设置修复"），
+    // 绝不在一条普通消息背后拉起 400MB 解压——那是"发消息即未响应"的成因。
+    expect(await service.join({}, 0)).toBeUndefined();
+    expect(run).not.toHaveBeenCalled();
+
+    let release!: () => void;
+    extracting = () => new Promise<void>(resolve => { release = resolve; });
+    const running = service.ensure();                       // 显式入口（启动/设置页）才会启动
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    const joined = service.join();                           // 正在装 → 搭车等待
+    expect(joined).toBeDefined();
+    release();
+    await expect(joined!).resolves.toEqual(service.paths());
+    await running;
   });
   it("coalesces callers and lets one cancel without aborting another's preparation", async () => {
     let release!: () => void;
@@ -117,7 +182,7 @@ describe("bundled Windows runtime lifecycle", () => {
     expect(fs.readFileSync(path.join(service.paths().root, "old-copy"), "utf8")).toBe("preserve");
   });
   it("serializes preparation across instances sharing a runtime directory", async () => {
-    const other = new WindowsRuntimeService({ arch: "x64", dataRoot: path.join(root, "owned"), resources: path.join(root, "resources"), manifest: sourceManifest, run });
+    const other = new WindowsRuntimeService({ arch: "x64", dataRoot: path.join(root, "owned"), resources: path.join(root, "resources"), manifest: sourceManifest, run, log });
     const [first, second] = await Promise.all([service.ensure(), other.ensure()]);
     expect(first).toEqual(second);
     expect(run.mock.calls.filter(call => call[0].endsWith(".7z.exe") || call[1][0] === "x")).toHaveLength(1);
@@ -133,15 +198,17 @@ describe("bundled Windows runtime lifecycle", () => {
     expect((await second).git).toBe(service.paths().git); expect(calls).toBe(2);
   });
   it("rejects an unsupported target architecture before preparing files", async () => {
-    const invalid = new WindowsRuntimeService({ arch: "ia32", dataRoot: root, resources: root, manifest: sourceManifest, run });
+    const invalid = new WindowsRuntimeService({ arch: "ia32", dataRoot: root, resources: root, manifest: sourceManifest, run, log });
     await expect(invalid.ensure()).rejects.toThrow("Unsupported"); expect(run).not.toHaveBeenCalled();
   });
   it("only adjusts child PATH and preserves Windows case-insensitive environment semantics", () => {
-    const original = { Path: "C:\\original", KEEP: "yes" };
+    const original = { Path: "C:\\original", KEEP: "yes", GIT_EXEC_PATH: "C:\\other\\git\\libexec\\git-core" };
     const env = windowsRuntimeEnvironment(original, service.paths());
-    expect(original).toEqual({ Path: "C:\\original", KEEP: "yes" });
+    expect(original).toEqual({ Path: "C:\\original", KEEP: "yes", GIT_EXEC_PATH: "C:\\other\\git\\libexec\\git-core" });
     expect(env.Path).toBeUndefined(); expect(env.PATH).toContain("C:\\original");
     expect(env.PATH!.startsWith(path.join(service.paths().root, "cmd") + ";")).toBe(true);
     expect(env.KEEP).toBe("yes");
+    // 用户设的 GIT_EXEC_PATH 指向另一份 Git：留着会让自带 git 去调系统的辅助程序，必须剔除
+    expect(env.GIT_EXEC_PATH).toBeUndefined();
   });
 });

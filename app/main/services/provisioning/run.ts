@@ -14,7 +14,6 @@
  * 一律 argv 直接 spawn）；提权交给系统弹窗（pkexec / UAC），EM 不代持凭据。
  */
 import fs from "node:fs";
-import path from "node:path";
 import { spawn } from "node:child_process";
 import {
   APPARMOR_PROFILES_PACKAGE, buildInstallArgv, distroManualInstallCommand, manualInstallCommand,
@@ -25,7 +24,7 @@ import {
 import { cleanEnv, prependPathDirs, probeEnvironment, probePathDirs } from "./probe";
 import { packagedSrtVersion, srtWinSpawn } from "../sandbox/srt-win";
 import type { EnvReport } from "./types";
-import { emHome } from "../../utils/paths";
+import { logProvisioning } from "./log";
 import { ensureWindowsRuntime } from "../windows-runtime";
 
 export type InstallPhase = "preparing" | "installing" | "verifying" | "done" | "failed";
@@ -69,16 +68,8 @@ export interface RunDeps {
   plan: Plan;
 }
 
-const LOG_DIR = path.join(emHome(), "logs");
-const LOG_PATH = path.join(LOG_DIR, "provisioning.log");
-
-/** 审计日志：命令、退出码、输出尾部（方案 §8.4）。日志本身失败不能影响安装 */
-function defaultLog(line: string): void {
-  try {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(LOG_PATH, `${new Date().toISOString()} ${line}\n`);
-  } catch { /* ignore */ }
-}
+/** 审计日志的落盘实现在 ./log —— 启动时的静默准备（windows-runtime）与这里必须写同一份 */
+const defaultLog = logProvisioning;
 
 /** 输出尾部用于诊断：剥掉终端控制字符、截断（包管理器输出可能很长） */
 export function outputTail(s: string, n = 400): string {

@@ -16,7 +16,7 @@ import { wrapWithWindowsWorker } from "./windows-execution-manager";
 import { linuxSandboxConfig } from "./srt-linux";
 import { srtWinPath, srtWinSpawn } from "./srt-win";
 import { isSandboxExcludedCommand } from "./compat-policy";
-import { ensureWindowsRuntime, preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
+import { joinWindowsRuntime, preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
 
 /** Linux 沙盒系统依赖（EM 不代做系统安装——缺失时给安装指引，装好前自动降级） */
 const LINUX_SANDBOX_DEPS = ["bwrap", "socat", "rg"] as const;
@@ -284,7 +284,14 @@ export async function wrapForSandbox(
 ): Promise<SandboxSpawnSpec> {
   opts.signal?.throwIfAborted();
   if (process.platform === "win32") {
-    const tools = opts.windowsShell === "powershell" ? preparedWindowsRuntime() : await ensureWindowsRuntime({ signal: opts.signal });
+    // 命令链路**只加入、不新建**准备：缺运行时立刻报错并指路，绝不在一条普通消息背后静默解压
+    // 400MB（1–3 分钟）。那正是"发消息即未响应"的成因——用户取消/重发还会 abort 解压，
+    // 下一条再从零开始（2026-11-15 现场：自带 Git 被搬走后完全无法使用）。
+    const tools = preparedWindowsRuntime()
+      ?? (opts.windowsShell === "powershell" ? undefined : await joinWindowsRuntime({ signal: opts.signal }));
+    if (opts.windowsShell !== "powershell" && !tools) {
+      throw new Error("运行环境还没准备好：自带的 Git / Bash 缺失或被移走了。到 设置 → 环境检测 点「准备运行环境」就好（通常 1–3 分钟），修好之后命令就能继续跑。");
+    }
     if (tools) opts = { ...opts, gitBashPath: tools.bash, context: {
       ...opts.context, bundledRuntimeRoot: tools.root,
       environment: windowsRuntimeEnvironment(opts.context.environment, tools),

@@ -34,6 +34,10 @@ export function windowsWorkerKey(context: ExecutionContext): string {
   return [context.ownerId ?? "shared", context.workspaceRealPath, context.runtimeRoot, context.mode, context.policyVersion, context.bundledRuntimeRoot ?? ""].join("\u0000");
 }
 
+/** 单次往返与初始化的上限（初始化要建 ACL，给宽一点） */
+const CALL_TIMEOUT_MS = 30_000;
+const INIT_TIMEOUT_MS = 60_000;
+
 function requestId(): string { return `win-srt-${process.pid}-${Date.now()}-${++sequence}`; }
 
 function workerEntrypoint(): string {
@@ -42,14 +46,18 @@ function workerEntrypoint(): string {
   return bundled.replace(/\.asar([\\/])/, ".asar.unpacked$1");
 }
 
+/** 让这个 worker 上的所有等待一起失败，并把它换掉（超时 / 退出都走这里，避免留下"半死不活"的 worker） */
+function failWorker(worker: WorkerHandle, message: string): void {
+  for (const pending of worker.pending.values()) pending.reject(new Error(message));
+  worker.pending.clear();
+  workers.delete(worker.key);
+  try { worker.child.kill(); } catch { /* 已退出 */ }
+}
+
 function createWorker(key: string): WorkerHandle {
   const child = fork(workerEntrypoint(), [], { stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true });
   const handle: WorkerHandle = { key, child, pending: new Map(), initialized: false, leases: new Set(), revoking: false };
-  const fail = (message: string) => {
-    for (const pending of handle.pending.values()) pending.reject(new Error(message));
-    handle.pending.clear();
-    workers.delete(key);
-  };
+  const fail = (message: string) => failWorker(handle, message);
   child.on("message", (message: WindowsSandboxWorkerResponse) => {
     const pending = handle.pending.get(message.requestId);
     if (!pending) return;
@@ -63,12 +71,23 @@ function createWorker(key: string): WorkerHandle {
   return handle;
 }
 
+/**
+ * 给每次 worker 往返加超时：worker 卡在原生调用里时既不回消息、也不退出，原先这个 promise
+ * 就永久 pending —— 界面上那条命令永远是"运行中"，只能重启应用。超时后连同 worker 一起换掉，
+ * 下一条命令重新初始化，不会每次都再等一个超时。
+ */
 function call(handle: WorkerHandle, message: WorkerRequestWithoutId): Promise<WindowsSandboxWorkerResponse> {
   const id = requestId();
+  const limit = message.type === "initialize" ? INIT_TIMEOUT_MS : CALL_TIMEOUT_MS;
+  const note = message.type === "initialize"
+    ? "沙盒初始化超时（60 秒），这次先放弃了。可以再试一次；一直这样的话，去 设置 → 环境检测 修复一下运行环境。"
+    : "沙盒 30 秒没有响应，这条命令先停了。可以重试一次；反复出现的话，去 设置 → 环境检测 修复一下运行环境。";
   return new Promise((resolve, reject) => {
-    handle.pending.set(id, { resolve, reject });
+    const timer = setTimeout(() => failWorker(handle, note), limit);
+    const settle = <T>(fn: (value: T) => void) => (value: T): void => { clearTimeout(timer); fn(value); };
+    handle.pending.set(id, { resolve: settle(resolve), reject: settle(reject) });
     try { handle.child.send({ ...message, requestId: id } as WindowsSandboxWorkerRequest); }
-    catch (error) { handle.pending.delete(id); reject(error as Error); }
+    catch (error) { clearTimeout(timer); handle.pending.delete(id); reject(error as Error); }
   });
 }
 

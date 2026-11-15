@@ -339,7 +339,7 @@ export async function probeEnvironment(
         id: "windowsRuntime", label: "命令运行环境（Git + Bash）", required: true,
         status: runtime.status === "ready" ? "ok" : runtime.status === "missing" ? "missing" : "unknown",
         ...(runtime.version ? { version: runtime.version } : {}),
-        impact: "缺少或损坏时无法执行 Git 和 Bash 命令，可从应用内置组件修复",
+        impact: "缺少或损坏时无法执行 Git 和 Bash 命令；修复会从安装包内置组件解压约 400MB，通常 1–3 分钟",
         ...(runtime.detail ? { detail: runtime.detail } : {}),
         fix: runtime.status === "ready" ? {} : { auto: { strategy: "windowsRuntime" } },
       });

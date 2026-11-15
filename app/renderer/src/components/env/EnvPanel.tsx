@@ -223,9 +223,18 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, onRep
   const fixable = broken.filter((i) => i.status === "blocked" && i.fix.auto?.strategy === "usernsProfile");
   /** 兜底开关是否可用（关闭沙盒运行 / 重新开启） */
   const sandboxOffAvailable = broken.length > 0 && items.some((i) => i.fix.sandboxOff);
-  /** 操作区是否有内容：设置页在"全部就绪"时不该留一行空白 */
-  const hasActions = installable.length > 0 || sandboxInstallable.length > 0 || fixable.length > 0 || installing
-    || sandboxOffAvailable || sandboxDisabled;
+  /** 自动装过一次就改口叫"重试"：否则用户会以为还是第一次，不知道自己刚才拒过授权框。
+   *  只有一项时不报数量——"重试安装 1 项"里的"1 项"在单行场景是废话。
+   *  Windows 上这条动作不是"装 Git"，而是把**随包的**运行环境解压到位：直接说"准备运行环境"，
+   *  比"一键安装"更能让用户知道点了会发生什么（2026-11-15 反馈：按钮像黑盒）。 */
+  const runtimeOnly = installable.length > 0 && installable.every(i => i.fix.auto?.strategy === "windowsRuntime");
+  const installAttempted = autoDoneOnce.has(runtimeInstallable.length > 0 ? "windowsRuntime" : "pkg");
+  const installVerb = (): string => runtimeOnly
+    ? uiText(installAttempted ? "ui.extra.reprepareRuntime" : "ui.extra.prepareRuntime")
+    : uiText(installAttempted ? "ui.extra.retryInstall" : "ui.extra.install");
+  const installLabel = (count: number): string => count > 1 && !runtimeOnly
+    ? uiText("ui.EnvPanel.items", { v0: installVerb(), v1: count })
+    : installVerb();
   /** 真在探测/安装（与"工作屏幕是否可见"是两件事，见 workScreenVisible） */
   const busy = probing || installing;
   /** 有必须用户处理的事：检测失败，或缺必装项（可选项缺不挡路，不算） */
@@ -239,6 +248,19 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, onRep
     waitForUser: waitForUser && !holdMin });
   /** 实际工作期间刻意静默（"一个标题，一个动画"），就绪后允许显示检测结论。 */
   const quiet = working && !handedOff;
+  /** 只有一项能自动装时，把按钮放进**那一行**的右侧（贴着问题本身，与「安装 Git」这类行内操作同一列）。
+   *  列表底部只留一条绿块是这轮改掉的：在设置页它脱离列表节奏，看着像一颗孤零零的按钮，
+   *  用户还得自己把"未安装"和"重试安装"对起来看（2026-11-15 反馈）。
+   *  ⚠️ 判据只看 installable：系统保护（sandbox）与 userns 放行属于另外两种动作，
+   *  它们同时存在时**不能**把行内按钮挤掉——那样界面上就没有修运行环境的入口了。 */
+  const inlineInstallId = installable.length === 1 ? installable[0]!.id : null;
+  /** 底部操作条：多选安装 / 其它动作 / 正在安装（列表被工作屏幕替换，取消入口不能跟着消失）/ 兜底开关。
+   *  单行可装时操作条平时不出现，但**工作屏幕期间必须留着**（那时列表整块被替换，行内按钮也不在了），
+   *  否则用户刚点开面板、或后台报告触发重探的那一两秒里点不到修复。
+   *  引导页不适用：那里刻意只有标题 + 动画，不该冒出一颗按钮。 */
+  const barInstall = installable.length > 1 || (working && variant !== "onboarding");
+  const showActionBar = barInstall || sandboxInstallable.length > 0 || fixable.length > 0
+    || installing || sandboxOffAvailable || sandboxDisabled;
 
   // 数字百分比按最短停留缓动推进：累计 tick 放 ref（working 切换不重爬），到顶即停表。
   const progressElapsed = useRef(0);
@@ -415,13 +437,25 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, onRep
           )}
           {items.map((item) => {
             const st = statusText(item.status);
+            /** 唯一可修的那一项：按钮直接落在这一行右侧，和状态同一列 */
+            const inlineAction = item.id === inlineInstallId;
             return (
               <div key={item.id} className="px-4 py-2.5 em-hover-row transition-shadow">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-text-secondary">{appText(item.label)}</span>
-                  <span className={`text-xs ${st.cls}`}>
-                    {item.status === "ok" && item.version ? item.version : st.text}
-                  </span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 text-sm text-text-secondary">{appText(item.label)}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className={`text-xs ${st.cls}`}>
+                      {item.status === "ok" && item.version ? item.version : st.text}
+                    </span>
+                    {inlineAction && (
+                      <button
+                        className="btn-accent px-3 py-1.5 rounded-[var(--radius-lg)] text-[length:var(--text-xs)] font-medium"
+                        onClick={() => void install()}
+                      >
+                        {installVerb()}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* 影响说明放最前：用户要先知道"不装会怎样"，再看状态原因与命令 */}
                 {item.status !== "ok" && item.impact && (
@@ -521,59 +555,59 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, onRep
         </p>
       )}
 
-      {/* 操作区 */}
-      {hasActions && (
+      {/* 操作区：只在多选 / 安装中 / 有兜底开关时出现，主按钮右对齐（左对齐会像列表外飘着的一颗按钮）。
+          单行可修的场合由行内按钮承接，这里什么都不留。 */}
+      {showActionBar && (
         <div className="mt-4 flex items-center gap-2">
-          {/* 一键修复：被系统策略拦住时的主出路（会弹系统授权框），失败仍有下方手工命令兜底 */}
-          {fixable.length > 0 && (
-            <button
-              className="btn-accent px-4 py-2 rounded-[var(--radius-lg)] text-xs font-medium"
-              disabled={installing}
-              onClick={() => void fixUserns()}
-            >
-              {installing ? uiText("ui.EnvPanel.repairing") : uiText("ui.EnvPanel.repairSystemAuthorizationRequired")}
-            </button>
-          )}
-          {installable.length > 0 && (
-            <button
-              className="btn-accent px-4 py-2 rounded-[var(--radius-lg)] text-xs font-medium"
-              disabled={installing}
-              onClick={() => void install()}
-            >
-              {/* 自动装过一次后改口为"重试"：否则用户会以为是第一次，不知道自己刚才拒绝过授权框 */}
-              {installing
-                ? uiText("ui.EnvPanel.installing")
-                : uiText("ui.EnvPanel.items", { v0: autoDoneOnce.has(runtimeInstallable.length > 0 ? "windowsRuntime" : "pkg") ? uiText("ui.extra.retryInstall") : uiText("ui.extra.install"), v1: installable.length })}
-            </button>
-          )}
-          {sandboxInstallable.length > 0 && (
-            <button className="btn-accent px-4 py-2 rounded-[var(--radius-lg)] text-xs font-medium"
-              disabled={installing} onClick={() => void install(sandboxInstallable)}>
-              {uiText("ui.EnvPanel.installWindowsSandbox")}
-            </button>
-          )}
-          {installing && (
-            <button
-              className="em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-xs text-text-secondary"
-              onClick={() => void window.electronAPI.env.cancel()}
-            >
-              {uiText("common.cancel")}</button>
-          )}
-          {/* 兜底：只在真有问题时出现（Linux 专属），且先讲清风险与可回退 */}
+          {/* 兜底：只在真有问题时出现（Linux 专属），且先讲清风险与可回退。留在左端，与右侧主操作分开 */}
           {sandboxOffAvailable && !sandboxDisabled && (
             <button
-              className="ml-auto em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-xs text-danger"
+              className="em-hover-control px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-danger"
               onClick={() => void turnOffSandbox()}
             >
               {uiText("ui.EnvPanel.runWithoutSandbox")}</button>
           )}
           {sandboxDisabled && (
             <button
-              className="ml-auto em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-xs text-text-secondary"
+              className="em-hover-control px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary"
               onClick={() => setSandboxDisabled(false)}
             >
               {uiText("ui.EnvPanel.reEnableSandbox")}</button>
           )}
+          <div className="ml-auto flex items-center gap-2">
+            {/* 一键修复：被系统策略拦住时的主出路（会弹系统授权框），失败仍有下方手工命令兜底 */}
+            {fixable.length > 0 && (
+              <button
+                className="btn-accent px-3 py-1.5 rounded-[var(--radius-lg)] text-xs font-medium"
+                disabled={installing}
+                onClick={() => void fixUserns()}
+              >
+                {installing ? uiText("ui.EnvPanel.repairing") : uiText("ui.EnvPanel.repairSystemAuthorizationRequired")}
+              </button>
+            )}
+            {barInstall && (
+              <button
+                className="btn-accent px-3 py-1.5 rounded-[var(--radius-lg)] text-xs font-medium"
+                disabled={installing}
+                onClick={() => void install()}
+              >
+                {installing ? uiText("ui.EnvPanel.installing") : installLabel(installable.length)}
+              </button>
+            )}
+            {sandboxInstallable.length > 0 && (
+              <button className="btn-accent px-3 py-1.5 rounded-[var(--radius-lg)] text-xs font-medium"
+                disabled={installing} onClick={() => void install(sandboxInstallable)}>
+                {uiText("ui.EnvPanel.installWindowsSandbox")}
+              </button>
+            )}
+            {installing && (
+              <button
+                className="em-hover-control px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary"
+                onClick={() => void window.electronAPI.env.cancel()}
+              >
+                {uiText("common.cancel")}</button>
+            )}
+          </div>
         </div>
       )}
       {sandboxDisabled && (
