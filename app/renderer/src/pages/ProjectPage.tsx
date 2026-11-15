@@ -1,4 +1,4 @@
-import { uiText, useUiLocale } from "../lib/i18n";
+import { appText,uiText, useUiLocale } from "../lib/i18n";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
@@ -299,9 +299,16 @@ export function ProjectPage(): JSX.Element {
   }, []);
   const confirmDeleteProject = useCallback(async () => {
     if (!deleteTarget) return;
-    await window.electronAPI.project.delete(deleteTarget.id);
-    setOpenProjectList((prev) => prev.filter((p) => p.id !== deleteTarget!.id));
-    setDeleteTarget(null);
+    try {
+      await window.electronAPI.project.delete(deleteTarget.id);
+      setOpenProjectList((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch(error) {
+      toast(appText(error instanceof Error?error.message:String(error)));
+      setDeleteTarget(null);
+      try {setOpenedInWindows(new Set(await window.electronAPI.project.openedInWindows()));}
+      catch(refreshError){console.warn("[project] Open-window status refresh failed:",refreshError);}
+    }
   }, [deleteTarget]);
 
   const handleBrowseFolder = useCallback(async () => {

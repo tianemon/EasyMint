@@ -40,6 +40,8 @@ interface Project {
 export interface Settings {
   nativeAi?: NativeAiSettings;
   uiLanguage?: UiLanguage;
+  /** Hide the close-to-tray notice after the user explicitly acknowledges it. */
+  closeToTrayNoticeDismissed?: boolean;
   nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
   defaultProjectDir: string;
   model?: string;
@@ -277,6 +279,7 @@ export class Store {
     const emData: Record<string, unknown> = { ...flattenEmSettings(this.readEmSettings()), ...nativeViews.get(this.dataDir)?.() };
     return {
       uiLanguage: normalizeUiLanguage(emData.uiLanguage),
+      closeToTrayNoticeDismissed: emData.closeToTrayNoticeDismissed === true,
       nativeAi: parseNativeAiSettings(emData.nativeAi),
       nativeConfigMigration: emData.nativeConfigMigration as Settings["nativeConfigMigration"],
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),

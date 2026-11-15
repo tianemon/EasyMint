@@ -6,10 +6,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
+import {EventEmitter} from "node:events";
+import type {BrowserWindow} from "electron";
+import {shell} from "electron";
+import {watchProjectWindow} from "./window-manager";
 import os from "node:os";
 import path from "node:path";
 
-vi.mock("electron", () => ({ shell: { trashItem: vi.fn() } }));
+vi.mock("electron", () => ({ BrowserWindow:{},shell: { trashItem: vi.fn() } }));
 
 import { Store } from "./store";
 import { ProjectService } from "./project-service";
@@ -255,4 +259,16 @@ describe("project display names and directory names", () => {
     expect(() => service.create({ name: "另一个账本", directoryName: "budget-book", path: root })).toThrow("已存在且非空");
     expect(store.getProjects()).toHaveLength(1);
   });
+});
+
+
+it("refuses stale-list deletion of a project still open in a hidden workspace before touching files",async()=>{
+ store.saveProjects([rec("open")] as never);const project=path.join(tmpDir,"open");fs.mkdirSync(project);fs.writeFileSync(path.join(project,"keep.txt"),"用户文件");
+ const contents=Object.assign(new EventEmitter(),{getURL:()=>"file:///index.html#/project/open"});
+ const window=Object.assign(new EventEmitter(),{id:901,webContents:contents,isVisible:()=>false});watchProjectWindow(window as unknown as BrowserWindow);
+ try {
+  const prior=vi.mocked(shell.trashItem).mock.calls.length;
+  await expect(svc.delete("open")).rejects.toThrow("open in a window");
+  expect(vi.mocked(shell.trashItem).mock.calls).toHaveLength(prior);expect(fs.readFileSync(path.join(project,"keep.txt"),"utf8")).toBe("用户文件");expect(store.getProjects().map(p=>p.id)).toContain("open");
+ } finally {window.emit("closed");}
 });

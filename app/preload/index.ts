@@ -133,6 +133,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     set: (sessionId: string, pins: Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; colorIdx?: number; minimized?: boolean; edge?: "left" | "right"; createdAt: number }>) => ipcRenderer.invoke("pin:set", { sessionId, pins }),
   },
   win: {
+    trayReady:(ready:boolean)=>ipcRenderer.invoke("win:tray-ready",ready) as Promise<void>,
+    respondToTray:(response:import("../shared/window-tray").TrayCloseResponse)=>ipcRenderer.invoke("win:tray-respond",response) as Promise<void>,
+    onTrayPrompt:(callback:(request:import("../shared/window-tray").TrayCloseRequest)=>void)=>{
+      const listener=(_event:unknown,request:import("../shared/window-tray").TrayCloseRequest)=>callback(request);
+      ipcRenderer.on("win:tray-prompt",listener);
+      return ()=>ipcRenderer.removeListener("win:tray-prompt",listener);
+    },
     minimize: () => ipcRenderer.invoke("win:minimize"),
     maximize: () => ipcRenderer.invoke("win:maximize"),
     close: () => ipcRenderer.invoke("win:close"),

@@ -2319,5 +2319,12 @@
   "memory.previewRepair": "Preview repair scope",
   "memory.repairTitle": "Repair development record directory",
   "memory.repairHelp": "Back up existing records in the selected directory and the previous directory settings, then generate a new entry point. Old dated logs are preserved.",
-  "memory.repair": "Back up and repair"
+  "memory.repair": "Back up and repair",
+  "tray.show": "Show EasyMint",
+  "tray.quit": "Quit EasyMint",
+  "tray.closeTitle": "Minimize to system tray",
+  "tray.closeHelp": "EasyMint will keep running in the background after you close this window. Restore it from the tray menu or by opening EasyMint again. To quit, choose “Quit EasyMint” from the tray menu.",
+  "tray.dontRemind": "Don’t remind me again",
+  "tray.hide": "Minimize to tray",
+  "project.deleteOpen": "This project is open in a window. Leave the project before deleting it."
 }

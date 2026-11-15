@@ -2,7 +2,7 @@ import { translateAppText } from "../shared/i18n/app-messages";
 import { projectWindowRoute } from "../shared/project-window";
 import { applyUiLanguage, mainUiI18n, t } from "./services/ui-language";
 import fs from "fs";
-import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog } from "electron";
+import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog, autoUpdater as electronAutoUpdater } from "electron";
 import path from "path";
 import { loadUserEnv } from "./utils/user-path";
 import { installSystemProxyFetch, redactProxyUrl } from "./services/system-proxy";
@@ -25,6 +25,10 @@ import { readWindowState, trackWindowState, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH 
 // 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint/ 下
 // agentDir 用 ~/.easymint/agent（严格对应 Pi 默认的 ~/.pi/agent 层级，不再有 pi/pi-agent 子目录）
 const EM_HOME = emHome();
+// The launcher must restore hidden windows instead of starting another background instance.
+// Set the data path first so dev:isolated retains its independent instance lock.
+app.setPath("userData", path.join(EM_HOME, "electron"));
+if(!app.requestSingleInstanceLock())app.exit(0);
 process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "agent");
 // Pi SDK 品牌定制：项目级配置目录 .pi → .easymint（官方定制点 piConfig.configDir）。
 // 改由 scripts/patch-pi-config.cjs 在 postinstall 阶段写入，打包产物自带该值。
@@ -100,7 +104,6 @@ try {
   }
 } catch (e) { console.warn("[mcp-migration] 迁移异常（不影响启动）:", (e as Error).message); }
 // Redirect Electron userData to our directory so all data lives in one place
-app.setPath("userData", path.join(EM_HOME, "electron"));
 
 // 禁用磁盘缓存:win 上 userData/GPUCache 目录常因残留/杀软占用创建失败
 // ("Unable to move the cache: 拒绝访问 0x5")——失败自动降级内存缓存,功能无影响,但刷屏
@@ -132,11 +135,16 @@ import { applyDockIcon } from "./utils/dock-icon";
 import { shutdownWindowsExecutionWorkers } from "./services/sandbox/windows-execution-manager";
 import { releaseSandbox } from "./services/sandbox/manager";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
+import { DesktopTray } from "./services/desktop-tray";
 import { closeAllMcpClients } from "./services/mcp-runtime";
 import { snapshotProcessPids, stopAllProcesses } from "./services/process-service";
 import { signalTrackedChildren, snapshotTrackedChildren } from "./services/process-registry";
 
 const isDev = !app.isPackaged;
+let desktopTray:DesktopTray|undefined;
+app.on("second-instance",()=>{void desktopTray?.showWindows().catch(error=>console.error("[tray] Restore failed:",error));});
+electronAutoUpdater.on("before-quit-for-update",()=>desktopTray?.beginQuit());
+app.on("will-quit",()=>desktopTray?.dispose());
 
 function loadApp(window: BrowserWindow, hash = ""): void {
   const baseUrl = isDev
@@ -357,6 +365,16 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     }
   }
 
+  desktopTray ??= new DesktopTray({
+    noticeDismissed:()=>sharedServices!.store.getSettings().closeToTrayNoticeDismissed===true,
+    rememberNotice:async()=>{
+      const store=sharedServices!.store;
+      await getNativeConfig(store);
+      const settings=store.getSettings();settings.closeToTrayNoticeDismissed=true;store.saveSettings(settings);
+    },
+    createWindow:()=>createWindow(undefined,true),
+  });
+  desktopTray.attach(window);
   loadApp(window, hash);
 
   watchRendererGone(window);
@@ -565,6 +583,7 @@ async function runQuitCleanup(): Promise<void> {
 }
 
 app.on("before-quit", (event) => {
+  desktopTray?.beginQuit();
   if (quitCleanupState === "done") return;      // 清场已完成 → 放行，真正退出
   quitRequests++;
   if (quitRequests > 1) {
@@ -626,6 +645,7 @@ process.on("uncaughtException", (err) => reportGlobalErr("uncaughtException", er
 process.on("unhandledRejection", (reason) => reportGlobalErr("unhandledRejection", reason));
 
 app.on("activate", () => {
+  if(desktopTray){void desktopTray.showWindows().catch(error=>console.error("[tray] Restore failed:",error));return;}
   // 关光窗口后从 Dock 重开：按主窗口处理，恢复上次的几何状态
   if (BrowserWindow.getAllWindows().length === 0) createWindow(undefined, true);
 });

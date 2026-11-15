@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { shell } from "electron";
 import { Store } from "./store";
+import {listOpenProjectIds} from "./window-manager";
 import { resolveHome, emHome } from "../utils/paths";
 // 会话目录工具用静态导入：本模块只依赖 pi-sdk 的**类型**（运行时零负担），比 `require` 更可靠
 // —— `update()` 是同步入口，原先用 `require("./pi-session")`，而 require 在测试环境解析不了，
@@ -131,6 +132,9 @@ export class ProjectService {
   }
 
   async delete(id: string): Promise<void> {
+    // Hidden tray windows remain live workspaces. Enforce the UI contract here
+    // too, since another window can open a project after the list was rendered.
+    if(listOpenProjectIds().includes(id))throw new Error("This project is open in a window. Leave the project before deleting it.");
     const project = this.store.getProjects().find((p) => p.id === id);
     if (project) {
       if (fs.existsSync(project.path)) {

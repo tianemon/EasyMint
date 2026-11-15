@@ -9,6 +9,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MigrationIncomingModal } from "./components/device/MigrationIncomingModal";
 import { PairRequestModal } from "./components/device/PairRequestModal";
 import { ConfirmHost } from "./components/ui/ConfirmDialog";
+import {CloseToTrayPrompt} from "./components/CloseToTrayPrompt";
 import { MobilePairRequestModal } from "./components/device/MobilePairRequestModal";
 import { ToastHost, toast } from "./components/ui/Toast";
 import { PiExtensionPromptHost } from "./components/settings/PiExtensionPromptHost";
@@ -182,6 +183,7 @@ export function App(): JSX.Element {
         <MobilePairRequestModal />
         {/* 全局确认框与轻提示（替换 window.confirm / window.alert 的系统弹窗） */}
         <ConfirmHost />
+        <CloseToTrayPrompt />
         <PiExtensionPromptHost />
         <ToastHost />
         {/* 迁移回执提示(发送端,3-5s 自动消失)。无描边:靠投影 + 底色分层;

@@ -31,7 +31,7 @@ import { pathHitsAny, protectedCredentialPaths } from "./services/permission/acc
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { getRunningSummary } from "./services/task/registry";
 import { readShellLogTail } from "./services/shell-log";
-import { closeProjectWindows, listOpenProjectIds } from "./services/window-manager";
+import { listOpenProjectIds } from "./services/window-manager";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
 import { detectCodegraph } from "./utils/codegraph-detector";
@@ -246,7 +246,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     return listOpenProjectIds();
   });
   ipcMain.handle("project:delete", async (_e, { id }) => {
-    if (closeProjectWindows) closeProjectWindows(id);
     await projectService.delete(id);
   });
   ipcMain.handle("project:get", (_e, { id }) => projectService.get(id));

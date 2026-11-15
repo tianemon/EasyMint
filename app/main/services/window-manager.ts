@@ -39,15 +39,6 @@ export function listOpenProjectIds(): string[] {
   return [...new Set(projectWindows.values())].sort();
 }
 
-export function closeProjectWindows(projectId: string): void {
-  for (const [winId, pid] of projectWindows) {
-    if (pid === projectId) {
-      const win = BrowserWindow.fromId(winId);
-      if (win && !win.isDestroyed()) win.close();
-    }
-  }
-}
-
 /** 等窗口把 projectId 登记进 projectWindows（loadURL 是异步的，靠 did-navigate 触发 sync）。
  *  isOpen / 超时 / 轮询间隔可注入，便于单测覆盖超时与延迟登记，不依赖真实 Electron 窗口。 */
 export async function waitForProjectWindow(

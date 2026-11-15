@@ -610,6 +610,9 @@ interface ElectronAPI {
     set: (sessionId: string, pins: Pin[]) => Promise<void>;
   };
   win: {
+    trayReady:(ready:boolean)=>Promise<void>;
+    respondToTray:(response:import("../shared/window-tray").TrayCloseResponse)=>Promise<void>;
+    onTrayPrompt:(callback:(request:import("../shared/window-tray").TrayCloseRequest)=>void)=>()=>void;
     minimize: () => Promise<void>;
     maximize: () => Promise<void>;
     close: () => Promise<void>;

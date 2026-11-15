@@ -2319,5 +2319,12 @@
   "memory.previewRepair": "预览修复范围",
   "memory.repairTitle": "修复开发记录目录",
   "memory.repairHelp": "将备份所选目录中的现有记录和原目录设置，再生成新的入口；旧日期日志保留。",
-  "memory.repair": "备份并修复"
+  "memory.repair": "备份并修复",
+  "tray.show": "显示 EasyMint",
+  "tray.quit": "退出 EasyMint",
+  "tray.closeTitle": "最小化到系统托盘",
+  "tray.closeHelp": "关闭窗口后，EasyMint 将继续在后台运行。可通过托盘菜单或再次打开 EasyMint 恢复窗口；退出请使用托盘菜单中的“退出 EasyMint”。",
+  "tray.dontRemind": "不再提醒",
+  "tray.hide": "最小化到托盘",
+  "project.deleteOpen": "项目正在窗口中打开，请先离开该项目再删除。"
 }
