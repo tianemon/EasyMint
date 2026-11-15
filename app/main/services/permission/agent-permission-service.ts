@@ -21,6 +21,8 @@ import {
   protectedTargetsForMode,
   type PermissionMode,
 } from "./access-policy";
+import runtimeManifest from "../../../shared/windows-runtime.json";
+import { emHome } from "../../utils/paths";
 import { bindExecutionOwner, createExecutionContext, normalizePermissionMode, type ExecutionContext } from "./execution-context";
 
 type PermissionBehavior = "allow" | "deny";
@@ -603,7 +605,35 @@ const WRITE_ALL_ARG_COMMANDS = new Set([
   "chmod", "chown", "chgrp", "chflags", "tee", "setfacl",
 ]);
 /** 末位参数是写入目标、前面参数是读取来源的命令 */
-const WRITE_LAST_ARG_COMMANDS = new Set(["cp", "mv", "install", "ln", "rsync", "scp"]);
+const WRITE_LAST_ARG_COMMANDS = new Set(["cp", "install", "ln", "rsync", "scp"]);
+/**
+ * **把源搬走**的命令：源文件会在原位置消失，它算"毁"不算"读"。
+ *
+ * 漏判的后果是致命的（2026-11-15 真实报告）：`mv ~/.easymint/runtime-tools/git D:/x` 只会被
+ * 记成"读了一次运行时"，保护面只校验写目标（D:/x）→ 放行。用户照做之后自带 Git/Bash 被搬空，
+ * 之后每条消息的每个命令都在 `ensureWindowsRuntime` 里重新解压 400MB，表现为"一发送消息就未响应"。
+ * `cmd` 的 `move/ren` 与 PowerShell 的 `Move-Item/Rename-Item` 同理（直接调用才认得出；
+ * `powershell -Command "Move-Item …"` 这种嵌套形式解析不到，属启发式的固有边界）。
+ */
+const MOVE_COMMANDS = new Set(["mv", "move", "ren", "rename", "move-item", "rename-item"]);
+/**
+ * 嵌套调用的 shell：`bash -c "…"` / `cmd /c …` / `powershell -Command …`。
+ *
+ * 不递归进去的话，上面所有判定都能被**包一层**绕过：`bash -c 'mv ~/.easymint/runtime-tools /d/x'`
+ * 在解析器眼里只是"执行了 bash"，一个写目标都没有。深度上限 3（`bash -c "bash -c …"` 套娃没有意义）。
+ */
+const NESTED_SHELLS: Record<string, readonly string[]> = {
+  bash: ["-c", "-lc", "--command"], sh: ["-c"], zsh: ["-c"], dash: ["-c"], ksh: ["-c"],
+  cmd: ["/c", "/k"], powershell: ["-command", "-c"], pwsh: ["-command", "-c"],
+};
+function nestedScript(token: string, rawArgs: readonly string[]): string | null {
+  const flags = NESTED_SHELLS[token];
+  if (!flags) return null;
+  const index = rawArgs.findIndex((arg) => flags.includes(arg.toLowerCase()));
+  if (index < 0) return null;
+  const script = rawArgs.slice(index + 1).join(" ").trim();
+  return script || null;
+}
 /** 参数即读取来源的命令（用来接住"读凭据"这条原来由沙盒 denyRead 扛的线） */
 const READ_ALL_ARG_COMMANDS = new Set([
   "cat", "less", "more", "head", "tail", "strings", "xxd", "od", "base64",
@@ -614,19 +644,29 @@ const READ_ALL_ARG_COMMANDS = new Set([
 interface CommandTargets {
   reads: string[];
   writes: string[];
+  /** 会被**从原位置移走/删除**的目标（`mv` 的源）。保护面要按写判定，但"区外写"不按它判。 */
+  destructive: string[];
 }
 
 /**
  * 从一条 shell 命令里收集**显式的**读/写目标（启发式）。
  *
  * 认：写重定向（`>` `>>` `2>` `&>`）、写/读类命令的位置参数、`dd of=|if=`、`sed|perl -i` 的目标文件。
- * 不认：变量与命令替换（`> $F`、`tee $(…)`）、脚本文件内部的读写——后者只能靠
- * `findUnsafeExecutedScript` 的脚本内容扫描兜一层。解析失败按"无目标"处理（放行交给下一层）。
+ * 不认：`$HOME` 之外的变量与命令替换（`> $F`、`tee $(…)`）、`xargs` 的目标（来自 stdin，
+ * 命令里根本没有路径）、脚本文件内部的读写——后者只能靠 `findUnsafeExecutedScript` 的脚本内容
+ * 扫描兜一层。解析失败按"无目标"处理（放行交给下一层）。
  */
-function collectCommandTargets(command: string): CommandTargets {
-  const result: CommandTargets = { reads: [], writes: [] };
+function collectCommandTargets(command: string, depth = 0): CommandTargets {
+  const result: CommandTargets = { reads: [], writes: [], destructive: [] };
   let parsed: ReturnType<typeof parseShell>;
-  try { parsed = parseShell(command); } catch { return result; }
+  // shell-quote 1.10 expands missing variables to "" by default. Resolve the
+  // supported home variables while quote context still exists, not afterwards
+  // (which would also expand single-quoted or escaped literal dollar signs).
+  // Unknown variables remain unknown instead of becoming an unrelated root path.
+  // Git Bash accepts drive paths with '/', while native '\\' would become an
+  // escape if an expanded outer-shell script is parsed again for bash -c.
+  const home=process.platform==="win32"?os.homedir().replaceAll("\\","/"):os.homedir();
+  try { parsed = parseShell(command,key=>key==="HOME" || key==="USERPROFILE"?home:`\${${key}}`); } catch { return result; }
 
   const separators = new Set(["&&", "||", ";", ";;", "|", "|&", "&", "(", ")", "<("]);
   let words: string[] = [];
@@ -651,6 +691,11 @@ function collectCommandTargets(command: string): CommandTargets {
         }
       } else if (WRITE_ALL_ARG_COMMANDS.has(token)) {
         result.writes.push(...args);
+      } else if (MOVE_COMMANDS.has(token)) {
+        // 源会被搬走/改名（原位置不再有它），末位参数是目的地
+        result.destructive.push(...args.slice(0, -1));
+        const last = args[args.length - 1];
+        if (last) result.writes.push(last);
       } else if (WRITE_LAST_ARG_COMMANDS.has(token)) {
         result.reads.push(...args.slice(0, -1));
         const last = args[args.length - 1];
@@ -663,6 +708,14 @@ function collectCommandTargets(command: string): CommandTargets {
         } else {
           result.reads.push(...args);
         }
+      }
+      // 嵌套 shell：把里面的脚本当成一条新命令再解析（`bash -c "mv …"` 不能只是"执行了 bash"）
+      const nested = depth < 3 ? nestedScript(token, rawArgs) : null;
+      if (nested) {
+        const inner = collectCommandTargets(nested, depth + 1);
+        result.reads.push(...inner.reads);
+        result.writes.push(...inner.writes);
+        result.destructive.push(...inner.destructive);
       }
     }
     words = [];
@@ -696,18 +749,60 @@ function cleanTarget(raw: string): string | null {
  * 保护面按模式取，见 `protectedTargetsForMode`。
  */
 export function findProtectedWriteTarget(command: string, cwd: string, mode: PermissionMode = "standard"): string | null {
-  const { writes } = collectCommandTargets(command);
+  const { writes, destructive } = collectCommandTargets(command);
   const protectedRoots = protectedTargetsForMode(mode, cwd);
   const home = os.homedir();
-  for (const raw of writes) {
+  // 写目标 + 会被搬走的目标一起过。只查写目标的话，`mv <保护目录> <任意位置>` 是"合法的"，
+  // 而那正是把自带 Git/Bash 搬走、随后整个命令环境失效的路径（2026-11-15 现场）。
+  for (const raw of [...writes, ...destructive]) {
     const token = cleanTarget(raw);
     if (!token) continue;
-    const absolute = canonicalPolicyPath(token, cwd);
+    const absolute = canonicalCommandPath(token, cwd);
     // 根目录与 home 本身不算"保护面的子路径"，但整棵删除同样是灾难，单独拦
     if (absolute === "/" || absolute === home) return absolute;
     if (pathHitsAny(absolute, protectedRoots, cwd)) return absolute;
   }
   return null;
+}
+
+/** 自带运行时的根（与 WindowsRuntimeService.paths() 同构；未安装时按同一路径算，前缀判定照样成立） */
+function msysRoot(): string {
+  return path.join(emHome(), "runtime-tools", "git", `${runtimeManifest.version}-${process.arch}`);
+}
+
+/**
+ * POSIX 形态的命令路径 → Windows 真实落点（只用于判定，不改变命令本身）。
+ *
+ * Windows 上跑的是自带 Git Bash（MSYS），它有自己的"根"：
+ * - `/tmp`、`/var/tmp` → **系统临时目录**（不是 `C:\tmp`）；
+ * - `/c/Users/...` → **盘符挂载**（`C:\Users\...`）；
+ * - `/` 与 `/etc`、`/usr`、`/bin`… → **自带运行时的根**（不是 `C:\`）。
+ *
+ * 不按这个映射判，三种事都会错：`mktemp` 这类写 /tmp 的常规命令被误拒；
+ * `rm -rf /` 只被算成"删某个盘"而漏判；而 `rm -rf /usr/bin` 真正毁掉的是自带运行时，
+ * 保护面却只看 `C:\usr\bin`（2026-11-15 用户现场就是运行时被搬空）。
+ * 返回 null = 交给通用规范化（`/dev`、`/proc`、`/sys` 这类伪文件系统不是真实落点）。
+ */
+function msysPathToWindows(token: string): string | null {
+  if (!token.startsWith("/")) return null;
+  const posix = path.posix.normalize(token);
+  if (/^\/(?:dev|proc|sys)(?:\/|$)/.test(posix)) return null;
+  if (posix === "/") return msysRoot();
+  if (/^\/(?:var\/)?tmp(?:\/|$)/.test(posix)) {
+    return path.join(os.tmpdir(), posix.replace(/^\/(?:var\/)?tmp\/?/, ""));
+  }
+  const drive = /^\/([a-zA-Z])(?:\/(.*))?$/.exec(posix);
+  if (drive) return `${drive[1]!.toUpperCase()}:\\${(drive[2] ?? "").replace(/\//g, "\\")}`;
+  return path.join(msysRoot(), posix.replace(/^\/+/, ""));
+}
+
+/** 命令里写的路径 → 真实落点（Windows 走 MSYS 映射，其余平台就是普通规范化）。 */
+function canonicalCommandPath(token: string, cwd: string): string {
+  if (process.platform === "win32") {
+    const windows = msysPathToWindows(token);
+    if (windows) return windows;
+  }
+  return canonicalPolicyPath(token, cwd);
 }
 
 /**
@@ -719,7 +814,11 @@ export function findOutOfScopeWriteTarget(command: string, cwd: string): string 
   for (const raw of writes) {
     const token = cleanTarget(raw);
     if (!token) continue;
-    const absolute = canonicalPolicyPath(token, cwd);
+    // `/dev/*` 要在**规范化之前**判：Windows 上 canonicalPolicyPath("/dev/null") 会变成
+    // `C:\dev\null`，后面的 startsWith("/dev/") 永远命中不了——于是 Git Bash 里最常见的
+    // `cmd > /dev/null` 被判成"写入工作区外"而拦下（Windows 开发者的高频动作）。
+    if (token.startsWith("/dev/")) continue;
+    const absolute = canonicalCommandPath(token, cwd);
     if (absolute === "/dev" || absolute.startsWith("/dev/")) continue;
     if (!isStandardWritableTarget(cwd, absolute)) return absolute;
   }
@@ -729,8 +828,11 @@ export function findOutOfScopeWriteTarget(command: string, cwd: string): string 
 /**
  * 标准模式下读取**高敏凭据**的目标（原由沙盒的 denyRead 承担）。
  *
- * 只判定"看起来是路径"的参数（`/`、`~`、`./`、`../` 开头）——读命令的模式/表达式参数
- * （`sed 's/a/b/'`、`grep 'x'`）不该走路径判定。
+ * 只判定"看起来是路径"的参数（`/`、`~`、`./`、`../`、**Windows 盘符与 UNC**）——读命令的
+ * 模式/表达式参数（`sed 's/a/b/'`、`grep 'x'`）不该走路径判定。
+ * Windows 盘符那条不能漏：`cat C:\Users\x\.ssh\id_rsa` 是绝对路径，只认 `/` 开头的话
+ * 整条判定被跳过（凭据保护在 Windows 上等于没生效）。
+ *
  * 已知缺口：`cd ~ && cat .ssh/id_rsa` 这类**相对路径**不判（凭据都在 home，cwd 在项目内时碰不到；
  * 只有先 cd 出去才可能，属启发式的固有边界）。
  */
@@ -739,8 +841,8 @@ export function findProtectedReadTarget(command: string, cwd: string): string | 
   const credentials = protectedCredentialPaths();
   for (const raw of reads) {
     const token = cleanTarget(raw);
-    if (!token || !/^(?:\/|~|\.\.?\/)/.test(token)) continue;
-    const absolute = canonicalPolicyPath(token, cwd);
+    if (!token || !/^(?:\/|~|\.\.?[\\/]|[A-Za-z]:[\\/]|\\\\)/.test(token)) continue;
+    const absolute = canonicalCommandPath(token, cwd);
     if (pathHitsAny(absolute, credentials, cwd)) return absolute;
   }
   return null;

@@ -73,7 +73,9 @@ describe("标准模式权限契约", () => {
 
   it("命令预检接住标准模式的凭据读取（原 denyRead 的职责）", async () => {
     for (const command of [
-      `cat ${path.join(os.homedir(), ".ssh", "id_rsa")}`,
+      // 路径要加引号：bash 里反斜杠是转义符，未加引号的 `C:\Users\…` 会被 shell 吃成
+      // `C:Users…`（真实命令也一样找不到那个文件），那就不是在测保护面了。
+      `cat "${path.join(os.homedir(), ".ssh", "id_rsa")}"`,
       "grep -r token ~/.aws/credentials",
       "head -5 ~/.netrc",
     ]) {
@@ -113,6 +115,28 @@ describe("标准模式权限契约", () => {
     } finally {
       sandboxMock.bypassed = true;
     }
+  });
+
+  it("把受保护的运行时搬走也算写：mv 的源同样过保护面", async () => {
+    // 2026-11-15 现场：`mv ~/.easymint/runtime-tools/git D:/x` 只被记成"读"，保护面只看写目标 → 放行。
+    // 搬走之后每条命令都要重新解压运行时，用户看到的是"一发送消息就未响应"。
+    const runtime = path.join(os.homedir(), ".easymint", "runtime-tools", "git", "2.56.0.4-x64");
+    const moved = await bash(`mv "${runtime}" /tmp/elsewhere`);
+    expect(moved.behavior).toBe("deny");
+    if (moved.behavior === "deny") expect(moved.message).toContain("core.protected_write");
+
+    const intoProtected = await bash(`mv /tmp/some-dir "${path.join(os.homedir(), ".easymint", "runtime-tools")}"`);
+    expect(intoProtected.behavior).toBe("deny");
+
+    // 普通 mv 不受影响：源不在保护面、目的地又在工作区内
+    expect((await bash(`mv "${path.join(os.homedir(), "Downloads/a.txt")}" ./a.txt`)).behavior).toBe("allow");
+
+    // 套一层 shell 不能绕过（`bash -c` / `sh -c` 会被递归解析）
+    expect((await bash(`bash -c 'mv "${runtime}" /tmp/elsewhere"'`)).behavior).toBe("deny");
+    expect((await bash(`sh -c 'rm -rf "${runtime}"'`)).behavior).toBe("deny");
+
+    // 用 $HOME 写路径也不能绕过（之前这类写法不以 / 或 ~ 开头，整条判定被跳过）
+    expect((await bash("mv $HOME/.easymint/runtime-tools/git /tmp/elsewhere")).behavior).toBe("deny");
   });
 
   it("提交说明和 grep 模式里的斜杠只是数据", async () => {

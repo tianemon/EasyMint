@@ -757,12 +757,22 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("env:cancel", () => { envInstallAbort?.abort(); });
 
   // Upgrade preparation stays silent and never installs the elevated sandbox component.
+  // 失败后**再静默重试一次**（2 分钟后）：解压被杀软临时占用、磁盘短暂繁忙这类抖动很常见，
+  // 让用户为此手动点按钮不划算；两次都失败才留给人处理（面板照实显示"未安装"与原因）。
+  const prepareRuntime = async (attempt: number): Promise<void> => {
+    if (process.platform !== "win32") return;
+    try { await ensureWindowsRuntime(); }
+    catch (error) {
+      console.warn(`[provisioning] 命令运行环境准备失败（第 ${attempt + 1} 次）:`, error);
+      if (attempt === 0) setTimeout(() => { void prepareRuntime(1); }, 120_000);
+      return;
+    }
+    // 装好了立刻刷新面板，用户不用自己去点「重新检测」
+    if (attempt > 0) broadcast("env:report", await probeEnvironment());
+  };
   setTimeout(() => {
     void (async () => {
-      if (process.platform === "win32") {
-        try { await ensureWindowsRuntime(); }
-        catch (error) { console.warn("[provisioning] 命令运行环境准备失败:", error); }
-      }
+      await prepareRuntime(0);
       const report = await probeEnvironment();
       broadcast("env:report", report);
     })().catch(error => console.warn("[provisioning] 启动环境检测失败:", error));

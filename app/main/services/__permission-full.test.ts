@@ -84,7 +84,12 @@ describe("完全访问权限契约", () => {
   });
 
   it("系统核心写入和系统控制命令仍被拒", async () => {
-    expect((await write("/etc/easymint.conf")).behavior).toBe("deny");
+    // 文件工具的路径就是**宿主**路径：Windows 上没有 /etc，`/etc/x` 会被 Node 解析成 `C:\etc\x`
+    // （不是受保护目录）。要测"系统核心"这个语义，得用各平台真实的核心目录。
+    const systemFile = process.platform === "win32"
+      ? path.win32.join(process.env.SystemRoot ?? "C:\\Windows", "easymint.conf")
+      : "/etc/easymint.conf";
+    expect((await write(systemFile)).behavior).toBe("deny");
     expect((await write(path.join(CWD, ".mcp.json"))).behavior).toBe("deny");
     // 2026-09-24 新纳入：会随会话进模型上下文的落盘内容（技能 / 子 Agent 模板）与 MCP 配置同级
     expect((await write(path.join(os.homedir(), ".easymint", "skills", "x", "SKILL.md"))).behavior).toBe("deny");

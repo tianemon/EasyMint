@@ -156,8 +156,11 @@ describe("探测三态（防假检测的核心）", () => {
 
 describe("探测环境", () => {
   it("PATH 前置去重（GUI 进程快照里缺的目录补在最前）", () => {
-    const env = prependPathDirs({ PATH: "/usr/bin:/opt/extra" }, ["/opt/extra", "/snap/bin"]);
-    expect(env.PATH).toBe("/opt/extra:/snap/bin:/usr/bin");
+    // 分隔符随宿主平台（win32 是 `;`）：写死 `:` 会让这条用例在 Windows 上恒红，
+    // 而它要守的行为（去重 + 前置）跟平台无关。
+    const d = path.delimiter;
+    const env = prependPathDirs({ PATH: `/usr/bin${d}/opt/extra` }, ["/opt/extra", "/snap/bin"]);
+    expect(env.PATH).toBe(`/opt/extra${d}/snap/bin${d}/usr/bin`);
   });
 });
 

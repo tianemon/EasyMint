@@ -82,7 +82,9 @@ it("settings installs sandbox only after an explicit click and never mixes it wi
 it("settings can repair an installed but broken runtime, with errors kept inside the panel", async () => {
   probe.mockResolvedValue(report("unknown")); install.mockResolvedValue({ ok: false, reason: "archive damaged", report: report("unknown") });
   await act(async () => root.render(createElement(EnvPanel, { variant: "settings" })));
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && /安装/.test(b.textContent ?? ""));
+  // 运行环境那条的按钮文案是「准备运行环境 / 重新准备运行环境」（不是"安装"）——按动作找，别按旧文案找
+  const runtimeAction = /准备运行环境|一键安装|重试安装/;
+  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && runtimeAction.test(b.textContent ?? ""));
   expect(button).toBeDefined();
   await act(async () => button!.click());
   expect(install).toHaveBeenCalledExactlyOnceWith(["windowsRuntime"]);
@@ -111,7 +113,9 @@ it("does not let an old probe overwrite the result of runtime installation", asy
   const onReport = vi.fn();
   await act(async () => root.render(createElement(EnvPanel, { onReport })));
   await act(async () => { reportHandler?.(); });
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && /安装/.test(b.textContent ?? ""));
+  // 运行环境那条的按钮文案是「准备运行环境 / 重新准备运行环境」（不是"安装"）——按动作找，别按旧文案找
+  const runtimeAction = /准备运行环境|一键安装|重试安装/;
+  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && runtimeAction.test(b.textContent ?? ""));
   await act(async () => button!.click());
   await act(async () => finishProbe(report("missing")));
   expect(onReport.mock.lastCall?.[0].items[0].status).toBe("ok");
