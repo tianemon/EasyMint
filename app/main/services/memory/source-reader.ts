@@ -7,7 +7,7 @@ function textContent(content:unknown):unknown {
   return Array.isArray(content)?content.filter(value=>value?.type==="text" && typeof value.text==="string").map(value=>({type:"text",text:value.text})):typeof content==="string"?content:[];
 }
 /** Decode the append-only envelope in the worker; SDK projection still owns message/edit semantics. */
-export async function readConclusionEntries(job:MemoryConclusion):Promise<unknown[]> {
+export async function readConclusionEntries(job:MemoryConclusion,history=false):Promise<unknown[]> {
   const userId=job.anchorRef?.startsWith(`user:${job.sessionId}:`)?job.anchorRef.slice(`user:${job.sessionId}:`.length):undefined;
   const targets=new Set([job.entryId,...(userId?[userId]:[])]),entries=new Map<string,Entry>();
   const stream=createReadStream(job.sessionFile,{encoding:"utf8"}),lines=createInterface({input:stream,crlfDelay:Infinity});
@@ -38,6 +38,7 @@ export async function readConclusionEntries(job:MemoryConclusion):Promise<unknow
   const branch:Entry[]=[],seen=new Set<string>();
   let cursor=leaf?entries.get(leaf):undefined;
   while(cursor && !seen.has(cursor.id)){seen.add(cursor.id);branch.push(cursor);cursor=cursor.parentId?entries.get(cursor.parentId):undefined;}
+  if(history)return [...entries.values()].filter(entry=>targets.has(entry.id)).map((entry,index,all)=>({...entry,parentId:index?all[index-1]!.id:null}));
   if(!seen.has(job.entryId) || (userId && !seen.has(userId)))return [];
   const selected=branch.reverse().filter(entry=>targets.has(entry.id)||entry.type==="context_edit");
   return selected.map((entry,index)=>({...entry,parentId:index?selected[index-1]!.id:null}));

@@ -927,7 +927,7 @@ function toolDetailLabel(item: ToolItem): string | null {
   }
   if (n === "memory") {
     const action=String(inp.action ?? "");
-    const labels:Record<string,string>={save:uiText("memory.add"),search:uiText("memory.search"),read:uiText("ui.ChatBlocks.view"),update:uiText("memory.edit"),forget:uiText("memory.forget")};
+    const labels:Record<string,string>={save:uiText("memory.add"),search:uiText("memory.search"),read:uiText("ui.ChatBlocks.view"),update:uiText("memory.edit"),forget:uiText("memory.forget"),edit:uiText("memory.edit"),archive:uiText("memory.archive"),restore:uiText("memory.restore"),accept:uiText("memory.accept"),reject:uiText("memory.reject"),merge:uiText("memory.merge"),cancel:uiText("memory.cancelScheduled")};
     return labels[action] ?? uiText("memory.title");
   }
   if (n === "learn") {

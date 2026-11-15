@@ -638,7 +638,7 @@ export class AgentService {
       changed: settings => broadcast("memory:changed", { settings }),
       getBackend: async () => { const config = await getNativeConfig(store); const runtime = await config.getRuntime(); return { runtime, model: config.getDefaultModel() }; },
       busy: () => this.activePromptSessions.size > 0 || this.activeRuns.size > 0 || [...this.activeChats.values()].some(chat => getRunningDelegations(chat.sessionId).length > 0 || backgroundShellRegistry.list().some(shell => shell.sessionId === chat.sessionId && shell.status === "running")),
-      getSession: id => { const chat = this.findActiveChat(id); return chat?.session ? { entries: chat.session.sessionManager.getEntries() } : undefined; },
+      getSession: id => { const chat = this.findActiveChat(id); return chat?.session ? { entries: chat.session.sessionManager.getEntries(), file:chat.session.sessionManager.getSessionFile() } : undefined; },
     });
     void this.memory.initialize().catch(error => console.warn("[memory] 初始化未完成，旧资料保留:", (error as Error).message));
   }

@@ -1255,7 +1255,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 /* Select 触发(无边框拼色):默认与输入同 idle 底、聚焦同加深,无任何边框;hover 强档叠加 */
 :is(.settings-body, .em-flat-fields) .em-select-trigger { border-color: transparent; background: var(--field-idle); transition-property: background-color; transition-duration: 120ms; }
 :is(.settings-body, .em-flat-fields) .em-select-trigger:hover { border-color: transparent; }
-:is(.settings-body, .em-flat-fields) .em-select-trigger:focus { border-color: transparent; background: var(--field-focus); }
+:is(.settings-body, .em-flat-fields) .em-select-trigger:focus { border-color: transparent; background: var(--field-focus); outline: none; box-shadow: none; }
 :is(.settings-body, .em-flat-fields) .em-select-trigger:disabled { cursor: not-allowed; }
 
 /* ── Chat Empty ─────────────────────────────── */

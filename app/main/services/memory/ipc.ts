@@ -4,14 +4,14 @@ import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { MemoryService } from "./service";
-import { MEMORY_KINDS } from "../../../shared/memory";
+import { MEMORY_KINDS, MEMORY_TEXT_LIMIT, MEMORY_DETAILS_LIMIT, MEMORY_SUMMARY_LIMIT } from "../../../shared/memory";
 import { readCache,writeCache } from "../session-cache";
 import { withSessionCreationLock } from "../session-permission-gate";
 import { broadcast } from "../ipc-broadcast";
 import { isSafeSessionId } from "../../../shared/session-id";
 
-const writeShape={kind:z.enum(MEMORY_KINDS),text:z.string().trim().min(1).max(6000),details:z.string().max(200_000).optional(),
-  tags:z.array(z.string().max(100)).max(20).optional(),occurredAt:z.number().finite().optional(),expiresAt:z.number().finite().optional(),importance:z.enum(["normal","high"]).optional()};
+const writeShape={kind:z.enum(MEMORY_KINDS),text:z.string().trim().min(1).max(MEMORY_TEXT_LIMIT),details:z.string().max(MEMORY_DETAILS_LIMIT).optional(),
+  tags:z.array(z.string().max(100)).max(20).optional(),occurredAt:z.number().finite().optional(),expiresAt:z.number().finite().nullable().optional(),effectiveAt:z.number().finite().nullable().optional(),summary:z.string().max(MEMORY_SUMMARY_LIMIT).optional(),importance:z.enum(["normal","high"]).optional()};
 export function registerMemoryIpc(service:MemoryService):void {
   const projectFor=(projectPath?:string)=>{
     if(!projectPath) return undefined;
@@ -21,7 +21,9 @@ export function registerMemoryIpc(service:MemoryService):void {
   };
   const management=async()=>{const db=await service.management(true);if(!db)throw new Error("记忆服务不可用");return db;};
   const exportHuman=async(db:Awaited<ReturnType<typeof management>>,project:{id:string;path:string}|undefined)=>{
-    if(project && await db.call("documentStatus",project.id))await db.call("generateDocuments",project.id,project.path);
+    let warning:string|undefined;
+    if(project && await db.call("documentStatus",project.id))warning=(await db.call("generateDocuments",project.id,project.path)).error;
+    const digest=await service.summary();return [warning,digest.error].filter(Boolean).join("\n") || undefined;
   };
   const scopeForKey=(key:string,projectPath?:string)=>{
     const match=/^project:([^/]+)\//u.exec(key);
@@ -31,7 +33,7 @@ export function registerMemoryIpc(service:MemoryService):void {
   ipcMain.handle("memory:state",(_event,payload)=>service.state(z.string().optional().parse(payload?.projectPath)));
   ipcMain.handle("memory:configure",(_event,payload)=>service.configure(z.object({enabled:z.boolean().optional(),background:z.boolean().optional(),dailyTokens:z.number().int().min(1000).max(1_000_000).optional()}).strict().parse(payload)));
   ipcMain.handle("memory:query",async(_event,payload)=>{
-    const input=z.object({projectPath:z.string().optional(),query:z.string().max(2000).optional(),scope:z.enum(["global","project","both","recent"]).optional(),state:z.enum(["confirmed","candidate","rejected","all"]).optional(),lifecycle:z.enum(["active","archived","retired","all"]).optional(),history:z.boolean().optional(),kind:z.enum(MEMORY_KINDS).optional(),from:z.number().finite().optional(),to:z.number().finite().optional(),offset:z.number().int().min(0).max(1_000_000).optional(),limit:z.number().int().min(1).max(50).optional()}).strict().parse(payload);
+    const input=z.object({projectPath:z.string().optional(),query:z.string().max(2000).optional(),scope:z.enum(["global","project","both","recent"]).optional(),state:z.enum(["confirmed","candidate","rejected","all"]).optional(),lifecycle:z.enum(["active","archived","retired","all"]).optional(),view:z.enum(["current","history","all"]).optional(),history:z.boolean().optional(),kind:z.enum(MEMORY_KINDS).optional(),from:z.number().finite().optional(),to:z.number().finite().optional(),offset:z.number().int().min(0).max(1_000_000).optional(),limit:z.number().int().min(1).max(50).optional()}).strict().parse(payload);
     const db=await service.management();if(!db)return {items:[],total:0};
     const page=await db.call("query",{...input,projectId:input.projectPath?service.project(input.projectPath)?.id:undefined});
     return {...page,items:page.items.map(item=>({...item,projectName:item.projectId?service.projectById(item.projectId)?.name:undefined}))};
@@ -47,21 +49,21 @@ export function registerMemoryIpc(service:MemoryService):void {
     if(input.scope==="project" && !project) throw new Error("请选择项目范围");
     const db=await management();
     const {item}=await db.call("save",input,{projectId:project?.id,source:{ref:`manual:${randomUUID()}`,type:"manual"},confirmed:true,pinned:input.pinned===true});
-    await exportHuman(db,project);
+    const warning=await exportHuman(db,project);
     broadcast("memory:changed",{});
-    return item;
+    return {...item,warning};
   });
   ipcMain.handle("memory:update",async(_event,payload)=>{
-    const input=z.object({key:z.string().min(1),revision:z.number().int().positive(),projectPath:z.string().optional(),patch:z.object({...writeShape,state:z.enum(["confirmed","candidate","rejected"]).optional(),lifecycle:z.enum(["active","archived","retired"]).optional(),pinned:z.boolean().optional()}).partial().strict()}).strict().parse(payload);
+    const input=z.object({key:z.string().min(1),revision:z.number().int().positive(),projectPath:z.string().optional(),patch:z.object({...writeShape,state:z.enum(["confirmed","candidate","rejected"]).optional(),lifecycle:z.enum(["active","archived","retired"]).optional(),pinned:z.boolean().optional(),cancelPending:z.boolean().optional()}).partial().strict()}).strict().parse(payload);
     const {project,projectId}=scopeForKey(input.key,input.projectPath),db=await management();
     const prior=await db.call("get",input.key,projectId);
     if(!prior) throw new Error("记忆不存在或不属于当前范围");
-    const confirmsContent=input.patch.text!==undefined || input.patch.details!==undefined || input.patch.kind!==undefined || input.patch.state==="confirmed";
+    const confirmsContent=(input.patch.text!==undefined && input.patch.text!==prior.text) || (input.patch.details!==undefined && input.patch.details!==prior.details) || (input.patch.kind!==undefined && input.patch.kind!==prior.kind) || (input.patch.state==="confirmed" && prior.state!=="confirmed");
     const sources=confirmsContent?[...prior.sources,{ref:`manual:${randomUUID()}`,type:"manual" as const}]:prior.sources;
-    const item=await db.call("update",input.key,projectId,input.revision,{...input.patch,sources});
-    await exportHuman(db,project);
+    const item=await db.call("update",input.key,projectId,input.revision,{...input.patch,sources,...(prior.mergedInto && input.patch.lifecycle==="active"?{unmerge:true}:{})});
+    const warning=await exportHuman(db,project);
     broadcast("memory:changed",{});
-    return item;
+    return {...item,warning};
   });
   ipcMain.handle("memory:forget",async(_event,payload)=>{
     const input=z.object({key:z.string().min(1),projectPath:z.string().optional()}).strict().parse(payload),scope=scopeForKey(input.key,input.projectPath);
@@ -70,6 +72,7 @@ export function registerMemoryIpc(service:MemoryService):void {
     await exportHuman(db,scope.project);
     broadcast("memory:changed",{});
   });
+  ipcMain.handle("memory:summary",(_event,payload)=>service.summary(z.boolean().optional().parse(payload?.refresh) ?? false));
   ipcMain.handle("memory:analyze",()=>service.requestAnalysis());
   ipcMain.handle("memory:preview-documents",async(_event,payload)=>{
     const input=z.object({projectPath:z.string(),directory:z.string().optional()}).strict().parse(payload),project=projectFor(input.projectPath)!;

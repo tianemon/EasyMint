@@ -8,6 +8,7 @@ import { fauxProvider,fauxAssistantMessage } from "@earendil-works/pi-ai/provide
 import { MemoryDatabase } from "./database";
 import { MemoryService } from "./service";
 import { migrateExperiences } from "./migration";
+import {writeSummary,readSummary,type SummaryProject} from "./summary";
 import { documentStatus } from "./documents";
 import type { MemoryPort } from "./client";
 vi.mock("electron",()=>({app:{isPackaged:false,getPath:()=>os.tmpdir()},BrowserWindow:{getAllWindows:()=>[]}}));
@@ -28,13 +29,15 @@ it("sends real memory-service references after the current user, with unchanged 
     const store=new Store(root);store.saveSettings({...store.getSettings(),memory:{enabled:true,background:false,dailyTokens:30_000}});
     db=new MemoryDatabase(path.join(root,"memory","memory.sqlite"));
     const port={call:async(method:string,...args:unknown[])=>{
+      if(method==="writeSummary")return writeSummary(db!,path.join(root,"memory","MEMORY.md"),args[0] as SummaryProject[],args[1] as boolean);
+      if(method==="readSummary")return readSummary(db!,path.join(root,"memory","MEMORY.md"),args[0] as SummaryProject[],args[1] as string|undefined);
       if(method==="migrate")return migrateExperiences(db!,args[0] as string,path.join(root,"backups"),args[1] as string|undefined);
       if(method==="documentStatus")return documentStatus(db!,args[0] as string);
       return (db as any)[method](...args);
     }} as MemoryPort;
     const backend=vi.fn();service=new MemoryService(store,{port,busy:()=>false,getBackend:backend});
     await service.initialize();
-    const item=db.save({kind:"decision",text:"历史决定 MEMORY_REV1"},{source:{ref:"manual:test",type:"manual"},confirmed:true}).item;
+    const item=db.save({kind:"preference",text:"用户偏好 MEMORY_REV1",summary:"用户偏好 MEMORY_REV1"},{source:{ref:"manual:test",type:"manual"},confirmed:true}).item;
     const requests:any[][]=[];
     faux.setResponses([0,1,2].map(()=>context=>{requests.push(structuredClone(context.messages));return fauxAssistantMessage("DONE");}));
     session=await createPiSession({cwd:root,agentDir:path.join(root,"agent"),store,model:runtime.getModel("memory-tail-fixture","fixture")!,
@@ -42,7 +45,7 @@ it("sends real memory-service references after the current user, with unchanged 
       getMemoryReference:prompt=>service!.reference({sessionId:session.sessionId,projectPath:root,entries:session.sessionManager.getEntries(),
         projection:session.sessionManager.buildSessionProjection().entries,usage:{tokens:1000,contextWindow:100_000}},prompt)});
     await session.prompt("USER_FIRST 历史决定");await session.prompt("USER_SECOND 历史决定");
-    db.update(item.key,undefined,1,{text:"历史决定 MEMORY_REV2_SUPERSEDES_REV1"});
+    db.update(item.key,undefined,1,{text:"用户偏好 MEMORY_REV2_SUPERSEDES_REV1"});
     await session.prompt("USER_THIRD 历史决定");
     expect(requests).toHaveLength(3);
     expect(getCurrentSystemPrompt(requests[1])).toBe(getCurrentSystemPrompt(requests[0]));

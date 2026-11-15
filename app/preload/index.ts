@@ -108,6 +108,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     update: (key: string, revision: number, patch: Parameters<import("../shared/memory").MemoryApi["update"]>[2], projectPath?: string) => ipcRenderer.invoke("memory:update", { key, revision, patch, projectPath }),
     forget: (key: string, projectPath?: string) => ipcRenderer.invoke("memory:forget", { key, projectPath }),
     analyze: () => ipcRenderer.invoke("memory:analyze"),
+    summary: (refresh?:boolean) => ipcRenderer.invoke("memory:summary",{refresh}),
     previewDocuments: (projectPath: string, directory?: string) => ipcRenderer.invoke("memory:preview-documents", { projectPath, directory }),
     adoptDocuments: (projectPath: string, directory: string, hash: string) => ipcRenderer.invoke("memory:adopt-documents", { projectPath, directory, hash }),
     sessionMode: (sessionId: string, mode?: import("../shared/memory").MemoryMode) => ipcRenderer.invoke("memory:session-mode", { sessionId, mode }),

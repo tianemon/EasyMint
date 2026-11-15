@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
+import {DatabaseSync} from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 import { MemoryDatabase } from "./database";
 import { migrateExperiences } from "./migration";
 import { adoptDocuments, generateDocuments, previewDocuments } from "./documents";
-import { evaluateLifecycle, retentionScore } from "./policy";
-import type { MemoryRecord } from "../../../shared/memory";
+import { assertCondensed } from "./policy";
 
 const databases:MemoryDatabase[]=[];
 const directories:string[]=[];
@@ -101,18 +101,15 @@ describe("lossless legacy migration",()=>{
 });
 
 describe("lifecycle and deterministic project documents",()=>{
-  it("high importance eventually decays; pins survive, and expiration stops current recall",()=>{
+  it("keeps old facts without age scoring while explicit expiration exits current recall",()=>{
     const {db}=setup(); const base=save(db);
-    const item={...base,createdAt:0,substantiveAt:0,importance:"high"} as MemoryRecord;
-    const later=3*365*86_400_000;
-    expect(retentionScore(item,later)).toBeLessThan(0.35);
-    const low=evaluateLifecycle(item,later)!;
-    const archived=evaluateLifecycle(low,later+31*86_400_000)!;
-    expect(archived.lifecycle).toBe("archived");
-    expect(evaluateLifecycle(archived,later+212*86_400_000)?.lifecycle).toBe("retired");
-    expect(evaluateLifecycle({...item,pinned:true},later)).toBeNull();
-    db.save({kind:"attention",text:"过去的临时提醒",expiresAt:1},{projectId:"p",source:{ref:"expired",type:"manual"},confirmed:true});
-    expect(db.query({query:"提醒",projectId:"p"}).items).toHaveLength(0);
+    db.evaluate(Date.now()+3*365*86_400_000);
+    expect(db.get(base.key,"p")?.lifecycle).toBe("active");
+    const expiring=db.save({kind:"attention",text:"明确截止的关注",expiresAt:Date.now()-1},{projectId:"p",source:{ref:"expired",type:"manual"},confirmed:true}).item;
+    expect(db.query({projectId:"p",query:"关注"}).items).toHaveLength(0);
+    db.evaluate();expect(db.get(expiring.key,"p")?.lifecycle).toBe("archived");
+    expect(db.query({projectId:"p",query:"关注",view:"history",history:true}).items).toHaveLength(1);
+    expect(()=>assertCondensed({text:"结论",details:"原始回答内容".repeat(40)},"原始回答内容".repeat(40))).toThrow("近似原文");
   });
   it("preserves old navigation and daily files, retains retired history, and stops on human edits",()=>{
     const {root,db}=setup(); const project=path.join(root,"project"), docs=path.join(project,"private_docs");
@@ -203,4 +200,78 @@ it("atomically reserves daily quota and reconciles actual usage with a signed ad
   db.releaseJob({ref:"missing"} as any,-670,"day");
   expect(other.status("day").usedTokens).toBe(130);
   expect(other.reserveUsage(300,"day",1000)).toBe(true);
+});
+
+it("restores a repeated explicitly confirmed preference and avoids empty editor revisions",()=>{
+  const {db}=setup();
+  const first=db.save({kind:"preference",text:"回答简洁"},{source:{type:"session",ref:"u:1",role:"user"},confirmed:true}).item;
+  const unchanged=db.update(first.key,undefined,1,{text:first.text,sources:first.sources});
+  expect(unchanged.revision).toBe(1);expect(db.revisions(first.key)).toHaveLength(1);
+  db.update(first.key,undefined,1,{lifecycle:"retired"});
+  const restored=db.save({kind:"preference",text:"回答简洁"},{source:{type:"session",ref:"u:2",role:"user"},confirmed:true}).item;
+  expect(restored.key).toBe(first.key);expect(restored.lifecycle).toBe("active");
+});
+it("merges only compatible facts atomically, preserves aliases, and forgets all merged revisions",()=>{
+  const {db}=setup();const first=save(db,"项目控件沿用既有风格"),second=save(db,"所有项目控件保持一致");
+  const merged=db.merge([{key:first.key,revision:1},{key:second.key,revision:1}],"p",{kind:"decision",text:"本项目控件沿用既有风格并保持一致"});
+  expect(db.resolve(second.key,"p")?.key).toBe(merged.key);
+  expect(db.revisions(second.key,"p")).toHaveLength(2);
+  expect(db.query({projectId:"p"}).items.map(i=>i.key)).toEqual([merged.key]);
+  expect(()=>db.merge([{key:merged.key,revision:1},{key:second.key,revision:1}],"p",{kind:"decision",text:"不应覆盖"})).toThrow("变化");
+  db.forget(second.key,"p");
+  expect(db.get(first.key,"p")).toBeUndefined();expect(db.revisions(second.key,"p")).toHaveLength(0);
+});
+it("keeps independent activities in history and searches their condensed details",()=>{
+  const {db}=setup();
+  const a=db.save({kind:"activity",text:"通过构建",details:"条件 unique-history-condition"},{projectId:"p",source:{ref:"event:1",type:"session"},confirmed:true}).item;
+  const b=db.save({kind:"activity",text:"通过构建"},{projectId:"p",source:{ref:"event:2",type:"session"},confirmed:true}).item;
+  expect(a.key).not.toBe(b.key);expect(db.query({projectId:"p"}).total).toBe(0);
+  expect(db.query({projectId:"p",scope:"recent"}).total).toBe(2);
+  expect(db.query({projectId:"p",view:"history",history:true,query:"unique-history-condition"}).total).toBe(1);
+  expect(()=>db.merge([{key:a.key,revision:1},{key:b.key,revision:1}],"p",{kind:"activity",text:"通过构建"})).toThrow("独立事件");
+});
+it("snapshots a version-one database before upgrading without losing legacy bytes or manual history choices",()=>{
+  const {db,root}=setup(),item=save(db),file=path.join(root,"store","memory.sqlite");
+  const old={...item,details:"旧经验原文，保留全部内容。".repeat(400),lifecycle:"retired" as const,reason:"用户手动退役"};
+  db.db.prepare("UPDATE memory SET json=?,lifecycle='retired' WHERE key=?").run(JSON.stringify(old),item.key);
+  db.db.prepare("UPDATE revisions SET json=? WHERE key=?").run(JSON.stringify(old),item.key);
+  db.db.exec("PRAGMA user_version=1");db.close();databases.splice(databases.indexOf(db),1);
+  const upgraded=new MemoryDatabase(file);databases.push(upgraded);
+  const backup=fs.readdirSync(path.join(root,"store","backups")).find(name=>name.endsWith(".sqlite"))!;
+  const snapshot=new DatabaseSync(path.join(root,"store","backups",backup),{readOnly:true});
+  expect(upgraded.get(item.key,"p")?.details).toBe(old.details);
+  expect(upgraded.get(item.key,"p")?.lifecycle).toBe("retired");
+  expect(JSON.parse((snapshot.prepare("SELECT json FROM memory WHERE key=?").get(item.key) as {json:string}).json).details).toBe(old.details);snapshot.close();
+  expect((upgraded.db.prepare("PRAGMA user_version").get() as {user_version:number}).user_version).toBe(2);
+});
+
+it("keeps a current value until a scheduled correction is due, without losing it on summary-only edits",()=>{
+ const {db}=setup(),now=Date.now(),at=now+60_000;
+ const item=db.save({kind:"preference",text:"使用中文",summary:"偏好中文"},{confirmed:true,source:{ref:"manual:current",type:"manual"}}).item;
+ const scheduled=db.update(item.key,undefined,1,{text:"使用英文",effectiveAt:at});
+ expect(scheduled.text).toBe("使用中文");expect(scheduled.pending?.patch.text).toBe("使用英文");
+ expect(db.query().items[0]?.text).toBe("使用中文");
+ const edited=db.update(item.key,undefined,scheduled.revision,{summary:"目前中文回答"});expect(edited.pending?.at).toBe(at);
+ db.activateDue(at+1);const applied=db.get(item.key)!;
+ expect(applied.text).toBe("使用英文");expect(applied.pending).toBeUndefined();expect(applied.summary).toBe("");
+ expect(db.revisions(item.key).some(r=>r.text==="使用中文")).toBe(true);
+});
+it.each(["withdraw","delete","forget"])("handles future-source %s without activating or reimporting the canceled evidence",operation=>{
+ const {db}=setup(),at=Date.now()+60_000;
+ const item=db.save({kind:"preference",text:"原有事实"},{confirmed:true,source:{ref:"manual:base",type:"manual"}}).item;
+ const next={ref:"user:future:u",type:"session" as const,sessionId:"future",entryId:"u",hash:"h"};
+ db.update(item.key,undefined,1,{text:"未来的新事实",effectiveAt:at,sources:[next]});
+ if(operation==="withdraw")db.invalidateSession("future",[]);
+ if(operation==="delete")db.detachSession("future",false);
+ if(operation==="forget"){db.forget(item.key);expect(db.isBlocked(next.ref)).toBe(true);}
+ db.activateDue(at+1);
+ if(operation!=="forget"){expect(db.get(item.key)?.text).toBe("原有事实");expect(db.get(item.key)?.pending).toBeUndefined();}
+ else expect(db.get(item.key)).toBeUndefined();
+});
+it("reconfirms an expired fact with new evidence and exposes old versions through the history view",()=>{
+ const {db}=setup(),item=db.save({kind:"attention",text:"继续关注研究",expiresAt:Date.now()-1},{confirmed:true,source:{ref:"u:old",type:"session",role:"user"}}).item;
+ db.evaluate();const restored=db.save({kind:"attention",text:"继续关注研究"},{confirmed:true,source:{ref:"u:new",type:"session",role:"user"}}).item;
+ expect(restored.expiresAt).toBeUndefined();expect(db.query().items[0]?.key).toBe(item.key);
+ db.update(item.key,undefined,restored.revision,{text:"转而关注新的研究"});
+ expect(db.query({view:"history",history:true}).items[0]?.matchedRevision).toBeTruthy();
 });

@@ -67,9 +67,9 @@ export function adoptDocuments(db: MemoryDatabase, projectId: string, projectPat
 }
 function safeText(text:string):string { return text.replaceAll("<!--","&lt;!--").replaceAll("-->","--&gt;"); }
 function date(ts:number,timezone?:string):string { return memoryDay(new Date(ts),timezone); }
-function render(item:MemoryRecord,full:boolean):string {
+function render(item:MemoryRecord & {historicalRevision?:boolean},full:boolean):string {
   const sources = `<!-- memory:${safeText(item.key)} revision:${item.revision} -->`;
-  return `### ${item.timeBasis==="recorded"?"记录于 ":""}${date(item.occurredAt,item.sources[0]?.timezone)} ${safeText(item.text).replaceAll("\n"," ")}\n\n${full && item.details ? `${safeText(item.details)}\n\n` : ""}${item.invalidatedAt?"\n> 来源已撤回或修订，以上仅作历史记录。\n\n":""}${sources}\n`;
+  return `### ${item.timeBasis==="recorded"?"记录于 ":""}${date(item.occurredAt,item.sources[0]?.timezone)} ${safeText(item.text).replaceAll("\n"," ")}\n\n${item.historicalRevision?`> 旧版本 r${item.revision}，仅供回溯；当前结论请查新版本。\n\n`:""}${full && item.details ? `${item.details.length<=2000 && !item.legacy?safeText(item.details):"完整旧资料保留在原来源中，请按记忆ID查阅。"}\n\n` : ""}${item.invalidatedAt?"\n> 来源已撤回或修订，以上仅作历史记录。\n\n":""}${sources}\n`;
 }
 function writeOwned(state:DocumentState, file:string, text:string, checkpoint:()=>void):void {
   const full = path.join(state.directory,file);
@@ -131,7 +131,7 @@ export function generateDocuments(db:MemoryDatabase,projectId:string,projectPath
     for(const [month,file] of Object.entries(state.monthFiles)) {
       if(!months.has(month))write(file,`${MARKER}\n# ${month} 项目历史\n\n当前无可保留的项目事件。\n`);
     }
-    const current = records.filter(r => r.state === "confirmed" && !r.invalidatedAt && r.lifecycle === "active" && (r.expiresAt === undefined || r.expiresAt>Date.now())).slice(-12).reverse();
+    const current = records.filter(r => r.state === "confirmed" && !r.invalidatedAt && !r.mergedInto && !r.historicalRevision && (r.lifecycle === "active" || (r.kind === "activity" && r.lifecycle!=="retired")) && (r.expiresAt === undefined || r.expiresAt>Date.now())).slice(-12).reverse();
     const legacy = state.legacy ? `\n- [接管前记录入口](${state.legacy.replaceAll(path.sep,"/")})\n` : "";
     const text = `${MARKER}\n# 项目开发记录\n\n本入口由应用生成，请通过记忆功能修正。当前事件与历史分开，历史请按需读取。\n\n## 当前与近期\n\n${current.length ? current.map(i => render(i,false)).join("\n") : "暂无当前事件。\n"}\n## 历史索引\n\n${monthLinks.join("\n")}${legacy}\n`;
     if (state.hashes["开发记录.md"] !== hashText(text)) write("开发记录.md",text);

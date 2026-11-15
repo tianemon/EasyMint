@@ -4,6 +4,9 @@ export type MemoryKind = typeof MEMORY_KINDS[number];
 export type MemoryState = "confirmed" | "candidate" | "rejected";
 export type MemoryLifecycle = "active" | "archived" | "retired";
 export type MemoryMode = "record" | "use" | "off";
+export const MEMORY_TEXT_LIMIT = 600;
+export const MEMORY_DETAILS_LIMIT = 2000;
+export const MEMORY_SUMMARY_LIMIT = 160;
 export interface MemorySource {
   ref: string;
   type: "session" | "manual" | "legacy";
@@ -15,6 +18,7 @@ export interface MemorySource {
   quote?: string;
   role?: "user" | "assistant";
   deleted?: boolean;
+  projectId?: string;
 }
 export interface MemoryRecord {
   key: string;
@@ -41,17 +45,23 @@ export interface MemoryRecord {
   sources: MemorySource[];
   reason?: string;
   invalidatedAt?: number;
+  summary?: string;
+  mergedInto?: string;
+  effectiveAt?: number;
+  pending?: {at:number;patch:Partial<MemoryWrite> & {state?:MemoryState;lifecycle?:MemoryLifecycle;sources?:MemorySource[];reason?:string};evidenceAt:number};
   legacy?: Record<string, unknown>;
 }
-export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "legacy"> & { matchedRevision?:number; projectName?:string; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
+export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "legacy" | "pending"> & { matchedRevision?:number; projectName?:string;pendingAt?:number; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
 export interface MemoryWrite {
   kind: MemoryKind;
   text: string;
   details?: string;
   tags?: string[];
   occurredAt?: number;
-  expiresAt?: number;
+  expiresAt?: number | null;
   importance?: "normal" | "high";
+  summary?: string;
+  effectiveAt?: number | null;
 }
 export interface MemoryQuery {
   query?: string;
@@ -60,6 +70,7 @@ export interface MemoryQuery {
   state?: MemoryState | "all";
   lifecycle?: MemoryLifecycle | "all";
   history?: boolean;
+  view?: "current" | "history" | "all";
   kind?: MemoryKind;
   from?: number;
   to?: number;
@@ -115,17 +126,19 @@ export interface MemoryDocumentConfig { projectId: string; directory: string; re
 
 export interface MemoryDocumentView { directory:string; legacy?:string; backup?:string; generation:number; error?:string }
 export interface MemoryDocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
-export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView }
+export interface MemoryDigest { content:string; hash:string; items:Array<{key:string;revision:number}>; file:string; error?:string }
+export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView; digest?:MemoryDigest }
 export interface MemoryApi {
   onChanged(callback:(settings?:MemorySettings,session?:{sessionId:string;mode:MemoryMode})=>void):()=>void;
   state(projectPath?:string):Promise<MemoryView>;
   configure(patch:Partial<Pick<MemorySettings,"enabled"|"background"|"dailyTokens">>):Promise<MemorySettings>;
   query(query:MemoryQuery & {projectPath?:string}):Promise<MemoryPage>;
   read(key:string,projectPath?:string):Promise<{item?:MemoryRecord;revisions:MemoryRecord[]}>;
-  save(input:MemoryWrite & {scope:"global"|"project";projectPath?:string;pinned?:boolean}):Promise<MemoryRecord>;
-  update(key:string,revision:number,patch:Partial<MemoryWrite> & Pick<Partial<MemoryRecord>,"state"|"lifecycle"|"pinned">,projectPath?:string):Promise<MemoryRecord>;
+  save(input:MemoryWrite & {scope:"global"|"project";projectPath?:string;pinned?:boolean}):Promise<MemoryRecord & {warning?:string}>;
+  update(key:string,revision:number,patch:Partial<MemoryWrite> & Pick<Partial<MemoryRecord>,"state"|"lifecycle"|"pinned"> & {cancelPending?:boolean},projectPath?:string):Promise<MemoryRecord & {warning?:string}>;
   forget(key:string,projectPath?:string):Promise<void>;
   analyze():Promise<void>;
+  summary(refresh?:boolean):Promise<MemoryDigest>;
   previewDocuments(projectPath:string,directory?:string):Promise<MemoryDocumentPreview>;
   adoptDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;
   sessionMode(sessionId:string,mode?:MemoryMode):Promise<MemoryMode>;
