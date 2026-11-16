@@ -2,6 +2,9 @@
  * Pin Service — 内容便签持久化
  *
  * 存储：~/.easymint/session-pins.json → Record<sessionId, Pin[]>
+ *
+ * ⚠️ 与 `pinned-sessions.json` 区分：本文件存会话内的「内容便签」；
+ *    会话置顶（列表排序）在 `pinned-sessions.json`，由 session-service 维护。
  * 便签数量少（个位数），每次变更全量覆盖写；空数组时删除该会话 key。
  */
 

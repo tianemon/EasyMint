@@ -12,6 +12,9 @@ import { toolMessageForUi } from "../../shared/tool-presentation";
  *  - archived-sessions.json  → { sessionId: timestamp }
  *  - session-titles.json     → { sessionId: title }
  *  - session-types.json      → { sessionId: "mint"|"designer" }
+ *
+ *  ⚠️ 与 `session-pins.json` 区分：本文件的 pin 是「会话置顶」（列表排序）；
+ *     `session-pins.json` 是会话内的「内容便签（Pin）」。两者互不影响，不要合并。
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, rmdirSync, lstatSync } from "node:fs";
