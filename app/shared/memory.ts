@@ -106,12 +106,7 @@ export interface MemoryConclusion {
   anchorRef?: string;
   timezone?: string;
 }
-export interface MemoryMigrationProgress {
-  phase:"idle"|"opening"|"migrating"|"ready"|"error";
-  completed:number;
-  total:number;
-  projectName?:string;
-}
+export type MemoryInitPhase = "idle" | "opening" | "ready" | "error";
 export interface MemoryStatus {
   failed?:number;
   lastError?:string;

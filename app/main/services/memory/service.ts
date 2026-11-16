@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import type { Api, AssistantMessage, Context, Model, ModelsSimpleStreamOptions } from "@earendil-works/pi-ai";
-import type { MemoryDigest,MemoryMigrationProgress,MemoryStatus, MemoryQuery, MemoryRecord, MemorySettings, MemorySource, MemoryWrite } from "../../../shared/memory";
+import type { MemoryDigest,MemoryInitPhase,MemoryStatus, MemoryQuery, MemoryRecord, MemorySettings, MemorySource, MemoryWrite } from "../../../shared/memory";
 import { MEMORY_KINDS, parseMemorySettings } from "../../../shared/memory";
 import type { Store } from "../store";
 import { readCache } from "../session-cache";
@@ -53,8 +53,8 @@ export class MemoryService {
   private ownsPort=false;
   private opening:Promise<MemoryPort>|undefined;
   private initializationAttempted=false;
-  /** 仅表示初始化阶段（opening/ready/error），不再有迁移语义。 */
-  private migration:MemoryMigrationProgress={phase:"idle",completed:0,total:0};
+  /** 记忆初始化阶段：idle → opening → ready / error。 */
+  private init:MemoryInitPhase="idle";
   private cachedStatus:MemoryStatus={count:0,pending:0,usedTokens:0,countKnown:false};
   private timer:ReturnType<typeof setTimeout>|undefined;
   private controller:AbortController|undefined;
@@ -163,7 +163,7 @@ export class MemoryService {
     if(!this.port?.unavailable)return;
     const changed=this.initialized || this.warning!=="记忆服务暂不可用，请重试初始化";
     this.initialized=false;this.cachedStatus={...this.cachedStatus,countKnown:false};
-    if(!["opening","migrating"].includes(this.migration.phase)){this.initPromise=undefined;this.migration={...this.migration,phase:"error"};}
+    if(this.init !== "opening"){this.initPromise=undefined;this.init="error";}
     this.warning="记忆服务暂不可用，请重试初始化";
     if(this.timer){clearTimeout(this.timer);this.timer=undefined;}
     if(changed)this.notify();
@@ -219,20 +219,20 @@ export class MemoryService {
   private async initializeSources(retry:boolean):Promise<void> {
     this.markUnavailable();
     if((!this.settings().enabled && !retry) || this.stopped)return;
-    if(this.initPromise && (!retry || ["opening","migrating"].includes(this.migration.phase)))return this.initPromise;
+    if(this.initPromise && (!retry || this.init === "opening"))return this.initPromise;
     this.initializationAttempted=true;this.warning=undefined;this.notify();
     const task=(async()=>{
       const db=await this.openPort();
       // 只读状态，不写任何项目文件：会话就是会话。
       this.cachedStatus={...await db.call("status"),countKnown:true};
       if(this.stopped)return;
-      this.warning=undefined;this.migration={...this.migration,phase:"ready",projectName:undefined};
+      this.warning=undefined;this.init="ready";
       this.armPump();
       this.notify();
     })();
     this.initPromise=task;
     try{await task;}catch(error){
-      this.warning=(error as Error).message;this.migration={...this.migration,phase:"error",projectName:undefined};
+      this.warning=(error as Error).message;this.init="error";
       if(this.port?.unavailable){const failed=this.port;this.port=undefined;this.initialized=false;await failed.close?.();}
       this.cachedStatus={...this.cachedStatus,countKnown:false};
       if(this.initPromise===task)this.initPromise=undefined;this.notify();throw error;
@@ -244,7 +244,7 @@ export class MemoryService {
     if(this.settings().enabled && !this.initializationAttempted)void this.initialize().catch(()=>undefined);
     if(this.opening)await this.opening;
     if(!this.initialized){
-      if(this.migration.phase==="error")throw new Error(this.warning || "记忆初始化失败，请重试");
+      if(this.init === "error")throw new Error(this.warning || "记忆初始化失败，请重试");
       const file=path.join(this.store.getDataDir(),"memory","memory.sqlite");
       if(!create && !await statIfExists(file))return;
       await this.openPort();
@@ -287,7 +287,7 @@ export class MemoryService {
     if(next.background && !prior.enabledAt) next.enabledAt=Date.now();
     this.controller?.abort(new MemoryPaused("记忆设置已变化"));
     const settings=this.store.getSettings(); settings.memory=next; this.store.saveSettings(settings);
-    if(next.enabled){if(this.migration.phase==="error")void this.initializeSources(true).catch(()=>undefined);else void this.initialize().catch(()=>undefined);}
+    if(next.enabled){if(this.init === "error")void this.initializeSources(true).catch(()=>undefined);else void this.initialize().catch(()=>undefined);}
     if(!next.enabled && this.timer){clearTimeout(this.timer);this.timer=undefined;}else this.armPump();
     this.deps.changed?.(next);
     return next;
@@ -347,7 +347,7 @@ export class MemoryService {
     if(settings.enabled && !this.initializationAttempted)void this.initialize().catch(()=>undefined);
 
     const base={settings,projectId:project?.id,ready:this.initialized&&!this.port?.unavailable,backupDirectory:this.backupDirectory()};
-    if(["opening","migrating"].includes(this.migration.phase))return {...base,status:{...this.cachedStatus,countKnown:this.initialized}};
+    if(this.init === "opening")return {...base,status:{...this.cachedStatus,countKnown:this.initialized}};
     try {
       const db=await this.management();
       const status=db?await db.call("status"):undefined;
@@ -537,7 +537,6 @@ export class MemoryService {
           {state:"rejected" as const};
         item=await db.call("update",prior.key,project?.id,request.revision ?? -1,patch);
       }
-      const owner=item.projectId?this.projectById(item.projectId):undefined;
       const warning=[await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });
   }
@@ -721,7 +720,6 @@ export class MemoryService {
           const origin=chosen.find(entry=>entry.job.ref===candidate.sourceRef) ?? chosen[0]!;
           this.saveLessonCandidate(candidate,origin.userEvidence || origin.text.slice(0,200));
         }
-        const project=first.projectId?this.store.getProjects().find(p=>p.id===first.projectId):undefined;
               });
       await this.refreshSummary();this.analysisWarning=undefined;
       this.notify();
@@ -740,7 +738,7 @@ export class MemoryService {
     await (await this.database()).call("retryFailed");this.notify();
     await this.pump(true);
   }
-  async detach(sessionId:string,clear:boolean,projectPath:string):Promise<void> {
+  async detach(sessionId:string,clear:boolean,_projectPath:string):Promise<void> {
     this.frontActivity();
     if(!this.port) {
       const file=path.join(this.store.getDataDir(),"memory","memory.sqlite");
