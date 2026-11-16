@@ -639,7 +639,7 @@ export function seedBundledSkills(): void {
 
 /** Skills owned by EM — only injected as builtin, never installed to global. CC cannot see them.
  *  导出供测试断言（含各名字必须有对应资源目录）。 */
-export const EM_SKILLS = ["ui-sync", "creation-guide", "creation-flow-intent", "creation-flow-features", "creation-flow-cost", "creation-flow-prototype", "creation-flow-techspec", "project-run", "dev-docs", "ui-aesthetic", "ui-ux-pro-max", "untrusted-source-check", "brand-tokens"];
+export const EM_SKILLS = ["easymint-guide", "ui-sync", "creation-guide", "creation-flow-intent", "creation-flow-features", "creation-flow-cost", "creation-flow-prototype", "creation-flow-techspec", "project-run", "dev-docs", "ui-aesthetic", "ui-ux-pro-max", "untrusted-source-check", "brand-tokens"];
 
 /** Skills bundled with EM for convenience — auto-seeded to global on first launch if missing.
  *  Global copy takes priority (user can customize), builtin acts as fallback. CC can use them. */
