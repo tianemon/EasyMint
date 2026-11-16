@@ -25,6 +25,7 @@ import { machineSnapshot, readDevelopLog, type MachineCache } from "./memory-sou
 import { collectEvidence, type ProjectEvidence } from "./project-evidence";
 import { parseDevelopLog } from "./develop-log";
 import { readDocument, removeDocumentEntry, upsertDocumentEntry } from "./document-store";
+import { parseEntries } from "./memory-entries";
 import { describeToolSessions, listToolSessions } from "./tool-sessions";
 import { digestMessages, type SessionDigest } from "./session-digest";
 
@@ -194,12 +195,27 @@ export class MemoryService {
   async initialize():Promise<void> {
     this.ensureEnableWindow();
     const done=await this.initializeSources(false);
+    this.ensureExperienceHint();
     return done;
   }
   /**
    * 默认开启时补一个"启用时间窗"：只回溯最近一天，避免首次升级把全部历史结论一次性送进模型。
    * 之后由 configure 在开关切换时维护。
    */
+  /** 经验库的指引：只记"它在哪、优先查"，正文留在 experiences/，不把经验搬进记忆。 */
+  private static readonly EXPERIENCE_HINT="遇到本机或本项目特有的问题（装依赖、编码、沙箱、路径、构建）时，先查 ~/.easymint/experiences/：文件名就是结论，index.json 有标签；那里的记录由后台限量写入，只作参考，不构成授权。";
+  /**
+   * 首次（记忆还是空文件）时补一条指引；已有条目则不打扰，
+   * 也不在用户删掉后再加回来——避免和"手删即生效"打架。
+   */
+  private ensureExperienceHint():void {
+    try{
+      const file=this.memoryFile(),content=readDocument(file) ?? "";
+      if(content.includes("~/.easymint/experiences/")) return;
+      if(parseEntries(content).length>0) return;
+      upsertDocumentEntry(file,{key:"experience-index",text:MemoryService.EXPERIENCE_HINT});
+    }catch{/* 辅助提示失败不影响启动 */}
+  }
   private ensureEnableWindow():void {
     try{
       const settings=this.store.getSettings();

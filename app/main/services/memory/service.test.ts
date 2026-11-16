@@ -331,6 +331,16 @@ it("does not erase user text on an inspection-only request and supports grounded
  const changed=await f.service.readDocument();await f.service.saveDocumentFromAgent(normal,undefined,changed.hash,changed.reviewHash,undefined,[{oldText:"",newText:"\n"+changed.changes+"\n"}]);
  expect((await f.service.readDocument()).content).toContain("用户自己修改的文字");expect((await f.service.readDocument()).content).toContain("使用中文回答");
 });
+it("seeds one pointer to the experience library only while memory is still empty",async()=>{
+ const f=setup(false);await f.service.initialize();
+ const file=path.join(f.root,"memory","MEMORY.md");
+ expect(fs.readFileSync(file,"utf8")).toContain("~/.easymint/experiences/");
+ // 用户删掉指引、但记忆里已有别的内容：不再加回来
+ fs.writeFileSync(file,"# MEMORY\n\n- 用户自己的约定 <!-- m:mine -->\n");
+ (f.service as unknown as {ensureExperienceHint():void}).ensureExperienceHint();
+ expect(fs.readFileSync(file,"utf8")).not.toContain("~/.easymint/experiences/");
+});
+
 it("mirrors a saved memory into MEMORY.md so the very next turn can use it",async()=>{
  const f=setup(false);await f.service.initialize();
  await f.service.saveFromAgent(f.context(),{kind:"preference",text:"以后使用中文回答",summary:"使用中文回答"},"global","以后所有回答都使用中文，并保留重要决策的理由。","explicit");
