@@ -50,7 +50,7 @@ export async function createOtherSessionsTool(cwd: string): Promise<ToolDefiniti
         const payload = tail
           ? { tool: (params.tool as ToolName | undefined) ?? "codex", file, ...tail }
           : { file, text: "该会话没有可读的助手结论" };
-        return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], details: payload as never };
+        return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], details: payload as unknown as Record<string, unknown> };
       }
       const projectPath = typeof params.projectPath === "string" ? params.projectPath : cwd;
       const days = typeof params.days === "number" ? params.days : 14;
@@ -83,7 +83,7 @@ export async function createOtherSessionsTool(cwd: string): Promise<ToolDefiniti
           at: new Date(hit.mtime).toISOString(),
         })),
       };
-      return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], details: payload as never };
+      return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], details: payload as unknown as Record<string, unknown> };
     },
   });
 }

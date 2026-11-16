@@ -493,7 +493,7 @@ async function runQuitCleanup(): Promise<void> {
     try { await fn(); } catch (e) { console.warn(`[quit] ${label} 清理失败（忽略）:`, (e as Error).message); }
   };
   // 第一轮信号后父进程可能先退出、登记表随之删项；先冻结进程组，第二轮仍能杀存活的子进程。
-  const shellPids = backgroundShellRegistry.list().map((shell) => shell.child.pid).filter((pid): pid is number => !!pid);
+  const shellPids = backgroundShellRegistry.list().map((shell) => shell.child?.pid).filter((pid): pid is number => !!pid);
   const processPids = snapshotProcessPids();
   const trackedChildren = snapshotTrackedChildren();
 

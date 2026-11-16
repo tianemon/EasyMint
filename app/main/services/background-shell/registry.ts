@@ -44,7 +44,8 @@ export interface BackgroundShell {
   id: string;
   command: string;
   startedAt: number;
-  child: ChildProcess;
+  /** spawn 失败时没有子进程：类型必须允许 null，否则只能靠断言糊过去。 */
+  child: ChildProcess | null;
   /** 发起会话(前端按会话过滤:后台命令状态只显示在发起会话的 tab) */
   sessionId?: string;
   /** 累积输出(内存尾部截断,通知预览) */
@@ -349,15 +350,17 @@ class BackgroundShellRegistry {
     this.broadcastCount();
     console.log(`[bg-shell] stop ${id}: ${shell.command.slice(0, 80)}`);
     const killTree = (signal: NodeJS.Signals): void => {
+      const child = shell.child;
+      if (!child) return;   // spawn 失败：没有进程可杀，退出走 onExit
       try {
         if (process.platform === "win32") {
-          const tk = spawn("taskkill", ["/pid", String(shell.child.pid), "/T", "/F"]);
-          tk.on("error", () => shell.child.kill());
-        } else if (shell.child.pid) {
-          process.kill(-shell.child.pid, signal);
+          const tk = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
+          tk.on("error", () => child.kill());
+        } else if (child.pid) {
+          process.kill(-child.pid, signal);
         }
       } catch {
-        shell.child.kill();
+        child.kill();
       }
     };
     killTree("SIGTERM");
@@ -383,7 +386,7 @@ class BackgroundShellRegistry {
    * 主进程先走，那个 setTimeout 永远不会执行（写了等于没写）——忽略 SIGTERM 的进程
    * 就会以孤儿身份留下。退出清场在宽限期后直接调这里补刀，不依赖定时器。
    */
-  forceKillAll(pids: readonly number[] = this.list().map((shell) => shell.child.pid).filter((pid): pid is number => !!pid)): void {
+  forceKillAll(pids: readonly number[] = this.list().map((shell) => shell.child?.pid).filter((pid): pid is number => !!pid)): void {
     for (const pid of pids) {
       try {
         if (process.platform === "win32") {

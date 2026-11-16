@@ -187,7 +187,7 @@ export class MemoryService {
       this.idleAfter=0;
       void this.pump().catch(error=>{this.warning=(error as Error).message;});
     },delayMs);
-    (this.timer as unknown as {unref?:()=>void}).unref?.();
+    this.timer.unref?.();
   }
   async initialize():Promise<void> {
     this.ensureEnableWindow();

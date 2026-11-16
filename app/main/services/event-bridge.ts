@@ -254,7 +254,7 @@ export function bridgeSessionEvents(
     callbacks.onEvent({ type: "nested_tool", sessionId: "", parentToolCallId: nested.parentToolCallId,
       toolCallId: nested.toolCallId, toolName: nested.toolName, toolArgs: nested.args,
       nestedPhase: nested.type === "tool_execution_start" ? "start" : nested.type === "tool_execution_end" ? "end" : "update",
-      durationMs: nested.durationMs, isError: nested.isError, content: nested.isError ? extractPartialText(nested.result as never) : undefined });
+      durationMs: nested.durationMs, isError: nested.isError, content: nested.isError ? extractPartialText(nested.result) : undefined });
     return;
   }
   switch (event.type) {
