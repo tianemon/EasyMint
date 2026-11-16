@@ -83,6 +83,10 @@ export interface MemorySettings {
 }
 export const DEFAULT_MEMORY_SETTINGS: MemorySettings = { enabled: true, background: true };
 export function parseMemorySettings(raw: unknown): MemorySettings {
+  // 配置"缺失"与"损坏"必须区分：缺失用产品默认（开启），损坏则失败关闭——
+  // 否则一个被写坏的字段会让后台分析（调用模型、外发上下文）自动打开。
+  if (raw !== undefined && (raw === null || typeof raw !== "object" || Array.isArray(raw)))
+    return { enabled: false, background: false };
   const r = raw && typeof raw === "object" ? raw as Partial<MemorySettings> : {};
   // 未配置时按默认开启；只有显式写 false 才算关闭。
   const enabled = typeof r.enabled === "boolean" ? r.enabled : DEFAULT_MEMORY_SETTINGS.enabled;
