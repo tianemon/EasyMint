@@ -106,7 +106,7 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
           ) : activeTab === "agent" ? (
             <AgentTab />
           ) : activeTab === "memory" ? (
-            <MemoryTab projectPath={projectPath} />
+            <MemoryTab />
           ) : activeTab === "providers" ? (
             <ProvidersTab />
           ) : activeTab === "about" ? (

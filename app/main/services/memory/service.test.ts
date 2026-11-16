@@ -6,11 +6,12 @@ import type { Store } from "../store";
 import type { MemoryPort } from "./client";
 import type { MemorySettings } from "../../../shared/memory";
 import { MemoryDatabase } from "./database";
+import { upsertDocumentEntry } from "./document-store";
 import { migrateExperiences } from "./migration";
 import { adoptDocuments,documentStatus,generateDocuments,previewDocuments } from "./documents";
 import { MemoryService,type MemorySessionContext } from "./service";
 import { memoryDay } from "./codec";
-import {writeSummary,readSummary,type SummaryProject} from "./summary";
+import {writeSummary,readSummary,readSummaryDocument,saveSummaryDocument,type SummaryProject} from "./summary";
 import {readConclusionEntries} from "./source-reader";
 
 const cache=vi.hoisted(()=>new Map<string,{permissionMode?:string;memoryMode?:"record"|"use"|"off"}>());
@@ -26,14 +27,14 @@ function setup(background=true) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"em-memory-service-"));
   const db=new MemoryDatabase(path.join(root,"memory","memory.sqlite"));
   fs.mkdirSync(path.join(root,"project"));
-  let settings={memory:{enabled:true,background,dailyTokens:100_000,enabledAt:0} as MemorySettings};
+  let settings={memory:{enabled:true,background,enabledAt:0} as MemorySettings};
   const store={getDataDir:()=>root,getSettings:()=>settings,saveSettings:(value:typeof settings)=>{settings=value;},getProjects:()=>[{id:"p",name:"测试项目",path:path.join(root,"project"),createdAt:new Date(0).toISOString()}]} as unknown as Store;
   const sources=new Map<string,unknown[]>();
   const complete=vi.fn(async(_model:unknown,context:any)=>{
     const payload=JSON.parse(context.messages[0].content);
     return reply(payload.conclusions.map((source:any)=>({sourceRef:source.ref,kind:"preference",text:"以后使用中文回答",scope:"global",basis:"explicit",quote:"以后所有回答都使用中文，并保留重要决策的理由。"})));
   });
-  const extra={writeSummary:(projects:SummaryProject[],force=false)=>writeSummary(db,path.join(root,"memory","MEMORY.md"),projects,force),readSummary:(projects:SummaryProject[],id?:string)=>readSummary(db,path.join(root,"memory","MEMORY.md"),projects,id),readSource:readConclusionEntries,migrate:(directory:string,projectId?:string)=>migrateExperiences(db,directory,path.join(root,"backups"),projectId),
+  const extra={readDocument:(projects:SummaryProject[])=>readSummaryDocument(db,path.join(root,"memory","MEMORY.md"),projects),saveDocument:(projects:SummaryProject[],content:string,hash:string,reviewHash?:string)=>saveSummaryDocument(db,path.join(root,"memory","MEMORY.md"),projects,content,hash,reviewHash),writeSummary:(projects:SummaryProject[],force=false)=>writeSummary(db,path.join(root,"memory","MEMORY.md"),projects,force),readSummary:(projects:SummaryProject[],id?:string)=>readSummary(db,path.join(root,"memory","MEMORY.md"),projects,id),readSource:readConclusionEntries,migrate:(directory:string,projectId?:string)=>migrateExperiences(db,directory,path.join(root,"backups"),projectId),
     documentStatus:(id:string)=>documentStatus(db,id),generateDocuments:(id:string,project:string)=>generateDocuments(db,id,project),previewDocuments,
     adoptDocuments:(id:string,project:string,directory:string,hash:string)=>adoptDocuments(db,id,project,directory,hash,path.join(root,"backups"))};
   const port={call:async(method:string,...args:unknown[])=>{
@@ -129,8 +130,12 @@ it("applies a newer grounded correction to the original key and preserves its pr
 
 it("loads the selected lightweight profile without running a topic query each turn",async()=>{
   const f=setup(false);await f.service.initialize();
-  f.db.save({kind:"preference",text:"以后使用中文回答",tags:["communication"]},{source:{ref:"manual:language",type:"manual"},confirmed:true,pinned:true});
-  f.db.save({kind:"background",text:"用户研究五线谱识别"},{source:{ref:"manual:research",type:"manual"},confirmed:true,pinned:true});
+  const first=f.db.save({kind:"preference",text:"以后使用中文回答",tags:["communication"]},{source:{ref:"manual:language",type:"manual"},confirmed:true,pinned:true}).item;
+  const second=f.db.save({kind:"background",text:"用户研究五线谱识别"},{source:{ref:"manual:research",type:"manual"},confirmed:true,pinned:true}).item;
+  // 文件是注入的正文来源：绕过 service 直接写库的条目，需要同样落到文档。
+  const doc=path.join(f.root,"memory","MEMORY.md");
+  upsertDocumentEntry(doc,{key:first.key,text:first.text,dbRevision:first.revision});
+  upsertDocumentEntry(doc,{key:second.key,text:second.text,dbRevision:second.revision});
   const query=vi.spyOn(f.db,"query");
   const reference=await f.service.reference(f.context(),"Fix the failing integration tests");
   expect(reference?.content).toContain("以后使用中文回答");expect(reference?.content).toContain("五线谱");expect(query).not.toHaveBeenCalled();
@@ -376,4 +381,49 @@ it("distinguishes an unavailable project root from an existing project with no l
  fs.renameSync(offline,project);await f.service.retryMigrations("p");await f.service.initialize();
  view=await f.service.state();expect(view.reports.find(report=>report.projectId==="p")?.status).toBe("complete");
  expect(view.reports.find(report=>report.projectId==="p")?.imported).toBe(0);
+});
+
+
+it("preserves user-edited MD across new memory writes and lets the agent maintain only grounded additions",async()=>{
+ const f=setup(false);await f.service.initialize();const initial=await f.service.readDocument();
+ await f.service.saveDocument("# 我的记忆\n\n用户自己保留的表达\n",initial.hash);
+ const context=f.context();await f.service.saveFromAgent(context,{kind:"preference",text:"以后使用中文回答",summary:"使用中文回答"},"global","以后所有回答都使用中文，并保留重要决策的理由。","explicit");
+ const pending=await f.service.readDocument();expect(pending.content).toContain("用户自己保留的表达");expect(pending.needsReview).toBe(true);expect(pending.changes).toContain("使用中文回答");
+ await expect(f.service.saveDocumentFromAgent(context,pending.content+"\n无证据的新事实",pending.hash,pending.reviewHash)).rejects.toThrow("先通过save/update");
+ await f.service.saveDocumentFromAgent(context,pending.content+"\n"+pending.changes+"\n",pending.hash,pending.reviewHash);
+ expect((await f.service.readDocument()).needsReview).toBe(false);expect((await f.service.readDocument()).content).toContain("用户自己保留的表达");
+ cache.set("s",{permissionMode:"readonly"});await expect(f.service.saveDocumentFromAgent(context,"",(await f.service.readDocument()).hash,(await f.service.readDocument()).reviewHash)).rejects.toThrow("不允许");
+});
+it("does not erase user text on an inspection-only request and supports grounded local patches",async()=>{
+ const f=setup(false);await f.service.initialize();const first=await f.service.readDocument();await f.service.saveDocument("# 我的记忆\n用户自己修改的文字\n",first.hash);
+ const context=f.context();(context.entries[0] as any).message.content="只检查记忆，先别改MEMORY.md，不要修改任何记忆。";
+ const doc=await f.service.readDocument();await expect(f.service.saveDocumentFromAgent(context,"",doc.hash,doc.reviewHash)).rejects.toThrow("禁止修改");expect((await f.service.readDocument()).content).toBe(doc.content);
+ const normal=f.context("normal");await expect(f.service.saveDocumentFromAgent(normal,"",doc.hash,doc.reviewHash)).rejects.toThrow("清空");
+ await f.service.saveFromAgent(normal,{kind:"preference",text:"使用中文回答",summary:"使用中文回答"},"global","以后所有回答都使用中文，并保留重要决策的理由。","explicit");
+ const changed=await f.service.readDocument();await f.service.saveDocumentFromAgent(normal,undefined,changed.hash,changed.reviewHash,undefined,[{oldText:"",newText:"\n"+changed.changes+"\n"}]);
+ expect((await f.service.readDocument()).content).toContain("用户自己修改的文字");expect((await f.service.readDocument()).content).toContain("使用中文回答");
+});
+it("mirrors a saved memory into MEMORY.md so the very next turn can use it",async()=>{
+ const f=setup(false);await f.service.initialize();
+ await f.service.saveFromAgent(f.context(),{kind:"preference",text:"以后使用中文回答",summary:"使用中文回答"},"global","以后所有回答都使用中文，并保留重要决策的理由。","explicit");
+ const file=path.join(f.root,"memory","MEMORY.md");
+ expect(fs.readFileSync(file,"utf8")).toContain("以后使用中文回答");
+ const content=(await f.service.reference(f.context("other"),"继续"))?.content ?? "";
+ expect(content).toContain("以后使用中文回答");
+});
+it("keeps a long user-edited document in the injected rules instead of dropping it",async()=>{
+ const f=setup(false);await f.service.initialize();const original=await f.service.readDocument();await f.service.saveDocument(Array.from({length:120},(_,i)=>`用户保留的第${i}条短记忆。`).join("\n"),original.hash);
+ await f.service.saveFromAgent(f.context(),{kind:"preference",text:"使用中文回答",summary:"使用中文回答"},"global","以后所有回答都使用中文，并保留重要决策的理由。","explicit");
+ const content=(await f.service.reference(f.context(),"正常任务"))?.content ?? "";
+ expect(content).toContain("用户保留的第0条短记忆");
+ expect(content.length).toBeLessThan(2600);
+});
+it("keeps candidate facts out of document changes and rejects stale change acknowledgements",async()=>{
+ const f=setup(false);await f.service.initialize();const context=f.context(),initial=await f.service.readDocument();
+ f.db.save({kind:"preference",text:"候选事实",summary:"候选不能采用"},{source:{ref:"inferred",type:"session"},confirmed:false});
+ const candidate=await f.service.readDocument();expect(candidate.available).not.toContain("候选不能采用");
+ await expect(f.service.saveDocumentFromAgent(context,candidate.content+"候选不能采用",candidate.hash,candidate.reviewHash)).rejects.toThrow("已确认记忆");
+ f.db.save({kind:"preference",text:"明确事实",summary:"明确事实"},{source:{ref:"new",type:"manual"},confirmed:true});
+ await expect(f.service.saveDocumentFromAgent(context,initial.content,initial.hash,initial.reviewHash)).rejects.toThrow("reviewHash");
+ const latest=await f.service.readDocument();await f.service.saveDocument("用户最新修改",latest.hash);expect((await f.service.readDocument()).needsReview).toBe(true);
 });

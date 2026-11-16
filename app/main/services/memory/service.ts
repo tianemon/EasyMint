@@ -9,12 +9,22 @@ import { withSessionCreationLock } from "../session-permission-gate";
 import { MemoryClient, type MemoryPort } from "./client";
 import { bindConclusion, conclusionSnapshot, evidenceMessages, messageText, type EvidenceMessage } from "./source";
 import { getSessionDataHelpers } from "../pi-sdk";
-import { memoryAllowance, memoryVisibility, estimateMemoryTokens, MEMORY_REFERENCE_HEADER, type MemoryDelivery } from "./context";
+import { memoryAllowance, memoryVisibility, estimateMemoryTokens, type MemoryDelivery } from "./context";
 import type { MemoryJob, MemoryAnalysisWrite } from "./database";
 import { cancellable } from "../form-assist-service";
 import { conclusionParts, selectUserEvidence } from "./batch";
 import { memoryDay, hashText } from "./codec";
 import { assertCondensed,explicitLongTerm } from "./policy";
+import syncFs from "node:fs";
+import os from "node:os";
+import { execSync } from "node:child_process";
+import { planDelivery } from "./context-plan";
+import { buildDeliverables } from "./deliverables";
+import { machineSnapshot, readDevelopLog, type MachineCache } from "./memory-source";
+import { collectEvidence, type ProjectEvidence } from "./project-evidence";
+import { migrateDocument, removeDocumentEntry, upsertDocumentEntry } from "./document-store";
+import { describeToolSessions, listToolSessions } from "./tool-sessions";
+import { digestMessages, type SessionDigest } from "./session-digest";
 
 interface Backend { model:Model<Api>|null; runtime:{completeSimple(model:Model<Api>,context:Context,options?:ModelsSimpleStreamOptions):Promise<AssistantMessage>} }
 export interface MemorySessionContext {
@@ -42,7 +52,7 @@ export class MemoryService {
   private initializationAttempted=false;
   private migration:MemoryMigrationProgress={phase:"idle",completed:0,total:0};
   private cachedStatus:MemoryStatus={count:0,pending:0,usedTokens:0,countKnown:false};
-  private timer:ReturnType<typeof setInterval>|undefined;
+  private timer:ReturnType<typeof setTimeout>|undefined;
   private controller:AbortController|undefined;
   private idleAfter=0;
   private pumping=false;
@@ -52,6 +62,7 @@ export class MemoryService {
   private stopped=false;
   private warning:string|undefined;
   private summaryWarning:string|undefined;
+  summaryNeedsReview=false;
   private analysisWarning:string|undefined;
   private sourceCache=new Map<string,{stamp:string;messages:EvidenceMessage[]}>();
   private reports:MemoryMigrationReport[]=[];
@@ -62,8 +73,59 @@ export class MemoryService {
   projectById(id:string) { return this.store.getProjects().find(project=>project.id===id); }
   mode(sessionId:string):"record"|"use"|"off" { return readCache(sessionId)?.memoryMode ?? "record"; }
   canRecord(sessionId:string):boolean { return !this.stopped && this.settings().enabled && this.mode(sessionId)==="record" && readCache(sessionId)?.permissionMode!=="readonly"; }
+  canRead(sessionId:string):boolean {return !this.stopped && this.settings().enabled && this.mode(sessionId)!=="off";}
   frontActivity():void { this.sourceCache.clear(); this.idleAfter=Date.now()+IDLE_MS; this.controller?.abort(new MemoryPaused("前台优先，后台稍后恢复")); }
   backupDirectory():string {return path.join(this.store.getDataDir(),"memory","backups");}
+  private machineCache:MachineCache={at:0};
+  private evidenceCache=new Map<string,{at:number;value:ProjectEvidence}>();
+  private machineProbe(){return {platform:process.platform,arch:process.arch,env:process.env as Record<string,string|undefined>,run:(command:string)=>{try{return execSync(command,{encoding:"utf8",stdio:["ignore","pipe","ignore"],timeout:3_000,env:process.env}).trim();}catch{return null;}}};}
+  private cachedMachine(){try{const result=machineSnapshot(this.machineProbe(),this.machineCache);this.machineCache=result.cache;return result.snapshot;}catch{return null;}}
+  private sessionCache=new Map<string,{at:number;digest?:SessionDigest}>();
+  /** 最近一场会话的路标：只在"无开发记录且无仓库证据"时用，避免空项目注入空话。 */
+  private async cachedLastSession(projectPath:string):Promise<SessionDigest|undefined> {
+    const hit=this.sessionCache.get(projectPath),now=Date.now();
+    if(hit && now-hit.at<300_000) return hit.digest;
+    try{
+      const {listSessions,getSessionMessages}=await import("../session-service");
+      const latest=(await listSessions(projectPath)).find(item=>!item.archivedAt);
+      if(!latest){this.sessionCache.set(projectPath,{at:now});return undefined;}
+      const messages=await getSessionMessages(latest.sessionId,projectPath);
+      const digest=digestMessages(messages.map(item=>({role:item.type==="toolResult"?"tool":item.type,text:messageText((item.message as {content?:unknown})?.content ?? item.message)})));
+      this.sessionCache.set(projectPath,{at:now,digest});
+      return digest;
+    }catch{this.sessionCache.set(projectPath,{at:now});return undefined;}
+  }
+  private toolCache=new Map<string,{at:number;text?:string}>();
+  /** 跨工具感知：只读目录与 mtime，不解析正文；10 分钟内复用。 */
+  private cachedToolHint(projectPath:string):string|undefined {
+    const hit=this.toolCache.get(projectPath),now=Date.now();
+    if(hit && now-hit.at<600_000) return hit.text;
+    try{
+      const hits=listToolSessions({home:os.homedir(),projectPath},{
+        listDir:dir=>{try{return syncFs.readdirSync(dir,{withFileTypes:true}).map(entry=>({name:entry.name,isDir:entry.isDirectory()}));}catch{return null;}},
+        mtime:file=>{try{return syncFs.statSync(file).mtimeMs;}catch{return null;}},
+      });
+      const text=describeToolSessions(hits);
+      this.toolCache.set(projectPath,{at:now,text});
+      return text;
+    }catch{return undefined;}
+  }
+  /** MEMORY.md 是本机唯一记忆文件，与索引同目录。 */
+  private memoryFile():string {return path.join(this.store.getDataDir(),"memory","MEMORY.md");}
+  /** 把索引里的条目镜像到文件：文件是注入的正文来源，索引只做来源与版本校验。 */
+  private mirrorEntry(item:{key:string;text:string;revision:number}|undefined):string|undefined {
+    if(!item || typeof item.text!=="string") return undefined;
+    try { upsertDocumentEntry(this.memoryFile(),{key:item.key,text:item.text,dbRevision:item.revision}); return undefined; }
+    catch(error){ return `记忆已写入索引，但 MEMORY.md 未能更新：${(error as Error).message}`; }
+  }
+  private dropEntry(key:string):void {
+    try { removeDocumentEntry(this.memoryFile(),key); } catch { /* 文件不可写不应阻断忘记 */ }
+  }
+  private cachedEvidence(projectPath:string):ProjectEvidence|undefined{
+    const hit=this.evidenceCache.get(projectPath);
+    if(hit && Date.now()-hit.at<300_000)return hit.value;
+    try{const value=collectEvidence(projectPath,{run:(command:string)=>{try{return execSync(command,{encoding:"utf8",stdio:["ignore","pipe","ignore"],timeout:3_000,cwd:projectPath}).trim();}catch{return null;}}});this.evidenceCache.set(projectPath,{at:Date.now(),value});return value;}catch{return undefined;}
+  }
   private async openPort():Promise<MemoryPort> {
     if(this.stopped)throw new Error("记忆服务已关闭");
     if(this.opening)return this.opening;
@@ -96,18 +158,54 @@ export class MemoryService {
     this.initialized=false;this.cachedStatus={...this.cachedStatus,countKnown:false};
     if(!["opening","migrating"].includes(this.migration.phase)){this.initPromise=undefined;this.migration={...this.migration,phase:"error"};}
     this.warning="记忆服务暂不可用，请重试初始化";
-    if(this.timer){clearInterval(this.timer);this.timer=undefined;}
+    if(this.timer){clearTimeout(this.timer);this.timer=undefined;}
     if(changed)this.notify();
   }
   documentReport(projectId:string,documentError?:string):void {
     const prior=this.reports.find(report=>report.projectId===projectId);
     if(prior)this.rememberReport({...prior,documentError,status:prior.status==="failed"?"failed":prior.errors.length||prior.missing.length||documentError?"attention":"complete"});
   }
-  private startTimer():void {
-    if(this.timer || this.stopped || !this.initialized || !this.settings().enabled)return;
-    this.timer=setInterval(()=>{void this.pump().catch(error=>{this.warning=(error as Error).message;});},30_000);this.timer.unref();
+  /**
+   * 事件触发：只有会话内容变化时才排一次整理，不再每 30 秒轮询。
+   * 延迟 30 秒是防抖（连续输入只算一次），不是心跳。
+   */
+  private armPump(delayMs=30_000):void {
+    if(this.stopped || !this.initialized || !this.settings().enabled)return;
+    if(this.timer)clearTimeout(this.timer);
+    this.timer=setTimeout(()=>{
+      this.timer=undefined;
+      // 正在生成回复时让路，一分钟后再试；这是有界重排，不是心跳。
+      if(this.deps.busy()){this.armPump(60_000);return;}
+      this.idleAfter=0;
+      void this.pump().catch(error=>{this.warning=(error as Error).message;});
+    },delayMs);
+    (this.timer as unknown as {unref?:()=>void}).unref?.();
   }
-  async initialize():Promise<void> {return this.initializeSources(false);}
+  async initialize():Promise<void> {
+    this.ensureEnableWindow();
+    const done=await this.initializeSources(false);
+    this.migrateDocumentOnce();
+    return done;
+  }
+  /**
+   * 默认开启时补一个"启用时间窗"：只回溯最近一天，避免首次升级把全部历史结论一次性送进模型。
+   * 之后由 configure 在开关切换时维护。
+   */
+  private ensureEnableWindow():void {
+    try{
+      const settings=this.store.getSettings();
+      const memory=settings.memory;
+      if(!memory?.enabled || !memory.background || typeof memory.enabledAt==="number") return;
+      this.store.saveSettings({...settings,memory:{...memory,enabledAt:Date.now()-86_400_000}});
+    }catch{/* 设置不可写时按未设置处理，capture 会继续用当前时间兜底 */ }
+  }
+  private documentMigrated=false;
+  /** 旧版多节摘要一次性迁移成单节条目：先备份，失败不阻断启动。 */
+  private migrateDocumentOnce():void {
+    if(this.documentMigrated)return;
+    this.documentMigrated=true;
+    try{migrateDocument(this.memoryFile(),path.join(this.store.getDataDir(),"memory","backups"));}catch{/* 迁移失败时保留原文件 */ }
+  }
   private async initializeSources(retry:boolean,projectId?:string):Promise<void> {
     this.markUnavailable();
     if((!this.settings().enabled && !retry) || this.stopped)return;
@@ -143,7 +241,7 @@ export class MemoryService {
       }
       if(this.stopped)return;
       this.warning=undefined;this.migration={...this.migration,phase:"ready",projectName:undefined};
-      this.startTimer();
+      this.armPump();
       this.notify();
     })();
     this.initPromise=task;
@@ -196,6 +294,7 @@ export class MemoryService {
       if(state.error)this.warning=state.error;
     }
     await this.refreshSummary();this.notify();
+    this.armPump();
   }
   async readDatabase():Promise<MemoryPort> {
     this.markUnavailable();
@@ -205,7 +304,7 @@ export class MemoryService {
     await this.applyDue(this.port);
     return this.port;
   }
-  async configure(patch:Partial<Pick<MemorySettings,"enabled"|"background"|"dailyTokens">>):Promise<MemorySettings> {
+  async configure(patch:Partial<Pick<MemorySettings,"enabled"|"background">>):Promise<MemorySettings> {
     return withSessionCreationLock(async()=>{
     const prior=this.settings();
     const next=parseMemorySettings({...prior,...patch});
@@ -213,7 +312,7 @@ export class MemoryService {
     this.controller?.abort(new MemoryPaused("记忆设置已变化"));
     const settings=this.store.getSettings(); settings.memory=next; this.store.saveSettings(settings);
     if(next.enabled){if(this.migration.phase==="error")void this.initializeSources(true).catch(()=>undefined);else void this.initialize().catch(()=>undefined);}
-    if(!next.enabled && this.timer){clearInterval(this.timer);this.timer=undefined;}else this.startTimer();
+    if(!next.enabled && this.timer){clearTimeout(this.timer);this.timer=undefined;}else this.armPump();
     this.deps.changed?.(next);
     return next;
     });
@@ -228,9 +327,43 @@ export class MemoryService {
     const db=await this.management(true);if(!db)throw new Error("记忆服务不可用");
     return db.call("writeSummary",this.summaryProjects(),force);
   }
+  async readDocument(){const db=await this.management(true);if(!db)throw new Error("记忆服务不可用");return db.call("readDocument",this.summaryProjects());}
+  async saveDocument(content:string,hash:string,reviewHash?:string){
+    this.frontActivity();const db=await this.management(true);if(!db)throw new Error("记忆服务不可用");
+    const result=await db.call("saveDocument",this.summaryProjects(),content,hash,reviewHash);this.summaryNeedsReview=Boolean(result.needsReview);this.notify();return result;
+  }
+  async saveDocumentFromAgent(context:MemorySessionContext,content:string|undefined,hash:string,reviewHash:string,signal?:AbortSignal,edits?:Array<{oldText:string;newText:string}>){
+    return withSessionCreationLock(async()=>{
+      if(!this.canRecord(context.sessionId))throw new Error("当前会话不允许写入记忆");
+      await this.bindInput(context,"preference","inference",undefined,signal);signal?.throwIfAborted();
+      const user=await this.currentUser(context);
+      if(/只.{0,4}(检查|看看|列出|查看)|先别改|不要修改|do not (?:edit|change)|read.only|inspect only/iu.test(user))throw new Error("用户本轮只要求检查或禁止修改，未修改记忆");
+      const prior=await this.readDocument();
+      if(!reviewHash || reviewHash!==prior.reviewHash)throw new Error("需要最近read_summary的reviewHash；变化已有更新时请重新读取");
+      if(edits){
+        if(content!==undefined || !edits.length)throw new Error("完整文档与局部编辑只能选择一种");
+        content=prior.content;
+        for(const edit of edits){if(!edit.oldText){content+=edit.newText;continue;}const index=content.indexOf(edit.oldText);if(index<0 || content.indexOf(edit.oldText,index+edit.oldText.length)>=0)throw new Error("局部编辑目标不存在或不唯一，请重新读取定位");content=content.slice(0,index)+edit.newText+content.slice(index+edit.oldText.length);}
+      }
+      if(content===undefined)throw new Error("需要提供完整text或明确的edits");
+      if(!content.trim() && prior.content.trim() && !/(清空|删除全部|全部删除|clear|erase all).{0,20}(记忆|MEMORY|摘要)|(?:MEMORY|记忆).{0,10}清空/iu.test(user))throw new Error("不能在例行维护中清空MEMORY.md");
+      const normalize=(line:string)=>line.replace(/<!--.*?-->/gu,comment=>`[comment:${hashText(comment)}]`).trim().replace(/^[#>*+\-\s]+/u,"").replace(/\s+/gu," ");
+      const lines=new Set(content.split("\n").map(normalize));
+      const allowed=new Set([...prior.content.split("\n"),...prior.available.split("\n"),"# Memory","## About the user","## Current focus","## Recent projects",""] .map(normalize));
+      if([...lines].some(line=>!allowed.has(line)))throw new Error("摘要的新事实须先通过save/update保存为已确认记忆，再使用read_summary提供的摘要行；保留用户原有文字，不提升候选或虚构事实");
+      if(!edits && prior.protectedLines.some(line=>!lines.has(normalize(line))))throw new Error("完整重写需要保留用户原文；更正请使用针对原文的局部edits");
+      if(!this.canRecord(context.sessionId))throw new Error("当前会话不允许写入记忆");
+      await this.bindInput(context,"preference","inference",undefined,signal);signal?.throwIfAborted();
+      this.frontActivity();const db=await this.database();
+      await this.bindInput(context,"preference","inference",undefined,signal);signal?.throwIfAborted();
+      if(!this.canRecord(context.sessionId))throw new Error("当前会话不允许写入记忆");
+      const result=await db.call("saveDocument",this.summaryProjects(),content,hash,reviewHash);this.summaryNeedsReview=Boolean(result.needsReview);this.notify();return {file:result.file,hash:result.hash};
+    });
+  }
   private async refreshSummary():Promise<string|undefined> {
     if(!this.port)return;
     const result=await this.port.call("writeSummary",this.summaryProjects());
+    this.summaryNeedsReview=Boolean(result.needsReview);
     this.summaryWarning=result.error?`记忆已保存，摘要待刷新：${result.error}`:undefined;return this.summaryWarning;
   }
   async state(projectPath?:string) {
@@ -281,37 +414,36 @@ export class MemoryService {
   }
   async reference(context:MemorySessionContext,_prompt:string):Promise<{customType:string;content:string;display:boolean;details:{memoryDelivery:MemoryDelivery}}|undefined> {
     if(!this.settings().enabled || this.mode(context.sessionId)==="off" || (this.initPromise && !this.initialized))return;
-    const db=await this.readDatabase(),messages=await this.validateSession(context),hashes=this.validHashes(messages);
-    const visibility=memoryVisibility(context.projection),allowance=Math.min(800,memoryAllowance(visibility,context.usage));
+    const visibility=memoryVisibility(context.projection);
+    const allowance=Math.min(800,memoryAllowance(visibility,context.usage));
     if(allowance<120)return;
-    const project=this.project(context.projectPath);
-    const digest=await db.call("readSummary",this.summaryProjects(),project?.id);
-    const old=await db.call("lookupSummaries",[...visibility.delivered.keys()],project?.id),byKey=new Map(old.map(item=>[item.key,item]));
-    const chunks:string[]=[],delivered:Array<{key:string;revision:number}>=[];
-    let tokens=estimateMemoryTokens(MEMORY_REFERENCE_HEADER)+30;
-    for(const [key,revision] of visibility.delivered){
-      const item=byKey.get(key),valid=Boolean(item && item.state==="confirmed" && !item.mergedInto && !item.invalidatedAt && (item.lifecycle==="active" || item.kind==="activity") && (item.expiresAt===undefined || item.expiresAt>Date.now()) && this.sourceValid(item,context,hashes));
-      const current=item?(valid?item.revision:-item.revision):0;
-      if(current===revision)continue;
-      const text=valid?`此前引用 ${key} 已更新；需要具体依据时请重新读取。`:`此前引用 ${key} 已退出当前依据或移除，不再沿用旧内容。`;
-      const cost=estimateMemoryTokens(text);if(tokens+cost>allowance)break;
-      chunks.push(text);tokens+=cost;delivered.push({key,revision:current});
-    }
-    const changed=visibility.summaryHash!==digest.hash;
-    if(changed){
-      const lines:string[]=[];
-      for(const line of digest.content.split("\n")){
-        const ref=/<!-- memory:(\S+) r:(\d+) -->/u.exec(line);if(ref && visibility.delivered.get(ref[1]!)===Number(ref[2]))continue;
-        const cost=estimateMemoryTokens(line+"\n");if(tokens+cost>allowance)continue;
-        lines.push(line);tokens+=cost;
-        const match=/<!-- memory:(\S+) r:(\d+) -->/u.exec(line);if(match)delivered.push({key:match[1]!,revision:Number(match[2])});
+    // 收敛后的唯一取数口径：约定取 MEMORY.md，项目进度取开发记录（无则退回仓库证据），本机现采并进程内缓存。
+    const projectPath=context.projectPath;
+    const project=this.project(projectPath);
+    let memory:string|null=null;
+    try{
+      const db=await this.readDatabase();
+      const digest=await db.call("readSummary",this.summaryProjects(),project?.id) as {content?:string}|undefined;
+      memory=digest?.content ?? null;
+      // 正文以文件为本体，但"来源是否仍有效"只能回查索引：会话被撤销/改写后，旧条目必须停止注入。
+      if(memory){
+        const keys=[...memory.matchAll(/<!-- memory:(\S+) r:\d+ -->/gu)].map(match=>match[1]!).filter(Boolean);
+        if(keys.length){
+          const rows=await db.call("lookupSummaries",keys,project?.id) as Array<{key:string;state?:string;invalidatedAt?:number;mergedInto?:string;lifecycle?:string}>;
+          const invalid=new Set(rows.filter(row=>row.state!=="confirmed"||Boolean(row.invalidatedAt)||Boolean(row.mergedInto)||row.lifecycle==="retired").map(row=>row.key));
+          if(invalid.size)memory=memory.split("\n").filter(line=>{const key=/<!-- memory:(\S+) r:\d+ -->/u.exec(line)?.[1];return !key||!invalid.has(key);}).join("\n");
+        }
       }
-      if(lines.length)chunks.push(`轻量记忆摘要（设计细节与原始依据请按需查询）：\n${lines.join("\n")}`);
-    }
-    if(!chunks.length || !this.settings().enabled || this.mode(context.sessionId)==="off" || this.stopped)return;
-    const content=MEMORY_REFERENCE_HEADER+chunks.join("\n\n");
-    if(estimateMemoryTokens(content)>allowance)return;
-    return {customType:"easymint_memory",content,display:false,details:{memoryDelivery:{items:delivered,tokens:estimateMemoryTokens(content),...(changed?{summaryHash:digest.hash}:{})}}};
+    }catch{memory=null;}
+
+    const developLog=readDevelopLog(projectPath,{readFile:file=>{try{return syncFs.readFileSync(file,"utf8");}catch{return null;}}});
+    const evidence=developLog?undefined:this.cachedEvidence(projectPath);
+    const session=!developLog && !evidence?.hasContent ? await this.cachedLastSession(projectPath) : undefined;
+    const deliverables=buildDeliverables({memory,projectName:project?.name,developLog,evidence,session,machine:this.cachedMachine(),toolHint:this.cachedToolHint(projectPath)});
+    if(!deliverables.length)return;
+    const plan=planDelivery(deliverables,{delivered:visibility.delivered,allowance});
+    if(!plan.block)return;
+    return {customType:"easymint_memory",content:plan.block,display:false,details:{memoryDelivery:{items:plan.items,tokens:plan.tokens}}};
   }
   private async bindInput(context:MemorySessionContext,kind:string,basis:string,quote?:string,signal?:AbortSignal) {
     signal?.throwIfAborted();
@@ -345,7 +477,7 @@ export class MemoryService {
       const result=await db.call("save",{...input,...(bound.reported?{text:`助手报告，未经独立核实：${input.text}`}:{})},
         {projectId:project?.id,source:bound.source,confirmed:bound.explicit||bound.reported,pinned:bound.pinned,evidenceAt:bound.evidenceAt});
       const documentWarning=project?await this.exportIfAdopted(project.id,project.path):undefined;
-      const warning=[documentWarning,await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {...result,warning};
+      const warning=[documentWarning,this.mirrorEntry((result as {item?:{key:string;text:string;revision:number}}).item),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {...result,warning};
     });
   }
   async updateFromAgent(context:MemorySessionContext,key:string,revision:number,input:MemoryWrite,quote?:string,basis="inference",signal?:AbortSignal) {
@@ -357,7 +489,7 @@ export class MemoryService {
       assertCondensed(input,(await evidenceMessages(context.entries)).map(message=>message.text).join("\n"));
       const item=await db.call("update",key,project?.id,revision,{...input,...(bound.reported?{text:`助手报告，未经独立核实：${input.text}`}:{ }),state:bound.explicit||bound.reported?"confirmed":"candidate",...(bound.explicit?{lifecycle:input.kind==="activity"?"archived" as const:"active" as const}:{}),sources:[bound.source]},Date.now(),bound.evidenceAt);
       const documentWarning=project?await this.exportIfAdopted(project.id,project.path):undefined;
-      const warning=[documentWarning,await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
+      const warning=[documentWarning,this.mirrorEntry(item as {key:string;text:string;revision:number}),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });
   }
   async forgetFromAgent(context:MemorySessionContext,key:string,quote?:string,signal?:AbortSignal) {
@@ -370,6 +502,7 @@ export class MemoryService {
       const project=this.project(context.projectPath),db=await this.database();
       signal?.throwIfAborted();
       const result=await db.call("forget",key,project?.id);
+      this.dropEntry(key);
       const documentWarning=project ? await this.exportIfAdopted(project.id,project.path) : undefined;
       const warning=[documentWarning,await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify(); return {...result,contextNotice:"持久记忆已移除；本次聊天原话和已发送参考可能仍在上下文，新聊天不再自动召回该条。",...(warning?{warning}: {})};
     });
@@ -516,21 +649,27 @@ export class MemoryService {
       const maintenance=Date.now()>=this.maintenanceAfter
         ? await withSessionCreationLock(async()=>this.settings().enabled?db.call("evaluate"):{count:0,projectIds:[] as string[]})
         : {count:0,projectIds:[] as string[]};
-      if(Date.now()>=this.maintenanceAfter)this.maintenanceAfter=Date.now()+3_600_000;
+      if(Date.now()>=this.maintenanceAfter){
+        this.maintenanceAfter=Date.now()+3_600_000;
+        // 每小时自愈一次：失败的结论不会永久卡住，也不会无限重试。
+        try{await db.call("reviveFailed");}catch{/* 自愈失败不影响本轮 */ }
+      }
       if(maintenance.count) {
         for(const id of maintenance.projectIds){const project=this.store.getProjects().find(p=>p.id===id);if(project)await this.exportIfAdopted(id,project.path);}
         this.notify();
       }
       if(!this.settings().background || this.stopped)return;
       const status=await db.call("status",day);
-      if(status.usedTokens>=settings.dailyTokens)return;
       const first=await db.call("claim");if(!first)return;
       jobs.push(first);
-      for(let i=1;i<3;i++){const next=await db.call("claim",Date.now(),first.projectId ?? null);if(!next)break;jobs.push(next);}
+      // 先按同一场会话连续取（保证一批里是连续脉络），不足 3 条再用其它会话补齐。
+      for(let i=1;i<3;i++){const next=await db.call("claim",Date.now(),first.projectId ?? null,first.sessionId);if(!next)break;jobs.push(next);}
+      for(let i=jobs.length;i<3;i++){const next=await db.call("claim",Date.now(),first.projectId ?? null);if(!next)break;jobs.push(next);}
       type Prepared={job:MemoryJob;snapshot:NonNullable<ReturnType<typeof conclusionSnapshot>>;text:string;partial:boolean;userEvidence:string;nextCursor?:number};
       const prepared:Prepared[]=[];
       for(const job of jobs) {
-        if(!this.canRecord(job.sessionId)){await db.call("releaseJob",job,0,day);continue;}
+        // 不允许记录时区分两种情况：会话被关闭直接跳过（永不重试）；只读是临时状态，退回队列等权限放开。
+        if(!this.canRecord(job.sessionId)){await (this.mode(job.sessionId)==="off"?db.call("skipJob",job):db.call("releaseJob",job,0,day));continue;}
         const snapshot=await this.load(job);
         if(!snapshot){await db.call("skipJob",job);continue;}
         const offset=job.cursor ?? 0,parts=conclusionParts(snapshot.assistant.text.slice(offset)),part=parts[0];
@@ -549,7 +688,7 @@ export class MemoryService {
       }
       if(!chosen.length)return;
       const payload=makePayload(chosen),estimated=estimateMemoryTokens(payload)+estimateMemoryTokens(ANALYSIS_PROMPT);
-      const outputBudget=Math.min(OUTPUT_TOKENS,settings.dailyTokens-status.usedTokens-estimated);
+      const outputBudget=OUTPUT_TOKENS;
       if(outputBudget<200){for(const entry of chosen)await db.call("releaseJob",entry.job,0,day);return;}
       const controller=new AbortController();this.controller=controller;
       const timeout=setTimeout(()=>controller.abort(new Error("后台分析超时，稍后重试")),90_000);
@@ -563,7 +702,8 @@ export class MemoryService {
         controller.signal.throwIfAborted();
         // Persist a conservative reservation before submitting. A process crash must not make a paid attempt free.
         reservedTokens=estimated+outputBudget;
-        if(!await db.call("reserveUsage",reservedTokens,day,this.settings().dailyTokens)){reservedTokens=0;throw new MemoryPaused("后台预算不足，稍后整理");}
+        // 仍做预留记账（崩溃后不把已付费的调用算成免费），但不再设上限闸门。
+        if(!await db.call("reserveUsage",reservedTokens,day,Number.MAX_SAFE_INTEGER))reservedTokens=0;
         tokens=-reservedTokens; // Refund if cancellation wins before submission.
         controller.signal.throwIfAborted();
         if(!this.settings().background || this.stopped || this.deps.busy() || chosen.some(entry=>!this.canRecord(entry.job.sessionId)))throw new MemoryPaused("状态已变化，后台暂停");
@@ -601,7 +741,10 @@ export class MemoryService {
           if(this.settings().background && this.canRecord(entry.job.sessionId) && await this.load(entry.job))valid.push(entry);
           else await db.call("releaseJob",entry.job,0,day);
         }
-        await db.call("finishBatch",valid.map(entry=>({job:entry.job,nextCursor:entry.nextCursor})),items,tokens,day);accounted=true;
+        const finished=await db.call("finishBatch",valid.map(entry=>({job:entry.job,nextCursor:entry.nextCursor})),items,tokens,day) as {saved?:Array<{key:string;text:string;revision:number}>};
+        accounted=true;
+        // 落库即镜像：后台产出的条目立刻写进 MEMORY.md，下一次注入即可见。
+        for(const record of finished?.saved ?? []) this.mirrorEntry(record);
         const project=first.projectId?this.store.getProjects().find(p=>p.id===first.projectId):undefined;
         if(project && valid.length)await this.exportIfAdopted(project.id,project.path);
       });
@@ -646,7 +789,7 @@ export class MemoryService {
   }
   close():Promise<void> {return this.closePromise ??= this.finishClose();}
   private async finishClose():Promise<void> {
-    this.stopped=true;this.sourceCache.clear();if(this.timer)clearInterval(this.timer);
+    this.stopped=true;this.sourceCache.clear();if(this.timer)clearTimeout(this.timer);
     this.controller?.abort(new MemoryPaused("应用退出"));
     let timer:ReturnType<typeof setTimeout>|undefined;
     try {await Promise.race([this.pumpDone,new Promise<void>(resolve=>{timer=setTimeout(resolve,3_000);})]);}

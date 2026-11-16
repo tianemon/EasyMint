@@ -31,7 +31,7 @@ export function registerMemoryIpc(service:MemoryService):void {
     return {projectId:match?.[1] ?? project?.id,project};
   };
   ipcMain.handle("memory:state",(_event,payload)=>service.state(z.string().optional().parse(payload?.projectPath)));
-  ipcMain.handle("memory:configure",(_event,payload)=>service.configure(z.object({enabled:z.boolean().optional(),background:z.boolean().optional(),dailyTokens:z.number().int().min(1000).max(1_000_000).optional()}).strict().parse(payload)));
+  ipcMain.handle("memory:configure",(_event,payload)=>service.configure(z.object({enabled:z.boolean().optional(),background:z.boolean().optional()}).strict().parse(payload)));
   ipcMain.handle("memory:query",async(_event,payload)=>{
     const input=z.object({projectPath:z.string().optional(),query:z.string().max(2000).optional(),scope:z.enum(["global","project","both","recent"]).optional(),state:z.enum(["confirmed","candidate","rejected","all"]).optional(),lifecycle:z.enum(["active","archived","retired","all"]).optional(),view:z.enum(["current","history","all"]).optional(),history:z.boolean().optional(),kind:z.enum(MEMORY_KINDS).optional(),from:z.number().finite().optional(),to:z.number().finite().optional(),offset:z.number().int().min(0).max(1_000_000).optional(),limit:z.number().int().min(1).max(50).optional()}).strict().parse(payload);
     const db=await service.management();if(!db)return {items:[],total:0};
@@ -78,6 +78,8 @@ export function registerMemoryIpc(service:MemoryService):void {
     const error=await shell.openPath(directory);if(error)throw new Error(error);
   });
   ipcMain.handle("memory:summary",(_event,payload)=>service.summary(z.boolean().optional().parse(payload?.refresh) ?? false));
+  ipcMain.handle("memory:read-document",()=>service.readDocument());
+  ipcMain.handle("memory:save-document",(_event,payload)=>{const input=z.object({content:z.string().max(128*1024),hash:z.string().length(64)}).strict().parse(payload);return service.saveDocument(input.content,input.hash);});
   ipcMain.handle("memory:analyze",()=>service.requestAnalysis());
   ipcMain.handle("memory:preview-documents",async(_event,payload)=>{
     const input=z.object({projectPath:z.string(),directory:z.string().optional()}).strict().parse(payload),project=projectFor(input.projectPath)!;

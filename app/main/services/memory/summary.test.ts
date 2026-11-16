@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {afterEach,expect,it} from "vitest";
 import {MemoryDatabase} from "./database";
-import {readSummary,writeSummary} from "./summary";
+import {readSummary,writeSummary,readSummaryDocument,saveSummaryDocument} from "./summary";
 const fixtures:Array<{root:string;db:MemoryDatabase}>=[];
 const setup=()=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),"em-memory-digest-")),db=new MemoryDatabase(path.join(root,"memory.sqlite"));fixtures.push({root,db});return {db,file:path.join(root,"MEMORY.md")};};
 afterEach(()=>{for(const {db,root} of fixtures.splice(0)){db.close();fs.rmSync(root,{recursive:true,force:true});}});
@@ -18,15 +18,25 @@ it("selects important user notes and high-level project activity, never design d
  expect(result.content).not.toContain("不应自动展开");expect(result.content).not.toContain("候选不可");expect(result.content).not.toContain("具体设计");
  expect(readSummary(db,file,[{id:"p",name:"EasyMint"}],"other").content).not.toContain("近期关注记忆管理");
 });
-it("updates links after correction and forget, while external edits do not reverse-sync or cause conflict handling",()=>{
+it("preserves edited document contents while reporting grounded changes and filtering withdrawn references",()=>{
  const {db,file}=setup();
  const item=db.save({kind:"preference",text:"简洁回答",summary:"简洁回答"},{source:{type:"manual",ref:"g"},confirmed:true}).item;
- writeSummary(db,file,[]);fs.appendFileSync(file,"\n用户自己在外部写的文字\n");
- expect(writeSummary(db,file,[]).content).toContain("用户自己在外部");expect(db.query().total).toBe(1);
- db.update(item.key,undefined,1,{text:"解释详细些"});
- expect(writeSummary(db,file,[]).content).toContain("解释详细些");expect(fs.readFileSync(file,"utf8")).not.toContain("用户自己在外部");
- db.forget(item.key);expect(writeSummary(db,file,[]).content).not.toContain(item.key);
+ const prior=readSummaryDocument(db,file,[]);saveSummaryDocument(db,file,[],prior.content+"\n用户自己保留的文字\n",prior.hash);
+ db.update(item.key,undefined,1,{text:"解释详细些",summary:"解释详细些"});
+ const pending=readSummaryDocument(db,file,[]);expect(pending.content).toContain("用户自己保留");expect(pending.content).toContain("简洁回答");expect(pending.needsReview).toBe(true);expect(pending.changes).toContain("解释详细些");
+ expect(readSummary(db,file,[]).content).not.toContain("简洁回答");
+ const next=pending.content.split("\n").filter(line=>!line.includes(`memory:${item.key} `)).join("\n")+"\n"+pending.changes+"\n";
+ saveSummaryDocument(db,file,[],next,pending.hash,pending.reviewHash);expect(readSummary(db,file,[]).content).toContain("解释详细些");expect(readSummaryDocument(db,file,[]).needsReview).toBe(false);
+ db.forget(item.key);expect(readSummary(db,file,[]).content).not.toContain("解释详细些");expect(fs.readFileSync(file,"utf8")).toContain("用户自己保留");
 });
+it("rejects stale saves and never replaces edits on unrelated database changes",()=>{
+ const {db,file}=setup();const original=readSummaryDocument(db,file,[]);
+ const saved=saveSummaryDocument(db,file,[],"# 我的轻量记忆\n偏好保留自己的表达\n",original.hash);
+ db.save({kind:"decision",text:"不会进MD的细节"},{projectId:"p",source:{ref:"details",type:"manual"},confirmed:true});
+ expect(readSummaryDocument(db,file,[]).content).toBe(saved.content);expect(readSummaryDocument(db,file,[]).needsReview).toBe(false);
+ expect(()=>saveSummaryDocument(db,file,[],"旧草稿覆盖",original.hash)).toThrow("changed");expect(fs.readFileSync(file,"utf8")).toBe(saved.content);
+});
+
 it("reports an ordinary file I/O failure and returns bounded derived data without changing facts",()=>{
  const {db,file}=setup();db.save({kind:"preference",text:"有效偏好",summary:"有效偏好"},{source:{type:"manual",ref:"g"},confirmed:true});
  fs.mkdirSync(file);

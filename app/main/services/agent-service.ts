@@ -31,6 +31,7 @@ import { isSessionOpenElsewhere } from "./session-visibility";
 import { sumUsage, type UsageEntry } from "./usage-totals";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createMemoryTool } from "./tools/memory-tool";
+import { createOtherSessionsTool } from "./tools/other-sessions-tool";
 import { MemoryService, type MemorySessionContext } from "./memory/service";
 import { estimateMemoryTokens } from "./memory/context";
 import { createEnvironmentTool } from "./tools/environment-tool";
@@ -790,7 +791,10 @@ export class AgentService {
       // One fixed declaration; live settings and per-chat mode gate all operations in the host.
       // Background workers do not own user memory. Legacy experience tools no longer write a second store.
       const memoryInstalled = !opts?.worker;
-      if (memoryInstalled) allTools.push(await createMemoryTool(this.memory, () => this.memoryContext(sessionId, projectPath)));
+      if (memoryInstalled) {
+        allTools.push(await createMemoryTool(this.memory, () => this.memoryContext(sessionId, projectPath)));
+        allTools.push(await createOtherSessionsTool(projectPath));
+      }
 
       return { tools: allTools, canUseTool, memoryInstalled };
     } catch (e) {

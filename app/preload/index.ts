@@ -99,6 +99,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
   },
   memory: {
+    readDocument:()=>ipcRenderer.invoke("memory:read-document"),
+    saveDocument:(content:string,hash:string)=>ipcRenderer.invoke("memory:save-document",{content,hash}),
     onChanged: (callback: (settings?: import("../shared/memory").MemorySettings, session?: { sessionId: string; mode: import("../shared/memory").MemoryMode }) => void) => { const handler = (_event: Electron.IpcRendererEvent, payload: { settings?: import("../shared/memory").MemorySettings; session?: { sessionId: string; mode: import("../shared/memory").MemoryMode } }) => callback(payload?.settings,payload?.session); ipcRenderer.on("memory:changed", handler); return () => ipcRenderer.removeListener("memory:changed", handler); },
     state: (projectPath?: string) => ipcRenderer.invoke("memory:state", { projectPath }),
     configure: (patch: Parameters<import("../shared/memory").MemoryApi["configure"]>[0]) => ipcRenderer.invoke("memory:configure", patch),

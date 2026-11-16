@@ -12,6 +12,7 @@
 | 了解待办 | `.easymint/todos.json`（UI「待办」面板） |
 | 发版流程（版本号判定/发版必检/两处提交） | `private_docs/发版流程.md` |
 | 本机环境（查源码目录/CC 源码/局域网 git） | `private_docs/本机环境.md`（仅本机存在） |
+| 维护/排查记忆模块（数据在哪、注入规则、失败自愈） | `private_docs/记忆模块维护流程.md` |
 | 使用 SDK API | `private_docs/reference/pi-api/SDK实操速查.md` |
 | 查全量 API 签名、供应商认证、CLI/RPC、外围包 | `private_docs/reference/pi-api/README.md`（全量清单系列导读） |
 | 修改系统提示词 | `app/shared/prompts.ts`（主提示词/规则段）；动态 section 与权限段 → `app/main/services/prompt-sections.ts` |

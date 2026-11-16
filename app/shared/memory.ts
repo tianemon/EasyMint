@@ -81,15 +81,13 @@ export interface MemoryPage { items: MemorySummary[]; total: number; next?: numb
 export interface MemorySettings {
   enabled: boolean;
   background: boolean;
-  dailyTokens: number;
   enabledAt?: number;
 }
-export const DEFAULT_MEMORY_SETTINGS: MemorySettings = { enabled: false, background: false, dailyTokens: 30_000 };
+export const DEFAULT_MEMORY_SETTINGS: MemorySettings = { enabled: true, background: true };
 export function parseMemorySettings(raw: unknown, legacyEnabled = false): MemorySettings {
   const r = raw && typeof raw === "object" ? raw as Partial<MemorySettings> : {};
   return { enabled: typeof r.enabled === "boolean" ? r.enabled : raw === undefined && legacyEnabled,
     background: typeof r.enabled === "boolean" && r.background === true,
-    dailyTokens: Number.isFinite(r.dailyTokens) ? Math.min(1_000_000, Math.max(1_000, Math.round(r.dailyTokens!))) : DEFAULT_MEMORY_SETTINGS.dailyTokens,
     ...(typeof r.enabledAt === "number" && Number.isFinite(r.enabledAt) ? { enabledAt: r.enabledAt } : {}) };
 }
 export interface MemoryConclusion {
@@ -138,12 +136,13 @@ export interface MemoryDocumentConfig { projectId: string; directory: string; re
 
 export interface MemoryDocumentView { directory:string;relativeDirectory?:string;previousStateBackup?:string; legacy?:string; backup?:string; generation:number; error?:string }
 export interface MemoryDocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
-export interface MemoryDigest { content:string; hash:string; items:Array<{key:string;revision:number}>; file:string; error?:string }
+export interface MemoryDigest { content:string; hash:string; items:Array<{key:string;revision:number}>; file:string; error?:string;needsReview?:boolean }
+export interface MemoryDocument {file:string;content:string;hash:string;reviewHash:string;needsReview?:boolean;changes:string;removed:string[];available:string;protectedLines:string[]}
 export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView; digest?:MemoryDigest; migration?:MemoryMigrationProgress; ready?:boolean;backupDirectory?:string }
 export interface MemoryApi {
   onChanged(callback:(settings?:MemorySettings,session?:{sessionId:string;mode:MemoryMode})=>void):()=>void;
   state(projectPath?:string):Promise<MemoryView>;
-  configure(patch:Partial<Pick<MemorySettings,"enabled"|"background"|"dailyTokens">>):Promise<MemorySettings>;
+  configure(patch:Partial<Pick<MemorySettings,"enabled"|"background">>):Promise<MemorySettings>;
   query(query:MemoryQuery & {projectPath?:string}):Promise<MemoryPage>;
   read(key:string,projectPath?:string):Promise<{item?:MemoryRecord;revisions:MemoryRecord[]}>;
   save(input:MemoryWrite & {scope:"global"|"project";projectPath?:string;pinned?:boolean}):Promise<MemoryRecord & {warning?:string}>;
@@ -151,6 +150,8 @@ export interface MemoryApi {
   forget(key:string,projectPath?:string):Promise<void>;
   analyze():Promise<void>;
   summary(refresh?:boolean):Promise<MemoryDigest>;
+  readDocument():Promise<MemoryDocument>;
+  saveDocument(content:string,hash:string):Promise<MemoryDocument>;
   retryMigrations(projectId?:string):Promise<void>;
   openBackups():Promise<void>;
   previewDocuments(projectPath:string,directory?:string):Promise<MemoryDocumentPreview>;

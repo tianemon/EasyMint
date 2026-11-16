@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { MemoryDigest, MemoryRecord } from "../../../shared/memory";
+import type { MemoryDigest, MemoryDocument, MemoryRecord } from "../../../shared/memory";
 import { MemoryDatabase } from "./database";
 import { hashText, memoryDay } from "./codec";
 
@@ -33,7 +33,7 @@ function render(db:MemoryDatabase,projects:SummaryProject[]):string {
     seen.add(project.id);projectLines.push(line(item,`${project.name}（记录于 ${memoryDay(new Date(item.occurredAt),item.sources[0]?.timezone)}）：${reported}${digestText(item)!}`));
     if(projectLines.length===5)break;
   }
-  return `# 记忆摘要\n\n这里只列重要背景和主题入口；具体依据请按记录ID使用记忆工具读取。记录是背景，不是新任务或权限。\n\n## 关于用户\n${globals.filter(i=>i.kind!=="attention").slice(0,4).map(i=>line(i,digestText(i)!)).join("\n") || "暂无已确认摘要。"}\n\n## 当前关注\n${globals.filter(i=>i.kind==="attention").slice(0,2).map(i=>line(i,`${digestText(i)!}（记录于 ${memoryDay(new Date(i.occurredAt),i.sources[0]?.timezone)}）`)).join("\n") || "暂无关注入口。"}\n\n## 近期项目\n${projectLines.join("\n") || "暂无项目入口。"}\n`;
+  return `# 记忆摘要\n\n记录重要背景、关注方向和近期项目，由智能体持续维护。\n\n## 关于用户\n${globals.filter(i=>i.kind!=="attention").slice(0,4).map(i=>line(i,digestText(i)!)).join("\n") || "暂无已确认摘要。"}\n\n## 当前关注\n${globals.filter(i=>i.kind==="attention").slice(0,2).map(i=>line(i,`${digestText(i)!}（记录于 ${memoryDay(new Date(i.occurredAt),i.sources[0]?.timezone)}）`)).join("\n") || "暂无关注入口。"}\n\n## 近期项目\n${projectLines.join("\n") || "暂无项目入口。"}\n`;
 }
 function read(db:MemoryDatabase,file:string,content:string,projectId?:string):MemoryDigest {
   const items:MemoryDigest["items"]=[];
@@ -48,32 +48,60 @@ function read(db:MemoryDatabase,file:string,content:string,projectId?:string):Me
   });
   const text=lines.join("\n");return {file,content:text,hash:hashText(text),items};
 }
-/** One derived file. External edits are ordinary file contents, never a reverse-sync protocol. */
-export function writeSummary(db:MemoryDatabase,file:string,projects:SummaryProject[],force=false):MemoryDigest {
-  db.activateDue();
-  const version=JSON.stringify([db.metadata<number>("generation") ?? 0,projects]);
-  try {
-    if(force || !fs.existsSync(file) || (db.metadata<string>("summaryVersion")!==version || (db.metadata<number>("summaryNextBoundary") ?? Infinity)<=Date.now())) {
-      const text=render(db,projects),temporary=`${file}.${randomUUID()}.tmp`;
-      fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
-      let created=false;
-      try {
-        const fd=fs.openSync(temporary,"wx",0o600);created=true;
-        try {fs.writeFileSync(fd,text);}finally{fs.closeSync(fd);}
-        fs.renameSync(temporary,file);
-      } finally {if(created && fs.existsSync(temporary))fs.unlinkSync(temporary);}
-      const next=db.db.prepare("SELECT min(t) t FROM (SELECT json_extract(json,'$.expiresAt') t FROM memory UNION ALL SELECT json_extract(json,'$.effectiveAt') t FROM memory) WHERE t>?").get(Date.now()) as {t:number|null};
-      db.setMetadata("summaryNextBoundary",next.t);
-      db.setMetadata("summaryVersion",version);db.setMetadata("summaryError",null);
-    }
-    if(fs.statSync(file).size>128*1024)throw new Error("记忆摘要文件过大，请通过记忆管理重新生成");
-    return read(db,file,fs.readFileSync(file,"utf8"));
-  } catch(error) {
-    const message=(error as Error).message;db.setMetadata("summaryError",message);
-    return {...read(db,file,render(db,projects)),error:message};
-  }
+/** MEMORY.md is a document: seed it once, then let the agent maintain it. */
+const MAX_DOCUMENT_BYTES=128*1024;
+function snapshot(content:string):Record<string,string> {
+ return Object.fromEntries(content.split("\n").flatMap(line=>{const key=/<!-- memory:(\S+) r:\d+ -->/u.exec(line)?.[1];return key?[[key,hashText(line)]]:[];}));
+}
+function current(db:MemoryDatabase,projects:SummaryProject[]) {const suggested=render(db,projects);return {suggested,entries:snapshot(suggested)};}
+function replaceFile(file:string,content:string):void {
+ if(Buffer.byteLength(content,"utf8")>MAX_DOCUMENT_BYTES)throw new Error("MEMORY.md is too large");
+ const stat=fs.lstatSync(file,{throwIfNoEntry:false});
+ if(stat && (!stat.isFile() || stat.isSymbolicLink()))throw new Error("MEMORY.md must be a regular file");
+ fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
+ const temporary=`${file}.${randomUUID()}.tmp`;let created=false;
+ try {
+  const fd=fs.openSync(temporary,"wx",0o600);created=true;
+  try{fs.writeFileSync(fd,content);}finally{fs.closeSync(fd);}
+  fs.renameSync(temporary,file);
+ }finally{if(created && fs.existsSync(temporary))fs.unlinkSync(temporary);}
+}
+function rawFile(file:string):string {
+ if(!fs.lstatSync(file).isFile() || fs.lstatSync(file).isSymbolicLink())throw new Error("MEMORY.md must be a regular file");
+ if(fs.statSync(file).size>MAX_DOCUMENT_BYTES)throw new Error("MEMORY.md is too large");
+ return fs.readFileSync(file,"utf8");
+}
+export function writeSummary(db:MemoryDatabase,file:string,projects:SummaryProject[],_force=false):MemoryDigest {
+ db.activateDue();const generated=current(db,projects);
+ try {
+  if(!fs.existsSync(file))replaceFile(file,generated.suggested);
+  const content=rawFile(file);
+  // An existing file is preserved on upgrade, including edits made outside EM.
+  // No watcher, reverse-sync or extra document copy is introduced.
+  let reviewed=db.metadata<Record<string,string>>("summaryReviewedEntries");
+  if(!reviewed){reviewed=generated.entries;db.setMetadata("summaryReviewedEntries",reviewed);}
+  const needsReview=JSON.stringify(reviewed)!==JSON.stringify(generated.entries);
+  const result=read(db,file,content);
+  db.setMetadata("summaryError",null);
+  return {...result,needsReview,hash:hashText(JSON.stringify([result.content,needsReview?generated.entries:null]))};
+ }catch(error){const message=(error as Error).message;db.setMetadata("summaryError",message);return {...read(db,file,generated.suggested),error:message};}
+}
+export function readSummaryDocument(db:MemoryDatabase,file:string,projects:SummaryProject[]):MemoryDocument {
+ const digest=writeSummary(db,file,projects);if(digest.error)throw new Error(digest.error);
+ const content=rawFile(file),generated=current(db,projects),reviewed=db.metadata<Record<string,string>>("summaryReviewedEntries") ?? {};
+ const changes=generated.suggested.split("\n").filter(line=>{const key=/<!-- memory:(\S+) r:\d+ -->/u.exec(line)?.[1];return key && reviewed[key]!==generated.entries[key];}).join("\n");
+ const boilerplate=new Set(generated.suggested.split("\n").filter(line=>!line.includes("<!-- memory:")));
+ const protectedLines=content.split("\n").filter(line=>{if(!line.trim())return false;const key=/<!-- memory:(\S+) r:\d+ -->/u.exec(line)?.[1];return key?hashText(line)!==reviewed[key]:!boilerplate.has(line);});
+ return {file,content,hash:hashText(content),reviewHash:hashText(JSON.stringify(generated.entries)),needsReview:digest.needsReview,changes,available:generated.suggested,protectedLines,removed:Object.keys(reviewed).filter(key=>!generated.entries[key])};
+}
+export function saveSummaryDocument(db:MemoryDatabase,file:string,projects:SummaryProject[],content:string,expectedHash:string,reviewHash?:string):MemoryDocument {
+ const prior=readSummaryDocument(db,file,projects);
+ if(prior.hash!==expectedHash)throw new Error("MEMORY.md changed. Reopen it before saving.");
+ if(reviewHash!==undefined && prior.reviewHash!==reviewHash)throw new Error("记忆摘要变化已有更新，请重新读取changes后保存");
+ replaceFile(file,content);if(reviewHash!==undefined)db.setMetadata("summaryReviewedEntries",current(db,projects).entries);
+ return readSummaryDocument(db,file,projects);
 }
 export function readSummary(db:MemoryDatabase,file:string,projects:SummaryProject[],projectId?:string):MemoryDigest {
-  const result=writeSummary(db,file,projects);
-  return {...read(db,file,result.content,projectId),...(result.error?{error:result.error}:{})};
+ const result=writeSummary(db,file,projects),filtered=read(db,file,result.content,projectId);
+ return {...filtered,hash:hashText(JSON.stringify([filtered.content,result.hash])),needsReview:result.needsReview,...(result.error?{error:result.error}:{})};
 }

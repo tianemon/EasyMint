@@ -99,8 +99,8 @@ describe("只读档纯读白名单", () => {
   });
 
   it("统一记忆只放行查询动作，已退出注册的旧经验工具不再保留白名单", () => {
-    for(const action of ["search","read"])expect(readonlyDenyReason("memory",{action})).toBeNull();
-    for(const action of ["save","update","forget","unknown"])expect(readonlyDenyReason("memory",{action})).not.toBeNull();
+    for(const action of ["search","read","read_summary"])expect(readonlyDenyReason("memory",{action})).toBeNull();
+    for(const action of ["save","update","forget","write_summary","unknown"])expect(readonlyDenyReason("memory",{action})).not.toBeNull();
     expect(readonlyDenyReason("search_experiences")).not.toBeNull();
   });
 

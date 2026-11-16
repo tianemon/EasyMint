@@ -193,19 +193,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const initialSid = existingSid ?? tempSidRef.current!;
   const [sid, setSid] = useState<string>(initialSid);
-  const [memoryMode,setMemoryMode] = useState<MemoryMode>("record");
   const memoryModeRef = useRef<MemoryMode>("record");
   const memoryModeRevisionRef = useRef(0);
   const memoryHydration = useRef<Promise<void>>(Promise.resolve());
-  const memoryModeWriteRef = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     let cancelled = false;
     const revision = memoryModeRevisionRef.current;
     const off=window.electronAPI.memory?.onChanged?.((_settings,change)=>{
-      if(change && change.sessionId === (existingSid ?? initialSid)) { memoryModeRevisionRef.current++;setMemoryMode(change.mode);memoryModeRef.current=change.mode; }
+      if(change && change.sessionId === (existingSid ?? initialSid)) { memoryModeRevisionRef.current++;memoryModeRef.current=change.mode; }
     });
     memoryHydration.current = window.electronAPI.memory?.sessionMode(existingSid ?? initialSid).then(mode => {
-      if (!cancelled && revision === memoryModeRevisionRef.current) { setMemoryMode(mode); memoryModeRef.current = mode; }
+      if (!cancelled && revision === memoryModeRevisionRef.current) { memoryModeRef.current = mode; }
     }).catch(error => console.warn("[memory] 会话模式读取失败", error)) ?? Promise.resolve();
     return () => { cancelled = true; off?.(); };
   }, [existingSid, initialSid]);
@@ -2229,7 +2227,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // local read so a very fast first send cannot race hydration and discard an explicit choice.
       await sessionHydrationRef.current;
       await memoryHydration.current;
-      await memoryModeWriteRef.current;
       const collaborationModeIds = await collaboration.getIds();
       const overrides = sessionOverrides({
         existingSession: !!sendSessionId,
@@ -2739,18 +2736,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         onPreviewImage={openViewer}
         permissionMode={permissionMode}
         onPermissionModeChange={handlePermissionModeChange}
-        memoryMode={memoryMode}
-        onMemoryModeChange={mode => {
-          const revision = ++memoryModeRevisionRef.current;
-          const prior = memoryModeRef.current;
-          memoryModeRef.current = mode; setMemoryMode(mode);
-          const pending=window.electronAPI.memory.sessionMode(sidRef.current, mode).then(()=>undefined);
-          memoryModeWriteRef.current=pending;
-          void pending.catch(error => {
-            if (revision === memoryModeRevisionRef.current) { memoryModeRef.current = prior; setMemoryMode(prior); }
-            toast(appText(String(error)));
-          });
-        }}
         chatModel={chatModel || storeModel}
         onModelChange={handleModelChange}
         thinkingLevel={thinkingLevel}

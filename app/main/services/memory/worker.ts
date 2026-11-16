@@ -3,18 +3,20 @@ import { parentPort, workerData } from "node:worker_threads";
 import path from "node:path";
 import { MemoryDatabase } from "./database";
 import { migrateExperiences } from "./migration";
-import {writeSummary,readSummary,type SummaryProject} from "./summary";
+import {writeSummary,readSummary,readSummaryDocument,saveSummaryDocument,type SummaryProject} from "./summary";
 import { adoptDocuments, documentStatus, generateDocuments, previewDocuments } from "./documents";
 
 const db = new MemoryDatabase((workerData as {file:string}).file);
 const methods = {
   readSource: readConclusionEntries,
+  readDocument:(projects:SummaryProject[])=>readSummaryDocument(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects),
+  saveDocument:(projects:SummaryProject[],content:string,hash:string,reviewHash?:string)=>saveSummaryDocument(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects,content,hash,reviewHash),
   writeSummary:(projects:SummaryProject[],force=false)=>writeSummary(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects,force),
   readSummary:(projects:SummaryProject[],projectId?:string)=>readSummary(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects,projectId),
   resolve:db.resolve.bind(db),merge:db.merge.bind(db),activateDue:db.activateDue.bind(db),
   save: db.save.bind(db), get: db.get.bind(db), query: db.query.bind(db), update: db.update.bind(db),
   revisions: db.revisions.bind(db), getRevision: db.getRevision.bind(db), forget: db.forget.bind(db), evaluate: db.evaluate.bind(db),
-  enqueue: db.enqueue.bind(db), claim: db.claim.bind(db), finishJob: db.finishJob.bind(db), finishBatch: db.finishBatch.bind(db), failJob: db.failJob.bind(db), releaseJob: db.releaseJob.bind(db), skipJob: db.skipJob.bind(db), retryFailed: db.retryFailed.bind(db),
+  enqueue: db.enqueue.bind(db), claim: db.claim.bind(db), finishJob: db.finishJob.bind(db), finishBatch: db.finishBatch.bind(db), failJob: db.failJob.bind(db), releaseJob: db.releaseJob.bind(db), skipJob: db.skipJob.bind(db), retryFailed: db.retryFailed.bind(db), reviveFailed: db.reviveFailed.bind(db),
   detachSession: db.detachSession.bind(db), invalidateSession: db.invalidateSession.bind(db), lookupSummaries: db.lookupSummaries.bind(db), status: db.status.bind(db), reserveUsage: db.reserveUsage.bind(db), metadata: db.metadata.bind(db), setMetadata: db.setMetadata.bind(db),
   migrate: (directory:string,projectId?:string) => migrateExperiences(db,directory,path.join(path.dirname((workerData as {file:string}).file),"backups"),projectId),
   previewDocuments,

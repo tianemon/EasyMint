@@ -23,7 +23,7 @@ it("keeps first-turn memory off across the temporary SDK identity and does not o
   const first=await service.sendMessage(root,"first",null,"standard",{} as never,undefined,false,undefined,"off",undefined,undefined,[],"off");
   expect(first.sessionId).toBe(session.sessionId);
   expect(cache.readCache(session.sessionId)?.memoryMode).toBe("off");
-  store.saveSettings({...store.getSettings(),memory:{enabled:true,background:false,dailyTokens:30_000}});
+  store.saveSettings({...store.getSettings(),memory:{enabled:true,background:false}});
   expect(service.memory.canRecord(session.sessionId)).toBe(false);
   service.activeChats.clear();
   await service.sendMessage(root,"resume",session.sessionId,"standard",{} as never,undefined,false,undefined,"off",undefined,undefined,[],"record");

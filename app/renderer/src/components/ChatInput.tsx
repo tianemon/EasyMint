@@ -1,4 +1,3 @@
-import type { MemoryMode } from "@shared/memory";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { memo, useRef, useState, useCallback, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -38,8 +37,6 @@ interface ChatInputProps {
   onPreviewImage?: (src: string, name: string) => void;
   permissionMode: PermissionMode;
   onPermissionModeChange: (v: PermissionMode) => void;
-  memoryMode?: MemoryMode;
-  onMemoryModeChange?: (mode: MemoryMode) => void;
   chatModel: string;
   onModelChange: (m: string) => void;
   thinkingLevel: string;
@@ -90,7 +87,7 @@ function PermissionShieldIcon({ mode, className }: { mode: PermissionMode; class
 }
 
 /** 输入栏权限选择器：用清晰的三项菜单替代循环开关，且固定定位避免被聊天容器裁切。 */
-function PermissionModePicker({ value, onChange, memoryMode, onMemoryModeChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void; memoryMode?: MemoryMode; onMemoryModeChange?: (mode:MemoryMode)=>void }): JSX.Element {
+function PermissionModePicker({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }): JSX.Element {
   useUiLocale();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -161,7 +158,7 @@ function PermissionModePicker({ value, onChange, memoryMode, onMemoryModeChange 
   const moveFocus = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const count = PERMISSION_MODES.length + (memoryMode && onMemoryModeChange ? 3 : 0);
+    const count = PERMISSION_MODES.length;
     const next = (index + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
     optionRefs.current[next]?.focus();
   };
@@ -221,16 +218,7 @@ function PermissionModePicker({ value, onChange, memoryMode, onMemoryModeChange 
               </button>
             );
           })}
-          {memoryMode && onMemoryModeChange && <div role="group" aria-label={uiText("memory.sessionMode")}>
-            <p className="px-3 pt-2 pb-1 text-xs text-text-secondary">{uiText("memory.sessionMode")}</p>
-            {(["record","use","off"] as const).map((mode,index) => <button key={mode} type="button" role="menuitemradio"
-              ref={node => { optionRefs.current[index+PERMISSION_MODES.length] = node; }} onKeyDown={event => moveFocus(event,index+PERMISSION_MODES.length)}
-              aria-checked={memoryMode===mode} className={`permission-mode-option ${memoryMode===mode ? "is-selected" : ""}`}
-              onClick={() => { onMemoryModeChange(mode); close(); }}>
-              <span className="flex-1 text-left text-xs">{uiText(`memory.mode.${mode}`)}</span>
-              {memoryMode===mode && <svg className="shrink-0 text-accent" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
-            </button>)}
-          </div>}
+
         </div>,
         document.body,
       )}
@@ -297,20 +285,12 @@ function ctxTip(pct: number | null, windowTokens: number | null): string {
 export const ChatInput = memo(function ChatInput({
   projectPath, busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange, onPreviewImage,
-  permissionMode, onPermissionModeChange, memoryMode, onMemoryModeChange, chatModel, onModelChange,
+  permissionMode, onPermissionModeChange, chatModel, onModelChange,
   thinkingLevel, thinkingCapped: _thinkingCapped, thinkingLevels, onThinkingLevelChange,
   sessionId, onStatsClick,
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   useUiLocale();
   const [input, setInput] = useState("");
-  const [memoryEnabled,setMemoryEnabled] = useState(false);
-  useEffect(() => {
-    let alive=true,changed=false;
-    const api=window.electronAPI?.memory;
-    const off=api?.onChanged?.(settings => { if(settings){changed=true;if(alive)setMemoryEnabled(settings.enabled);} });
-    void api?.state().then(view => {if(alive && !changed)setMemoryEnabled(view.settings.enabled);}).catch(error => console.warn("[memory] 状态读取失败",error));
-    return () => {alive=false;off?.();};
-  }, []);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // 上下文窗口是模型静态属性(无需会话/网络):打开页面或切模型时主动查一次并填上,
   // 这样即使没有会话、也没有 usage 广播,圆环 hover 也能显示窗口
@@ -507,7 +487,7 @@ export const ChatInput = memo(function ChatInput({
         </div>
         <span className="inp-gap" />
         <PlanUsageButton />
-        <PermissionModePicker value={permissionMode} onChange={onPermissionModeChange} memoryMode={memoryEnabled ? memoryMode : undefined} onMemoryModeChange={onMemoryModeChange} />
+        <PermissionModePicker value={permissionMode} onChange={onPermissionModeChange} />
         {/* 模型标签:神经网络节点图标(三点互联,带三点聚拢动效)——组件见 ModelGlyph;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip={uiText("settings.providers")} className="shrink-0">
           <ModelGlyph label={uiText("settings.providers")} className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} />

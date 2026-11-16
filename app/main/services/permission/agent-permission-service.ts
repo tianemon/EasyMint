@@ -257,7 +257,7 @@ const READONLY_ALLOWED_TOOLS = new Set([
  */
 export function readonlyDenyReason(toolName: string, input: Record<string, unknown> = {}): { operation: string; detail: string } | null {
   const name = toolName.toLowerCase();
-  if (name === "memory") return ["search", "read"].includes(String(input.action)) ? null : { operation: "write", detail: "只读档仅查询记忆，不记录、修正或忘记" };
+  if (name === "memory") return ["search", "read", "read_summary"].includes(String(input.action)) ? null : { operation: "write", detail: "只读档仅查询记忆，不记录、修正或忘记" };
   if (name.startsWith("mcp__")) return { operation: "execute", detail: "只读档不启用 MCP 工具（会启动进程或联网）" };
   if (READONLY_ALLOWED_TOOLS.has(name)) return null;
   if (isShellTool(name) || name === "install_dependency" || name === "task" || name === "stop_shell" || name === "stop_agent") {

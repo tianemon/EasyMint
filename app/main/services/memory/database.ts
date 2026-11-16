@@ -382,11 +382,17 @@ export class MemoryDatabase {
     if (existing && (JSON.parse(existing.json) as MemoryJob).hash === conclusion.hash) return;
     this.db.prepare("INSERT INTO jobs(ref,json) VALUES (?,?) ON CONFLICT(ref) DO UPDATE SET json=excluded.json,state='pending',retry_at=0,lease_until=0").run(conclusion.ref,JSON.stringify({...conclusion,attempts:0,retryAt:0}));
   }
-  claim(now = Date.now(), projectId?: string | null): MemoryJob | undefined {
+  /**
+   * 领取一条任务。按会话过滤时，同一场会话的结论会按时间顺序连续取出，
+   * 保证一批里看到的是"一段脉络"而不是随机散点。
+   */
+  claim(now = Date.now(), projectId?: string | null, sessionId?: string | null): MemoryJob | undefined {
     return this.transaction(() => {
-      const filter=projectId===undefined?"":" AND json_extract(json,'$.projectId') IS ?";
-      const args:Array<number|string|null>=[now,now,...(projectId===undefined?[]:[projectId])];
-      const row = this.db.prepare(`SELECT json FROM jobs WHERE (state='pending' OR (state='running' AND lease_until<?)) AND retry_at<=?${filter} ORDER BY retry_at,ref LIMIT 1`).get(...args) as {json:string}|undefined;
+      const filters:string[]=[];const args:Array<number|string|null>=[now,now];
+      if(projectId!==undefined){filters.push(" AND json_extract(json,'$.projectId') IS ?");args.push(projectId);}
+      if(sessionId!==undefined){filters.push(" AND json_extract(json,'$.sessionId') IS ?");args.push(sessionId);}
+      const filter=filters.join("");
+      const row = this.db.prepare(`SELECT json FROM jobs WHERE (state='pending' OR (state='running' AND lease_until<?)) AND retry_at<=?${filter} ORDER BY json_extract(json,'$.timestamp'),ref LIMIT 1`).get(...args) as {json:string}|undefined;
       if (!row) return;
       const job = JSON.parse(row.json) as MemoryJob;
       job.lease = randomUUID();
@@ -394,7 +400,7 @@ export class MemoryDatabase {
       return job;
     });
   }
-  finishBatch(jobs:Array<{job:MemoryJob;nextCursor?:number}>,items:MemoryAnalysisWrite[],tokens:number,day:string):string[] {
+  finishBatch(jobs:Array<{job:MemoryJob;nextCursor?:number}>,items:MemoryAnalysisWrite[],tokens:number,day:string):{refs:string[];saved:MemoryRecord[]} {
     return this.transaction(()=>{
       this.addUsage(tokens,day);
       const valid=new Map<string,{job:MemoryJob;nextCursor?:number}>();
@@ -402,26 +408,46 @@ export class MemoryDatabase {
         const job=entry.job,current=this.db.prepare("SELECT json,state FROM jobs WHERE ref=?").get(job.ref) as {json:string;state:string}|undefined;
         if(current?.state==='running' && (JSON.parse(current.json) as MemoryJob).lease===job.lease && !this.isBlocked(job.ref) && !(job.anchorRef && this.isBlocked(job.anchorRef))) valid.set(job.ref,entry);
       }
+      const saved:MemoryRecord[]=[];
       for(const item of items) if(valid.has(item.context.source.ref)) {
         const target=item.target ? this.get(item.target.key,item.context.projectId) : undefined;
         if(item.target && target && target.projectId===item.context.projectId && target.kind===item.input.kind && item.context.confirmed
           && item.target.revision===target.revision && (item.context.evidenceAt ?? Date.now())>=target.substantiveAt) {
-          this.update(target.key,item.context.projectId,target.revision,{...item.input,state:"confirmed",sources:[item.context.source],pinned:target.pinned || item.context.pinned===true},Date.now(),item.context.evidenceAt);
-        } else this.save(item.input,item.target?{...item.context,confirmed:false}:item.context);
+          saved.push(this.update(target.key,item.context.projectId,target.revision,{...item.input,state:"confirmed",sources:[item.context.source],pinned:target.pinned || item.context.pinned===true},Date.now(),item.context.evidenceAt));
+        } else saved.push(this.save(item.input,item.target?{...item.context,confirmed:false}:item.context).item);
       }
       for(const {job,nextCursor} of valid.values()) {
         if(nextCursor===undefined) this.db.prepare("UPDATE jobs SET state='done',lease_until=0 WHERE ref=?").run(job.ref);
         else {job.cursor=nextCursor;job.attempts=0;this.db.prepare("UPDATE jobs SET state='pending',json=?,retry_at=?,lease_until=0 WHERE ref=?").run(JSON.stringify(job),Date.now()+60_000,job.ref);}
       }
-      return [...valid.keys()];
+      return {refs:[...valid.keys()],saved};
     });
   }
   finishJob(job: MemoryJob, items: Array<{ input: MemoryWrite; context: WriteContext }>, tokens: number, day: string): boolean {
-    return this.finishBatch([{job}],items,tokens,day).includes(job.ref);
+    return this.finishBatch([{job}],items,tokens,day).refs.includes(job.ref);
   }
   skipJob(job:MemoryJob):void {
     const current=this.db.prepare("SELECT json,state FROM jobs WHERE ref=?").get(job.ref) as {json:string;state:string}|undefined;
     if(current?.state==="running" && (JSON.parse(current.json) as MemoryJob).lease===job.lease)this.db.prepare("UPDATE jobs SET state='skipped',lease_until=0 WHERE ref=?").run(job.ref);
+  }
+  /**
+   * 失败任务的自愈：每小时最多复活一次，且每个任务最多复活 3 次。
+   * 防止"一次模型抖动"让一条任务永久卡在 failed，也防止坏任务无限烧调用。
+   */
+  reviveFailed(limit = 5):number {
+    return this.transaction(()=>{
+      const rows=this.db.prepare("SELECT json FROM jobs WHERE state='failed' AND retry_at<=? ORDER BY retry_at LIMIT ?").all(Date.now(),limit) as Array<{json:string}>;
+      let count=0;
+      for(const row of rows){
+        const job=JSON.parse(row.json) as MemoryJob & {revived?:number};
+        if((job.revived ?? 0)>=3) continue;
+        if(this.isBlocked(job.ref)||(job.anchorRef&&this.isBlocked(job.anchorRef))) continue;
+        job.revived=(job.revived ?? 0)+1;job.attempts=2;
+        this.db.prepare("UPDATE jobs SET state='pending',json=?,retry_at=?,lease_until=0 WHERE ref=?").run(JSON.stringify(job),Date.now()+60_000,job.ref);
+        count++;
+      }
+      return count;
+    });
   }
   retryFailed():number {
     return this.transaction(()=>{

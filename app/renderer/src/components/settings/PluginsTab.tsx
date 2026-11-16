@@ -1,3 +1,4 @@
+import {Toggle} from "../ui/Toggle";
 import { appMessage } from "../../lib/i18n";
 import { formatDate, formatRelativeTimestamp } from "../../lib/locale-format";
 import { appText } from "../../lib/i18n";
@@ -33,21 +34,6 @@ function relTime(ms: number): string {
     ? formatRelativeTimestamp(ms) : formatDate(ms, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative w-8 h-4 rounded-full transition-colors overflow-hidden shrink-0 ml-2 ${checked ? "bg-accent" : "bg-surface-hover"}`}
-      role="switch"
-      aria-checked={checked}
-    >
-      <span
-        className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-elevated shadow transition-all ${checked ? "left-[calc(100%-14px)]" : "left-0.5"}`}
-      />
-    </button>
-  );
-}
 
 function SkillRow({ s, stat, onToggle, onDelete }: {
   s: SkillRowData;
