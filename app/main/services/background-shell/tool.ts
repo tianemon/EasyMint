@@ -68,13 +68,16 @@ export function composeExecutionEnvironment(
  * 是**按需增长**的，而它同时也是标准档的边界缺口。静默豁免会让清单悄悄腐化——
  * 到那时谁也说不清"这条命令到底受不受管"（这正是 Codex 把 `excludedCommands` 写进文档的原因）。
  */
-function appendExemptNote(
-  result: { content: Array<{ type: string; text: string }> },
-  reason: string,
-): { content: Array<{ type: string; text: string }> } {
+type TextItem = { type: "text"; text: string };
+type ToolResult = { content: TextItem[]; details: unknown };
+
+/** 工具结果统一构造：SDK 的 AgentToolResult 要求 details 必填、content 的 type 为字面量。 */
+const ok = (text: string, details: unknown = undefined): ToolResult => ({ content: [{ type: "text", text }], details });
+
+function appendExemptNote(result: ToolResult, reason: string): ToolResult {
   const last = result.content[result.content.length - 1];
   if (!last) return result;
-  return { content: [...result.content.slice(0, -1), { ...last, text: `${last.text}\n[沙盒豁免] ${reason}` }] };
+  return { content: [...result.content.slice(0, -1), { type: "text", text: `${last.text}\n[沙盒豁免] ${reason}` }], details: result.details };
 }
 
 /** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示 + PI_* 环境注入)
@@ -87,10 +90,10 @@ export async function executeForeground(
   timeoutSec?: number,
   ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string } },
   /** SDK 增量回调:执行中把输出片段推给 UI(无则跳过,后台/无 UI 场景不受影响) */
-  onUpdate?: (partial: { content: Array<{ type: string; text: string }> }) => void,
+  onUpdate?: (partial: ToolResult) => void,
   /** 输出里出现「需要人操作」信号时的回调(前台阻塞时同样要能交接,否则 npm login 只能挂到超时) */
   onHumanAction?: (action: HumanAction) => void,
-): Promise<{ content: Array<{ type: string; text: string }> }> {
+): Promise<{ content: TextItem[] }> {
   return new Promise((resolve, reject) => {
     const spawnPlan = "argv" in command
       ? { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env, windowsHide: true }, error: undefined }
@@ -142,7 +145,7 @@ export async function executeForeground(
     const flushDelta = (): void => {
       if (deltaTimer) { clearTimeout(deltaTimer); deltaTimer = null; }
       if (!onUpdate || !pendingDelta) return;
-      onUpdate({ content: [{ type: "text", text: pendingDelta }] });
+      onUpdate(ok(pendingDelta));
       pendingDelta = "";
     };
     const emitDelta = (chunk: string): void => {
@@ -305,12 +308,12 @@ export async function createEnhancedBashTool(
       _toolCallId: string,
       params: Record<string, unknown>,
       signal: AbortSignal | undefined,
-      onUpdate: ((partial: { content: Array<{ type: string; text: string }> }) => void) | undefined,
+      onUpdate: ((partial: ToolResult) => void) | undefined,
       ctx: any,
     ) {
       const command = String(params.command || "");
       if (!command) {
-        return { content: [{ type: "text" as const, text: "请提供 command" }] };
+        return ok("请提供 command");
       }
 
       // 沙盒标记(权限层「判不了域」放行时经 updatedInput 注入):wrapWithSandbox 后执行。
@@ -326,7 +329,7 @@ export async function createEnhancedBashTool(
       if (sandboxed) {
         const init = await ensureSandbox(cwd, context.mode);
         if (!init.ok) {
-          return { content: [{ type: "text" as const, text: `系统保护初始化失败：${init.reason}` }] };
+          return ok(`系统保护初始化失败：${init.reason}`);
         }
       }
       let execTarget: ExecutionTarget;
@@ -344,6 +347,7 @@ export async function createEnhancedBashTool(
             type: "text" as const,
             text: `命令执行准备失败：${(e as Error).message}`,
           }],
+          details: undefined,
         };
       }
 
@@ -359,7 +363,8 @@ export async function createEnhancedBashTool(
           onUpdate,
           options?.onHumanAction ? (action) => options.onHumanAction!(command, action) : undefined,
         );
-        return execTarget.exemptReason ? appendExemptNote(result, execTarget.exemptReason) : result;
+        const wrapped: ToolResult = { content: result.content, details: undefined };
+        return execTarget.exemptReason ? appendExemptNote(wrapped, execTarget.exemptReason) : wrapped;
       }
 
       // 后台:spawn + 注册,立即返回
@@ -394,7 +399,7 @@ export async function createEnhancedBashTool(
   // 其中多数只给 content、且有一处经 appendExemptNote 展开后 type 被放宽成 string。
   // 逐点收窄要同时改 runForeground 的 4 个 resolve、2 个 onUpdate 与两个签名，
   // 收益（去掉一条断言）小于风险，先保留断言并在此记录原因。
-  } as unknown as ToolDefinition;
+  } satisfies ToolDefinition;
 }
 
 /** 停止后台命令工具 —— Mint 主动停止自己启动的后台命令。
@@ -427,7 +432,7 @@ export function createStopShellTool(): ToolDefinition {
       _tid: string,
       params: Record<string, unknown>,
       _signal?: AbortSignal,
-      _onUpdate?: unknown,
+      _onUpdate?: ((partial: ToolResult) => void) | undefined,
       ctx?: any,
     ) {
       // 主会话可管理自己及后代子 Agent 启动的命令；子会话只拥有自己。
@@ -448,16 +453,16 @@ export function createStopShellTool(): ToolDefinition {
           const hint = running.length > 0
             ? `当前运行中: ${running.map((s) => `${s.id}(${summarize(s)})`).join(", ")}`
             : "当前会话没有运行中的后台命令";
-          return { content: [{ type: "text" as const, text: `后台命令 ${id} 未在运行中。${hint}` }] };
+          return ok(`后台命令 ${id} 未在运行中。${hint}`);
         }
         backgroundShellRegistry.stop(id, "mint");
-        return { content: [{ type: "text" as const, text: `已停止后台命令 ${id}: ${summarize(target)}${reason}` }] };
+        return ok(`已停止后台命令 ${id}: ${summarize(target)}${reason}`);
       }
       const running = mine();
-      if (running.length === 0) return { content: [{ type: "text" as const, text: "当前会话没有运行中的后台命令" }] };
+      if (running.length === 0) return ok("当前会话没有运行中的后台命令");
       for (const s of running) backgroundShellRegistry.stop(s.id, "mint");
       const list = running.map((s) => `- ${s.id}: ${summarize(s)}`).join("\n");
-      return { content: [{ type: "text" as const, text: `已停止 ${running.length} 个后台命令${reason}:\n${list}` }] };
+      return ok(`已停止 ${running.length} 个后台命令${reason}:\n${list}`);
     },
 
   // SDK 的 AgentToolResult = { content: (TextContent|ImageContent)[]; details: T }，
@@ -465,5 +470,5 @@ export function createStopShellTool(): ToolDefinition {
   // 其中多数只给 content、且有一处经 appendExemptNote 展开后 type 被放宽成 string。
   // 逐点收窄要同时改 runForeground 的 4 个 resolve、2 个 onUpdate 与两个签名，
   // 收益（去掉一条断言）小于风险，先保留断言并在此记录原因。
-  } as unknown as ToolDefinition;
+  } satisfies ToolDefinition;
 }
