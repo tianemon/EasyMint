@@ -389,9 +389,11 @@ export async function createEnhancedBashTool(
       };
     },
 
-  // SDK 的 AgentToolResult 要求 details 必填，而 execute 内部有的分支转发的是
-  // SDK 自带 bash 工具的结果（content 的 type 被放宽成 string）。逐点收窄会牵动 8 个
-  // 返回路径与 SDK 结果类型，收益（去掉一条断言）小于风险，先保留断言并记录原因。
+  // SDK 的 AgentToolResult = { content: (TextContent|ImageContent)[]; details: T }，
+  // details 必填、content 的 type 必须是字面量 "text"。本文件的 execute 有 8 条返回路径，
+  // 其中多数只给 content、且有一处经 appendExemptNote 展开后 type 被放宽成 string。
+  // 逐点收窄要同时改 runForeground 的 4 个 resolve、2 个 onUpdate 与两个签名，
+  // 收益（去掉一条断言）小于风险，先保留断言并在此记录原因。
   } as unknown as ToolDefinition;
 }
 
@@ -458,8 +460,10 @@ export function createStopShellTool(): ToolDefinition {
       return { content: [{ type: "text" as const, text: `已停止 ${running.length} 个后台命令${reason}:\n${list}` }] };
     },
 
-  // SDK 的 AgentToolResult 要求 details 必填，而 execute 内部有的分支转发的是
-  // SDK 自带 bash 工具的结果（content 的 type 被放宽成 string）。逐点收窄会牵动 8 个
-  // 返回路径与 SDK 结果类型，收益（去掉一条断言）小于风险，先保留断言并记录原因。
+  // SDK 的 AgentToolResult = { content: (TextContent|ImageContent)[]; details: T }，
+  // details 必填、content 的 type 必须是字面量 "text"。本文件的 execute 有 8 条返回路径，
+  // 其中多数只给 content、且有一处经 appendExemptNote 展开后 type 被放宽成 string。
+  // 逐点收窄要同时改 runForeground 的 4 个 resolve、2 个 onUpdate 与两个签名，
+  // 收益（去掉一条断言）小于风险，先保留断言并在此记录原因。
   } as unknown as ToolDefinition;
 }
