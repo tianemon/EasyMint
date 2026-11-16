@@ -20,10 +20,8 @@ export function registerMemoryIpc(service:MemoryService):void {
     return project;
   };
   const management=async()=>{const db=await service.management(true);if(!db)throw new Error("记忆服务不可用");return db;};
-  const exportHuman=async(db:Awaited<ReturnType<typeof management>>,project:{id:string;path:string}|undefined)=>{
-    let warning:string|undefined;
-    if(project && await db.call("documentStatus",project.id))warning=(await db.call("generateDocuments",project.id,project.path)).error;
-    const digest=await service.summary();return [warning,digest.error].filter(Boolean).join("\n") || undefined;
+  const exportHuman=async(_db:Awaited<ReturnType<typeof management>>,_project:{id:string;path:string}|undefined)=>{
+    const digest=await service.summary();return digest.error || undefined;
   };
   const scopeForKey=(key:string,projectPath?:string)=>{
     const match=/^project:([^/]+)\//u.exec(key);

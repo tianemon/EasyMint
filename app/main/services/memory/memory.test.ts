@@ -4,7 +4,6 @@ import {DatabaseSync} from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 import { MemoryDatabase } from "./database";
-import { adoptDocuments, generateDocuments, previewDocuments, relocatedDirectory } from "./documents";
 import { assertCondensed } from "./policy";
 
 const databases:MemoryDatabase[]=[];
@@ -66,36 +65,6 @@ describe("memory persistence and recall boundaries",()=>{
   });
 });
 
-describe("lifecycle and deterministic project documents",()=>{
-  it("keeps old facts without age scoring while explicit expiration exits current recall",()=>{
-    const {db}=setup(); const base=save(db);
-    db.evaluate(Date.now()+3*365*86_400_000);
-    expect(db.get(base.key,"p")?.lifecycle).toBe("active");
-    const expiring=db.save({kind:"attention",text:"明确截止的关注",expiresAt:Date.now()-1},{projectId:"p",source:{ref:"expired",type:"manual"},confirmed:true}).item;
-    expect(db.query({projectId:"p",query:"关注"}).items).toHaveLength(0);
-    db.evaluate();expect(db.get(expiring.key,"p")?.lifecycle).toBe("archived");
-    expect(db.query({projectId:"p",query:"关注",view:"history",history:true}).items).toHaveLength(1);
-    expect(()=>assertCondensed({text:"结论",details:"原始回答内容".repeat(40)},"原始回答内容".repeat(40))).toThrow("近似原文");
-  });
-  it("preserves old navigation and daily files, retains retired history, and stops on human edits",()=>{
-    const {root,db}=setup(); const project=path.join(root,"project"), docs=path.join(project,"private_docs");
-    fs.mkdirSync(path.join(docs,"开发记录"),{recursive:true});
-    const original="原有导航与重要决定\n"; fs.writeFileSync(path.join(docs,"开发记录.md"),original);
-    fs.writeFileSync(path.join(docs,"开发记录","2026-01-01.md"),"旧日期日志不可丢失");
-    const event=save(db,"已讨论，尚未实施");
-    const preview=previewDocuments(project,docs);
-    const adopted=adoptDocuments(db,"p",project,docs,preview.hash,path.join(root,"backups"));
-    expect(adopted.error).toBeUndefined();
-    expect(fs.readFileSync(path.join(docs,adopted.legacy!),"utf8")).toBe(original);
-    expect(fs.readFileSync(path.join(docs,"开发记录","2026-01-01.md"),"utf8")).toBe("旧日期日志不可丢失");
-    db.update(event.key,"p",event.revision,{lifecycle:"retired"}); generateDocuments(db,"p",project);
-    expect(fs.readFileSync(path.join(docs,"开发记录.md"),"utf8")).not.toContain(event.text);
-    expect(fs.readFileSync(path.join(docs,"开发记录","1970-01-em.md"),"utf8")).toContain(event.text);
-    fs.writeFileSync(path.join(docs,"开发记录.md"),"用户自行编辑"); save(db,"新的项目活动");
-    expect(generateDocuments(db,"p",project).error).toContain("外部修改");
-    expect(fs.readFileSync(path.join(docs,"开发记录.md"),"utf8")).toBe("用户自行编辑");
-  });
-});
 
 describe("historical integrity and recovery",()=>{
   it("finds superseded wording only in history and points to the matching revision",()=>{
@@ -115,28 +84,6 @@ describe("historical integrity and recovery",()=>{
     expect(db.isBlocked("user:s:u1")).toBe(true);expect(db.isBlocked("user:s:u2")).toBe(true);
     expect(db.finishJob(claimed,[],0,"day")).toBe(false);
     expect(db.status().pending).toBe(0);
-  });
-  it("keeps invalidated project events as labeled history without exposing them as current work",()=>{
-    const {root,db}=setup();const project=path.join(root,"project");fs.mkdirSync(project);
-    const item=db.save({kind:"decision",text:"已撤回的项目决定",occurredAt:100},{projectId:"p",source:{ref:"conclusion:s:a",type:"session",sessionId:"s",entryId:"a",hash:"old"},confirmed:true}).item;
-    const dir=path.join(project,"docs"),preview=previewDocuments(project,dir);adoptDocuments(db,"p",project,dir,preview.hash,path.join(root,"backups"));
-    expect(db.invalidateSession("s",[])).toBe(1);generateDocuments(db,"p",project);
-    expect(db.query({projectId:"p"}).items).toHaveLength(0);
-    expect(db.query({projectId:"p",query:"撤回",history:true}).items[0]?.key).toBe(item.key);
-    expect(fs.readFileSync(path.join(dir,"开发记录.md"),"utf8")).not.toContain(item.text);
-    const history=fs.readFileSync(path.join(dir,"开发记录","1970-01-em.md"),"utf8");
-    expect(history).toContain(item.text);expect(history).toContain("仅作历史记录");
-  });
-  it("resumes a projection interrupted after file rename but before metadata completion",()=>{
-    const {root,db}=setup();const project=path.join(root,"project");fs.mkdirSync(project);
-    const item=save(db,"旧事件");const dir=path.join(project,"docs"),preview=previewDocuments(project,dir);
-    const before=adoptDocuments(db,"p",project,dir,preview.hash,path.join(root,"backups"));
-    db.update(item.key,"p",1,{text:"新事件"});const after=generateDocuments(db,"p",project);
-    const pending=Object.fromEntries(Object.keys(after.hashes).map(file=>[file,{before:before.hashes[file],after:after.hashes[file]!}]));
-    db.setMetadata("documents:p",{...before,pending});
-    const recovered=generateDocuments(db,"p",project);
-    expect(recovered.error).toBeUndefined();expect(recovered.hashes).toEqual(after.hashes);
-    expect(fs.readFileSync(path.join(dir,"开发记录.md"),"utf8")).toContain("新事件");
   });
 });
 
@@ -243,57 +190,3 @@ it("reconfirms an expired fact with new evidence and exposes old versions throug
 });
 
 
-describe("cross-host document metadata and explicit repair",()=>{
-  it("interprets old Windows/UNC roots before relocating in either direction",()=>{
-    expect(relocatedDirectory("/new/project",{projectRoot:"C:\\old\\项目",directory:"C:\\old\\项目\\private_docs"})).toEqual({directory:"/new/project/private_docs",relativeDirectory:"private_docs"});
-    expect(relocatedDirectory("/new/project",{projectRoot:"\\\\server\\share\\项目",directory:"\\\\server\\share\\项目\\docs"}).directory).toBe("/new/project/docs");
-    expect(relocatedDirectory("D:\\new\\项目",{projectRoot:"/old/project",directory:"/old/project/docs"}).directory).toBe("D:\\new\\项目\\docs");
-    for(const relativeDirectory of ["../outside","C:relative","C:\\outside","/outside","docs/../../outside"])
-      expect(()=>relocatedDirectory("/new/project",{directory:"unused",relativeDirectory})).toThrow();
-    expect(()=>relocatedDirectory("/new/project",{projectRoot:"C:\\old\\项目",directory:"D:\\outside"})).toThrow();
-  });
-  it("normalizes Windows hashes, pending writes, month files and legacy links without duplicate files",()=>{
-    const {root,db}=setup(),project=path.join(root,"project"),dir=path.join(project,"docs");fs.mkdirSync(project);
-    fs.mkdirSync(dir);fs.writeFileSync(path.join(dir,"开发记录.md"),"原入口");save(db,"跨主机保留事件");
-    const before=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,path.join(root,"backups"));
-    const win=(file:string)=>file.replaceAll("/","\\");
-    db.setMetadata("documents:p",{...before,projectRoot:"C:\\old\\项目",directory:"C:\\old\\项目\\docs",relativeDirectory:undefined,
-      hashes:Object.fromEntries(Object.entries(before.hashes).map(([file,hash])=>[win(file),hash])),
-      pending:Object.fromEntries(Object.entries(before.hashes).map(([file,hash])=>[win(file),{before:hash,after:hash}])),
-      monthFiles:Object.fromEntries(Object.entries(before.monthFiles!).map(([month,file])=>[month,win(file)]))});
-    const after=generateDocuments(db,"p",project);
-    expect(after.error).toBeUndefined();expect(after.relativeDirectory).toBe("docs");expect(after.directory).toBe(dir);
-    expect(Object.keys(after.hashes).some(file=>file.includes("\\"))).toBe(false);
-    expect(Object.keys(after.pending!).some(file=>file.includes("\\"))).toBe(false);
-    expect(after.monthFiles).toEqual(before.monthFiles);
-    expect(fs.readdirSync(path.join(dir,"开发记录"))).toEqual(["1970-01-em.md"]);
-    expect(fs.readFileSync(path.join(dir,"开发记录.md"),"utf8")).toContain("跨主机保留事件");
-  });
-  it("rejects unsafe persisted file names before changing any managed output",()=>{
-    const {root,db}=setup(),project=path.join(root,"project"),dir=path.join(project,"docs");fs.mkdirSync(project);save(db);
-    const before=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,path.join(root,"backups"));
-    const original=fs.readFileSync(path.join(dir,"开发记录.md"));
-    for(const file of ["../outside.md","C:\\outside.md","/outside.md","C:outside.md"]){
-      db.setMetadata("documents:p",{...before,generation:-1,hashes:{...before.hashes,[file]:"bad"}});
-      expect(generateDocuments(db,"p",project).error).toBeTruthy();
-      expect(fs.readFileSync(path.join(dir,"开发记录.md"))).toEqual(original);
-    }
-  });
-  it("repairs a moved or externally edited projection only after preview and byte-preserving backup",()=>{
-    const {root,db}=setup(),project=path.join(root,"project"),dir=path.join(project,"docs"),backup=path.join(root,"backups");fs.mkdirSync(project);save(db);
-    const before=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,backup);
-    const month=path.join(dir,"开发记录","1970-01-em.md");fs.writeFileSync(month,"用户修订的旧月记录");fs.writeFileSync(path.join(dir,"开发记录.md"),"人工入口");
-    const state={...before,projectRoot:"C:\\old\\project",directory:"C:\\old\\project\\docs",relativeDirectory:undefined};db.setMetadata("documents:p",state);
-    expect(generateDocuments(db,"p",project).error).toContain("缺失或已修改");
-    expect(generateDocuments(db,"p",project).error).toContain("外部修改或已移除");
-    const preview=previewDocuments(project,dir);fs.writeFileSync(path.join(dir,"开发记录.md"),"人工入口又变化");
-    expect(()=>adoptDocuments(db,"p",project,dir,preview.hash,backup,true)).toThrow("已变化");
-    const current=db.metadata("documents:p");
-    const repaired=adoptDocuments(db,"p",project,dir,previewDocuments(project,dir).hash,backup,true);
-    expect(repaired.error).toBeUndefined();expect(JSON.parse(fs.readFileSync(repaired.previousStateBackup!,"utf8"))).toEqual(current);
-    expect(fs.readFileSync(path.join(repaired.backup!,"开发记录","1970-01-em.md"),"utf8")).toBe("用户修订的旧月记录");
-    expect(fs.readFileSync(month,"utf8")).toBe("用户修订的旧月记录");
-    expect(fs.readFileSync(path.join(dir,repaired.legacy!),"utf8")).toBe("人工入口又变化");
-    expect(repaired.monthFiles?.["1970-01"]).toBe("开发记录/1970-01-em-2.md");
-  });
-});

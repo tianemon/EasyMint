@@ -232,20 +232,8 @@ export class MemoryService {
     this.migration={phase:"opening",completed:0,total:0};this.notify();
     const task=(async()=>{
       const db=await this.openPort();
-      // 不再导入任何旧产物（经验库保持独立）；这里只按项目刷新托管的开发记录。
-      for(const project of this.store.getProjects()){
-        if(this.stopped)return;
-        let documentError:string|undefined;
-        try {
-          if(await db.call("documentStatus",project.id))documentError=(await db.call("generateDocuments",project.id,project.path)).error;
-        } catch(error) {
-          if(db.unavailable)throw error;
-          documentError=(error as Error).message;
-        }
-        this.documentReport(project.id,documentError);
-        this.cachedStatus={...await db.call("status"),countKnown:true};
-        this.notify();
-      }
+      // 只读状态，不写任何项目文件：会话就是会话。
+      this.cachedStatus={...await db.call("status"),countKnown:true};
       if(this.stopped)return;
       this.warning=undefined;this.migration={...this.migration,phase:"ready",projectName:undefined};
       this.armPump();
@@ -290,11 +278,6 @@ export class MemoryService {
     const db=await this.existingDatabase();if(!db)return;
     const messages=await evidenceMessages(entries);
     await db.call("invalidateSession",sessionId,[...this.validHashes(messages)].map(([entryId,hash])=>({entryId,hash})));
-    const project=this.project(projectPath);
-    if(project && await db.call("documentStatus",project.id)) {
-      const state=await db.call("generateDocuments",project.id,project.path);
-      if(state.error)this.warning=state.error;
-    }
     await this.refreshSummary();this.notify();
     this.armPump();
   }
@@ -598,19 +581,11 @@ export class MemoryService {
     if(!this.settings().enabled || this.mode(context.sessionId)==="off" || this.stopped)throw new Error("本次会话已关闭记忆");
     return {...page,items:page.items.filter(item=>query.history || this.sourceValid(item,context,hashes)).map(item=>({...item,projectName:item.projectId?this.projectById(item.projectId)?.name:undefined}))};
   }
-  async exportIfAdopted(projectId:string,projectPath:string):Promise<string|undefined> {
-    const db=await this.database();
-    let state=await db.call("documentStatus",projectId);
-    if(!state) {
-      const project=this.store.getProjects().find(p=>p.id===projectId);
-      if(project?.autoMemoryRecords && await db.call("projectEventCount",projectId)>0) {
-        const directory=path.join(projectPath,(await statIfExists(path.join(projectPath,"private_docs")))?"private_docs":"docs");
-        const preview=await db.call("previewDocuments",projectPath,directory);
-        state=await db.call("adoptDocuments",projectId,projectPath,directory,preview.hash);
-      }
-    }
-    if(state) { const result=await db.call("generateDocuments",projectId,projectPath);if(result.error)this.warning=result.error;return result.error; }
-  }
+  /**
+   * 托管开发记录生成已停用：会话只做会话，不往项目里写任何文档。
+   * 保留签名是为了让"是否接管"的判断继续可读，返回值恒为空。
+   */
+  async exportIfAdopted(_projectId:string,_projectPath:string):Promise<string|undefined> {return undefined;}
   private async load(job:MemoryJob):Promise<NonNullable<ReturnType<typeof conclusionSnapshot>>|undefined> {
     const live=this.deps.getSession?.(job.sessionId);
     let messages:EvidenceMessage[];

@@ -9,7 +9,6 @@ import { MemoryDatabase } from "./database";
 import { upsertDocumentEntry } from "./document-store";
 import { MemoryService } from "./service";
 import {writeSummary,readSummary,type SummaryProject} from "./summary";
-import { documentStatus } from "./documents";
 import type { MemoryPort } from "./client";
 vi.mock("electron",()=>({app:{isPackaged:false,getPath:()=>os.tmpdir()},BrowserWindow:{getAllWindows:()=>[]}}));
 vi.mock("../pi-init",async original=>({...await original<object>(),getModelRuntime:vi.fn()}));
@@ -31,7 +30,6 @@ it("sends real memory-service references after the current user, with unchanged 
     const port={call:async(method:string,...args:unknown[])=>{
       if(method==="writeSummary")return writeSummary(db!,path.join(root,"memory","MEMORY.md"),args[0] as SummaryProject[],args[1] as boolean);
       if(method==="readSummary")return readSummary(db!,path.join(root,"memory","MEMORY.md"),args[0] as SummaryProject[],args[1] as string|undefined);
-      if(method==="documentStatus")return documentStatus(db!,args[0] as string);
       return (db as any)[method](...args);
     }} as MemoryPort;
     const backend=vi.fn();service=new MemoryService(store,{port,busy:()=>false,getBackend:backend});
