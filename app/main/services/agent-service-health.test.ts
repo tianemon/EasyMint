@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentService } from "./agent-service";
 import type { Store } from "./store";
 import { broadcast } from "./ipc-broadcast";
-import { buildExperienceInjection } from "./experience-service";
 
 import { PERMISSION_RULES_PROMPT } from "./prompt-sections";
 import * as piSessions from "./pi-session";
@@ -12,7 +11,6 @@ import * as piSessions from "./pi-session";
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" }, BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
 
-vi.mock("./experience-service", async importOriginal => ({ ...await importOriginal<object>(), buildExperienceInjection: vi.fn(() => "EXPERIENCE_MARKER") }));
 
 function create(session?: object) {
   const service = new AgentService({ getSettings: () => ({ learnEnabled: true, memory: { enabled: false } }) } as unknown as Store);
@@ -50,13 +48,6 @@ describe("final prompt assembly", () => {
     expect(prompt).toContain("/tmp/health-project");
     expect(prompt.split(PERMISSION_RULES_PROMPT)).toHaveLength(2);
     expect(prompt).not.toContain(THINKING_LANGUAGE_PROMPT);
-  });
-  it("never places dynamic experiences in the system prefix, regardless of tool registration", () => {
-    const { internals } = create();
-    expect(internals.buildSystemPrompt("/tmp", false, { memoryInstalled: false })).not.toContain("EXPERIENCE_MARKER");
-    expect(buildExperienceInjection).not.toHaveBeenCalled();
-    expect(internals.buildSystemPrompt("/tmp", false, { memoryInstalled: true })).not.toContain("EXPERIENCE_MARKER");
-    expect(internals.buildSystemPrompt("/tmp", false, { worker: true, memoryInstalled: true })).not.toContain("EXPERIENCE_MARKER");
   });
 });
 

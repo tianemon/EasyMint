@@ -31,7 +31,6 @@ it("delivers current role/modes/visuals under a forced extension and leaves expe
   const { Store } = await import("./store");
   const { createPiSession } = await import("./pi-session");
   const { createTodoWriteTool } = await import("./tools/todo-tool");
-  const { createLearnTool } = await import("./tools/learn-tool");
   const { createTaskTool } = await import("./task/tool");
   const { saveProjectDesign } = await import("./project-design");
   const requests: Array<{ prompt: string; payload: string }> = [];
@@ -41,15 +40,13 @@ it("delivers current role/modes/visuals under a forced extension and leaves expe
   manager.saveMainChat({ ...manager.getConversationConfig().main, nickname: "First", personality: "ROLE_FIRST", rules: "WORK_RULES" });
   let selected = ["ui-design", "domain-guidance"];
   const todo = await createTodoWriteTool(root, "fixture-session");
-  const learn = await createLearnTool({ projectPath: root });
   const store = new Store(root);
   const task = await createTaskTool({ cwd: root, agentDir: path.join(root, "agent"), store, parentSessionId: "fixture-session" });
   expect(todo.description).toContain("收起/隐藏/关掉待办条");
-  expect(learn.description).not.toContain("用户纠正/推翻某条经验");
   session = await createPiSession({ cwd: root, agentDir: path.join(root, "agent"), store,
     model: runtime.getModel("forced-fixture", "fixture")!, systemPrompt: "HOST_BASE\nEXPERIENCE_SENTINEL",
     getConversationPrompt: () => manager.conversationPromptSection(selected),
-    permissionMode: "standard", canUseTool: async () => ({ behavior: "allow" }), extraTools: [todo, learn, task],
+    permissionMode: "standard", canUseTool: async () => ({ behavior: "allow" }), extraTools: [todo, task],
   });
   await session.prompt("first");
   expect(requests[0].prompt).toContain("EXTENSION_BASE");
