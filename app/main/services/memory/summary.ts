@@ -33,7 +33,7 @@ function render(db:MemoryDatabase,projects:SummaryProject[]):string {
     seen.add(project.id);projectLines.push(line(item,`${project.name}（记录于 ${memoryDay(new Date(item.occurredAt),item.sources[0]?.timezone)}）：${reported}${digestText(item)!}`));
     if(projectLines.length===5)break;
   }
-  return `# 记忆摘要\n\n记录重要背景、关注方向和近期项目，由智能体持续维护。\n\n## 关于用户\n${globals.filter(i=>i.kind!=="attention").slice(0,4).map(i=>line(i,digestText(i)!)).join("\n") || "暂无已确认摘要。"}\n\n## 当前关注\n${globals.filter(i=>i.kind==="attention").slice(0,2).map(i=>line(i,`${digestText(i)!}（记录于 ${memoryDay(new Date(i.occurredAt),i.sources[0]?.timezone)}）`)).join("\n") || "暂无关注入口。"}\n\n## 近期项目\n${projectLines.join("\n") || "暂无项目入口。"}\n`;
+  return `# 记忆摘要\n\n记录重要背景、关注方向和近期项目，由智能体持续维护。\n\n## 关于用户\n${globals.filter(i=>i.kind!=="attention").map(i=>line(i,digestText(i)!)).join("\n") || "暂无已确认摘要。"}\n\n## 当前关注\n${globals.filter(i=>i.kind==="attention").map(i=>line(i,`${digestText(i)!}（记录于 ${memoryDay(new Date(i.occurredAt),i.sources[0]?.timezone)}）`)).join("\n") || "暂无关注入口。"}\n\n## 近期项目\n${projectLines.join("\n") || "暂无项目入口。"}\n`;
 }
 function read(db:MemoryDatabase,file:string,content:string,projectId?:string):MemoryDigest {
   const items:MemoryDigest["items"]=[];

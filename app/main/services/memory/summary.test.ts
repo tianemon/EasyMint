@@ -60,3 +60,10 @@ it("does not turn an assistant-reported outcome into an unqualified summary clai
  const {db,file}=setup();db.save({kind:"activity",text:"助手报告，未经独立核实：完成本轮调整",summary:"近期完成一轮记忆调整"},{projectId:"p",confirmed:true,source:{type:"session",ref:"reported",role:"assistant"}});
  expect(writeSummary(db,file,[{id:"p",name:"测试项目"}]).content).toContain("助手报告：近期完成一轮记忆调整");
 });
+
+it("lists every confirmed user-background note without truncating", () => {
+  const {db,file}=setup();
+  for(let i=0;i<6;i+=1) db.save({kind:"background",text:`用户背景第${i}条`,summary:`背景${i}`},{source:{type:"manual",ref:`g${i}`},confirmed:true});
+  const result=writeSummary(db,file,[]);
+  for(let i=0;i<6;i+=1) expect(result.content).toContain(`背景${i}`);
+});
