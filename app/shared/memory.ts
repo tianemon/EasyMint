@@ -9,7 +9,7 @@ export const MEMORY_DETAILS_LIMIT = 2000;
 export const MEMORY_SUMMARY_LIMIT = 160;
 export interface MemorySource {
   ref: string;
-  type: "session" | "manual" | "legacy";
+  type: "session" | "manual";
   sessionId?: string;
   entryId?: string;
   hash?: string;
@@ -39,7 +39,6 @@ export interface MemoryRecord {
   substantiveAt: number;
   expiresAt?: number;
   archivedAt?: number;
-  lowSince?: number;
   pinned: boolean;
   importance: "normal" | "high";
   sources: MemorySource[];
@@ -49,9 +48,8 @@ export interface MemoryRecord {
   mergedInto?: string;
   effectiveAt?: number;
   pending?: {at:number;patch:Partial<MemoryWrite> & {confidence?:MemoryConfidence;lifecycle?:MemoryLifecycle;sources?:MemorySource[];reason?:string};evidenceAt:number};
-  legacy?: Record<string, unknown>;
 }
-export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "legacy" | "pending"> & { matchedRevision?:number; projectName?:string;pendingAt?:number; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
+export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "pending"> & { matchedRevision?:number; projectName?:string;pendingAt?:number; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
 export interface MemoryWrite {
   kind: MemoryKind;
   text: string;
@@ -84,10 +82,10 @@ export interface MemorySettings {
   enabledAt?: number;
 }
 export const DEFAULT_MEMORY_SETTINGS: MemorySettings = { enabled: true, background: true };
-export function parseMemorySettings(raw: unknown, legacyEnabled = false): MemorySettings {
+export function parseMemorySettings(raw: unknown): MemorySettings {
   const r = raw && typeof raw === "object" ? raw as Partial<MemorySettings> : {};
-  // 未配置时按默认开启；只有显式写 false 才算关闭（旧的 learnEnabled 仍可把新装用户打开）。
-  const enabled = typeof r.enabled === "boolean" ? r.enabled : DEFAULT_MEMORY_SETTINGS.enabled || legacyEnabled;
+  // 未配置时按默认开启；只有显式写 false 才算关闭。
+  const enabled = typeof r.enabled === "boolean" ? r.enabled : DEFAULT_MEMORY_SETTINGS.enabled;
   const background = typeof r.background === "boolean" ? r.background : enabled;
   return { enabled,
     background,

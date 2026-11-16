@@ -26,7 +26,7 @@ vi.mock("./pi-session", () => ({
 }));
 
 function create(): AgentService {
-  return new AgentService({ getSettings: () => ({ learnEnabled: true }) } as unknown as Store);
+  return new AgentService({ getSettings: () => ({}) } as unknown as Store);
 }
 
 describe("context image stats", () => {

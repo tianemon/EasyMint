@@ -50,7 +50,6 @@ export interface Settings {
   /** 允许 AI 在会话中写 managed skill 区（manage_skill 工具注册开关，D8 默认关闭） */
   manageSkillEnabled?: boolean;
   /** 旧经验开关，仅作统一记忆首次启用的兼容读取；不授权后台模型分析。 */
-  learnEnabled?: boolean;
   memory?: MemorySettings;
   /** 发现外部生态 skill 目录（~/.claude/skills、<p>/.github/skills 等，只读发现，默认开启） */
   importExternalSkills?: boolean;
@@ -287,8 +286,7 @@ export class Store {
       availableModels: (emData.availableModels as string[]) || undefined,
       apiKeys: dropLegacyEncryptedApiKeys(emData.apiKeys as Record<string, string> | undefined),
       manageSkillEnabled: emData.manageSkillEnabled as boolean | undefined,
-      learnEnabled: emData.learnEnabled as boolean | undefined,
-      memory: parseMemorySettings(emData.memory,emData.learnEnabled === true),
+        memory: parseMemorySettings(emData.memory),
       importExternalSkills: emData.importExternalSkills as boolean | undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,

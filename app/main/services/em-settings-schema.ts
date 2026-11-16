@@ -86,7 +86,6 @@ export const EM_PATH = {
   appearanceStatusActiveDark: "appearance.status.activeDark",
   // ── skills ──
   skillsManageEnabled: "skills.manageEnabled",
-  skillsLearnEnabled: "skills.learnEnabled",
   memory: "capabilities.memory",
   skillsImportExternal: "skills.importExternal",
   skillsHidden: "skills.hidden",
@@ -144,7 +143,6 @@ export const SETTINGS_FIELDS = [
   [EM_PATH.appearanceStatusActiveLight, "activeStatusGroupLight"],
   [EM_PATH.appearanceStatusActiveDark, "activeStatusGroupDark"],
   [EM_PATH.skillsManageEnabled, "manageSkillEnabled"],
-  [EM_PATH.skillsLearnEnabled, "learnEnabled"],
   [EM_PATH.memory, "memory"],
   [EM_PATH.skillsImportExternal, "importExternalSkills"],
   [EM_PATH.mobileAppEnabled, "mobileAppEnabled"],

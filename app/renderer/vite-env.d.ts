@@ -643,7 +643,6 @@ interface ElectronAPI {
       defaultProjectDir?: string; setupComplete?: boolean;
       apiKeys?: Record<string, string>; model?: string;
       manageSkillEnabled?: boolean;
-      learnEnabled?: boolean;
       memory?: import("../shared/memory").MemorySettings;
       importExternalSkills?: boolean;
       availableModels?: string[]; contextThreshold?: number;

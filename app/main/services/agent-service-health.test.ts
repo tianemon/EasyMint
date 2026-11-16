@@ -13,7 +13,7 @@ vi.mock("./ipc-broadcast", () => ({ broadcast: vi.fn() }));
 
 
 function create(session?: object) {
-  const service = new AgentService({ getSettings: () => ({ learnEnabled: true, memory: { enabled: false } }) } as unknown as Store);
+  const service = new AgentService({ getSettings: () => ({ memory: { enabled: false } }) } as unknown as Store);
   const internals = service as unknown as {
     activeChats: Map<string, unknown>;
     buildSystemPrompt(path: string, designer?: boolean, opts?: { worker?: boolean; memoryInstalled?: boolean }): string;

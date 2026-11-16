@@ -9,7 +9,7 @@ import { MEMORY_KINDS, MEMORY_TEXT_LIMIT, MEMORY_DETAILS_LIMIT, MEMORY_SUMMARY_L
 import { memoryTokens } from "./policy";
 
 export function summarize(item: MemoryRecord): MemorySummary {
-  const { details: _details, legacy: _legacy, pending, sources, ...rest } = item;
+  const { details: _details, pending, sources, ...rest } = item;
   return { ...rest,pendingAt:pending?.at, sources: sources.map(({ ref, sessionId, entryId, hash, deleted, type }) => ({ ref, sessionId, entryId, hash, deleted, type })) };
 }
 const recordSources=(item:MemoryRecord)=>[...item.sources,...(item.pending?.patch.sources ?? [])];
@@ -137,7 +137,7 @@ export class MemoryDatabase {
         const newEvidence=!prior.sources.some(source=>(source.anchorRef ?? source.ref)===anchor);
                 if (newSource) prior.sources.push(context.source);
         if (context.confirmed && newEvidence && (prior.confidence !== "confirmed" || (prior.lifecycle!=="active" && prior.kind!=="activity") || (prior.expiresAt!==undefined && prior.expiresAt<=now))) {
-          prior.confidence="confirmed"; prior.lifecycle=prior.kind==="activity"?"archived":"active"; prior.lowSince=undefined; prior.invalidatedAt=undefined; prior.revision++; prior.substantiveAt=Math.max(prior.substantiveAt,context.evidenceAt ?? now); prior.updatedAt=now;
+          prior.confidence="confirmed"; prior.lifecycle=prior.kind==="activity"?"archived":"active"; prior.invalidatedAt=undefined; prior.revision++; prior.substantiveAt=Math.max(prior.substantiveAt,context.evidenceAt ?? now); prior.updatedAt=now;
           if(input.expiresAt!==undefined)prior.expiresAt=input.expiresAt ?? undefined;
           else if(prior.expiresAt!==undefined && prior.expiresAt<=now)delete prior.expiresAt;
           if(input.summary!==undefined)prior.summary=input.summary;
@@ -220,7 +220,7 @@ export class MemoryDatabase {
           details:next.details===item.details && (item.details?.length ?? 0)>MEMORY_DETAILS_LIMIT?undefined:next.details});
       }
       if (patch.text !== undefined || patch.details !== undefined || patch.confidence === "confirmed" || patch.lifecycle === "active" || patch.pinned === true) {
-        next.substantiveAt = evidenceAt; next.lowSince = undefined;
+        next.substantiveAt = evidenceAt;
         if(patch.confidence === "confirmed")next.invalidatedAt=undefined;
       }
       if (patch.lifecycle === "archived") next.archivedAt = now;
@@ -488,32 +488,6 @@ export class MemoryDatabase {
     const last=this.db.prepare("SELECT json_extract(json,'$.error') error FROM jobs WHERE state='failed' ORDER BY retry_at DESC LIMIT 1").get() as {error?:string}|undefined;
     return { count,pending,failed,usedTokens,lastError:last?.error };
   }
-  importLegacy(item: MemoryRecord): "imported" | "unchanged" | "conflict" {
-    return this.transaction(() => {
-      if (item.sources.some(s => this.isBlocked(s.ref) || (s.anchorRef && this.isBlocked(s.anchorRef)))) return "unchanged";
-      const old = this.parse(this.db.prepare("SELECT json FROM memory WHERE key=?").get(item.key));
-      if (old && old.legacy?.contentHash === item.legacy?.contentHash) return "unchanged";
-      if (old) {
-        item.id = `${item.id}~${String(item.legacy?.contentHash).slice(0,12)}`;
-        item.key = `${scopeKey(item.projectId)}/${item.id}`;
-        if (this.db.prepare("SELECT key FROM memory WHERE key=?").get(item.key)) return "unchanged";
-        item.reason = "旧资料出现不同正文，保留为冲突副本，未覆盖现有记忆";
-      }
-      this.persist(item); return old ? "conflict" : "imported";
-    });
-  }
-  projectHistory(projectId: string): Array<MemoryRecord & {historicalRevision?:boolean}> {
-    const current=this.db.prepare("SELECT json FROM memory WHERE project_id=? AND (confidence='confirmed' OR json_extract(json,'$.invalidatedAt') IS NOT NULL) AND kind IN ('activity','decision','lesson') ORDER BY occurred_at,key").all(projectId).map(r=>this.parse(r)!);
-    const result:Array<MemoryRecord & {historicalRevision?:boolean}>=[];
-    for(const item of current){
-      const seen=new Set([JSON.stringify([item.kind,item.text,item.details])]);
-      for(const old of this.revisions(item.key,projectId)){
-        const signature=JSON.stringify([old.kind,old.text,old.details]);
-        if(old.confidence!=="confirmed" || seen.has(signature))continue;seen.add(signature);
-        result.push({...old,lifecycle:"archived",historicalRevision:true,invalidatedAt:item.invalidatedAt});
-      }
-      result.push(item);
-    }
-    return result.sort((a,b)=>a.occurredAt-b.occurredAt || a.key.localeCompare(b.key) || a.revision-b.revision);
-  }
+
+
 }

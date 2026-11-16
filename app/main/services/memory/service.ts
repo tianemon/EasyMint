@@ -72,7 +72,7 @@ export class MemoryService {
   private sourceCache=new Map<string,{stamp:string;messages:EvidenceMessage[]}>();
   constructor(private store:Store,private deps:ServiceDeps) { this.port=deps.port; }
   notify():void {this.deps.changed?.();}
-  settings():MemorySettings { return parseMemorySettings(this.store.getSettings().memory,this.store.getSettings().learnEnabled===true); }
+  settings():MemorySettings { return parseMemorySettings(this.store.getSettings().memory); }
   project(projectPath:string) { return this.store.getProjects().find(p=>path.resolve(p.path)===path.resolve(projectPath)); }
   projectById(id:string) { return this.store.getProjects().find(project=>project.id===id); }
   mode(sessionId:string):"record"|"use"|"off" { return readCache(sessionId)?.memoryMode ?? "record"; }

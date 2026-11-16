@@ -258,7 +258,9 @@ export class NativeConfig {
 
     const schema = getPath(em, EM_PATH.migrationSchemaVersion);
     if (schema !== undefined && schema !== EM_SCHEMA_VERSION) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
-    // 兼容读旧扁平键：版本标记本身也可能还在旧位置
+    // native 版本标记已无人写入（0.28 迁移退役），这里只防"更早版本的库还带着它"；
+    // 真正还在起作用的判断是 store.ts 里"原生视图是否已注册"，那段用来保护启动早期
+    // 不把 apiProviders 等投影字段抹掉。
     const native = getPath(em, EM_PATH.migrationNativeVersion) ?? em.nativeConfigVersion;
     if (native !== undefined && native !== 1) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
   }
