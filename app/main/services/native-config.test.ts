@@ -19,10 +19,11 @@ function fixture(em: Record<string, any> = {}) {
 }
 /** 夹具：用现行 API 写入供应商（不再依赖旧配置迁移）。 */
 async function seeded(em: Record<string, any> = {}) {
-  const base = fixture(em);
-  if (em.apiProviders) {
+  const { apiProviders, ...rest } = em;
+  const base = fixture(rest);
+  if (apiProviders) {
     const repo = await NativeConfig.create(base.store);
-    await repo.saveProviders({ ...repo.view().apiProviders, ...em.apiProviders });
+    await repo.saveProviders({ ...repo.view().apiProviders, ...apiProviders });
   }
   return base;
 }
@@ -104,6 +105,11 @@ describe("pi-native configuration", () => {
     await ready; busy = true; finish();
     await expect(saving).rejects.toThrow("run started during preparation");
     expect(store.getSettings().nativeAi).toEqual(config);
+  });
+
+  it("refuses a 0.28-era flat config instead of silently dropping providers", async () => {
+    const { store } = fixture({ apiProviders: { current: "a", configs: { a: custom } } });
+    await expect(NativeConfig.create(store)).rejects.toThrow(/0\.28/);
   });
 
   it("ignores a dangling default provider instead of inventing an empty entry", async () => {

@@ -19,7 +19,8 @@ import syncFs from "node:fs";
 import os from "node:os";
 import { execSync } from "node:child_process";
 import { planDelivery } from "./context-plan";
-import { saveLesson } from "./experience-store";
+import { appendDecision, saveLesson } from "./experience-store";
+import { managePatch } from "./manage-patch";
 import { buildDeliverables } from "./deliverables";
 import { machineSnapshot, readDevelopLog, type MachineCache } from "./memory-source";
 import { collectEvidence, type ProjectEvidence } from "./project-evidence";
@@ -118,8 +119,12 @@ export class MemoryService {
     try{
       const dir=path.join(this.store.getDataDir(),"experiences");
       const result=saveLesson(dir,candidate,evidence);
+      appendDecision(dir,{title:candidate.title,saved:result.saved,...(result.reason?{reason:result.reason}:{})});
       if(!result.saved && result.reason) this.warning=`经验未采纳：${result.reason}`;
-    }catch(error){this.warning=`经验写入失败：${(error as Error).message}`;}
+    }catch(error){
+      appendDecision(path.join(this.store.getDataDir(),"experiences"),{saved:false,reason:`写入异常：${(error as Error).message}`});
+      this.warning=`经验写入失败：${(error as Error).message}`;
+    }
   }
   /** MEMORY.md 是本机唯一记忆文件，与索引同目录。 */
   private memoryFile():string {return path.join(this.store.getDataDir(),"memory","MEMORY.md");}
@@ -509,7 +514,7 @@ export class MemoryService {
     if(!requested || !(user.includes(requested.name) || user.includes(projectId) || /跨项目|所有项目|其他项目|all projects|across projects/iu.test(user)))throw new Error("跨项目详情需要当前用户明确指定项目或跨项目范围");
     return requested;
   }
-  async manageFromAgent(context:MemorySessionContext,action:"edit"|"archive"|"restore"|"cancel",request:{key?:string;revision?:number;entries?:Array<{key:string;revision:number}>;input?:MemoryWrite;quote?:string;projectId?:string},signal?:AbortSignal) {
+  async manageFromAgent(context:MemorySessionContext,action:"edit"|"archive"|"restore"|"cancel",request:{key?:string;revision?:number;input?:MemoryWrite;quote?:string;projectId?:string},signal?:AbortSignal) {
     return withSessionCreationLock(async()=>{
       if(!this.canRecord(context.sessionId))throw new Error("当前会话不允许管理记忆");
       // 运行时白名单：调用方可能绕过类型（IPC／动态分发）传入旧动作名。
@@ -526,9 +531,7 @@ export class MemoryService {
         if(!prior || (prior.mergedInto && action!=="restore"))throw new Error("记忆不存在或已合并，请重新读取");
         if(action==="edit" && (!request.input || request.input.kind!==prior.kind))throw new Error("整理编辑须保留原类型和事实范围；新事实使用save／update");
         if(request.input)assertCondensed(request.input,await this.currentUser(live));
-        const patch=action==="cancel"?{cancelPending:true}:action==="edit"?request.input!:
-          action==="archive"?{lifecycle:"archived" as const,reason:"用户收进历史",summary:""}:
-          {unmerge:true,lifecycle:prior.kind==="activity"?"archived" as const:"active" as const,reason:"用户明确恢复",...(prior.expiresAt!==undefined && prior.expiresAt<=Date.now()?{expiresAt:null}:{}),...(prior.effectiveAt!==undefined && prior.effectiveAt>Date.now()?{effectiveAt:null}:{})};
+        const patch=managePatch(action,prior,request.input);
         const item:MemoryRecord=await db.call("update",prior.key,project?.id,request.revision ?? -1,patch);
       const warning=[await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });

@@ -251,6 +251,11 @@ export class NativeConfig {
    */
   private assertSupportedVersions(): void {
     const em = this.storage.read(this.files.em);
+    // 0.28 之前的扁平结构：供应商与凭据都在顶层。本版本不再迁移，直接拒绝，
+    // 否则读出来等于"没有供应商"，下一次保存就会把用户配置覆盖成空。
+    const legacy = ["apiProviders", "defaultProviders", "apiKeys"].filter((key) => key in em);
+    if (legacy.length) throw new Error(`配置文件仍是 0.28 之前的扁平结构（${legacy.join("、")}），本版本不再迁移；请先用 0.28 及以上版本打开一次，或备份后删除这些字段`);
+
     const schema = getPath(em, EM_PATH.migrationSchemaVersion);
     if (schema !== undefined && schema !== EM_SCHEMA_VERSION) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
     // 兼容读旧扁平键：版本标记本身也可能还在旧位置

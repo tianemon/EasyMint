@@ -8,7 +8,6 @@
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import os from "node:os";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
 import { apiKeysFromDisk, readExternalField, writeExternalField } from "./em-settings-schema";
 import { emHome, emAgentDir } from "../utils/paths";
@@ -579,23 +578,9 @@ export function seedDefaultMcp(): void {
   // 迁移导入也算"需要写"——否则迁移的服务器覆盖全部默认服务器时 changed 恒 false,文件不落盘
   let changed = false;
   if (existsSync(configPath)) {
-    data = JSON.parse(readFileSync(configPath, "utf-8"));
-  } else {
-    // 一次性迁移:旧 CC 共享配置 → EM 独立配置(仅首次;CC 侧文件原样保留)
-    const legacyPath = path.join(os.homedir(), ".claude", ".claude.json");
-    if (existsSync(legacyPath)) {
-      try {
-        const legacy = JSON.parse(readFileSync(legacyPath, "utf-8"));
-        const servers = (legacy.mcpServers as Record<string, McpServerConfig>) || {};
-        if (Object.keys(servers).length > 0) {
-          data.mcpServers = servers;
-          changed = true;
-          console.log(`[mcp] 已迁移 ${Object.keys(servers).length} 个 MCP 服务器配置到 ~/.easymint/mcp.json`);
-        }
-      } catch (e) {
-        console.warn("[mcp] 迁移旧 MCP 配置失败:", (e as Error).message);
-      }
-    }
+    // 损坏的配置不在这里"修复"：宁可本次不播种，也不能用默认值覆盖用户文件
+    try { data = JSON.parse(readFileSync(configPath, "utf-8")); }
+    catch (error) { console.error(`[mcp] 配置不是合法 JSON，已跳过默认服务器播种 (${configPath}):`, (error as Error).message); return; }
   }
 
   const existing: Record<string, McpServerConfig> =

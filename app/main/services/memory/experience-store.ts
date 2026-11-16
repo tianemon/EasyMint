@@ -89,3 +89,36 @@ export function saveLesson(dir: string, candidate: LessonCandidate, evidence: st
   return { saved: true };
 }
 
+/**
+ * 记录每次经验判定的结果（采纳 / 拒绝原因），供事后诊断"门槛是不是太严"。
+ * 只保留最近 200 条；这是运行日志，不是给人读的文档。
+ */
+export function appendDecision(dir: string, entry: { title?: string; saved: boolean; reason?: string; at?: number }): void {
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const file = path.join(dir, "decisions.jsonl");
+    const line = `${JSON.stringify({ at: entry.at ?? Date.now(), title: entry.title ?? "", saved: entry.saved, ...(entry.reason ? { reason: entry.reason } : {}) })}\n`;
+    const kept = fs.existsSync(file) ? fs.readFileSync(file, "utf8").split("\n").filter(Boolean).slice(-199) : [];
+    kept.push(line.trimEnd());
+    writeAtomic(file, `${kept.join("\n")}\n`);
+  } catch { /* 诊断日志失败不影响主流程 */ }
+}
+
+export interface LessonDecision {
+  total: number;
+  saved: number;
+  reasons: Record<string, number>;
+}
+
+/** 汇总判定结果：采纳数、拒绝原因分布。 */
+export function summarizeDecisions(dir: string): LessonDecision {
+  const file = path.join(dir, "decisions.jsonl");
+  const rows = fs.existsSync(file)
+    ? fs.readFileSync(file, "utf8").split("\n").filter(Boolean).flatMap((line) => {
+        try { return [JSON.parse(line) as { saved: boolean; reason?: string }]; } catch { return []; }
+      })
+    : [];
+  const reasons: Record<string, number> = {};
+  for (const row of rows) if (!row.saved && row.reason) reasons[row.reason] = (reasons[row.reason] ?? 0) + 1;
+  return { total: rows.length, saved: rows.filter((row) => row.saved).length, reasons };
+}

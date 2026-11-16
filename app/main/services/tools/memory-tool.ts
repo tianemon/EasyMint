@@ -24,7 +24,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
       reviewHash:{type:"string",description:"read_summary返回的摘要变化版本，write_summary必填"},
       edits:{type:"array",items:{type:"object",properties:{oldText:{type:"string"},newText:{type:"string"}},required:["oldText","newText"]},description:"write_summary优先使用局部编辑，oldText须唯一；空oldText表示追加。不要覆盖未读或无关的用户原文。与完整text互斥"},
       scope:{type:"string",enum:["global","project","both","recent"]},
-      projectId:{type:"string",description:"其他已登记项目ID，用户需明确指定跨项目范围"},maintenanceQuote:{type:"string",description:"本轮用户明确整理请求的原话；只用于授权范围内的分批读取"},state:{type:"string",enum:["confirmed","candidate","rejected","all"]},view:{type:"string",enum:["current","history","all"]},entries:{type:"array",items:{type:"object",properties:{key:{type:"string"},revision:{type:"number"}},required:["key","revision"]}},query:{type:"string"},key:{type:"string"},revision:{type:"number"},
+      projectId:{type:"string",description:"其他已登记项目ID，用户需明确指定跨项目范围"},maintenanceQuote:{type:"string",description:"本轮用户明确整理请求的原话；只用于授权范围内的分批读取"},state:{type:"string",enum:["confirmed","candidate","rejected","all"]},view:{type:"string",enum:["current","history","all"]},query:{type:"string"},key:{type:"string"},revision:{type:"number"},
       kind:{type:"string",enum:[...MEMORY_KINDS]},text:{type:"string"},details:{type:"string"},
       tags:{type:"array",items:{type:"string"}},basis:{type:"string",enum:["explicit","inference","reported"]},quote:{type:"string"},
       history:{type:"boolean"},from:{type:"number",description:"发生或记录时间下界，UTC毫秒"},to:{type:"number",description:"时间上界，UTC毫秒"},offset:{type:"number"},limit:{type:"number"},section:{type:"string",enum:["text","details","sources","evidence","planned","changes"]},
@@ -44,7 +44,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
       if(action==="write_summary")return output(await service.saveDocumentFromAgent(context,typeof params.text==="string"?params.text:undefined,String(params.hash ?? ""),String(params.reviewHash ?? ""),signal,params.edits as Array<{oldText:string;newText:string}>|undefined));
       if(["edit","archive","restore","cancel"].includes(action)) {
         const input=params.text===undefined?undefined:{kind:params.kind as MemoryKind,text:String(params.text),details:params.details as string|undefined,tags:params.tags as string[]|undefined,summary:params.summary as string|undefined};
-        const result=await service.manageFromAgent(context,action as "edit"|"archive"|"restore"|"cancel",{key:params.key as string|undefined,revision:params.revision as number|undefined,entries:params.entries as Array<{key:string;revision:number}>|undefined,input,quote:params.quote as string|undefined,projectId:params.projectId as string|undefined},signal);
+        const result=await service.manageFromAgent(context,action as "edit"|"archive"|"restore"|"cancel",{key:params.key as string|undefined,revision:params.revision as number|undefined,input,quote:params.quote as string|undefined,projectId:params.projectId as string|undefined},signal);
         return output({key:result.item.key,revision:result.item.revision,state:result.item.state,lifecycle:result.item.lifecycle,pendingAt:result.item.pending?.at,warning:result.warning});
       }
       if(action==="save" || action==="update") {

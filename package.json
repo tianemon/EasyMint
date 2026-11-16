@@ -31,7 +31,8 @@
     "test": "vitest run",
     "check:visual-brands": "node scripts/gen-visual-brands.cjs --check",
     "check:visual-design": "node scripts/build-liquid-webgl.mjs --check && node scripts/gen-visual-brands.cjs --check && node scripts/gen-visual-templates.mjs --check",
-    "install:deps": "node scripts/install-deps.cjs"
+    "install:deps": "node scripts/install-deps.cjs",
+    "check:lessons": "node scripts/lessons-summary.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.75",
@@ -196,7 +197,14 @@
         {
           "from": "temp/runtime-resources/windows/${arch}",
           "to": "windows-runtime",
-          "filter": ["manifest.json", "portable-git.7z.exe", "7za.exe", "NOTICE.txt", "7zip-LICENSE.txt", "7zip-README.txt"]
+          "filter": [
+            "manifest.json",
+            "portable-git.7z.exe",
+            "7za.exe",
+            "NOTICE.txt",
+            "7zip-LICENSE.txt",
+            "7zip-README.txt"
+          ]
         }
       ],
       "target": [
