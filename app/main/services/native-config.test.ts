@@ -106,6 +106,59 @@ describe("pi-native configuration", () => {
     expect(store.getSettings().nativeAi).toEqual(config);
   });
 
+  it("ignores a dangling default provider instead of inventing an empty entry", async () => {
+    const { store, file } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    atomicWrite(file("settings"), encode({ defaultProvider: "ghost", defaultModel: "m" }));
+    const repo = await NativeConfig.create(store);
+    const view = repo.view().apiProviders;
+    expect(view.configs.ghost).toBeUndefined();
+    expect(view.current).not.toBe("ghost");
+    expect(Object.keys(view.configs)).toContain(custom.id);
+  });
+
+  it("prunes session-cache bindings that point at a provider which no longer exists", async () => {
+    const { dir, store } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const cache = path.join(dir, "session-cache");
+    fs.mkdirSync(cache, { recursive: true });
+    atomicWrite(path.join(cache, "valid.json"), encode({ provider: custom.id, model: "test-model" }));
+    atomicWrite(path.join(cache, "ghost.json"), encode({ provider: "ghost", model: "test-model" }));
+    await NativeConfig.create(store);
+    expect(read(path.join(cache, "valid.json")).provider).toBe(custom.id);
+    expect(read(path.join(cache, "ghost.json")).provider).toBeUndefined();
+    expect(read(path.join(cache, "ghost.json")).model).toBeUndefined();
+  });
+
+  it("clears session-cache bindings in the same save that deletes the provider", async () => {
+    const two = { ...custom, id: "custom-two", name: "Two" };
+    const { dir, store } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom, [two.id]: two } } });
+    const cache = path.join(dir, "session-cache");
+    fs.mkdirSync(cache, { recursive: true });
+    atomicWrite(path.join(cache, "bound.json"), encode({ provider: two.id, model: "test-model" }));
+    const repo = await NativeConfig.create(store);
+    const view = repo.view().apiProviders;
+    delete view.configs[two.id];
+    await repo.saveProviders(view);
+    expect(read(path.join(cache, "bound.json")).provider).toBeUndefined();
+  });
+
+  it("keeps config backups bounded instead of growing one per save", async () => {
+    const { dir, store } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const backups = path.join(dir, "config-backups");
+    fs.mkdirSync(backups, { recursive: true });
+    for (let index = 0; index < 25; index += 1) fs.mkdirSync(path.join(backups, `old-${index}`));
+    const repo = await NativeConfig.create(store);
+    const view = repo.view().apiProviders;
+    view.configs[custom.id] = { ...view.configs[custom.id]!, name: "Renamed" };
+    await repo.saveProviders(view);
+    expect(fs.readdirSync(backups).length).toBeLessThanOrEqual(20);
+  });
+
+  it("writes nothing on a fresh install that has no native config yet", async () => {
+    const { dir, store } = fixture();
+    await NativeConfig.create(store);
+    expect(fs.existsSync(path.join(dir, "agent"))).toBe(false);
+  });
+
   it("rejects invalid model edits and stale saves without changing credentials or disk", async () => {
     const { store, file } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     const repo = await NativeConfig.create(store);
