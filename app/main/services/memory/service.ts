@@ -23,7 +23,7 @@ import { buildDeliverables } from "./deliverables";
 import { machineSnapshot, readDevelopLog, type MachineCache } from "./memory-source";
 import { collectEvidence, type ProjectEvidence } from "./project-evidence";
 import { parseDevelopLog } from "./develop-log";
-import { migrateDocument, readDocument, removeDocumentEntry, upsertDocumentEntry } from "./document-store";
+import { readDocument, removeDocumentEntry, upsertDocumentEntry } from "./document-store";
 import { describeToolSessions, listToolSessions } from "./tool-sessions";
 import { digestMessages, type SessionDigest } from "./session-digest";
 
@@ -185,7 +185,6 @@ export class MemoryService {
   async initialize():Promise<void> {
     this.ensureEnableWindow();
     const done=await this.initializeSources(false);
-    this.migrateDocumentOnce();
     return done;
   }
   /**
@@ -199,13 +198,6 @@ export class MemoryService {
       if(!memory?.enabled || !memory.background || typeof memory.enabledAt==="number") return;
       this.store.saveSettings({...settings,memory:{...memory,enabledAt:Date.now()-86_400_000}});
     }catch{/* 设置不可写时按未设置处理，capture 会继续用当前时间兜底 */ }
-  }
-  private documentMigrated=false;
-  /** 旧版多节摘要一次性迁移成单节条目：先备份，失败不阻断启动。 */
-  private migrateDocumentOnce():void {
-    if(this.documentMigrated)return;
-    this.documentMigrated=true;
-    try{migrateDocument(this.memoryFile(),path.join(this.store.getDataDir(),"memory","backups"));}catch{/* 迁移失败时保留原文件 */ }
   }
   private async initializeSources(retry:boolean,projectId?:string):Promise<void> {
     this.markUnavailable();
@@ -225,8 +217,8 @@ export class MemoryService {
         this.migration={...this.migration,projectName:source.projectName};this.notify();
         try {
           if(source.projectPath && !(await statIfExists(source.projectPath))?.isDirectory())throw new Error("项目目录暂不可用，原登记与记忆保留，请恢复目录后重试");
-          const report=await db.call("migrate",source.directory,source.projectId);
-          this.rememberReport({...report,...source,status:report.errors.length||report.missing.length?"attention":"complete"});
+          // 经验库不再导入记忆：方法归经验库、记忆只存用户态与项目进展，导入会按旧设计污染注入。
+          this.rememberReport({...source,backup:"",imported:0,unchanged:0,conflicts:0,missing:[],errors:[],status:"complete"});
         } catch(error) {
           this.rememberReport({...source,backup:"",imported:0,unchanged:0,conflicts:0,missing:[],errors:[(error as Error).message],status:"failed"});
           if(db.unavailable)throw error;

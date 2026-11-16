@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { parseEntries, removeEntry, renderEntries, upsertEntry } from "./memory-entries";
+import { removeEntry, upsertEntry } from "./memory-entries";
 
 export const DOCUMENT_MAX_BYTES = 128 * 1024;
 export const DOCUMENT_SEED = "# MEMORY\n\n";
@@ -84,32 +84,4 @@ export function ensureDocument(file: string): string {
   if (current !== null) return current;
   writeDocument(file, DOCUMENT_SEED);
   return DOCUMENT_SEED;
-}
-
-/** 旧版 MEMORY.md 的分节标题；命中即认为需要迁移。 */
-export const LEGACY_MARKERS = ["## 关于用户", "## 当前关注", "## 近期项目"];
-const PLACEHOLDER = /^(暂无|无)$/u;
-
-export interface MigrationResult {
-  migrated: boolean;
-  backup?: string;
-}
-
-/**
- * 把旧版（数据库渲染的多节摘要）迁移成"单节条目"结构。
- * 旧文件先备份，再重建：只保留真正的列表条目，占位句（"暂无…"）丢弃。
- */
-export function migrateDocument(file: string, backupDir: string, now = Date.now()): MigrationResult {
-  const current = readDocument(file);
-  if (current === null) {
-    ensureDocument(file);
-    return { migrated: false };
-  }
-  if (!LEGACY_MARKERS.some((marker) => current.includes(marker))) return { migrated: false };
-  const entries = parseEntries(current).filter((entry) => !PLACEHOLDER.test(entry.text.trim()));
-  fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
-  const backup = path.join(backupDir, `MEMORY-${new Date(now).toISOString().replace(/[:.]/gu, "-")}.md`);
-  fs.writeFileSync(backup, current, { mode: 0o600 });
-  writeDocument(file, `${DOCUMENT_SEED}${renderEntries(entries)}`);
-  return { migrated: true, backup };
 }

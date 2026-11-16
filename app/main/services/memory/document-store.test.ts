@@ -5,7 +5,6 @@ import { afterEach, expect, it } from "vitest";
 import {
   DOCUMENT_MAX_BYTES,
   DOCUMENT_SEED,
-  migrateDocument,
   ensureDocument,
   readDocument,
   removeDocumentEntry,
@@ -82,24 +81,4 @@ it("拒绝符号链接与非普通文件，拒绝超限内容", () => {
   expect(() => writeDocument(target, DOCUMENT_SEED)).toThrow(/符号链接/u);
   fs.unlinkSync(target);
   expect(() => writeDocument(target, "x".repeat(DOCUMENT_MAX_BYTES + 1))).toThrow(/大小上限/u);
-});
-
-it("旧版多节摘要迁移成单节条目，先备份并丢掉占位句", () => {
-  const target = file();
-  const legacy = `# 记忆摘要\n\n## 关于用户\n暂无已确认摘要。\n\n## 当期关注\n\n- 真条目 A <!-- memory:k1 r:1 -->\n\n## 近期项目\n暂无项目入口。\n`;
-  writeDocument(target, legacy.replace("当期关注", "当前关注"));
-  const backupDir = path.join(path.dirname(path.dirname(target)), "backups");
-  const result = migrateDocument(target, backupDir, Date.UTC(2026, 10, 16));
-  expect(result.migrated).toBe(true);
-  expect(fs.readFileSync(result.backup!, "utf8")).toContain("## 关于用户");
-  const migrated = readDocument(target)!;
-  expect(migrated).not.toContain("## 关于用户");
-  expect(migrated).not.toContain("暂无");
-  expect(migrated).toContain("真条目 A");
-});
-
-it("新结构不再被判定为需要迁移", () => {
-  const target = file();
-  writeDocument(target, `${DOCUMENT_SEED}- A <!-- memory:k1 r:1 -->\n`);
-  expect(migrateDocument(target, path.join(path.dirname(target), "backups")).migrated).toBe(false);
 });
