@@ -15,7 +15,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
       "先确定scope。项目做法不自动升级为全局偏好。已有内容需要更正时读key与revision后update，不重复新建；只有用户要求忘记时才forget，明确到期／结束／替代可转历史；不按年龄淘汰。新事实可能并存或仍是草案，不要盲目覆盖。",
       "历史问题可显式history=true查询旧版本及历史；需要原话时read section=evidence按来源定向读取，来源不可访问就说明，不能从摘要编造原话；匹配旧版本时按matchedRevision配合read读取，结果与当前事实区分。当前明确请求和用户人工配置优先于记忆，冲突不静默改设置。按nextOffset分页，够用即停，普通任务不读全库；用户明确整理可凭maintenanceQuote分页遍历授权范围的必要摘要，不默认展开全部正文；不因记忆调用而自动修改规则或创建技能。",
       "用户明确要求整理时，先检查指定范围；没有指定时当前项目与相关全局，非项目会话为全局。edit只整理表达并保留原事实／来源／资格；有新事实用update。archive保留历史，restore重新采用；没有合并、接受或拒绝候选的动作，整理不等于确认。只检查时不写入，不改人格／规则／技能。",
-      "summary仅用于重要用户背景／偏好／关注，项目只有activity可写一句概况，不放设计／决定细节。保存成功才确认；返回pendingAt表示更正已安排而非当前已生效，可用read section=planned history=true查看，cancel取消计划；返回warning时说明数据库已保存、摘要／项目视图待刷新。",
+      "summary仅用于重要用户背景／偏好／关注，项目只有activity可写一句概况，不放设计／决定细节。关于用户的内容尽量精简：同一主题合写一句，已有相近条目就update，不要每条新事实都新建堆叠；旧说法变化时改原条目，不留过期重复。保存成功才确认；返回pendingAt表示更正已安排而非当前已生效，可用read section=planned history=true查看，cancel取消计划；返回warning时说明数据库已保存、摘要／项目视图待刷新。",
       "MEMORY.md由你维护，用户只需两个开关与文档编辑入口，不要求用户管理、确认列表或打开记忆设置。read_summary读取完整文档，section=changes分页取已确认摘要变化和退出引用；保留用户原文与取舍，不因例行读取而重写。需要更新时用write_summary，优先edits局部编辑，完整text重写须先完整读取并保留所有用户原文；hash和reviewHash来自最近读取；新事实先save/update，再使用changes返回的已确认摘要行（available也包含仍可使用的现有确认摘要），可调整Markdown层级或列表格式，不能把候选提升为摘要事实。用户明确要整理可继续按原管理动作处理，权限边界保持。",
     ],
     parameters:{type:"object",properties:{
