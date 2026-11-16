@@ -13,7 +13,7 @@ it("retries transient WAL-mode contention while preserving real SQLite schema in
   try {
     db=new MemoryDatabase(":memory:");
     expect(attempts).toBe(2);
-    expect(db.save({kind:"preference",text:"并发初始化后仍能保存"},{source:{ref:"test",type:"manual"},confirmed:true}).item.state).toBe("confirmed");
+    expect(db.save({kind:"preference",text:"并发初始化后仍能保存"},{source:{ref:"test",type:"manual"},confirmed:true}).item.confidence).toBe("confirmed");
   } finally {spy.mockRestore();db?.close();}
 });
 

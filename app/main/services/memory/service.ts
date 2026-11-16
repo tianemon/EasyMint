@@ -413,8 +413,8 @@ export class MemoryService {
       if(memory){
         const keys=[...memory.matchAll(/<!-- memory:(\S+) r:\d+ -->/gu)].map(match=>match[1]!).filter(Boolean);
         if(keys.length){
-          const rows=await db.call("lookupSummaries",keys,project?.id) as Array<{key:string;state?:string;invalidatedAt?:number;mergedInto?:string;lifecycle?:string}>;
-          const invalid=new Set(rows.filter(row=>row.state!=="confirmed"||Boolean(row.invalidatedAt)||Boolean(row.mergedInto)||row.lifecycle==="retired").map(row=>row.key));
+          const rows=await db.call("lookupSummaries",keys,project?.id) as Array<{key:string;confidence?:string;invalidatedAt?:number;mergedInto?:string;lifecycle?:string}>;
+          const invalid=new Set(rows.filter(row=>row.confidence!=="confirmed"||Boolean(row.invalidatedAt)||Boolean(row.mergedInto)||row.lifecycle==="archived").map(row=>row.key));
           if(invalid.size)memory=memory.split("\n").filter(line=>{const key=/<!-- memory:(\S+) r:\d+ -->/u.exec(line)?.[1];return !key||!invalid.has(key);}).join("\n");
         }
       }
@@ -474,7 +474,7 @@ export class MemoryService {
       if(!old)throw new Error("记忆不存在或不属于当前范围");
       const bound=await this.bindInput(context,input.kind,basis,quote,signal);signal?.throwIfAborted();
       assertCondensed(input,(await evidenceMessages(context.entries)).map(message=>message.text).join("\n"));
-      const item=await db.call("update",key,project?.id,revision,{...input,...(bound.reported?{text:`助手报告，未经独立核实：${input.text}`}:{ }),state:bound.explicit||bound.reported?"confirmed":"candidate",...(bound.explicit?{lifecycle:input.kind==="activity"?"archived" as const:"active" as const}:{}),sources:[bound.source]},Date.now(),bound.evidenceAt);
+      const item=await db.call("update",key,project?.id,revision,{...input,...(bound.reported?{text:`助手报告，未经独立核实：${input.text}`}:{ }),confidence:bound.explicit||bound.reported?"confirmed":"unconfirmed",...(bound.explicit?{lifecycle:input.kind==="activity"?"archived" as const:"active" as const}:{}),sources:[bound.source]},Date.now(),bound.evidenceAt);
             const warning=[this.mirrorEntry(item as {key:string;text:string;revision:number}),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });
   }
@@ -558,7 +558,7 @@ export class MemoryService {
   async query(context:MemorySessionContext,query:MemoryQuery) {
     if(!this.settings().enabled || this.mode(context.sessionId)==="off") throw new Error("本次会话已关闭记忆");
     const db=await this.readDatabase(),project=await this.selectedProject(context,query.projectId);
-    const page=await db.call("query",{...query,projectId:project?.id,state:query.state ?? (query.history?undefined:"confirmed")});
+    const page=await db.call("query",{...query,projectId:project?.id,confidence:query.confidence ?? (query.history?undefined:"confirmed")});
     const hashes=this.validHashes(await evidenceMessages(context.entries));
     if(!this.settings().enabled || this.mode(context.sessionId)==="off" || this.stopped)throw new Error("本次会话已关闭记忆");
     return {...page,items:page.items.filter(item=>query.history || this.sourceValid(item,context,hashes)).map(item=>({...item,projectName:item.projectId?this.projectById(item.projectId)?.name:undefined}))};
@@ -638,8 +638,8 @@ export class MemoryService {
         prepared.push({job,snapshot,text:part.text,partial:offset>0 || part.fragmented || parts.length>1 || evidence.partial,userEvidence:evidence.text,...(offset+part.text.length<snapshot.assistant.text.length?{nextCursor:offset+part.text.length}:{})});
       }
       if(!prepared.length)return;
-      const existing=await db.call("query",{query:prepared[0]!.text.slice(0,300),projectId:first.projectId,state:"all",limit:5});
-      const existingItems=existing.items.map(item=>({key:item.key,revision:item.revision,text:item.text,substantiveAt:item.substantiveAt,scope:item.scope,state:item.state})).filter(item=>estimateMemoryTokens(JSON.stringify(item))<500);
+      const existing=await db.call("query",{query:prepared[0]!.text.slice(0,300),projectId:first.projectId,confidence:"all",limit:5});
+      const existingItems=existing.items.map(item=>({key:item.key,revision:item.revision,text:item.text,substantiveAt:item.substantiveAt,scope:item.scope,state:item.confidence})).filter(item=>estimateMemoryTokens(JSON.stringify(item))<500);
       const chosen:Prepared[]=[];
       const makePayload=(entries:Prepared[])=>JSON.stringify({conclusions:entries.map(p=>({ref:p.job.ref,text:p.text,userEvidence:p.userEvidence,partial:p.partial,offset:p.job.cursor ?? 0,timestamp:p.job.timestamp,userTimestamp:p.snapshot.user?.timestamp,timezone:p.job.timezone})),existing:existingItems});
       for(const entry of prepared) {

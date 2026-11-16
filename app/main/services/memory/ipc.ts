@@ -30,7 +30,7 @@ export function registerMemoryIpc(service:MemoryService):void {
   ipcMain.handle("memory:state",(_event,payload)=>service.state(z.string().optional().parse(payload?.projectPath)));
   ipcMain.handle("memory:configure",(_event,payload)=>service.configure(z.object({enabled:z.boolean().optional(),background:z.boolean().optional()}).strict().parse(payload)));
   ipcMain.handle("memory:query",async(_event,payload)=>{
-    const input=z.object({projectPath:z.string().optional(),query:z.string().max(2000).optional(),scope:z.enum(["global","project","both","recent"]).optional(),state:z.enum(["confirmed","candidate","rejected","all"]).optional(),lifecycle:z.enum(["active","archived","retired","all"]).optional(),view:z.enum(["current","history","all"]).optional(),history:z.boolean().optional(),kind:z.enum(MEMORY_KINDS).optional(),from:z.number().finite().optional(),to:z.number().finite().optional(),offset:z.number().int().min(0).max(1_000_000).optional(),limit:z.number().int().min(1).max(50).optional()}).strict().parse(payload);
+    const input=z.object({projectPath:z.string().optional(),query:z.string().max(2000).optional(),scope:z.enum(["global","project","both","recent"]).optional(),confidence:z.enum(["confirmed","unconfirmed","all"]).optional(),lifecycle:z.enum(["active","archived","all"]).optional(),view:z.enum(["current","history","all"]).optional(),history:z.boolean().optional(),kind:z.enum(MEMORY_KINDS).optional(),from:z.number().finite().optional(),to:z.number().finite().optional(),offset:z.number().int().min(0).max(1_000_000).optional(),limit:z.number().int().min(1).max(50).optional()}).strict().parse(payload);
     const db=await service.management();if(!db)return {items:[],total:0};
     const page=await db.call("query",{...input,projectId:input.projectPath?service.project(input.projectPath)?.id:undefined});
     return {...page,items:page.items.map(item=>({...item,projectName:item.projectId?service.projectById(item.projectId)?.name:undefined}))};
@@ -51,11 +51,11 @@ export function registerMemoryIpc(service:MemoryService):void {
     return {...item,warning};
   });
   ipcMain.handle("memory:update",async(_event,payload)=>{
-    const input=z.object({key:z.string().min(1),revision:z.number().int().positive(),projectPath:z.string().optional(),patch:z.object({...writeShape,state:z.enum(["confirmed","candidate","rejected"]).optional(),lifecycle:z.enum(["active","archived","retired"]).optional(),pinned:z.boolean().optional(),cancelPending:z.boolean().optional()}).partial().strict()}).strict().parse(payload);
+    const input=z.object({key:z.string().min(1),revision:z.number().int().positive(),projectPath:z.string().optional(),patch:z.object({...writeShape,confidence:z.enum(["confirmed","unconfirmed"]).optional(),lifecycle:z.enum(["active","archived"]).optional(),pinned:z.boolean().optional(),cancelPending:z.boolean().optional()}).partial().strict()}).strict().parse(payload);
     const {projectId}=scopeForKey(input.key,input.projectPath),db=await management();
     const prior=await db.call("get",input.key,projectId);
     if(!prior) throw new Error("记忆不存在或不属于当前范围");
-    const confirmsContent=(input.patch.text!==undefined && input.patch.text!==prior.text) || (input.patch.details!==undefined && input.patch.details!==prior.details) || (input.patch.kind!==undefined && input.patch.kind!==prior.kind) || (input.patch.state==="confirmed" && prior.state!=="confirmed");
+    const confirmsContent=(input.patch.text!==undefined && input.patch.text!==prior.text) || (input.patch.details!==undefined && input.patch.details!==prior.details) || (input.patch.kind!==undefined && input.patch.kind!==prior.kind) || (input.patch.confidence==="confirmed" && prior.confidence!=="confirmed");
     const sources=confirmsContent?[...prior.sources,{ref:`manual:${randomUUID()}`,type:"manual" as const}]:prior.sources;
     const item=await db.call("update",input.key,projectId,input.revision,{...input.patch,sources,...(prior.mergedInto && input.patch.lifecycle==="active"?{unmerge:true}:{})});
     const warning=await exportHuman();

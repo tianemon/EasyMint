@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { managePatch } from "./manage-patch";
 import type { MemoryRecord } from "../../../shared/memory";
 
-const base = { key: "global/x", id: "x", scope: "global", kind: "preference", state: "confirmed",
+const base = { key: "global/x", id: "x", scope: "global", kind: "preference", confidence: "confirmed",
   lifecycle: "active", occurredAt: 0, updatedAt: 0, revision: 1, sources: [],
   text: "回答简洁", fingerprint: "f" } as unknown as MemoryRecord;
 

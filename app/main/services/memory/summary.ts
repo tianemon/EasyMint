@@ -8,14 +8,14 @@ import { hashText, memoryDay } from "./codec";
 export interface SummaryProject { id:string;name:string;status?:string }
 const clean=(value:string)=>value.replace(/[\r\n]+/gu," ").replaceAll("<!--","&lt;!--").replaceAll("-->","--&gt;");
 export function digestText(item:MemoryRecord):string|undefined {
-  if(item.state!=="confirmed" || item.lifecycle==="retired" || item.mergedInto || item.invalidatedAt || (item.expiresAt!==undefined && item.expiresAt<=Date.now()) || (item.effectiveAt!==undefined && item.effectiveAt>Date.now()))return;
+  if(item.confidence!=="confirmed" ||  item.mergedInto || item.invalidatedAt || (item.expiresAt!==undefined && item.expiresAt<=Date.now()) || (item.effectiveAt!==undefined && item.effectiveAt>Date.now()))return;
   if(item.projectId && item.kind!=="activity")return;
   if(!item.projectId && (item.lifecycle!=="active" || !["background","preference","attention"].includes(item.kind)))return;
   const value=item.summary ?? (!item.projectId && item.pinned && ["preference","background"].includes(item.kind)?item.text:"");
   return value.trim() && value.length<=160?value.trim():undefined;
 }
 function render(db:MemoryDatabase,projects:SummaryProject[]):string {
-  const selection=`state='confirmed' AND lifecycle!='retired' AND json_extract(json,'$.mergedInto') IS NULL AND json_extract(json,'$.invalidatedAt') IS NULL
+  const selection=`confidence='confirmed' AND json_extract(json,'$.mergedInto') IS NULL AND json_extract(json,'$.invalidatedAt') IS NULL
     AND (json_extract(json,'$.expiresAt') IS NULL OR json_extract(json,'$.expiresAt')>${Date.now()})
     AND (json_extract(json,'$.effectiveAt') IS NULL OR json_extract(json,'$.effectiveAt')<=${Date.now()})
     AND ((json_type(json,'$.summary')='text' AND length(json_extract(json,'$.summary'))<=160 AND length(trim(json_extract(json,'$.summary')))>0) OR (project_id IS NULL AND json_extract(json,'$.summary') IS NULL AND json_extract(json,'$.pinned')=1 AND kind IN ('background','preference') AND length(json_extract(json,'$.text'))<=160 AND length(trim(json_extract(json,'$.text')))>0))`;

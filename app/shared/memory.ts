@@ -1,8 +1,8 @@
 /** Memory contracts shared by the host, tools and settings. */
 export const MEMORY_KINDS = ["background", "preference", "attention", "activity", "decision", "lesson"] as const;
 export type MemoryKind = typeof MEMORY_KINDS[number];
-export type MemoryState = "confirmed" | "candidate" | "rejected";
-export type MemoryLifecycle = "active" | "archived" | "retired";
+export type MemoryConfidence = "confirmed" | "unconfirmed";
+export type MemoryLifecycle = "active" | "archived";
 export type MemoryMode = "record" | "use" | "off";
 export const MEMORY_TEXT_LIMIT = 600;
 export const MEMORY_DETAILS_LIMIT = 2000;
@@ -29,7 +29,7 @@ export interface MemoryRecord {
   text: string;
   details?: string;
   tags: string[];
-  state: MemoryState;
+  confidence: MemoryConfidence;
   lifecycle: MemoryLifecycle;
   revision: number;
   createdAt: number;
@@ -48,7 +48,7 @@ export interface MemoryRecord {
   summary?: string;
   mergedInto?: string;
   effectiveAt?: number;
-  pending?: {at:number;patch:Partial<MemoryWrite> & {state?:MemoryState;lifecycle?:MemoryLifecycle;sources?:MemorySource[];reason?:string};evidenceAt:number};
+  pending?: {at:number;patch:Partial<MemoryWrite> & {confidence?:MemoryConfidence;lifecycle?:MemoryLifecycle;sources?:MemorySource[];reason?:string};evidenceAt:number};
   legacy?: Record<string, unknown>;
 }
 export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "legacy" | "pending"> & { matchedRevision?:number; projectName?:string;pendingAt?:number; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
@@ -67,7 +67,7 @@ export interface MemoryQuery {
   query?: string;
   projectId?: string;
   scope?: "global" | "project" | "both" | "recent";
-  state?: MemoryState | "all";
+  confidence?: MemoryConfidence | "all";
   lifecycle?: MemoryLifecycle | "all";
   history?: boolean;
   view?: "current" | "history" | "all";
@@ -127,7 +127,7 @@ export interface MemoryApi {
   query(query:MemoryQuery & {projectPath?:string}):Promise<MemoryPage>;
   read(key:string,projectPath?:string):Promise<{item?:MemoryRecord;revisions:MemoryRecord[]}>;
   save(input:MemoryWrite & {scope:"global"|"project";projectPath?:string;pinned?:boolean}):Promise<MemoryRecord & {warning?:string}>;
-  update(key:string,revision:number,patch:Partial<MemoryWrite> & Pick<Partial<MemoryRecord>,"state"|"lifecycle"|"pinned"> & {cancelPending?:boolean},projectPath?:string):Promise<MemoryRecord & {warning?:string}>;
+  update(key:string,revision:number,patch:Partial<MemoryWrite> & Pick<Partial<MemoryRecord>,"confidence"|"lifecycle"|"pinned"> & {cancelPending?:boolean},projectPath?:string):Promise<MemoryRecord & {warning?:string}>;
   forget(key:string,projectPath?:string):Promise<void>;
   analyze():Promise<void>;
   summary(refresh?:boolean):Promise<MemoryDigest>;

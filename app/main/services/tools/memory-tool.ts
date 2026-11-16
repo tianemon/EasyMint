@@ -45,7 +45,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
       if(["edit","archive","restore","cancel"].includes(action)) {
         const input=params.text===undefined?undefined:{kind:params.kind as MemoryKind,text:String(params.text),details:params.details as string|undefined,tags:params.tags as string[]|undefined,summary:params.summary as string|undefined};
         const result=await service.manageFromAgent(context,action as "edit"|"archive"|"restore"|"cancel",{key:params.key as string|undefined,revision:params.revision as number|undefined,input,quote:params.quote as string|undefined,projectId:params.projectId as string|undefined},signal);
-        return output({key:result.item.key,revision:result.item.revision,state:result.item.state,lifecycle:result.item.lifecycle,pendingAt:result.item.pending?.at,warning:result.warning});
+        return output({key:result.item.key,revision:result.item.revision,confidence:result.item.confidence,lifecycle:result.item.lifecycle,pendingAt:result.item.pending?.at,warning:result.warning});
       }
       if(action==="save" || action==="update") {
         const input:MemoryWrite={kind:params.kind as MemoryKind,text:String(params.text ?? ""),details:typeof params.details==="string"?params.details:undefined,
@@ -55,7 +55,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
         const result=action==="save"
           ? await service.saveFromAgent(context,input,params.scope==="global"?"global":params.scope==="project"?"project":(["background","preference"].includes(input.kind)||!service.project(context.projectPath))?"global":"project",params.quote as string|undefined,String(params.basis ?? "inference"),signal)
           : await service.updateFromAgent(context,String(params.key ?? ""),Number(params.revision),input,params.quote as string|undefined,String(params.basis ?? "inference"),signal);
-        return output({key:result.item.key,revision:result.item.revision,state:result.item.state,lifecycle:result.item.lifecycle,pendingAt:result.item.pending?.at,effectiveAt:result.item.effectiveAt,warning:result.warning,existing:result.existing},[{key:result.item.key,revision:result.item.revision}]);
+        return output({key:result.item.key,revision:result.item.revision,confidence:result.item.confidence,lifecycle:result.item.lifecycle,pendingAt:result.item.pending?.at,effectiveAt:result.item.effectiveAt,warning:result.warning,existing:result.existing},[{key:result.item.key,revision:result.item.revision}]);
       }
       if(action==="forget") {
         const result=await service.forgetFromAgent(context,String(params.key ?? ""),params.quote as string|undefined,signal);
@@ -75,11 +75,11 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
       }
       if(action==="search") {
         const page=await service.query(context,{query:String(params.query ?? ""),scope:params.scope as "both"|"global"|"project"|"recent"|undefined,
-          projectId:params.projectId as string|undefined,state:params.state as "confirmed"|"candidate"|"rejected"|"all"|undefined,view:params.view as "current"|"history"|"all"|undefined,history:params.history===true,from:params.from as number|undefined,to:params.to as number|undefined,offset:Math.max(0,Number(params.offset)||0),limit:Math.min(20,Math.max(1,Number(params.limit)||5)),kind:params.kind as MemoryKind|undefined});
-        const selected:Array<{key:string;revision:number;text:string;scope:string;state:string;lifecycle:string;requiresRead?:boolean;matchedRevision?:number;projectName?:string}>=[];
+          projectId:params.projectId as string|undefined,confidence:params.confidence as "confirmed"|"unconfirmed"|"all"|"all"|undefined,view:params.view as "current"|"history"|"all"|undefined,history:params.history===true,from:params.from as number|undefined,to:params.to as number|undefined,offset:Math.max(0,Number(params.offset)||0),limit:Math.min(20,Math.max(1,Number(params.limit)||5)),kind:params.kind as MemoryKind|undefined});
+        const selected:Array<{key:string;revision:number;text:string;scope:string;confidence:string;lifecycle:string;requiresRead?:boolean;matchedRevision?:number;projectName?:string}>=[];
         const delivered:Array<{key:string;revision:number}>=[];
         for(const item of page.items) {
-          const compact={key:item.key,revision:item.revision,text:item.text,scope:item.scope,state:item.state,lifecycle:item.lifecycle,occurredAt:new Date(item.occurredAt).toISOString(),timeBasis:item.timeBasis ?? "recorded",updatedAt:new Date(item.updatedAt).toISOString(),reason:item.reason,effectiveAt:item.effectiveAt,expiresAt:item.expiresAt,matchedRevision:item.matchedRevision,mergedInto:item.mergedInto,pendingAt:item.pendingAt,projectName:item.projectName};
+          const compact={key:item.key,revision:item.revision,text:item.text,scope:item.scope,confidence:item.confidence,lifecycle:item.lifecycle,occurredAt:new Date(item.occurredAt).toISOString(),timeBasis:item.timeBasis ?? "recorded",updatedAt:new Date(item.updatedAt).toISOString(),reason:item.reason,effectiveAt:item.effectiveAt,expiresAt:item.expiresAt,matchedRevision:item.matchedRevision,mergedInto:item.mergedInto,pendingAt:item.pendingAt,projectName:item.projectName};
           if(estimateMemoryTokens(JSON.stringify({items:[...selected,compact],total:page.total,nextOffset:999999}))>allowance) {
             if(!selected.length) selected.push({...compact,text:"",requiresRead:true});
             break;
@@ -101,7 +101,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
         }
         const sourceValid=await service.readValid(context,item);
         if(!sourceValid && params.history!==true) throw new Error("该记忆来源已撤回或修订，不再作为当前依据");
-        if((item.lifecycle!=="active" || item.kind==="activity" || item.state!=="confirmed" || (item.expiresAt!==undefined && item.expiresAt<=Date.now()) || (item.effectiveAt!==undefined && item.effectiveAt>Date.now())) && params.history!==true) throw new Error("该条目仅供历史／候选查看，需要明确history=true，不可当作当前指导");
+        if((item.lifecycle!=="active" || item.kind==="activity" || item.confidence!=="confirmed" || (item.expiresAt!==undefined && item.expiresAt<=Date.now()) || (item.effectiveAt!==undefined && item.effectiveAt>Date.now())) && params.history!==true) throw new Error("该条目仅供历史／候选查看，需要明确history=true，不可当作当前指导");
         if(params.section==="planned" && params.history!==true)throw new Error("未生效的更正请明确history=true查看，不能当作当前事实");
       const section=params.section==="planned"?JSON.stringify(item.pending ?? null):params.section==="evidence"?await service.evidence(context,item,Number(params.sourceIndex)||0,params.history===true):params.section==="details"?item.details ?? "":params.section==="sources"?JSON.stringify(params.history===true?[...item.sources,...(item.pending?.patch.sources ?? [])]:item.sources):item.text;
         const chars=[...section],offset=Math.max(0,Number(params.offset)||0);
@@ -109,7 +109,7 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
         let value:unknown;
         while(length>=0) {
           const next=offset+length;
-          value={key:item.key,revision:item.revision,state:sourceValid?item.state:"candidate",lifecycle:item.lifecycle,pendingAt:item.pending?.at,occurredAt:new Date(item.occurredAt).toISOString(),timeBasis:item.timeBasis ?? "recorded",updatedAt:new Date(item.updatedAt).toISOString(),reason:item.reason,effectiveAt:item.effectiveAt,expiresAt:item.expiresAt,section:params.section ?? "text",offset,content:chars.slice(offset,next).join(""),...(next<chars.length?{nextOffset:next}:{})};
+          value={key:item.key,revision:item.revision,confidence:sourceValid?item.confidence:"unconfirmed",lifecycle:item.lifecycle,pendingAt:item.pending?.at,occurredAt:new Date(item.occurredAt).toISOString(),timeBasis:item.timeBasis ?? "recorded",updatedAt:new Date(item.updatedAt).toISOString(),reason:item.reason,effectiveAt:item.effectiveAt,expiresAt:item.expiresAt,section:params.section ?? "text",offset,content:chars.slice(offset,next).join(""),...(next<chars.length?{nextOffset:next}:{})};
           if(estimateMemoryTokens(JSON.stringify(value))<=allowance) break;
           length=Math.floor(length*0.8); if(length===0) break;
         }

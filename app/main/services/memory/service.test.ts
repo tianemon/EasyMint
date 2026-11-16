@@ -60,15 +60,15 @@ describe("host memory pipeline",()=>{
     expect(f.complete).toHaveBeenCalledTimes(1);
     const payload=JSON.parse(f.complete.mock.calls[0]![1].messages[0].content);
     expect(payload.conclusions).toHaveLength(2);expect(f.db.status().pending).toBe(0);
-    expect(f.db.query({scope:"global"}).items[0]?.state).toBe("confirmed");
-    expect(f.db.query({scope:"global",state:"candidate"}).items).toHaveLength(1);
+    expect(f.db.query({scope:"global"}).items[0]?.confidence).toBe("confirmed");
+    expect(f.db.query({scope:"global",confidence:"unconfirmed"}).items).toHaveLength(1);
     expect(f.db.status(memoryDay()).usedTokens).toBe(130);
   });
   it("does not trust fabricated explicit evidence or model supplied confirmation flags",async()=>{
-    const f=setup();f.complete.mockImplementation(async()=>reply([{kind:"preference",text:"伪造的全局指导",scope:"global",basis:"explicit",quote:"从未说过的话",state:"confirmed",pinned:true}]));
+    const f=setup();f.complete.mockImplementation(async()=>reply([{kind:"preference",text:"伪造的全局指导",scope:"global",basis:"explicit",quote:"从未说过的话",confidence:"confirmed",pinned:true}]));
     await f.service.capture(f.context(),"fake");await f.service.pump(true);
     expect(f.db.query({scope:"global"}).items).toHaveLength(0);
-    const candidate=f.db.query({scope:"global",state:"candidate"}).items[0]!;
+    const candidate=f.db.query({scope:"global",confidence:"unconfirmed"}).items[0]!;
     expect(candidate.pinned).toBe(false);
   });
   it("processes a long conclusion in resumable parts, without advancing the whole conclusion early",async()=>{
@@ -91,7 +91,7 @@ describe("host memory pipeline",()=>{
     const f=setup();const context=f.context();
     f.complete.mockImplementation(async()=>{cache.set("s",{permissionMode:"readonly"});return reply([{kind:"activity",text:"不应写入",basis:"reported"}]);});
     await f.service.capture(context,"fake");await f.service.pump(true);
-    expect(f.db.query({projectId:"p",state:"all",history:true}).items).toHaveLength(0);
+    expect(f.db.query({projectId:"p",confidence:"all",history:true}).items).toHaveLength(0);
     expect(f.db.status().usedTokens).toBe(130);
   });
   it("forgets user-anchored data before a later conclusion can re-extract it",async()=>{
@@ -106,7 +106,7 @@ describe("host memory pipeline",()=>{
     let started!:()=>void;const ready=new Promise<void>(resolve=>{started=resolve;});
     f.complete.mockImplementation(async()=>{started();return new Promise<any>(()=>{});});
     const run=f.service.pump(true);await ready;f.service.frontActivity();await run;
-    expect(f.db.status().pending).toBe(1);expect(f.db.query({projectId:"p",state:"all"}).items).toHaveLength(0);
+    expect(f.db.status().pending).toBe(1);expect(f.db.query({projectId:"p",confidence:"all"}).items).toHaveLength(0);
     expect(f.db.status().usedTokens).toBeGreaterThan(0);
   });
 });
@@ -152,5 +152,5 @@ it("does not write a queued operation after the user input changes",async()=>{
   (current.entries[0] as any).message.content="改主意了，不要保存之前的指导。";
   old.current=()=>current;
   await expect(f.service.saveFromAgent(old,{kind:"preference",text:"旧指导"},"global",undefined,"inference")).rejects.toThrow("输入已变化");
-  expect(f.db.query({state:"all",history:true}).items).toHaveLength(0);
+  expect(f.db.query({confidence:"all",history:true}).items).toHaveLength(0);
 });

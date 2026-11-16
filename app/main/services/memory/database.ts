@@ -44,11 +44,19 @@ export class MemoryDatabase {
     }
     this.db.exec("PRAGMA foreign_keys=ON; PRAGMA secure_delete=ON; BEGIN IMMEDIATE");setupTransaction=true;
     if((this.db.prepare("PRAGMA user_version").get() as {user_version:number}).user_version>2)throw new Error("记忆数据库版本已更新，当前应用停止写入");
+    // 旧库（state 列）→ 新库（confidence 列）：只允许重建空的记忆表。
+    // 有数据时明确拒绝，避免把用户记忆当空库重建掉。
+    const columns = (this.db.prepare("PRAGMA table_info(memory)").all() as Array<{ name: string }>).map((column) => column.name);
+    if (columns.length && columns.includes("state") && !columns.includes("confidence")) {
+      const rows = (this.db.prepare("SELECT COUNT(*) AS count FROM memory").get() as { count: number }).count;
+      if (rows > 0) throw new Error("记忆库使用旧的 state 列，请先备份 memory.sqlite 后删除该文件再启动");
+      this.db.exec("DROP TABLE memory");
+    }
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS memory (key TEXT PRIMARY KEY, id TEXT NOT NULL, scope TEXT NOT NULL,
-        project_id TEXT, kind TEXT NOT NULL, state TEXT NOT NULL, lifecycle TEXT NOT NULL,
+        project_id TEXT, kind TEXT NOT NULL, confidence TEXT NOT NULL, lifecycle TEXT NOT NULL,
         occurred_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, fingerprint TEXT NOT NULL, json TEXT NOT NULL);
-      CREATE INDEX IF NOT EXISTS memory_scope ON memory(scope,project_id,state,lifecycle,occurred_at);
+      CREATE INDEX IF NOT EXISTS memory_scope ON memory(scope,project_id,confidence,lifecycle,occurred_at);
       CREATE INDEX IF NOT EXISTS memory_due ON memory(json_extract(json,'$.pending.at')) WHERE json_extract(json,'$.pending.at') IS NOT NULL;
       CREATE INDEX IF NOT EXISTS memory_fingerprint ON memory(scope,project_id,fingerprint);
       CREATE TABLE IF NOT EXISTS revisions (key TEXT NOT NULL, revision INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY(key,revision));
@@ -89,15 +97,15 @@ export class MemoryDatabase {
     return hashText(JSON.stringify([item.kind, item.text.trim(), item.details ?? "", ["activity", "decision"].includes(item.kind) ? (item.timeBasis === "recorded" ? (item.sources[0]?.anchorRef ?? item.sources[0]?.ref) : item.occurredAt) : null]));
   }
   private persist(item: MemoryRecord, keepRevision = true): void {
-    this.db.prepare(`INSERT INTO memory(key,id,scope,project_id,kind,state,lifecycle,occurred_at,updated_at,fingerprint,json)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET state=excluded.state,lifecycle=excluded.lifecycle,
+    this.db.prepare(`INSERT INTO memory(key,id,scope,project_id,kind,confidence,lifecycle,occurred_at,updated_at,fingerprint,json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET confidence=excluded.confidence,lifecycle=excluded.lifecycle,
       kind=excluded.kind,occurred_at=excluded.occurred_at,updated_at=excluded.updated_at,fingerprint=excluded.fingerprint,json=excluded.json`).run(
-      item.key,item.id,item.scope,item.projectId ?? null,item.kind,item.state,item.lifecycle,item.occurredAt,item.updatedAt,this.fingerprint(item),JSON.stringify(item));
+      item.key,item.id,item.scope,item.projectId ?? null,item.kind,item.confidence,item.lifecycle,item.occurredAt,item.updatedAt,this.fingerprint(item),JSON.stringify(item));
     if (keepRevision) this.db.prepare("INSERT OR IGNORE INTO revisions VALUES (?,?,?)").run(item.key,item.revision,JSON.stringify(item));
     this.db.prepare("DELETE FROM current_search WHERE key=?").run(item.key);
     this.db.prepare("DELETE FROM history_search WHERE key=? AND revision=?").run(item.key,item.revision);
     this.db.prepare("INSERT INTO history_search(key,revision,tokens) VALUES (?,?,?)").run(item.key,item.revision,memoryTokens(`${item.text} ${(item.tags ?? []).join(" ")} ${item.details ?? ""}`).join(" "));
-    if (item.state === "confirmed" && !item.mergedInto) {
+    if (item.confidence === "confirmed" && !item.mergedInto) {
       const indexed = `${item.text} ${item.tags.join(" ")} ${item.details ?? ""}`;
       this.db.prepare("INSERT INTO current_search(key,tokens) VALUES (?,?)").run(item.key,memoryTokens(indexed).join(" "));
     }
@@ -118,7 +126,7 @@ export class MemoryDatabase {
       const now = context.now ?? Date.now();
       const candidate: MemoryRecord = { key: "", id: randomUUID(), scope: context.projectId ? "project" : "global", projectId: context.projectId,
         kind: input.kind, text: input.text.trim(), details: input.details, tags: input.tags ?? [],
-        state: context.confirmed ? "confirmed" : "candidate", lifecycle: input.kind === "activity" ? "archived" : "active", revision: 1,
+        confidence: context.confirmed ? "confirmed" : "unconfirmed", lifecycle: input.kind === "activity" ? "archived" : "active", revision: 1,
         createdAt: now, updatedAt: now, occurredAt: input.occurredAt ?? context.evidenceAt ?? now, timeBasis: input.occurredAt === undefined ? "recorded" : "occurred", substantiveAt: context.evidenceAt ?? now,
         expiresAt: input.expiresAt ?? undefined, effectiveAt:input.effectiveAt ?? undefined,summary:input.summary, importance: input.importance === "high" ? "high" : "normal", pinned: context.pinned === true,
         sources: [context.source] };
@@ -127,10 +135,9 @@ export class MemoryDatabase {
         const newSource = !prior.sources.some(source => source.ref === context.source.ref);
         const anchor=context.source.anchorRef ?? context.source.ref;
         const newEvidence=!prior.sources.some(source=>(source.anchorRef ?? source.ref)===anchor);
-        if (prior.state === "rejected" && !(context.confirmed && newEvidence)) return {item:prior,existing:true};
-        if (newSource) prior.sources.push(context.source);
-        if (context.confirmed && newEvidence && (prior.state !== "confirmed" || (prior.lifecycle!=="active" && prior.kind!=="activity") || (prior.expiresAt!==undefined && prior.expiresAt<=now))) {
-          prior.state="confirmed"; prior.lifecycle=prior.kind==="activity"?"archived":"active"; prior.lowSince=undefined; prior.invalidatedAt=undefined; prior.revision++; prior.substantiveAt=Math.max(prior.substantiveAt,context.evidenceAt ?? now); prior.updatedAt=now;
+                if (newSource) prior.sources.push(context.source);
+        if (context.confirmed && newEvidence && (prior.confidence !== "confirmed" || (prior.lifecycle!=="active" && prior.kind!=="activity") || (prior.expiresAt!==undefined && prior.expiresAt<=now))) {
+          prior.confidence="confirmed"; prior.lifecycle=prior.kind==="activity"?"archived":"active"; prior.lowSince=undefined; prior.invalidatedAt=undefined; prior.revision++; prior.substantiveAt=Math.max(prior.substantiveAt,context.evidenceAt ?? now); prior.updatedAt=now;
           if(input.expiresAt!==undefined)prior.expiresAt=input.expiresAt ?? undefined;
           else if(prior.expiresAt!==undefined && prior.expiresAt<=now)delete prior.expiresAt;
           if(input.summary!==undefined)prior.summary=input.summary;
@@ -171,7 +178,7 @@ export class MemoryDatabase {
       if(entries.length<2 || entries.length>10 || new Set(entries.map(e=>e.key)).size!==entries.length)throw new Error("一次合并需要2至10条不同记忆");
       const items=entries.map(entry=>{const item=this.get(entry.key,projectId);if(!item || item.mergedInto || item.revision!==entry.revision)throw new Error("记忆已变化，请重新读取再合并");return item;});
       const first=items[0]!;
-      if(first.kind==="activity" || items.some(item=>item.kind!==first.kind || item.projectId!==first.projectId || item.state!==first.state || item.lifecycle!==first.lifecycle || item.invalidatedAt || item.kind!==input.kind))throw new Error("仅可合并同范围、类型、确认状态和用途的重复事实；独立事件不可合并");
+      if(first.kind==="activity" || items.some(item=>item.kind!==first.kind || item.projectId!==first.projectId || item.confidence!==first.confidence || item.lifecycle!==first.lifecycle || item.invalidatedAt || item.kind!==input.kind))throw new Error("仅可合并同范围、类型、确认状态和用途的重复事实；独立事件不可合并");
       const sources=[...new Map(items.flatMap(item=>item.sources).map(source=>[source.ref,source])).values()];
       const merged=this.update(first.key,projectId,first.revision,{...input,sources});
       for(const item of items.slice(1)) {
@@ -180,14 +187,14 @@ export class MemoryDatabase {
       return merged;
     });
   }
-  update(ref: string, projectId: string | undefined, revision: number, patch: Partial<MemoryWrite> & Pick<Partial<MemoryRecord>, "state" | "lifecycle" | "pinned" | "reason" | "sources"> & {cancelPending?:boolean;unmerge?:boolean}, now = Date.now(), evidenceAt=now): MemoryRecord {
+  update(ref: string, projectId: string | undefined, revision: number, patch: Partial<MemoryWrite> & Pick<Partial<MemoryRecord>, "confidence" | "lifecycle" | "pinned" | "reason" | "sources"> & {cancelPending?:boolean;unmerge?:boolean}, now = Date.now(), evidenceAt=now): MemoryRecord {
     return this.transaction(() => {
       const item = this.get(ref,projectId);
       if (!item) throw new Error("记忆不存在或不属于当前范围");
       if (item.revision !== revision) throw new Error("记忆已更新，请重新读取后再修改");
       const incoming=patch.sources ?? [];
       const newManual=incoming.some(source=>source.type==="manual" && !item.sources.some(old=>old.ref===source.ref));
-      const editsKnowledge=["text","details","kind","tags","occurredAt","expiresAt","importance"].some(key=>Object.hasOwn(patch,key)) || patch.state==="confirmed";
+      const editsKnowledge=["text","details","kind","tags","occurredAt","expiresAt","importance"].some(key=>Object.hasOwn(patch,key)) || patch.confidence==="confirmed";
       if(!newManual && editsKnowledge && incoming.some(source=>this.isBlocked(source.ref) || (source.anchorRef && this.isBlocked(source.anchorRef))))throw new Error("该旧来源已被遗忘，不可用于改写其他记忆；需要新的明确依据");
       const definedPatch=Object.fromEntries(Object.entries(patch).filter(([key,value])=>key!=="cancelPending" && key!=="unmerge" && value!==undefined && !(value===null && ["expiresAt","effectiveAt"].includes(key) && item[key as keyof MemoryRecord]===undefined)));
       if(typeof patch.effectiveAt==="number" && patch.effectiveAt>now && ["text","details","kind"].some(key=>Object.hasOwn(definedPatch,key) && JSON.stringify(item[key as keyof MemoryRecord])!==JSON.stringify(definedPatch[key]))) {
@@ -204,7 +211,7 @@ export class MemoryDatabase {
       if(patch.summary===undefined && ["text","details","kind"].some(key=>Object.hasOwn(definedPatch,key) && JSON.stringify(item[key as keyof MemoryRecord])!==JSON.stringify(definedPatch[key]))) {
         next.summary=item.summary===item.text && patch.text!==undefined && patch.text.length<=MEMORY_SUMMARY_LIMIT?patch.text:"";
       }
-      if(patch.cancelPending || ["text","details","kind","lifecycle","state"].some(key=>Object.hasOwn(definedPatch,key) && JSON.stringify(item[key as keyof MemoryRecord])!==JSON.stringify(definedPatch[key]))) {
+      if(patch.cancelPending || ["text","details","kind","lifecycle","confidence"].some(key=>Object.hasOwn(definedPatch,key) && JSON.stringify(item[key as keyof MemoryRecord])!==JSON.stringify(definedPatch[key]))) {
         if(next.pending)next.reason=patch.reason ?? (patch.cancelPending?"用户取消尚未生效的更正":"本次更正替代了原计划");
         delete next.pending;
       }
@@ -212,9 +219,9 @@ export class MemoryDatabase {
         this.validate({...next,text:next.text===item.text && item.text.length>MEMORY_TEXT_LIMIT?"旧条目":next.text,
           details:next.details===item.details && (item.details?.length ?? 0)>MEMORY_DETAILS_LIMIT?undefined:next.details});
       }
-      if (patch.text !== undefined || patch.details !== undefined || patch.state === "confirmed" || patch.lifecycle === "active" || patch.pinned === true) {
+      if (patch.text !== undefined || patch.details !== undefined || patch.confidence === "confirmed" || patch.lifecycle === "active" || patch.pinned === true) {
         next.substantiveAt = evidenceAt; next.lowSince = undefined;
-        if(patch.state === "confirmed")next.invalidatedAt=undefined;
+        if(patch.confidence === "confirmed")next.invalidatedAt=undefined;
       }
       if (patch.lifecycle === "archived") next.archivedAt = now;
       this.persist(next as MemoryRecord); return next as MemoryRecord;
@@ -227,15 +234,15 @@ export class MemoryDatabase {
     else if (query.scope === "project") { clauses.push("m.project_id=?"); args.push(query.projectId ?? "__none__"); }
     else if (query.scope === "global") clauses.push("m.project_id IS NULL");
     else { clauses.push("(m.project_id IS NULL OR m.project_id=?)"); args.push(query.projectId ?? null); }
-    if (query.history && query.state===undefined) clauses.push("(m.state='confirmed' OR json_extract(m.json,'$.invalidatedAt') IS NOT NULL)");
-    else if (query.state !== "all") { clauses.push("m.state=?"); args.push(query.state ?? "confirmed"); }
+    if (query.history && query.confidence===undefined) clauses.push("(m.confidence='confirmed' OR json_extract(m.json,'$.invalidatedAt') IS NOT NULL)");
+    else if (query.confidence !== "all") { clauses.push("m.confidence=?"); args.push(query.confidence ?? "confirmed"); }
     if(!query.history && query.view!=="history" && query.view!=="all")clauses.push("json_extract(m.json,'$.mergedInto') IS NULL");
     if(query.view==="current")clauses.push("m.lifecycle='active' AND m.kind!='activity'");
     if(query.view==="history")clauses.push("(m.lifecycle!='active' OR m.kind='activity' OR EXISTS(SELECT 1 FROM revisions r WHERE r.key=m.key AND (json_extract(r.json,'$.text')!=json_extract(m.json,'$.text') OR coalesce(json_extract(r.json,'$.details'),'')!=coalesce(json_extract(m.json,'$.details'),''))))");
     if (query.lifecycle && query.lifecycle !== "all") { clauses.push("m.lifecycle=?"); args.push(query.lifecycle); }
-    else if (!query.history && !query.view && !recent && (query.state===undefined || query.state==="confirmed")) clauses.push("m.lifecycle='active' AND m.kind!='activity'");
-    if (!query.history && query.view!=="history" && query.view!=="all" && !recent && (query.state===undefined || query.state==="confirmed")) { clauses.push("(json_extract(m.json,'$.expiresAt') IS NULL OR json_extract(m.json,'$.expiresAt')>?)"); args.push(Date.now()); }
-    if(!query.history && query.view!=="history" && query.view!=="all" && !recent && (query.state===undefined || query.state==="confirmed")) {clauses.push("(json_extract(m.json,'$.effectiveAt') IS NULL OR json_extract(m.json,'$.effectiveAt')<=?)");args.push(Date.now());}
+    else if (!query.history && !query.view && !recent && (query.confidence===undefined || query.confidence==="confirmed")) clauses.push("m.lifecycle='active' AND m.kind!='activity'");
+    if (!query.history && query.view!=="history" && query.view!=="all" && !recent && (query.confidence===undefined || query.confidence==="confirmed")) { clauses.push("(json_extract(m.json,'$.expiresAt') IS NULL OR json_extract(m.json,'$.expiresAt')>?)"); args.push(Date.now()); }
+    if(!query.history && query.view!=="history" && query.view!=="all" && !recent && (query.confidence===undefined || query.confidence==="confirmed")) {clauses.push("(json_extract(m.json,'$.effectiveAt') IS NULL OR json_extract(m.json,'$.effectiveAt')<=?)");args.push(Date.now());}
     if (query.kind) { clauses.push("m.kind=?"); args.push(query.kind); }
     if (query.from !== undefined) { clauses.push("m.occurred_at>=?"); args.push(query.from); }
     if (query.to !== undefined) { clauses.push("m.occurred_at<=?"); args.push(query.to); }
@@ -243,7 +250,7 @@ export class MemoryDatabase {
     const terms = tokens.some(t=>[...t].length>1) ? tokens.filter(t=>[...t].length>1).slice(0,16) : tokens;
     let join = "", ranking = "",historyMatch:string|undefined;
     if (terms.length) {
-      const index = query.history || query.state === "candidate" || query.state === "all" ? "history_search" : "current_search";
+      const index = query.history || query.confidence === "unconfirmed" || query.confidence === "all" ? "history_search" : "current_search";
       if(index === "history_search") {
         clauses.push("m.key IN (SELECT key FROM history_search WHERE tokens MATCH ?)");
         historyMatch=terms.map(t=>`"${t.replaceAll('"','""')}"`).join(" OR ");
@@ -302,7 +309,7 @@ export class MemoryDatabase {
       for(const row of rows){
         const item=this.parse(row)!,current=item.sources.some(source=>source.sessionId===sessionId),pending=item.pending?.patch.sources?.some(source=>source.sessionId===sessionId);
         if(!current && !pending)continue;
-        if(current && (clear || item.state!=="confirmed")){this.forget(item.key,item.projectId);continue;}
+        if(current && (clear || item.confidence!=="confirmed")){this.forget(item.key,item.projectId);continue;}
         if(pending){delete item.pending;item.reason="未生效的更正来源会话已删除，计划已取消";}
         item.sources=item.sources.map(source=>source.sessionId===sessionId?{...source,deleted:true}:source);
         item.revision++;item.updatedAt=Date.now();this.persist(item);
@@ -320,11 +327,11 @@ export class MemoryDatabase {
     const byId=new Map(valid.map(item=>[item.entryId,item.hash]));
     const invalid=(source:MemorySource)=>source.sessionId===sessionId && source.type==="session" && source.hash && (!source.entryId || byId.get(source.entryId)!==source.hash);
     return this.transaction(()=>{
-      const rows=this.db.prepare("SELECT json FROM memory WHERE (state='confirmed' OR json_extract(json,'$.pending') IS NOT NULL) AND (EXISTS (SELECT 1 FROM json_each(json_extract(memory.json,'$.sources')) s WHERE json_extract(s.value,'$.sessionId')=?) OR EXISTS (SELECT 1 FROM json_each(json_extract(memory.json,'$.pending.patch.sources')) s WHERE json_extract(s.value,'$.sessionId')=?))").all(sessionId,sessionId);
+      const rows=this.db.prepare("SELECT json FROM memory WHERE (confidence='confirmed' OR json_extract(json,'$.pending') IS NOT NULL) AND (EXISTS (SELECT 1 FROM json_each(json_extract(memory.json,'$.sources')) s WHERE json_extract(s.value,'$.sessionId')=?) OR EXISTS (SELECT 1 FROM json_each(json_extract(memory.json,'$.pending.patch.sources')) s WHERE json_extract(s.value,'$.sessionId')=?))").all(sessionId,sessionId);
       let count=0;
       for(const row of rows){const item=this.parse(row)!;let changed=false;
         if(item.pending?.patch.sources?.some(invalid)){delete item.pending;item.reason="计划的更正来源已撤回或修订，未自动采用";changed=true;}
-        if(item.sources.some(invalid) && !item.sources.some(source=>source.type==="manual")){item.state="candidate";item.lifecycle="archived";item.invalidatedAt=Date.now();item.reason="原会话来源已撤回或修订，待复核";changed=true;}
+        if(item.sources.some(invalid) && !item.sources.some(source=>source.type==="manual")){item.confidence="unconfirmed";item.lifecycle="archived";item.invalidatedAt=Date.now();item.reason="原会话来源已撤回或修订，待复核";changed=true;}
         if(changed){item.revision++;item.updatedAt=Date.now();this.persist(item);count++;}
       }
       const jobs=this.db.prepare("SELECT json FROM jobs WHERE state IN ('pending','running') AND json_extract(json,'$.sessionId')=?").all(sessionId) as Array<{json:string}>;
@@ -399,7 +406,7 @@ export class MemoryDatabase {
         const target=item.target ? this.get(item.target.key,item.context.projectId) : undefined;
         if(item.target && target && target.projectId===item.context.projectId && target.kind===item.input.kind && item.context.confirmed
           && item.target.revision===target.revision && (item.context.evidenceAt ?? Date.now())>=target.substantiveAt) {
-          saved.push(this.update(target.key,item.context.projectId,target.revision,{...item.input,state:"confirmed",sources:[item.context.source],pinned:target.pinned || item.context.pinned===true},Date.now(),item.context.evidenceAt));
+          saved.push(this.update(target.key,item.context.projectId,target.revision,{...item.input,confidence:"confirmed",sources:[item.context.source],pinned:target.pinned || item.context.pinned===true},Date.now(),item.context.evidenceAt));
         } else saved.push(this.save(item.input,item.target?{...item.context,confirmed:false}:item.context).item);
       }
       for(const {job,nextCursor} of valid.values()) {
@@ -496,13 +503,13 @@ export class MemoryDatabase {
     });
   }
   projectHistory(projectId: string): Array<MemoryRecord & {historicalRevision?:boolean}> {
-    const current=this.db.prepare("SELECT json FROM memory WHERE project_id=? AND (state='confirmed' OR json_extract(json,'$.invalidatedAt') IS NOT NULL) AND kind IN ('activity','decision','lesson') ORDER BY occurred_at,key").all(projectId).map(r=>this.parse(r)!);
+    const current=this.db.prepare("SELECT json FROM memory WHERE project_id=? AND (confidence='confirmed' OR json_extract(json,'$.invalidatedAt') IS NOT NULL) AND kind IN ('activity','decision','lesson') ORDER BY occurred_at,key").all(projectId).map(r=>this.parse(r)!);
     const result:Array<MemoryRecord & {historicalRevision?:boolean}>=[];
     for(const item of current){
       const seen=new Set([JSON.stringify([item.kind,item.text,item.details])]);
       for(const old of this.revisions(item.key,projectId)){
         const signature=JSON.stringify([old.kind,old.text,old.details]);
-        if(old.state!=="confirmed" || seen.has(signature))continue;seen.add(signature);
+        if(old.confidence!=="confirmed" || seen.has(signature))continue;seen.add(signature);
         result.push({...old,lifecycle:"archived",historicalRevision:true,invalidatedAt:item.invalidatedAt});
       }
       result.push(item);
