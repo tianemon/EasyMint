@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { guardLesson, lessonDigest, type LessonCandidate } from "./lesson-guard";
+import { guardLesson, type LessonCandidate } from "./lesson-guard";
 
 export interface ExperienceIndexItem {
   id: string;
@@ -40,10 +40,6 @@ export function readIndex(dir: string): ExperienceIndex {
   } catch {
     return { version: 1, updatedAt: Date.now(), items: [] };
   }
-}
-
-export function listLessons(dir: string): Array<{ title: string; tags: string[]; file: string }> {
-  return readIndex(dir).items.map((item) => ({ title: item.title, tags: item.tags ?? [], file: path.join(dir, item.file) }));
 }
 
 function writeAtomic(file: string, content: string): void {
@@ -93,8 +89,3 @@ export function saveLesson(dir: string, candidate: LessonCandidate, evidence: st
   return { saved: true };
 }
 
-/** 某条经验是否已存在（按标题归一化比对）。 */
-export function hasLesson(dir: string, title: string): boolean {
-  const digest = lessonDigest(title);
-  return readIndex(dir).items.some((item) => lessonDigest(item.title) === digest);
-}

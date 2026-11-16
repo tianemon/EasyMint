@@ -38,9 +38,6 @@ export const DESIGNER_TEMPLATES: DesignerTemplateInfo[] = [
 export const DESIGNER_TEMPLATE_DIR = ".easymint/templates";
 
 /** Scene contracts are the normal start; explicit templates also support legacy projects. */
-export const START_POINT_SHOWCASE = "showcase";
-export const START_POINT_TEMPLATE_PREFIX = "模板：";
-export const START_POINT_FREE = "自由设计";
 
 /** markdown 表格（主会话提示词与 task 工具指引共用，避免两处漂移） */
 export function designerTemplateTable(): string {

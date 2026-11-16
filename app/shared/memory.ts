@@ -106,20 +106,6 @@ export interface MemoryConclusion {
   anchorRef?: string;
   timezone?: string;
 }
-export interface MemoryMigrationReport {
-  directory: string;
-  backup: string;
-  imported: number;
-  unchanged: number;
-  conflicts: number;
-  missing: string[];
-  errors: string[];
-  projectId?: string;
-  projectName?: string;
-  projectPath?: string;
-  status?: "complete" | "attention" | "failed";
-  documentError?:string;
-}
 export interface MemoryMigrationProgress {
   phase:"idle"|"opening"|"migrating"|"ready"|"error";
   completed:number;

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { hasLesson, listLessons, readIndex, saveLesson } from "./experience-store";
+import { readIndex, saveLesson } from "./experience-store";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -46,8 +46,7 @@ it("重复标题被拒，不会产生第二条", () => {
   const d = dir();
   saveLesson(d, lesson, "");
   expect(saveLesson(d, lesson, "").saved).toBe(false);
-  expect(listLessons(d)).toHaveLength(1);
-  expect(hasLesson(d, lesson.title)).toBe(true);
+  expect(readIndex(d).items).toHaveLength(1);
 });
 
 it("索引损坏时不覆盖旧正文，只按空索引重来", () => {
