@@ -8,6 +8,7 @@ import { UI_DESIGN_MODE_ID, DOMAIN_GUIDANCE_MODE_ID } from "../../shared/collabo
 import { DESIGNER_TEMPLATE_DIR, designerTemplateTable } from "../../shared/designer-templates";
 import type { AgentTemplate } from "./agent-templates";
 import { emHome, getResourcesDir } from "../utils/paths";
+import { sectionText, writeSection } from "../../shared/memory-doc";
 import { atomicWrite, encode, lockConfigDirectory, readText } from "./native-config-storage";
 
 const mainSchema = z.object({
@@ -279,6 +280,12 @@ export function saveMainChat(input: MainChatProfile, expectedRevision?: string):
     config.main = {};
     for (const key of ["nickname", "avatar", "personality", "rules"] as const) if (value[key] !== defaults[key]) config.main[key] = value[key];
   });
+  // 规则的真源是 MEMORY.md 的 `## 规则`；JSON 里那份只作为回落
+  try {
+    const file = path.join(emHome(), "memory", "MEMORY.md");
+    const current = readText(file) ?? "# MEMORY\n\n";
+    atomicWrite(file, writeSection(current, "规则", value.rules));
+  } catch { /* 写文件失败不影响保存结果，读取侧仍可用 JSON 回落 */ }
   return getConversationConfig();
 }
 export function restoreMainChat(expectedRevision?: string): ConversationConfig {
@@ -320,12 +327,23 @@ export function restoreCollaborationMode(id: string, expectedRevision?: string):
   return getConversationConfig();
 }
 
+/** 角色层规则：`MEMORY.md` 的 `## 规则` 优先，缺失时回落系统提示配置里的 rules。 */
+function mainRules(config: ConversationConfig): string {
+  try {
+    const file = path.join(emHome(), "memory", "MEMORY.md");
+    const content = readText(file);
+    const fromFile = content ? sectionText(content, "规则") : null;
+    if (fromFile) return fromFile;
+  } catch { /* 读不到就回落，不影响启动 */ }
+  return config.main.rules;
+}
+
 /** 仅返回可变段正文；宿主使用 SDK section 键替换，不解析用户输入中的同名标签。 */
 export function conversationPromptSection(modeIds: string[], config = getConversationConfig()): string {
   const enabled = config.modes.filter(mode => modeIds.includes(mode.id));
   return [config.warning ? `配置加载诊断：${config.warning}。不得声称已应用未加载内容。` : "",
     `当前主对话身份以本段为准。你的昵称是 ${JSON.stringify(config.main.nickname)}。`,
-    `<personality>\n${config.main.personality}\n</personality>`, `<user_rules>\n${config.main.rules}\n</user_rules>`,
+    `<personality>\n${config.main.personality}\n</personality>`, `<user_rules>\n${mainRules(config)}\n</user_rules>`,
     `当前启用的协作模式：${enabled.map(mode => mode.name).join("、") || "标准"}。仅按当前模式工作，历史选择以本段为准。`,
     "模式补充当前工作方式，不改变权限或新增工具；兼容要求叠加，真正冲突按当前用户目标处理。",
     ...enabled.map(mode => `<collaboration_mode name=${JSON.stringify(mode.name)}>\n${mode.id === DOMAIN_GUIDANCE_MODE_ID ? "用户已启用领域引导，沿用这个选择，不再次邀请。\n" : ""}${mode.prompt}\n</collaboration_mode>`),

@@ -155,3 +155,13 @@ describe("unified prompt configuration", () => {
     vi.restoreAllMocks(); manager.initializePromptConfiguration(); expect(fs.existsSync(oldFile())).toBe(false);
   });
 });
+
+it("prefers the rules section in MEMORY.md over the json copy", async () => {
+  const manager = await import("./system-prompt-manager");
+  const base = manager.getConversationConfig();
+  fs.mkdirSync(path.join(root, "memory"), { recursive: true });
+  fs.writeFileSync(path.join(root, "memory", "MEMORY.md"), "# MEMORY\n\n## 规则\n\n- 文件里的规则\n");
+  const section = manager.conversationPromptSection([], { ...base, main: { ...base.main, rules: "JSON 里的规则" } });
+  expect(section).toContain("- 文件里的规则");
+  expect(section).not.toContain("JSON 里的规则");
+});

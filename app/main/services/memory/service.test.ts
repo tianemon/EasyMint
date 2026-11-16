@@ -162,3 +162,13 @@ it("rejects actions that no longer exist instead of falling through to restore",
       .rejects.toThrow("不支持的记忆管理动作");
   }
 });
+
+it("refuses a rewrite that drops the rules section", async () => {
+  const f = setup(), context = f.context();
+  const file = path.join(f.root, "memory", "MEMORY.md");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "# MEMORY\n\n## 规则\n\n- 只给结论\n");
+  const prior = await f.service.readDocument();
+  await expect(f.service.saveDocumentFromAgent(context, "# MEMORY\n", prior.hash, prior.reviewHash))
+    .rejects.toThrow(/保留用户原文/u);
+});
