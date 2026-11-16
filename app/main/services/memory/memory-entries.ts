@@ -65,11 +65,6 @@ export function parseEntries(markdown: string): MemoryEntry[] {
   return out;
 }
 
-export function renderEntries(entries: MemoryEntry[]): string {
-  const lines = entries.map((entry) => entryLine(entry.text, entry.key, entry.dbRevision));
-  return lines.length ? `${lines.join("\n")}\n` : "";
-}
-
 function entryLine(text: string, key: string, dbRevision?: number): string {
   return dbRevision
     ? `- ${text.trim()} <!-- memory:${key} r:${dbRevision} -->`
@@ -130,11 +125,6 @@ export function removeEntry(markdown: string, key: string): string {
   if (!hit) return markdown;
   lines.splice(hit.index, 1);
   return lines.join("\n");
-}
-
-/** 整节版本号：任一正文变化都会变，未变化则不变（注入去重的依据）。 */
-export function entriesRevision(entries: MemoryEntry[]): number {
-  return entryRevision(entries.map((entry) => entry.text).join("\n"));
 }
 
 /** 注入用的纯文本（去掉 key 注释，避免把内部标记喂给模型）。 */

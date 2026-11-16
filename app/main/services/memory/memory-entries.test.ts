@@ -1,6 +1,5 @@
 import { expect, it } from "vitest";
 import {
-  entriesRevision,
   entryRevision,
   newEntryKey,
   parseEntries,
@@ -41,13 +40,6 @@ it("revision 只由正文派生：同文本同版本，改一个字就变", () =
   expect(entryRevision("abc")).toBe(entryRevision("abc"));
   expect(entryRevision("abc")).not.toBe(entryRevision("abd"));
   expect(entryRevision("abc")).toBeGreaterThan(0);
-});
-
-it("整节版本随内容变化，未修改时保持不变（注入去重的前提）", () => {
-  const a = parseEntries(BASE);
-  const b = parseEntries(BASE.replace(/\n$/u, "\n"));
-  expect(entriesRevision(a)).toBe(entriesRevision(b));
-  expect(entriesRevision(a)).not.toBe(entriesRevision(parseEntries(upsertEntry(BASE, { key: "aaa111", text: "改了" }))));
 });
 
 it("删除按 key 精确移除，不影响其它条目", () => {

@@ -5,7 +5,6 @@ import { afterEach, expect, it } from "vitest";
 import {
   DOCUMENT_MAX_BYTES,
   DOCUMENT_SEED,
-  ensureDocument,
   readDocument,
   removeDocumentEntry,
   upsertDocumentEntry,
@@ -23,14 +22,6 @@ function file(name = "MEMORY.md"): string {
   dirs.push(root);
   return path.join(root, "memory", name);
 }
-
-it("文件不存在时返回 null，播种只建标题不写占位句", () => {
-  const target = file();
-  expect(readDocument(target)).toBeNull();
-  expect(ensureDocument(target)).toBe(DOCUMENT_SEED);
-  expect(readDocument(target)).toBe(DOCUMENT_SEED);
-  expect(readDocument(target)).not.toMatch(/暂无/u);
-});
 
 it("首次写入自动建目录与文件，条目落成索引格式", () => {
   const target = file();

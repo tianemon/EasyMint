@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { DEFAULT_HEADER, deliveredFrom, estimateTokens, planDelivery, type Deliverable } from "./context-plan";
+import { DEFAULT_HEADER, estimateTokens, planDelivery, type Deliverable } from "./context-plan";
 
 const rules: Deliverable = { key: "global.rules", revision: 11, text: "约定：别先给方案再问要不要做", priority: 1 };
 const progress: Deliverable = { key: "project.progress", revision: 20261115, text: "项目：11/15 合并 Windows 修复", priority: 2 };
@@ -14,13 +14,13 @@ it("首轮全量交付，并记录每条版本号", () => {
 });
 
 it("内容未变时完全不注入，避免扰动上下文缓存", () => {
-  const delivered = deliveredFrom([{ items: planDelivery([rules, progress, machine]).items }]);
+  const delivered = new Map(planDelivery([rules, progress, machine]).items.map((item) => [item.key, item.revision]));
   const plan = planDelivery([rules, progress, machine], { delivered });
   expect(plan).toEqual({ block: "", items: [], tokens: 0, reason: "none" });
 });
 
 it("只有变化的条目产生增量，且标题保持一致", () => {
-  const delivered = deliveredFrom([{ items: planDelivery([rules, progress, machine]).items }]);
+  const delivered = new Map(planDelivery([rules, progress, machine]).items.map((item) => [item.key, item.revision]));
   const plan = planDelivery([rules, { ...progress, revision: 20261116, text: "项目：11/16 记忆改造" }, machine], { delivered });
   expect(plan.reason).toBe("delta");
   expect(plan.block).toContain("11/16 记忆改造");
@@ -30,7 +30,7 @@ it("只有变化的条目产生增量，且标题保持一致", () => {
 });
 
 it("条目被移除时给一条统一的作废提示，不沿用旧内容", () => {
-  const delivered = deliveredFrom([{ items: planDelivery([rules, progress, machine]).items }]);
+  const delivered = new Map(planDelivery([rules, progress, machine]).items.map((item) => [item.key, item.revision]));
   const plan = planDelivery([rules, machine], { delivered });
   expect(plan.reason).toBe("delta");
   expect(plan.block).toContain("已移除");
@@ -47,7 +47,7 @@ it("额度不足时按优先级丢弃，且不切半句", () => {
 });
 
 it("压缩后交付记录丢失会自动回到全量交付", () => {
-  expect(planDelivery([rules, progress], { delivered: deliveredFrom([]) }).reason).toBe("first");
+  expect(planDelivery([rules, progress], { delivered: new Map() }).reason).toBe("first");
 });
 
 it("token 估算按 UTF-8 保守口径，且输出与入参顺序无关", () => {

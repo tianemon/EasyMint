@@ -31,8 +31,6 @@ export interface DevelopLog {
 
 export const EMPTY_DEVELOP_LOG: DevelopLog = { snapshot: [], index: [] };
 
-export const DEVELOP_LOG_FILE = "开发记录.md";
-
 const SNAPSHOT_HEADING = /^##[ \t]*当前进度快照[ \t]*$/mu;
 const INDEX_HEADING = /^##[ \t]*开发记录索引.*$/mu;
 const NEXT_H2 = /^##[ \t]/mu;

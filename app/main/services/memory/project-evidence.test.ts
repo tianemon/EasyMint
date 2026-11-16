@@ -5,7 +5,6 @@ import { afterEach, expect, it } from "vitest";
 import {
   collectEvidence,
   describeEvidence,
-  evidenceChanged,
   walkTree,
   type EvidenceProbe,
 } from "./project-evidence";
@@ -61,10 +60,10 @@ it("改动集中目录取自跟踪文件清单，临时目录也会按仓库内�
 it("未提交文件数变化不改信号（它变得太频繁，不能当失效判据）", () => {
   const before = collectEvidence("/repo", repo(GIT));
   const after = collectEvidence("/repo", repo({ ...GIT, "git status --porcelain": " M a.ts" }));
-  expect(evidenceChanged(before.signal, after)).toBe(false);
+  expect(after.signal).toBe(before.signal);
   expect(after.git?.dirty).toBe(1);
   const committed = collectEvidence("/repo", repo({ ...GIT, "git rev-list --count HEAD": "813" }));
-  expect(evidenceChanged(before.signal, committed)).toBe(true);
+  expect(committed.signal).not.toBe(before.signal);
 });
 
 it("没有 git 时降级到文件证据，仍能给出信号", () => {
