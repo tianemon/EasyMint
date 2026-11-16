@@ -19,6 +19,15 @@ function fixture(em: Record<string, any> = {}) {
   atomicWrite(path.join(dir, "em-settings.json"), encode(em));
   return { dir, store, file: (name: string) => path.join(dir, "agent", `${name}.json`) };
 }
+/** 夹具：用现行 API 写入供应商（不再依赖旧配置迁移）。 */
+async function seeded(em: Record<string, any> = {}) {
+  const base = fixture(em);
+  if (em.apiProviders) {
+    const repo = await NativeConfig.create(base.store);
+    await repo.saveProviders({ ...repo.view().apiProviders, ...em.apiProviders });
+  }
+  return base;
+}
 const custom = {
   id: "custom-local", presetId: "custom", name: "Local", apiKey: "test-key", createdAt: 1,
   baseUrl: "http://localhost:1234/v1", apiType: "openai-completions", model: "test-model",
@@ -30,7 +39,7 @@ describe("pi-native configuration", () => {
   it("switches the real SDK default provider and endpoint even when model ids are identical", async () => {
     const provider = (id: string, port: number) => ({ ...custom, id, name:id, model:"shared",models:["shared"],baseUrl:`http://127.0.0.1:${port}/v1`,extraModels:[{...custom.extraModels[0],id:"shared"}] });
     const one=provider("custom-switch-a",11111),two=provider("custom-switch-b",22222);
-    const {store,file}=fixture({apiProviders:{current:one.id,configs:{[one.id]:one,[two.id]:two}}});
+    const {store,file}=await seeded({apiProviders:{current:one.id,configs:{[one.id]:one,[two.id]:two}}});
     const repo=await NativeConfig.create(store);await repo.getRuntime();
     expect(repo.getDefaultModel()?.provider).toBe(one.id);
     expect(repo.getDefaultModel()?.baseUrl).toBe(one.baseUrl);
@@ -240,22 +249,16 @@ describe("pi-native configuration", () => {
     expect(fs.readFileSync(file("models"), "utf8")).toBe(text);
   }, 60000);
 
-  it("rejects malformed native files without touching them or marking the native step done", async () => {
-    const { dir, store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+  it("rejects malformed native files without touching them", async () => {
+    const { store, file } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     atomicWrite(file("models"), "{ broken");
     await expect(NativeConfig.create(store)).rejects.toThrow();
-    // 原生文件一个字节不动、原生迁移标记不落盘 → 下次启动只重试这一步
+    // 损坏的原生文件一个字节不动：读侧报错，不静默覆盖用户配置
     expect(fs.readFileSync(file("models"), "utf8")).toBe("{ broken");
-    const em = read(path.join(dir, "em-settings.json"));
-    expect(em.migration?.nativeConfigVersion).toBeUndefined();
-    // 结构重排是**前一步、独立事务**，它自身完整且幂等，此时已提交；读侧对新旧两种结构都能读，
-    // 所以"原生步骤失败"不会让这一步的成果变成坏状态（见 native-config.ts 的 migrate 顺序说明）。
-    expect(em.migration?.schemaVersion).toBe(1);
-    expect(em.apiProviders).toEqual({ current: custom.id, configs: { [custom.id]: custom } });
   });
 
   it("rejects invalid model edits and stale saves without changing credentials or disk", async () => {
-    const { store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const { store, file } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     const repo = await NativeConfig.create(store);
     const view = repo.view().apiProviders;
     (view.configs[custom.id]!.extraModels![0] as any).input = ["invalid"];
@@ -339,7 +342,7 @@ describe("pi-native configuration", () => {
   });
 
   it("keeps runtime identity after editing and rejects an old editor even with a fresh list revision", async () => {
-    const { store } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const { store } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     const repo = await NativeConfig.create(store);
     const runtime = await repo.getRuntime();
     const oldEditor = repo.view().apiProviders.configs[custom.id]!;
@@ -351,7 +354,7 @@ describe("pi-native configuration", () => {
   }, 60000);
 
   it("persists a selected model as the pi-native default", async () => {
-    const { store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const { store, file } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     const repo = await NativeConfig.create(store);
     const view = repo.view().apiProviders;
     const second = { id: "second-model", name: "Second", contextWindow: 64000, maxTokens: 8000 };

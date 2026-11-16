@@ -16,8 +16,8 @@ import { getProviderStaticModels } from "./pi-init-static";
 import { NativeConfigStorage, readText, type JsonObject } from "./native-config-storage";
 import { EM_PATH, EM_SCHEMA_VERSION, EXTERNAL_FIELD_MOVES, NATIVE_CONFIG_FIELDS, SETTINGS_FIELDS, applyApiKeysToDisk, deletePath, getPath, setPath } from "./em-settings-schema";
 
-const repositories = new Map<string, Promise<NativeConfig>>();
 const LEGACY_FIELDS = ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"];
+const repositories = new Map<string, Promise<NativeConfig>>();
 const PARAM_FIELDS = ["name", "contextWindow", "maxTokens", "reasoning", "input", "thinkingLevelMap"];
 function validateDefaults(settings: JsonObject): void {
   for (const key of ["defaultProvider", "defaultModel"]) {
