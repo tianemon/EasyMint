@@ -78,23 +78,6 @@ export function registerMemoryIpc(service:MemoryService):void {
   ipcMain.handle("memory:read-document",()=>service.readDocument());
   ipcMain.handle("memory:save-document",(_event,payload)=>{const input=z.object({content:z.string().max(128*1024),hash:z.string().length(64)}).strict().parse(payload);return service.saveDocument(input.content,input.hash);});
   ipcMain.handle("memory:analyze",()=>service.requestAnalysis());
-  ipcMain.handle("memory:preview-documents",async(_event,payload)=>{
-    const input=z.object({projectPath:z.string(),directory:z.string().optional()}).strict().parse(payload),project=projectFor(input.projectPath)!;
-    let hasPrivate=false;
-    try{fs.lstatSync(path.join(project.path,"private_docs"));hasPrivate=true;}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
-    const directory=input.directory ? path.resolve(project.path,input.directory) : path.join(project.path,hasPrivate?"private_docs":"docs");
-    return (await management()).call("previewDocuments",project.path,directory);
-  });
-  ipcMain.handle("memory:adopt-documents",async(_event,payload)=>{
-    const input=z.object({projectPath:z.string(),directory:z.string(),hash:z.string().length(64)}).strict().parse(payload),project=projectFor(input.projectPath)!;
-    const result=await (await management()).call("adoptDocuments",project.id,project.path,input.directory,input.hash);
-    service.documentReport(project.id,result.error);broadcast("memory:changed",{});return result;
-  });
-  ipcMain.handle("memory:repair-documents",async(_event,payload)=>{
-    const input=z.object({projectPath:z.string(),directory:z.string(),hash:z.string().length(64)}).strict().parse(payload),project=projectFor(input.projectPath)!;
-    const result=await (await management()).call("repairDocuments",project.id,project.path,input.directory,input.hash);
-    service.documentReport(project.id,result.error);broadcast("memory:changed",{});return result;
-  });
   ipcMain.handle("memory:session-mode",(_event,payload)=>withSessionCreationLock(async()=>{
     const input=z.object({sessionId:z.string().refine(isSafeSessionId),mode:z.enum(["record","use","off"]).optional()}).strict().parse(payload);
     if(input.mode) {service.frontActivity();writeCache(input.sessionId,{memoryMode:input.mode});broadcast("memory:changed",{session:{sessionId:input.sessionId,mode:input.mode}});}

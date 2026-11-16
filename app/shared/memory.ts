@@ -136,11 +136,9 @@ export interface MemoryStatus {
   countKnown?:boolean;
 }
 
-export interface MemoryDocumentView { directory:string;relativeDirectory?:string;previousStateBackup?:string; legacy?:string; backup?:string; generation:number; error?:string }
-export interface MemoryDocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
 export interface MemoryDigest { content:string; hash:string; items:Array<{key:string;revision:number}>; file:string; error?:string;needsReview?:boolean }
 export interface MemoryDocument {file:string;content:string;hash:string;reviewHash:string;needsReview?:boolean;changes:string;removed:string[];available:string;protectedLines:string[]}
-export interface MemoryView { settings:MemorySettings; status:MemoryStatus; reports:MemoryMigrationReport[]; projectId?:string; documents?:MemoryDocumentView; digest?:MemoryDigest; migration?:MemoryMigrationProgress; ready?:boolean;backupDirectory?:string }
+export interface MemoryView { settings:MemorySettings; status:MemoryStatus; projectId?:string; digest?:MemoryDigest; ready?:boolean;backupDirectory?:string }
 export interface MemoryApi {
   onChanged(callback:(settings?:MemorySettings,session?:{sessionId:string;mode:MemoryMode})=>void):()=>void;
   state(projectPath?:string):Promise<MemoryView>;
@@ -155,8 +153,5 @@ export interface MemoryApi {
   readDocument():Promise<MemoryDocument>;
   saveDocument(content:string,hash:string):Promise<MemoryDocument>;
   openBackups():Promise<void>;
-  previewDocuments(projectPath:string,directory?:string):Promise<MemoryDocumentPreview>;
-  adoptDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;
-  repairDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;
   sessionMode(sessionId:string,mode?:MemoryMode):Promise<MemoryMode>;
 }

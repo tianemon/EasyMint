@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import type { Api, AssistantMessage, Context, Model, ModelsSimpleStreamOptions } from "@earendil-works/pi-ai";
-import type { MemoryDigest,MemoryMigrationReport,MemoryMigrationProgress,MemoryStatus, MemoryQuery, MemoryRecord, MemorySettings, MemorySource, MemoryWrite } from "../../../shared/memory";
+import type { MemoryDigest,MemoryMigrationProgress,MemoryStatus, MemoryQuery, MemoryRecord, MemorySettings, MemorySource, MemoryWrite } from "../../../shared/memory";
 import { MEMORY_KINDS, parseMemorySettings } from "../../../shared/memory";
 import type { Store } from "../store";
 import { readCache } from "../session-cache";
@@ -53,6 +53,7 @@ export class MemoryService {
   private ownsPort=false;
   private opening:Promise<MemoryPort>|undefined;
   private initializationAttempted=false;
+  /** 仅表示初始化阶段（opening/ready/error），不再有迁移语义。 */
   private migration:MemoryMigrationProgress={phase:"idle",completed:0,total:0};
   private cachedStatus:MemoryStatus={count:0,pending:0,usedTokens:0,countKnown:false};
   private timer:ReturnType<typeof setTimeout>|undefined;
@@ -68,7 +69,6 @@ export class MemoryService {
   summaryNeedsReview=false;
   private analysisWarning:string|undefined;
   private sourceCache=new Map<string,{stamp:string;messages:EvidenceMessage[]}>();
-  private reports:MemoryMigrationReport[]=[];
   constructor(private store:Store,private deps:ServiceDeps) { this.port=deps.port; }
   notify():void {this.deps.changed?.();}
   settings():MemorySettings { return parseMemorySettings(this.store.getSettings().memory,this.store.getSettings().learnEnabled===true); }
@@ -159,10 +159,6 @@ export class MemoryService {
     this.opening=task;
     try{return await task;}finally{if(this.opening===task)this.opening=undefined;}
   }
-  private rememberReport(report:MemoryMigrationReport):void {
-    const index=this.reports.findIndex(item=>(item.projectId ?? "global")===(report.projectId ?? "global"));
-    if(index<0)this.reports.push(report);else this.reports[index]=report;
-  }
   private markUnavailable():void {
     if(!this.port?.unavailable)return;
     const changed=this.initialized || this.warning!=="记忆服务暂不可用，请重试初始化";
@@ -171,10 +167,6 @@ export class MemoryService {
     this.warning="记忆服务暂不可用，请重试初始化";
     if(this.timer){clearTimeout(this.timer);this.timer=undefined;}
     if(changed)this.notify();
-  }
-  documentReport(projectId:string,documentError?:string):void {
-    const prior=this.reports.find(report=>report.projectId===projectId);
-    if(prior)this.rememberReport({...prior,documentError,status:prior.status==="failed"?"failed":prior.errors.length||prior.missing.length||documentError?"attention":"complete"});
   }
   /**
    * 事件触发：只有会话内容变化时才排一次整理，不再每 30 秒轮询。
@@ -228,8 +220,7 @@ export class MemoryService {
     this.markUnavailable();
     if((!this.settings().enabled && !retry) || this.stopped)return;
     if(this.initPromise && (!retry || ["opening","migrating"].includes(this.migration.phase)))return this.initPromise;
-    this.initializationAttempted=true;this.warning=undefined;
-    this.migration={phase:"opening",completed:0,total:0};this.notify();
+    this.initializationAttempted=true;this.warning=undefined;this.notify();
     const task=(async()=>{
       const db=await this.openPort();
       // 只读状态，不写任何项目文件：会话就是会话。
@@ -304,8 +295,7 @@ export class MemoryService {
   }
   private async applyDue(db:MemoryPort):Promise<void> {
     const due=await db.call("activateDue");
-    for(const id of due.projectIds){const project=this.projectById(id);if(project)await this.exportIfAdopted(id,project.path);}
-    if(due.count)this.notify();
+        if(due.count)this.notify();
   }
   private summaryProjects(){return this.store.getProjects().map(project=>({id:project.id,name:project.name,status:project.status}));}
   async summary(force=false):Promise<MemoryDigest> {
@@ -355,15 +345,15 @@ export class MemoryService {
     this.markUnavailable();
     const settings=this.settings(),project=projectPath?this.project(projectPath):undefined;
     if(settings.enabled && !this.initializationAttempted)void this.initialize().catch(()=>undefined);
-    const reports=this.reports.map(report=>{const current=report.projectId?this.projectById(report.projectId):undefined;return {...report,...(report.projectId?{projectPath:current?.path,projectName:current?.name ?? report.projectName}:{})};});
-    const base={settings,reports,projectId:project?.id,migration:{...this.migration},ready:this.initialized&&!this.port?.unavailable,backupDirectory:this.backupDirectory()};
+
+    const base={settings,projectId:project?.id,ready:this.initialized&&!this.port?.unavailable,backupDirectory:this.backupDirectory()};
     if(["opening","migrating"].includes(this.migration.phase))return {...base,status:{...this.cachedStatus,countKnown:this.initialized}};
     try {
       const db=await this.management();
       const status=db?await db.call("status"):undefined;
       if(status)this.cachedStatus={...status,countKnown:true};
       const error=[this.warning,this.summaryWarning,this.analysisWarning,status?.lastError].filter(Boolean).join("\n") || undefined;
-      return {...base,ready:Boolean(db),status:{...this.cachedStatus,error},documents:db&&project?await db.call("documentStatus",project.id):undefined,digest:db?await db.call("readSummary",this.summaryProjects()):undefined};
+      return {...base,ready:Boolean(db),status:{...this.cachedStatus,error},digest:db?await db.call("readSummary",this.summaryProjects()):undefined};
     } catch(error){return {...base,ready:false,status:{...this.cachedStatus,countKnown:false,error:(error as Error).message}};}
   }
   private validHashes(messages:EvidenceMessage[]):Map<string,string> {
@@ -469,8 +459,7 @@ export class MemoryService {
       const db=await this.database();signal?.throwIfAborted();
       const result=await db.call("save",{...input,...(bound.reported?{text:`助手报告，未经独立核实：${input.text}`}:{})},
         {projectId:project?.id,source:bound.source,confirmed:bound.explicit||bound.reported,pinned:bound.pinned,evidenceAt:bound.evidenceAt});
-      const documentWarning=project?await this.exportIfAdopted(project.id,project.path):undefined;
-      const warning=[documentWarning,this.mirrorEntry((result as {item?:{key:string;text:string;revision:number}}).item),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {...result,warning};
+            const warning=[this.mirrorEntry((result as {item?:{key:string;text:string;revision:number}}).item),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {...result,warning};
     });
   }
   async updateFromAgent(context:MemorySessionContext,key:string,revision:number,input:MemoryWrite,quote?:string,basis="inference",signal?:AbortSignal) {
@@ -481,8 +470,7 @@ export class MemoryService {
       const bound=await this.bindInput(context,input.kind,basis,quote,signal);signal?.throwIfAborted();
       assertCondensed(input,(await evidenceMessages(context.entries)).map(message=>message.text).join("\n"));
       const item=await db.call("update",key,project?.id,revision,{...input,...(bound.reported?{text:`助手报告，未经独立核实：${input.text}`}:{ }),state:bound.explicit||bound.reported?"confirmed":"candidate",...(bound.explicit?{lifecycle:input.kind==="activity"?"archived" as const:"active" as const}:{}),sources:[bound.source]},Date.now(),bound.evidenceAt);
-      const documentWarning=project?await this.exportIfAdopted(project.id,project.path):undefined;
-      const warning=[documentWarning,this.mirrorEntry(item as {key:string;text:string;revision:number}),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
+            const warning=[this.mirrorEntry(item as {key:string;text:string;revision:number}),await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });
   }
   async forgetFromAgent(context:MemorySessionContext,key:string,quote?:string,signal?:AbortSignal) {
@@ -496,8 +484,7 @@ export class MemoryService {
       signal?.throwIfAborted();
       const result=await db.call("forget",key,project?.id);
       this.dropEntry(key);
-      const documentWarning=project ? await this.exportIfAdopted(project.id,project.path) : undefined;
-      const warning=[documentWarning,await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify(); return {...result,contextNotice:"持久记忆已移除；本次聊天原话和已发送参考可能仍在上下文，新聊天不再自动召回该条。",...(warning?{warning}: {})};
+            const warning=[await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify(); return {...result,contextNotice:"持久记忆已移除；本次聊天原话和已发送参考可能仍在上下文，新聊天不再自动召回该条。",...(warning?{warning}: {})};
     });
   }
   private async currentUser(context:MemorySessionContext):Promise<string> {
@@ -551,7 +538,7 @@ export class MemoryService {
         item=await db.call("update",prior.key,project?.id,request.revision ?? -1,patch);
       }
       const owner=item.projectId?this.projectById(item.projectId):undefined;
-      const warning=[owner?await this.exportIfAdopted(owner.id,owner.path):undefined,await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
+      const warning=[await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });
   }
   async evidence(context:MemorySessionContext,item:MemoryRecord,index=0,history=false):Promise<string> {
@@ -581,11 +568,6 @@ export class MemoryService {
     if(!this.settings().enabled || this.mode(context.sessionId)==="off" || this.stopped)throw new Error("本次会话已关闭记忆");
     return {...page,items:page.items.filter(item=>query.history || this.sourceValid(item,context,hashes)).map(item=>({...item,projectName:item.projectId?this.projectById(item.projectId)?.name:undefined}))};
   }
-  /**
-   * 托管开发记录生成已停用：会话只做会话，不往项目里写任何文档。
-   * 保留签名是为了让"是否接管"的判断继续可读，返回值恒为空。
-   */
-  async exportIfAdopted(_projectId:string,_projectPath:string):Promise<string|undefined> {return undefined;}
   private async load(job:MemoryJob):Promise<NonNullable<ReturnType<typeof conclusionSnapshot>>|undefined> {
     const live=this.deps.getSession?.(job.sessionId);
     let messages:EvidenceMessage[];
@@ -640,8 +622,7 @@ export class MemoryService {
         try{await db.call("reviveFailed");}catch{/* 自愈失败不影响本轮 */ }
       }
       if(maintenance.count) {
-        for(const id of maintenance.projectIds){const project=this.store.getProjects().find(p=>p.id===id);if(project)await this.exportIfAdopted(id,project.path);}
-        this.notify();
+                this.notify();
       }
       if(!this.settings().background || this.stopped)return;
       const first=await db.call("claim");if(!first)return;
@@ -741,8 +722,7 @@ export class MemoryService {
           this.saveLessonCandidate(candidate,origin.userEvidence || origin.text.slice(0,200));
         }
         const project=first.projectId?this.store.getProjects().find(p=>p.id===first.projectId):undefined;
-        if(project && valid.length)await this.exportIfAdopted(project.id,project.path);
-      });
+              });
       await this.refreshSummary();this.analysisWarning=undefined;
       this.notify();
     } catch(error) {
@@ -768,8 +748,6 @@ export class MemoryService {
       this.port=new MemoryClient(file);
     }
     await this.port.call("detachSession",sessionId,clear);
-    const project=this.project(projectPath);
-    if(project && await this.port.call("documentStatus",project.id))await this.port.call("generateDocuments",project.id,project.path);
     await this.refreshSummary();this.notify();
   }
   close():Promise<void> {return this.closePromise ??= this.finishClose();}

@@ -10,7 +10,7 @@ let host:HTMLDivElement,root:Root,view:MemoryView,documentValue:MemoryDocument,c
 const query=vi.fn(),readDocument=vi.fn(),saveDocument=vi.fn(),configure=vi.fn();
 beforeEach(async()=>{
  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);await uiI18n.changeLanguage("zh-CN");
- view={settings:{enabled:true,background:false},status:{count:77,pending:8,usedTokens:55},reports:[{directory:"secret-project",backup:"secret-backup",imported:1,unchanged:0,conflicts:0,errors:["secret-error"],missing:[]}],ready:true};
+ view={settings:{enabled:true,background:false},status:{count:77,pending:8,usedTokens:55},ready:true};
  documentValue={file:"/synthetic/MEMORY.md",hash:"a".repeat(64),content:"# 我的记忆\n用户直接编辑的原文 <!-- memory:global/existing r:1 -->\n",reviewHash:"b".repeat(64),available:"",protectedLines:[],changes:"",removed:[]};
  query.mockReset();readDocument.mockReset().mockImplementation(async()=>structuredClone(documentValue));saveDocument.mockReset().mockImplementation(async(content,hash)=>({...documentValue,content,hash}));
  configure.mockReset().mockImplementation(async patch=>view.settings={...view.settings,...patch});
