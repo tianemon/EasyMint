@@ -149,8 +149,6 @@
   "ui.ChatBlocks.loadSkill": "加载技能",
   "ui.ChatBlocks.manageSkills": "管理技能",
   "ui.ChatBlocks.saveExperience": "沉淀经验",
-  "ui.ChatBlocks.searchExperiences": "搜索经验",
-  "ui.ChatBlocks.retireExperience": "退役经验",
   "ui.ChatBlocks.import": "导入",
   "ui.ChatBlocks.confirmDevelopment": "确认开发",
   "ui.ChatBlocks.refreshTasks": "刷新任务",

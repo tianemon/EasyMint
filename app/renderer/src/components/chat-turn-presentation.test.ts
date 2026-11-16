@@ -221,8 +221,8 @@ describe("system-triggered execution boundaries", () => {
   const prior = () => [question, ai(2, [text("checking")], { stopReason: "toolUse" }),
     ai(3, [text("original conclusion")], { turnOutcome: "completed", durationMs: 1000 })];
 
-  it.each([true, undefined])("preserves prior conclusions during and after a learn continuation (marker=%s)", marker => {
-    const messages = [...prior(), notice(4, "learn", marker)];
+  it.each([true, undefined])("preserves prior conclusions during and after a flow continuation (marker=%s)", marker => {
+    const messages = [...prior(), notice(4, "flow", marker)];
     const running = buildTurnPresentations(messages, true);
     expect(running.get(1)?.finalEntries.get(2)?.[0]).toHaveProperty("text", "original conclusion");
     expect(runningTurnPosition(messages)).toEqual({ first: -1, startedAt: 600000 });

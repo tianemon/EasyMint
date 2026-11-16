@@ -34,7 +34,7 @@ const TOOL_LABELS: Record<string, string> = {
   get task() { return uiText("ui.ChatBlocks.delegateAgent"); }, get create_agent_template() { return uiText("ui.ChatBlocks.createTemplate"); }, get list_agents() { return uiText("ui.ChatBlocks.viewAgents"); },
   get read_agent_log() { return uiText("ui.ChatBlocks.readLogs"); }, get stop_agent() { return uiText("ui.ChatBlocks.stopAgent"); },
   get use_skill() { return uiText("ui.ChatBlocks.loadSkill"); }, get manage_skill() { return uiText("ui.ChatBlocks.manageSkills"); }, get learn() { return uiText("ui.ChatBlocks.saveExperience"); },
-  get search_experiences() { return uiText("ui.ChatBlocks.searchExperiences"); }, get retire_experiences() { return uiText("ui.ChatBlocks.retireExperience"); }, get import_skill() { return uiText("ui.ChatBlocks.import"); }, get import_mcp_server() { return uiText("ui.ChatBlocks.import"); },
+  get import_skill() { return uiText("ui.ChatBlocks.import"); }, get import_mcp_server() { return uiText("ui.ChatBlocks.import"); },
   get show_confirm_dev() { return uiText("ui.ChatBlocks.confirmDevelopment"); }, get refresh_tasks() { return uiText("ui.ChatBlocks.refreshTasks"); },
   get set_task_status() { return uiText("ui.ChatBlocks.updateTask"); }, get show_prototype() { return uiText("ui.ChatBlocks.previewPrototype"); },
   get list_issues() { return uiText("ui.ChatBlocks.viewIssues"); }, get set_issue_status() { return uiText("ui.ChatBlocks.updateIssue"); },
@@ -68,7 +68,7 @@ function toolIconPaths(name: string): JSX.Element | null {
     case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
       return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
     // 知识/技能(wrench)
-    case "memory": case "use_skill": case "manage_skill": case "learn": case "search_experiences":
+    case "memory": case "use_skill": case "manage_skill":
     case "import_skill": case "import_mcp_server":
       return (<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>);
     // MCP 工具调用(plug 插头)
@@ -929,11 +929,6 @@ function toolDetailLabel(item: ToolItem): string | null {
     const action=String(inp.action ?? "");
     const labels:Record<string,string>={save:uiText("memory.add"),search:uiText("memory.search"),read:uiText("ui.ChatBlocks.view"),update:uiText("memory.edit"),forget:uiText("memory.forget"),edit:uiText("memory.edit"),archive:uiText("memory.archive"),restore:uiText("memory.restore"),accept:uiText("memory.accept"),reject:uiText("memory.reject"),merge:uiText("memory.merge"),cancel:uiText("memory.cancelScheduled")};
     return labels[action] ?? uiText("memory.title");
-  }
-  if (n === "learn") {
-    const skill = (typeof inp.skill === "object" && inp.skill !== null ? inp.skill : undefined) as Record<string, unknown> | undefined;
-    const name = skill && typeof skill.name === "string" ? skill.name : undefined;
-    return name ? uiText("ui.ChatBlocks.saveSkill", { v0: name }) : null; // 纯 memory 沉淀无技能名,仍显示结果
   }
   return null;
 }

@@ -282,8 +282,7 @@ export type SystemMessageKind =
   | "project-created" // 项目已创建完毕(初始化触发)
   | "direct-create" // 用户点直接创建,触发 Mint 对话引导补全信息
   | "flow"         // 流程指令(翻译/功能清单/技术方案等)
-  | "summary"      // 上下文摘要指令
-  | "learn";       // 历史经验沉淀通知（兼容已有会话）
+  | "summary";     // 上下文摘要指令
 
 export interface SystemMessagePayload {
   customType: "system_message";
@@ -304,7 +303,6 @@ export const SYSTEM_MESSAGE_LABELS: Record<SystemMessageKind, string> = {
   "direct-create": "直接创建",
   flow: "流程指令",
   summary: "上下文摘要",
-  learn: "经验沉淀",
 };
 
 /**

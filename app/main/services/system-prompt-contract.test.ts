@@ -29,7 +29,6 @@ const ALL_KINDS: SystemMessageKind[] = [
   "direct-create",
   "flow",
   "summary",
-  "learn",
 ];
 
 describe("Mint 系统提示词 override 契约（纯替换架构）", () => {

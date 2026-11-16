@@ -149,8 +149,6 @@
   "ui.ChatBlocks.loadSkill": "Load skill",
   "ui.ChatBlocks.manageSkills": "Manage skills",
   "ui.ChatBlocks.saveExperience": "Save experience",
-  "ui.ChatBlocks.searchExperiences": "Search experiences",
-  "ui.ChatBlocks.retireExperience": "Retire experience",
   "ui.ChatBlocks.import": "Import",
   "ui.ChatBlocks.confirmDevelopment": "Confirm development",
   "ui.ChatBlocks.refreshTasks": "Refresh tasks",

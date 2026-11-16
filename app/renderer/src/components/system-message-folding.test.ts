@@ -9,7 +9,7 @@ import { useProcessDisclosure } from "./chat-process-disclosure";
 import type { ChatMessage } from "./chat-utils";
 import type { SystemMessageKind } from "@shared/prompts";
 vi.mock("../lib/diff-highlight",()=>({inferLang:()=>"TEXT",tokenizeLines:()=>[]}));
-const kinds: SystemMessageKind[]=["delegation","shell","project-created","direct-create","flow","summary","learn"];
+const kinds: SystemMessageKind[]=["delegation","shell","project-created","direct-create","flow","summary"];
 const types: Array<string|undefined>=[...kinds,"handoff","future-notice",undefined];
 let container:HTMLDivElement,root:Root;
 beforeEach(()=>{vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);useProcessDisclosure.setState({expanded:{}});container=document.createElement("div");document.body.append(container);root=createRoot(container);});
@@ -42,6 +42,6 @@ it("does not turn an ordinary user message into process, or absorb a separate ex
  const tail:ChatMessage={id:3,role:"ai",timestamp:3000,stopReason:"stop",turnOutcome:"completed",entries:[{kind:"text",text:"answer",timestamp:3000}]};
  const grouped=buildTurnPresentations([ai,plain,tail],false);expect(grouped.has(1)).toBe(false);
  const terminal={...ai,stopReason:"stop",turnOutcome:"completed" as const};
- const trigger={...notice("learn"),details:{kind:"learn",startsExecution:true}};
+ const trigger={...notice("flow"),details:{kind:"flow",startsExecution:true}};
  const turns=buildTurnPresentations([terminal,trigger,tail],false);expect(turns.has(1)).toBe(false);expect(turns.get(0)).not.toBe(turns.get(2));
 });

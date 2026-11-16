@@ -22,7 +22,7 @@ function startsExecution(message: ChatMessage, previousAi?: ChatMessage): boolea
   if (message.customType !== "system_message") return false;
   if (typeof message.details?.startsExecution === "boolean") return message.details.startsExecution;
   const kind = String(message.details?.kind);
-  if (["project-created", "direct-create", "flow", "learn"].includes(kind)) return true;
+  if (["project-created", "direct-create", "flow"].includes(kind)) return true;
   return ["delegation", "shell"].includes(kind) && !!previousAi && !previousAi.streaming
     && (previousAi.turnOutcome !== undefined || previousAi.stopReason === "stop")
     && !!previousAi.entries?.some(entry => entry.kind === "text" && entry.phase !== "commentary");

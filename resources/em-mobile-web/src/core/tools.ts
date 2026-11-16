@@ -33,8 +33,8 @@ const TOOL_LABELS: Record<string, string> = {
   find: '查找文件', ls: '列出目录', powershell: 'PowerShell',
   task: '派遣 Agent', create_agent_template: '创建模板', list_agents: '查看 Agent',
   read_agent_log: '读取日志', stop_agent: '停止 Agent',
-  use_skill: '加载技能', manage_skill: '管理技能', learn: '沉淀经验',
-  search_experiences: '搜索经验', retire_experiences: '退役经验', import_skill: '导入', import_mcp_server: '导入',
+  use_skill: '加载技能', manage_skill: '管理技能',
+  import_skill: '导入', import_mcp_server: '导入',
   show_confirm_dev: '确认开发', refresh_tasks: '刷新任务',
   set_task_status: '更新任务', show_prototype: '预览原型',
   list_issues: '查看 Issue', set_issue_status: '更新 Issue',
@@ -75,11 +75,6 @@ export function toolDisplay(tool: DisplayToolBlock): string {
     return skill ? `${label} · 技能：${skill}${action ? `（${action}）` : ''}`
       : `${label} · 技能管理${action ? `（${action}）` : ''}`;
   }
-  if (name === 'learn') {
-    const skill = input.skill && typeof input.skill === 'object' ? input.skill as Record<string, unknown> : null;
-    const skillName = skill && typeof skill.name === 'string' ? skill.name : '';
-    return skillName ? `${label} · 沉淀技能：${skillName}` : label;
-  }
   const detail = input.command ?? input.file_path ?? input.path ?? input.query ?? input.url ?? input.description;
   return typeof detail === 'string' && detail.trim() ? `${label} · ${detail.trim()}` : label;
 }
@@ -118,7 +113,7 @@ export function toolDescription(input: Record<string, unknown> | undefined): str
 export const SYSTEM_LABELS: Record<string, string> = {
   delegation: 'SubAgent', shell: '后台命令', 'human-action': '命令交互', 'project-created': '项目初始化',
   'direct-create': '直接创建', flow: '流程指令', handoff: '会话交接',
-  summary: '上下文摘要', learn: '经验沉淀', system: '系统消息', error: '运行错误',
+  summary: '上下文摘要', system: '系统消息', error: '运行错误',
 };
 
 /**
