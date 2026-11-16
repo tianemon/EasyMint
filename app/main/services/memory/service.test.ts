@@ -154,3 +154,11 @@ it("does not write a queued operation after the user input changes",async()=>{
   await expect(f.service.saveFromAgent(old,{kind:"preference",text:"旧指导"},"global",undefined,"inference")).rejects.toThrow("输入已变化");
   expect(f.db.query({confidence:"all",history:true}).items).toHaveLength(0);
 });
+
+it("rejects actions that no longer exist instead of falling through to restore", async () => {
+  const f = setup(), context = f.context();
+  for (const action of ["merge", "accept", "reject"]) {
+    await expect(f.service.manageFromAgent(context, action as never, { key: "global/x" }))
+      .rejects.toThrow("不支持的记忆管理动作");
+  }
+});
