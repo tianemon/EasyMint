@@ -509,34 +509,24 @@ export class MemoryService {
     if(!requested || !(user.includes(requested.name) || user.includes(projectId) || /跨项目|所有项目|其他项目|all projects|across projects/iu.test(user)))throw new Error("跨项目详情需要当前用户明确指定项目或跨项目范围");
     return requested;
   }
-  async manageFromAgent(context:MemorySessionContext,action:"edit"|"archive"|"restore"|"accept"|"reject"|"merge"|"cancel",request:{key?:string;revision?:number;entries?:Array<{key:string;revision:number}>;input?:MemoryWrite;quote?:string;projectId?:string},signal?:AbortSignal) {
+  async manageFromAgent(context:MemorySessionContext,action:"edit"|"archive"|"restore"|"cancel",request:{key?:string;revision?:number;entries?:Array<{key:string;revision:number}>;input?:MemoryWrite;quote?:string;projectId?:string},signal?:AbortSignal) {
     return withSessionCreationLock(async()=>{
       if(!this.canRecord(context.sessionId))throw new Error("当前会话不允许管理记忆");
       await this.bindInput(context,"preference","inference",undefined,signal);
       const live=(context.current?.() ?? context);
       if(!await this.maintenanceAllowed(live,request.quote))throw new Error("需要当前用户明确的整理／更正／历史管理请求；只检查时不要写入");
       if(/只.{0,4}(检查|看看|列出)|先别改|不要修改|read.only|inspect only/iu.test(await this.currentUser(live)))throw new Error("用户本轮只要求检查，未修改记忆");
-      const whole=await this.currentUser(live),verbs={merge:"合并|merge",archive:"归档|收进历史|archive",restore:"恢复|重新采用|重开|restore",accept:"接受|确认|生效|accept|confirm",reject:"拒绝|reject",edit:"修改|编辑|修正|edit",cancel:"取消计划|cancel"};
-      if((!["accept","reject"].includes(action) && /(不要|别|不用|先不|do not|don't).{0,6}(整理|管理.{0,4}记忆|organize|manage.{0,8}memor)/iu.test(whole)) || new RegExp(`(不要|别|不用|先不|do not|don't).{0,6}(${verbs[action]})`,"iu").test(whole))throw new Error("本轮用户明确禁止了此记忆管理动作");
-      if((action==="accept" || action==="reject") && !new RegExp(action==="accept"?"接受|确认|生效|accept|confirm":"拒绝|不要采用|reject", "iu").test(this.maintenanceClauses(whole).join("，")))throw new Error("整理请求不等于确认或拒绝候选，需要明确选择");
+      const whole=await this.currentUser(live),verbs={archive:"归档|收进历史|archive",restore:"恢复|重新采用|重开|restore",edit:"修改|编辑|修正|edit",cancel:"取消计划|cancel"};
+      if((/(不要|别|不用|先不|do not|don't).{0,6}(整理|管理.{0,4}记忆|organize|manage.{0,8}memor)/iu.test(whole)) || new RegExp(`(不要|别|不用|先不|do not|don't).{0,6}(${verbs[action]})`,"iu").test(whole))throw new Error("本轮用户明确禁止了此记忆管理动作");
       const project=await this.selectedProject(live,request.projectId),db=await this.database();signal?.throwIfAborted();
-      let item:MemoryRecord;
-      if(action==="merge") {
-        if(!request.input || !request.entries)throw new Error("合并需要原条目ID／修订和保留限定的结论");
-        assertCondensed(request.input,await this.currentUser(live));
-        item=await db.call("merge",request.entries,project?.id,request.input);
-      } else {
         const prior=await db.call("get",request.key ?? "",project?.id);
         if(!prior || (prior.mergedInto && action!=="restore"))throw new Error("记忆不存在或已合并，请重新读取");
         if(action==="edit" && (!request.input || request.input.kind!==prior.kind))throw new Error("整理编辑须保留原类型和事实范围；新事实使用save／update");
         if(request.input)assertCondensed(request.input,await this.currentUser(live));
         const patch=action==="cancel"?{cancelPending:true}:action==="edit"?request.input!:
           action==="archive"?{lifecycle:"archived" as const,reason:"用户收进历史",summary:""}:
-          action==="restore"?{unmerge:true,lifecycle:prior.kind==="activity"?"archived" as const:"active" as const,reason:"用户明确恢复",...(prior.expiresAt!==undefined && prior.expiresAt<=Date.now()?{expiresAt:null}:{}),...(prior.effectiveAt!==undefined && prior.effectiveAt>Date.now()?{effectiveAt:null}:{})}:
-          action==="accept"?{state:"confirmed" as const,lifecycle:prior.kind==="activity"?"archived" as const:"active" as const,sources:[...prior.sources,{ref:`manual:accepted:${live.sessionId}:${Date.now()}`,type:"manual" as const}]}:
-          {state:"rejected" as const};
-        item=await db.call("update",prior.key,project?.id,request.revision ?? -1,patch);
-      }
+          {unmerge:true,lifecycle:prior.kind==="activity"?"archived" as const:"active" as const,reason:"用户明确恢复",...(prior.expiresAt!==undefined && prior.expiresAt<=Date.now()?{expiresAt:null}:{}),...(prior.effectiveAt!==undefined && prior.effectiveAt>Date.now()?{effectiveAt:null}:{})};
+        const item:MemoryRecord=await db.call("update",prior.key,project?.id,request.revision ?? -1,patch);
       const warning=[await this.refreshSummary()].filter(Boolean).join("\n") || undefined;this.notify();return {item,existing:false,warning};
     });
   }
