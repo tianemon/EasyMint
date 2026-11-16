@@ -388,6 +388,10 @@ export async function createEnhancedBashTool(
         details: { phase: "accepted", backgroundId: id, logPath, completionEvidence: false },
       };
     },
+
+  // SDK 的 AgentToolResult 要求 details 必填，而 execute 内部有的分支转发的是
+  // SDK 自带 bash 工具的结果（content 的 type 被放宽成 string）。逐点收窄会牵动 8 个
+  // 返回路径与 SDK 结果类型，收益（去掉一条断言）小于风险，先保留断言并记录原因。
   } as unknown as ToolDefinition;
 }
 
@@ -453,5 +457,9 @@ export function createStopShellTool(): ToolDefinition {
       const list = running.map((s) => `- ${s.id}: ${summarize(s)}`).join("\n");
       return { content: [{ type: "text" as const, text: `已停止 ${running.length} 个后台命令${reason}:\n${list}` }] };
     },
+
+  // SDK 的 AgentToolResult 要求 details 必填，而 execute 内部有的分支转发的是
+  // SDK 自带 bash 工具的结果（content 的 type 被放宽成 string）。逐点收窄会牵动 8 个
+  // 返回路径与 SDK 结果类型，收益（去掉一条断言）小于风险，先保留断言并记录原因。
   } as unknown as ToolDefinition;
 }
