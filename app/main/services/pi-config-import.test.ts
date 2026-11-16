@@ -40,15 +40,14 @@ describe("pi import", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-mcp-merge-")); roots.push(root);
     const source = path.join(root, "pi", "agent"); const home = path.join(root, "em");
     const repo = await NativeConfig.create(new Store(home));
-    const legacy = path.join(home, "mcp.json");
-    atomicWrite(legacy, encode({ autoEnableCodemode: false, mcpServers: { existing: { type: "stdio", command: "keep" }, "foo-bar": { type: "stdio", command: "keep-namespace" } } }));
+    const targetMcp = path.join(repo.storage.agentDir, "mcp.json");
+    atomicWrite(targetMcp, encode({ autoEnableCodemode: false, mcpServers: { existing: { type: "stdio", command: "keep" }, "foo-bar": { type: "stdio", command: "keep-namespace" } } }));
     atomicWrite(path.join(source, "auth.json"), encode({ deepseek: { type: "api_key", key: "test" } }));
     atomicWrite(path.join(source, "mcp.json"), encode({ mcpServers: { existing: { command: "replace" }, foo_bar: { command: "collision" }, added: { command: "new" } } }));
     const result = await repo.importPi(source, true);
     expect(result).toMatchObject({ providers: 1, mcpServers: 1, conflicts: 2 });
-    expect(read(legacy)).toEqual({ autoEnableCodemode: false, mcpServers: { existing: { type: "stdio", command: "keep" }, "foo-bar": { type: "stdio", command: "keep-namespace" }, added: { type: "stdio", command: "new" } } });
-    expect(fs.existsSync(path.join(repo.storage.agentDir, "mcp.json"))).toBe(false);
-    expect(read(path.join(result.backup!, "mcp.json")).mcpServers.existing.command).toBe("keep");
+    expect(read(targetMcp)).toEqual({ autoEnableCodemode: false, mcpServers: { existing: { type: "stdio", command: "keep" }, "foo-bar": { type: "stdio", command: "keep-namespace" }, added: { type: "stdio", command: "new" } } });
+    expect(read(path.join(result.backup!, "agent", "mcp.json")).mcpServers.existing.command).toBe("keep");
   });
 
   it("reports unsupported or invalid MCP definitions without importing credentials or silently weakening authentication", async () => {

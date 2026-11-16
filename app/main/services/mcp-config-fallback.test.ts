@@ -55,24 +55,7 @@ async function loadService() {
   return import("./mcp-service");
 }
 
-describe("MCP 配置：迁移未完成时的回落读写", () => {
-  it("只有旧位置有配置时，扫描 / 取定义 / 写入 / 路径提示全部指向旧文件", async () => {
-    writeAt(home, "mcp.json", JSON.stringify({
-      mcpServers: { "legacy-a": { type: "stdio", command: "a", args: [] } },
-    }));
-    const mcp = await loadService();
-
-    // 扫描能看到旧位置的 server（迁移未完成不应表现为"配置全没了"）
-    expect(mcp.scanMcpServers().map((s) => s.name)).toEqual(["legacy-a"]);
-    // 取定义也必须能取到 —— 这一条曾因漏回落而红：状态显示「配置已不存在」
-    expect(mcp.getMcpServerConfig("legacy-a")?.command).toBe("a");
-    // 写入落在同一份文件上，不劈成两份
-    expect(mcp.saveMcpServer("legacy-b", { type: "stdio", command: "b", args: [] }).ok).toBe(true);
-    expect(servers(home, "mcp.json").sort()).toEqual(["legacy-a", "legacy-b"]);
-    expect(fs.existsSync(path.join(home, "agent", "mcp.json"))).toBe(false);
-    // 界面提示的路径就是正在被读的那份，用户照着去编辑才有效
-    expect(mcp.getMcpConfigPath()).toBe(path.join(home, "mcp.json"));
-  });
+describe("MCP 配置：唯一位置与首次落点", () => {
 
   it("新位置已有配置时完全接管旧位置", async () => {
     writeAt(path.join(home, "agent"), "mcp.json", JSON.stringify({

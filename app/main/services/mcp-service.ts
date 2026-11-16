@@ -135,11 +135,6 @@ function emMcpPath(): string {
   return path.join(emAgentDir(), "mcp.json");
 }
 
-/** 归位前的旧位置（`~/.easymint/mcp.json`）——只读兜底；归位迁移已移除，此兜底只对历史文件生效。 */
-function legacyMcpPath(): string {
-  return path.join(emHome(), "mcp.json");
-}
-
 // ── Disabled list ──────────────────────────────────
 
 const emSettingsPath = () => path.join(emHome(), "em-settings.json");
@@ -183,21 +178,9 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
  * 归位迁移（`~/.easymint/mcp.json` → `~/.easymint/agent/mcp.json`）已移除，
  * 但历史文件可能还在，所以回落分支仍需保留。
  */
-let legacyPathWarned = false;
 function userMcpPath(dataDir?: string): string {
-  const current = dataDir ? path.join(dataDir, "agent", "mcp.json") : emMcpPath();
-  if (readMcpServersFile(current) !== undefined) return current;
-  const legacy = dataDir ? path.join(dataDir, "mcp.json") : legacyMcpPath();
-  if (Object.keys(readMcpServersFrom(legacy)).length > 0) {
-    // 只警告一次：本函数在扫描/取定义/写入等处都会被调用，迁移长期未完成时会刷屏
-    if (!legacyPathWarned) {
-      legacyPathWarned = true;
-      console.warn("[mcp] 未在 agent/ 下找到配置，仍沿用旧位置 ~/.easymint/mcp.json（迁移未完成？）");
-    }
-    return legacy;
-  }
-  // 两边都没有：新位置优先（迁移后首写、seedDefaultMcp 的落点）
-  return current;
+  // 只剩一个位置：旧位置（~/.easymint/mcp.json）与归位迁移都已移除，不再回落。
+  return dataDir ? path.join(dataDir, "agent", "mcp.json") : emMcpPath();
 }
 
 /** 读用户级配置（生效路径，见 userMcpPath） */
