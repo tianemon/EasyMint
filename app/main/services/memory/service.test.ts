@@ -7,7 +7,6 @@ import type { MemoryPort } from "./client";
 import type { MemorySettings } from "../../../shared/memory";
 import { MemoryDatabase } from "./database";
 import { upsertDocumentEntry } from "./document-store";
-import { migrateExperiences } from "./migration";
 import { adoptDocuments,documentStatus,generateDocuments,previewDocuments } from "./documents";
 import { MemoryService,type MemorySessionContext } from "./service";
 import { memoryDay } from "./codec";
@@ -34,7 +33,7 @@ function setup(background=true) {
     const payload=JSON.parse(context.messages[0].content);
     return reply(payload.conclusions.map((source:any)=>({sourceRef:source.ref,kind:"preference",text:"以后使用中文回答",scope:"global",basis:"explicit",quote:"以后所有回答都使用中文，并保留重要决策的理由。"})));
   });
-  const extra={readDocument:(projects:SummaryProject[])=>readSummaryDocument(db,path.join(root,"memory","MEMORY.md"),projects),saveDocument:(projects:SummaryProject[],content:string,hash:string,reviewHash?:string)=>saveSummaryDocument(db,path.join(root,"memory","MEMORY.md"),projects,content,hash,reviewHash),writeSummary:(projects:SummaryProject[],force=false)=>writeSummary(db,path.join(root,"memory","MEMORY.md"),projects,force),readSummary:(projects:SummaryProject[],id?:string)=>readSummary(db,path.join(root,"memory","MEMORY.md"),projects,id),readSource:readConclusionEntries,migrate:(directory:string,projectId?:string)=>migrateExperiences(db,directory,path.join(root,"backups"),projectId),
+  const extra={readDocument:(projects:SummaryProject[])=>readSummaryDocument(db,path.join(root,"memory","MEMORY.md"),projects),saveDocument:(projects:SummaryProject[],content:string,hash:string,reviewHash?:string)=>saveSummaryDocument(db,path.join(root,"memory","MEMORY.md"),projects,content,hash,reviewHash),writeSummary:(projects:SummaryProject[],force=false)=>writeSummary(db,path.join(root,"memory","MEMORY.md"),projects,force),readSummary:(projects:SummaryProject[],id?:string)=>readSummary(db,path.join(root,"memory","MEMORY.md"),projects,id),readSource:readConclusionEntries,
     documentStatus:(id:string)=>documentStatus(db,id),generateDocuments:(id:string,project:string)=>generateDocuments(db,id,project),previewDocuments,
     adoptDocuments:(id:string,project:string,directory:string,hash:string)=>adoptDocuments(db,id,project,directory,hash,path.join(root,"backups"))};
   const port={call:async(method:string,...args:unknown[])=>{
@@ -189,15 +188,6 @@ it("retries failed new conclusions only on an explicit request and does not re-r
   await f.service.requestAnalysis();expect(f.complete).toHaveBeenCalledTimes(4);
   expect((await f.service.state()).status.error).toBeUndefined();
 });
-it("preserves old experience data when importing a project after startup, without enabling analysis",async()=>{
-  const f=setup(false);await f.service.initialize();await f.service.configure({enabled:false});
-  const project=path.join(f.root,"project"),dir=path.join(project,".easymint","experiences");fs.mkdirSync(dir,{recursive:true});
-  const original=Buffer.from("# 原经验\r\n\r\n完整的旧规则\r\n");fs.writeFileSync(path.join(dir,"old.md"),original);
-  fs.writeFileSync(path.join(dir,"index.json"),JSON.stringify({items:[{id:"import-id",title:"旧约定",file:"old.md",kind:"convention"}]}));
-  await f.service.importProject("p",project);
-  expect(f.db.get("import-id","p")?.details).toBe(original.toString());expect(fs.readFileSync(path.join(dir,"old.md"))).toEqual(original);
-  expect(f.service.settings().enabled).toBe(false);expect(f.complete).not.toHaveBeenCalled();
-});
 
 it("does not mistake a request to retain information for permission to forget it",async()=>{
   const f=setup(false);await f.service.initialize();const context=f.context();
@@ -320,15 +310,6 @@ it("exposes historical timestamps, reasons and matched revisions through the reg
 
 
 
-it("distinguishes an unavailable project root from an existing project with no legacy experiences",async()=>{
- const f=setup(false),project=path.join(f.root,"project"),offline=path.join(f.root,"project-offline");
- fs.renameSync(project,offline);await f.service.initialize();
- let view=await f.service.state();expect(view.ready).toBe(true);expect(view.reports.find(report=>report.projectId==="p")?.status).toBe("failed");
- expect(view.reports.find(report=>report.projectId==="p")?.errors.join(" ")).toContain("项目目录暂不可用");
- fs.renameSync(offline,project);await f.service.retryMigrations("p");await f.service.initialize();
- view=await f.service.state();expect(view.reports.find(report=>report.projectId==="p")?.status).toBe("complete");
- expect(view.reports.find(report=>report.projectId==="p")?.imported).toBe(0);
-});
 
 
 it("preserves user-edited MD across new memory writes and lets the agent maintain only grounded additions",async()=>{

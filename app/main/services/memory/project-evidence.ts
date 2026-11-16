@@ -149,11 +149,6 @@ export function collectEvidence(root: string, probe: EvidenceProbe): ProjectEvid
   return { git, files, signal, hasContent: Boolean(git || files) };
 }
 
-/** 证据是否变化：信号不同才需要重算进展。 */
-export function evidenceChanged(previousSignal: string | undefined, evidence: ProjectEvidence): boolean {
-  return previousSignal !== evidence.signal;
-}
-
 /** 压缩成给模型看的证据摘要（不含代码正文，只有指针）。 */
 export function describeEvidence(evidence: ProjectEvidence): string {
   const out: string[] = [];

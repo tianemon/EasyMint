@@ -252,7 +252,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("project:update", (_e, { id, patch }) => projectService.update(id, patch));
   ipcMain.handle("project:import", async (_e, { dirPath }) => {
     const project=projectService.import_(dirPath);
-    if(project.isNew)await agentService.memory.importProject(project.id,project.path);
     return project;
   });
 

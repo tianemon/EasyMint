@@ -110,7 +110,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     update: (key: string, revision: number, patch: Parameters<import("../shared/memory").MemoryApi["update"]>[2], projectPath?: string) => ipcRenderer.invoke("memory:update", { key, revision, patch, projectPath }),
     forget: (key: string, projectPath?: string) => ipcRenderer.invoke("memory:forget", { key, projectPath }),
     analyze: () => ipcRenderer.invoke("memory:analyze"),
-    retryMigrations: (projectId?:string) => ipcRenderer.invoke("memory:retry-migrations",{projectId}),
     openBackups: () => ipcRenderer.invoke("memory:open-backups"),
     repairDocuments: (projectPath:string,directory:string,hash:string) => ipcRenderer.invoke("memory:repair-documents",{projectPath,directory,hash}),
     summary: (refresh?:boolean) => ipcRenderer.invoke("memory:summary",{refresh}),

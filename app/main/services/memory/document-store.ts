@@ -78,10 +78,3 @@ export function removeDocumentEntry(file: string, key: string): { changed: boole
   return { changed: true };
 }
 
-/** 首次使用时播种：只建标题，不写任何"暂无"占位句。 */
-export function ensureDocument(file: string): string {
-  const current = readDocument(file);
-  if (current !== null) return current;
-  writeDocument(file, DOCUMENT_SEED);
-  return DOCUMENT_SEED;
-}

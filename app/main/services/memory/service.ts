@@ -199,38 +199,27 @@ export class MemoryService {
       this.store.saveSettings({...settings,memory:{...memory,enabledAt:Date.now()-86_400_000}});
     }catch{/* 设置不可写时按未设置处理，capture 会继续用当前时间兜底 */ }
   }
-  private async initializeSources(retry:boolean,projectId?:string):Promise<void> {
+  private async initializeSources(retry:boolean):Promise<void> {
     this.markUnavailable();
     if((!this.settings().enabled && !retry) || this.stopped)return;
     if(this.initPromise && (!retry || ["opening","migrating"].includes(this.migration.phase)))return this.initPromise;
     this.initializationAttempted=true;this.warning=undefined;
-    this.migration={phase:this.initialized&&!this.port?.unavailable?"migrating":"opening",completed:0,total:0};this.notify();
+    this.migration={phase:"opening",completed:0,total:0};this.notify();
     const task=(async()=>{
       const db=await this.openPort();
-      const sources=[{directory:path.join(this.store.getDataDir(),"experiences"),projectId:undefined as string|undefined,projectName:undefined as string|undefined,projectPath:undefined as string|undefined},
-        ...this.store.getProjects().map(project=>({directory:path.join(project.path,".easymint","experiences"),projectId:project.id,projectName:project.name,projectPath:project.path}))];
-      const problems=new Set(this.reports.filter(report=>report.status!=="complete").map(report=>report.projectId ?? "global"));
-      const selected=sources.filter(source=>projectId?(source.projectId ?? "global")===projectId:!retry || !problems.size || problems.has(source.projectId ?? "global"));
-      this.migration={phase:"migrating",completed:0,total:selected.length};this.notify();
-      for(const source of selected){
+      // 不再导入任何旧产物（经验库保持独立）；这里只按项目刷新托管的开发记录。
+      for(const project of this.store.getProjects()){
         if(this.stopped)return;
-        this.migration={...this.migration,projectName:source.projectName};this.notify();
+        let documentError:string|undefined;
         try {
-          if(source.projectPath && !(await statIfExists(source.projectPath))?.isDirectory())throw new Error("项目目录暂不可用，原登记与记忆保留，请恢复目录后重试");
-          // 经验库不再导入记忆：方法归经验库、记忆只存用户态与项目进展，导入会按旧设计污染注入。
-          this.rememberReport({...source,backup:"",imported:0,unchanged:0,conflicts:0,missing:[],errors:[],status:"complete"});
+          if(await db.call("documentStatus",project.id))documentError=(await db.call("generateDocuments",project.id,project.path)).error;
         } catch(error) {
-          this.rememberReport({...source,backup:"",imported:0,unchanged:0,conflicts:0,missing:[],errors:[(error as Error).message],status:"failed"});
           if(db.unavailable)throw error;
+          documentError=(error as Error).message;
         }
-        if(source.projectId){
-          let documentError:string|undefined;
-          try {if(await db.call("documentStatus",source.projectId))documentError=(await db.call("generateDocuments",source.projectId,source.projectPath!)).error;}
-          catch(error){if(db.unavailable)throw error;documentError=(error as Error).message;}
-          this.documentReport(source.projectId,documentError);
-        }
+        this.documentReport(project.id,documentError);
         this.cachedStatus={...await db.call("status"),countKnown:true};
-        this.migration={...this.migration,completed:this.migration.completed+1};this.notify();
+        this.notify();
       }
       if(this.stopped)return;
       this.warning=undefined;this.migration={...this.migration,phase:"ready",projectName:undefined};
@@ -244,11 +233,6 @@ export class MemoryService {
       this.cachedStatus={...this.cachedStatus,countKnown:false};
       if(this.initPromise===task)this.initPromise=undefined;this.notify();throw error;
     }
-  }
-  async retryMigrations(projectId?:string):Promise<void> {
-    this.frontActivity();
-    if(projectId && projectId!=="global" && !this.projectById(projectId))throw new Error("迁移项目未登记，请重新打开迁移结果");
-    void this.initializeSources(true,projectId).catch(()=>undefined);
   }
   async management(create=false):Promise<MemoryPort|undefined> {
     this.markUnavailable();
@@ -768,16 +752,6 @@ export class MemoryService {
     if(!this.settings().enabled || !this.settings().background)throw new Error("后台整理尚未启用");
     await (await this.database()).call("retryFailed");this.notify();
     await this.pump(true);
-  }
-  async importProject(projectId:string,projectPath:string):Promise<void> {
-    const directory=path.join(projectPath,".easymint","experiences");
-    try {
-      if(!await statIfExists(directory) || (await fs.readdir(directory)).length===0)return;
-      const db=await this.management(true);if(!db)return;
-      const report=await db.call("migrate",directory,projectId);
-      const project=this.projectById(projectId);this.rememberReport({...report,projectId,projectPath,projectName:project?.name,status:report.errors.length||report.missing.length?"attention":"complete"});
-    } catch(error){this.rememberReport({directory,projectId,projectPath,projectName:this.projectById(projectId)?.name,backup:"",imported:0,unchanged:0,conflicts:0,missing:[],errors:[(error as Error).message],status:"failed"});}
-    this.notify();
   }
   async detach(sessionId:string,clear:boolean,projectPath:string):Promise<void> {
     this.frontActivity();

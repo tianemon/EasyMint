@@ -4,7 +4,6 @@ import {DatabaseSync} from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 import { MemoryDatabase } from "./database";
-import { migrateExperiences } from "./migration";
 import { adoptDocuments, generateDocuments, previewDocuments, relocatedDirectory } from "./documents";
 import { assertCondensed } from "./policy";
 
@@ -64,39 +63,6 @@ describe("memory persistence and recall boundaries",()=>{
     expect(db.revisions(item.key,"p").every(r=>r.sources.every(s=>s.deleted))).toBe(true);
     db.detachSession("s",true);
     expect(db.get(item.key,"p")).toBeUndefined();
-  });
-});
-
-describe("lossless legacy migration",()=>{
-  it("backs up original bytes, imports indexed, archived and orphan bodies, and preserves conflicts",()=>{
-    const {root,db}=setup(); const dir=path.join(root,"experiences"), backups=path.join(root,"backups");
-    fs.mkdirSync(path.join(dir,"archive"),{recursive:true});
-    const raw=Buffer.from("# 旧规则\r\n\r\n完整正文\r\n");
-    fs.writeFileSync(path.join(dir,"one.md"),raw);
-    fs.writeFileSync(path.join(dir,"orphan.md"),"没有索引的正文");
-    fs.writeFileSync(path.join(dir,"archive","old.md"),"旧归档正文");
-    fs.writeFileSync(path.join(dir,"index.json"),JSON.stringify({items:[{id:"old-id",title:"旧规则",file:"one.md",kind:"convention",tags:["ui"],createdAt:10,updatedAt:20},{id:"missing-id",title:"缺失",file:"missing.md"}]}));
-    fs.writeFileSync(path.join(dir,"archive","index.json"),"[]");
-    const report=migrateExperiences(db,dir,backups,"p");
-    expect(report.imported).toBe(4); expect(report.missing).toEqual(["missing.md"]);
-    expect(fs.readFileSync(path.join(dir,"one.md"))).toEqual(raw);
-    expect(fs.readFileSync(path.join(report.backup,"one.md"))).toEqual(raw);
-    expect(db.get("old-id","p")?.details).toBe(raw.toString());
-    expect(db.get("old-id","p")?.state).toBe("candidate");
-    expect(db.query({projectId:"p"}).items).toHaveLength(0);
-    expect(migrateExperiences(db,dir,backups,"p").imported).toBe(0);
-    fs.writeFileSync(path.join(dir,"one.md"),"后来变化的旧正文");
-    const changed=migrateExperiences(db,dir,backups,"p");
-    expect(changed.conflicts).toBe(1);
-    expect(db.get("old-id","p")?.details).toBe(raw.toString());
-    expect(db.query({projectId:"p",history:true,state:"all",limit:50}).total).toBe(5);
-  });
-  it("never rewrites a damaged index and still preserves orphan files",()=>{
-    const {root,db}=setup(); const dir=path.join(root,"broken"); fs.mkdirSync(dir);
-    fs.writeFileSync(path.join(dir,"index.json"),"{broken"); fs.writeFileSync(path.join(dir,"body.md"),"有价值的旧正文");
-    const report=migrateExperiences(db,dir,path.join(root,"backups"));
-    expect(report.errors).toHaveLength(1); expect(report.imported).toBe(1);
-    expect(fs.readFileSync(path.join(dir,"index.json"),"utf8")).toBe("{broken");
   });
 });
 

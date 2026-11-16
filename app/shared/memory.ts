@@ -135,7 +135,6 @@ export interface MemoryStatus {
   error?: string;
   countKnown?:boolean;
 }
-export interface MemoryDocumentConfig { projectId: string; directory: string; revision: number; error?: string }
 
 export interface MemoryDocumentView { directory:string;relativeDirectory?:string;previousStateBackup?:string; legacy?:string; backup?:string; generation:number; error?:string }
 export interface MemoryDocumentPreview { directory:string; files:string[]; bytes:number; hash:string }
@@ -155,7 +154,6 @@ export interface MemoryApi {
   summary(refresh?:boolean):Promise<MemoryDigest>;
   readDocument():Promise<MemoryDocument>;
   saveDocument(content:string,hash:string):Promise<MemoryDocument>;
-  retryMigrations(projectId?:string):Promise<void>;
   openBackups():Promise<void>;
   previewDocuments(projectPath:string,directory?:string):Promise<MemoryDocumentPreview>;
   adoptDocuments(projectPath:string,directory:string,hash:string):Promise<MemoryDocumentView>;

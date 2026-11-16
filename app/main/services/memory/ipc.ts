@@ -72,7 +72,6 @@ export function registerMemoryIpc(service:MemoryService):void {
     await exportHuman(db,scope.project);
     broadcast("memory:changed",{});
   });
-  ipcMain.handle("memory:retry-migrations",(_event,payload)=>service.retryMigrations(z.string().optional().parse(payload?.projectId)));
   ipcMain.handle("memory:open-backups",async()=>{
     const directory=service.backupDirectory();await fs.promises.mkdir(directory,{recursive:true,mode:0o700});
     const error=await shell.openPath(directory);if(error)throw new Error(error);

@@ -99,15 +99,3 @@ export function planDelivery(items: Deliverable[], options: PlanOptions = {}): D
   return { block, items: planned, tokens: estimateTokens(block), reason: first ? "first" : "delta" };
 }
 
-/** 从会话投影里还原"已交付过哪些版本"，用于下一轮去重。 */
-export function deliveredFrom(
-  entries: Array<{ items?: Array<{ key: string; revision: number }> }>,
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const entry of entries) {
-    for (const item of entry.items ?? []) {
-      if (typeof item.key === "string" && Number.isInteger(item.revision)) map.set(item.key, item.revision);
-    }
-  }
-  return map;
-}
