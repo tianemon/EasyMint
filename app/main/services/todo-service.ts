@@ -41,10 +41,6 @@ function todosPath(projectPath: string): string {
   return path.join(projectPath, ".easymint", "todos.json");
 }
 
-function legacyMdPath(projectPath: string): string {
-  return path.join(projectPath, "docs", "待办事项.md");
-}
-
 function readTodos(projectPath: string): TodosFile {
   const p = todosPath(projectPath);
   if (!existsSync(p)) return { ...EMPTY, todos: [] };
@@ -71,47 +67,13 @@ function writeTodos(projectPath: string, data: TodosFile): void {
   writeFileSync(p, JSON.stringify({ ...data, updatedAt: Date.now() }, null, 2));
 }
 
-/**
- * 历史迁移（幂等）：docs/待办事项.md 存在 && todos.json 不存在 → 解析导入 → md 改名归档。
- * 解析规则：`## N. 标题` 分段；title = 去掉「N. 」编号的标题；note = 该段全文（零丢失）。
- */
-export function ensureMigrated(projectPath: string): { migrated: boolean; count: number } {
-  const md = legacyMdPath(projectPath);
-  const json = todosPath(projectPath);
-  if (!existsSync(md) || existsSync(json)) return { migrated: false, count: 0 };
-  let raw = "";
-  try {
-    raw = readFileSync(md, "utf-8");
-  } catch {
-    return { migrated: false, count: 0 };
-  }
-  // 按 ## 段切分（跳过文件头非 ## 内容）
-  const segments = raw.split(/(?=^## )/m).filter((s) => /^## /.test(s));
-  const todos: UserTodo[] = [];
-  for (const seg of segments) {
-    const titleLine = seg.match(/^##\s+(.+)$/m)?.[1]?.trim();
-    if (!titleLine) continue;
-    // 去掉「N. 」编号前缀（json id 自管理）
-    const title = titleLine.replace(/^\d+\.\s*/, "").trim() || titleLine;
-    const now = Date.now();
-    todos.push({ id: todos.length + 1, title, note: seg.trim(), status: "open", createdAt: now, doneAt: null });
-  }
-  writeTodos(projectPath, { updatedAt: Date.now(), todos });
-  // 原文档改名归档（保留可查，不再作为数据源）
-  try {
-    renameSync(md, path.join(path.dirname(md), "待办事项-归档.md"));
-  } catch { /* 归档失败不阻断（json 已是源） */ }
-  return { migrated: todos.length > 0 || segments.length > 0, count: todos.length };
-}
-
 // ── IPC 操作 ─────────────────────────────────────
 
-export function listTodos(projectPath: string): TodoResult<{ todos: UserTodo[]; migrated?: boolean; migratedCount?: number }> {
-  const mig = ensureMigrated(projectPath);
+export function listTodos(projectPath: string): TodoResult<{ todos: UserTodo[] }> {
   const data = readTodos(projectPath);
   return {
     ok: true,
-    data: { todos: data.todos, ...(mig.migrated ? { migrated: true, migratedCount: mig.count } : {}) },
+    data: { todos: data.todos },
   };
 }
 

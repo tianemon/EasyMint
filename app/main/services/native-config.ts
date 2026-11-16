@@ -13,7 +13,6 @@ import { THINKING_ORDER } from "../../shared/thinking-levels";
 import { Store, registerNativeSettingsView } from "./store";
 import { getModelRuntimeClass } from "./pi-sdk";
 import { getProviderStaticModels } from "./pi-init-static";
-import { migrateExtraModels, migrateModelIdentity } from "./extra-models-migration";
 import { NativeConfigStorage, readText, type JsonObject } from "./native-config-storage";
 import { EM_PATH, EM_SCHEMA_VERSION, EXTERNAL_FIELD_MOVES, NATIVE_CONFIG_FIELDS, SETTINGS_FIELDS, applyApiKeysToDisk, deletePath, getPath, setPath } from "./em-settings-schema";
 
@@ -351,10 +350,8 @@ export class NativeConfig {
     const auth = this.storage.read(this.files.auth);
     const settings = this.storage.read(this.files.settings);
     // Run previous migrations on an in-memory copy, before *any* original is changed.
-    let legacy = { ...this.store.getSettings() };
-    const adapter = { getSettings: () => legacy, saveSettings: (value: typeof legacy) => { legacy = value; } } as Store;
-    migrateExtraModels(adapter);
-    migrateModelIdentity(adapter);
+    const legacy = { ...this.store.getSettings() };
+
     const old = legacy.apiProviders;
     const ordered = Object.values(old?.configs ?? {}).sort((a, b) =>
       a.id === old?.current ? -1 : b.id === old?.current ? 1 : a.createdAt - b.createdAt || a.id.localeCompare(b.id));

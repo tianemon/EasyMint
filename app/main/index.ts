@@ -52,57 +52,6 @@ try {
   }
 } catch (e) { console.warn("[pi] SDK package.json 检测跳过（只读环境）:", (e as Error).message); }
 
-// 一次性迁移：旧布局 ~/.easymint/pi-agent/models-store.json → agent/（0.7.2 起 agentDir 统一）
-const LEGACY_PI_AGENT_STORE = path.join(EM_HOME, "pi-agent", "models-store.json");
-const NEW_AGENT_STORE = path.join(EM_HOME, "agent", "models-store.json");
-if (!fs.existsSync(NEW_AGENT_STORE) && fs.existsSync(LEGACY_PI_AGENT_STORE)) {
-  fs.mkdirSync(path.dirname(NEW_AGENT_STORE), { recursive: true });
-  fs.copyFileSync(LEGACY_PI_AGENT_STORE, NEW_AGENT_STORE);
-}
-// 一次性迁移：会话目录 ~/.easymint/sessions/ → agent/sessions/（Pi 默认布局，v0.7.2 起归默认）
-const OLD_SESSIONS_DIR = path.join(EM_HOME, "sessions");
-const NEW_SESSIONS_DIR = path.join(EM_HOME, "agent", "sessions");
-if (fs.existsSync(OLD_SESSIONS_DIR)) {
-  const moveSessions = (): boolean => {
-    fs.mkdirSync(path.dirname(NEW_SESSIONS_DIR), { recursive: true });
-    try {
-      fs.renameSync(OLD_SESSIONS_DIR, NEW_SESSIONS_DIR);
-      return true;
-    } catch { return false; }
-  };
-  if (!fs.existsSync(NEW_SESSIONS_DIR) || fs.readdirSync(NEW_SESSIONS_DIR).length === 0) {
-    if (fs.existsSync(NEW_SESSIONS_DIR)) fs.rmdirSync(NEW_SESSIONS_DIR);
-    if (!moveSessions()) {
-      // 跨盘/占用降级：复制后删除
-      try {
-        fs.cpSync(OLD_SESSIONS_DIR, NEW_SESSIONS_DIR, { recursive: true });
-        fs.rmSync(OLD_SESSIONS_DIR, { recursive: true, force: true });
-      } catch (e) { console.warn("[migrate] 会话目录迁移失败:", (e as Error).message); }
-    }
-  } else {
-    // 两侧都有内容（罕见）：逐个补齐缺失的项目会话目录
-    for (const item of fs.readdirSync(OLD_SESSIONS_DIR)) {
-      const src = path.join(OLD_SESSIONS_DIR, item);
-      const dst = path.join(NEW_SESSIONS_DIR, item);
-      if (!fs.existsSync(dst)) {
-        try { fs.cpSync(src, dst, { recursive: true }); } catch { /* best effort */ }
-      }
-    }
-  }
-}
-// 一次性迁移：MCP 配置归位到 agent/（与 Pi 的 agentDir 同层，见 mcp-config-migration 头注）
-try {
-  const mcpMigration = migrateMcpConfigFiles();
-  if (mcpMigration.moved.length > 0) {
-    console.log(`[mcp-migration] 已归位到 agent/: ${mcpMigration.moved.join(", ")}`);
-  }
-  if (mcpMigration.skipped.length > 0) {
-    console.log(`[mcp-migration] 新位置已有配置，旧文件保留未覆盖: ${mcpMigration.skipped.join(", ")}`);
-  }
-  if (mcpMigration.failed.length > 0) {
-    console.warn(`[mcp-migration] 迁移失败（下次启动重试，读写仍回落旧位置）: ${mcpMigration.failed.join(", ")}`);
-  }
-} catch (e) { console.warn("[mcp-migration] 迁移异常（不影响启动）:", (e as Error).message); }
 // Redirect Electron userData to our directory so all data lives in one place
 
 // 禁用磁盘缓存:win 上 userData/GPUCache 目录常因残留/杀软占用创建失败
@@ -118,8 +67,6 @@ import { AgentService } from "./services/agent-service";
 import { Store } from "./services/store";
 import { getNativeConfig } from "./services/native-config";
 import { armSessionDirReady, primeSessionManagerClass } from "./services/pi-session-dir";
-import { migrateLegacySessionDirs } from "./services/session-dir-migration";
-import { migrateMcpConfigFiles } from "./services/mcp-config-migration";
 
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { listOpenProjectIds, waitForProjectWindow, watchProjectWindow } from "./services/window-manager";
@@ -460,12 +407,6 @@ app.whenReady().then(async () => {
       await sessionBootGate;
       try {
         await primeSessionManagerClass();
-        const r = migrateLegacySessionDirs(NEW_SESSIONS_DIR);
-        if (r.renamed > 0 || r.merged > 0 || r.failed > 0) {
-          console.log(
-            `[migrate] 会话目录对齐 Pi：改名 ${r.renamed}、并入 ${r.merged}、跳过 ${r.skipped}、失败 ${r.failed}`,
-          );
-        }
       } catch (e) {
         // 迁移或预热失败不阻断启动：数据保持原样，下次启动重试（迁移幂等）
         console.error("[migrate] 会话目录对齐 Pi 未完成（下次启动重试）:", (e as Error).message);
