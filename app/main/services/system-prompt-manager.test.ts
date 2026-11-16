@@ -165,3 +165,31 @@ it("prefers the rules section in MEMORY.md over the json copy", async () => {
   expect(section).toContain("- 文件里的规则");
   expect(section).not.toContain("JSON 里的规则");
 });
+
+it("prefers the persona section in MEMORY.md and falls back when it is absent", async () => {
+  const manager = await import("./system-prompt-manager");
+  const base = manager.getConversationConfig();
+  const dir = path.join(root, "memory");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "MEMORY.md");
+  fs.writeFileSync(file, "# MEMORY\n\n## 人设\n\n说话简洁，先给结论。\n");
+  const withFile = manager.conversationPromptSection([], { ...base, main: { ...base.main, personality: "JSON 人设" } });
+  expect(withFile).toContain("说话简洁，先给结论。");
+  expect(withFile).not.toContain("JSON 人设");
+  fs.writeFileSync(file, "# MEMORY\n");
+  const fallback = manager.conversationPromptSection([], { ...base, main: { ...base.main, personality: "JSON 人设" } });
+  expect(fallback).toContain("JSON 人设");
+});
+
+it("saving the main chat writes both role sections and removes them on reset", async () => {
+  const manager = await import("./system-prompt-manager");
+  const defaults = manager.getPromptDefaults().main;
+  manager.saveMainChat({ ...defaults, nickname: "小八", rules: "只给结论", personality: "简洁" });
+  const file = path.join(root, "memory", "MEMORY.md");
+  expect(fs.readFileSync(file, "utf8")).toContain("## 规则\n\n只给结论");
+  expect(fs.readFileSync(file, "utf8")).toContain("## 人设\n\n简洁");
+  manager.saveMainChat({ ...defaults, nickname: "小八" });
+  const after = fs.readFileSync(file, "utf8");
+  expect(after).not.toContain("## 规则");
+  expect(after).not.toContain("## 人设");
+});

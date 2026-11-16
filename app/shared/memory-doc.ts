@@ -38,7 +38,8 @@ export function writeSection(content: string, title: string, body: string): stri
   const range = sectionRange(content, title);
   if (!range) return `${content.replace(/\s+$/u, "")}\n\n## ${title}\n\n${text}\n`;
   const lines = content.split("\n");
-  const head = lines.slice(0, range.start);
+  // range.start 是正文首行，标题在其前一行：正文为空时把标题一起删掉，避免留下空节
+  const head = text ? lines.slice(0, range.start) : lines.slice(0, range.start - 1);
   const tail = lines.slice(range.end);
   return [...head, ...(text ? ["", text, ""] : []), ...tail].join("\n").replace(/\n{3,}/gu, "\n\n");
 }

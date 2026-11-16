@@ -234,7 +234,10 @@ export function initializePromptConfigurationForStartup(): string | undefined {
 export function getConversationConfig(): ConversationConfig {
   const { config, warning } = readSnapshot();
   const main = { ...getPromptDefaults().main, ...config.main };
-  return { main, mainRevision: hash(main), modes: resolvedModes(config), ...(warning ? { warning } : {}) };
+  // 界面显示的值要与生效值一致：文件里的角色节优先于 JSON
+  const fromFile = { rules: mainRules({ main } as ConversationConfig), personality: mainPersonality({ main } as ConversationConfig) };
+  const effective = { ...main, rules: fromFile.rules, personality: fromFile.personality };
+  return { main: effective, mainRevision: hash(effective), modes: resolvedModes(config), ...(warning ? { warning } : {}) };
 }
 export function getConfiguredTemplates(): AgentTemplate[] { return resolvedTemplates(readSnapshot().config); }
 export function saveConfiguredTemplate(id: string, input: Partial<AgentTemplate>, expectedRevision?: string): AgentTemplate {
@@ -280,16 +283,25 @@ export function saveMainChat(input: MainChatProfile, expectedRevision?: string):
     config.main = {};
     for (const key of ["nickname", "avatar", "personality", "rules"] as const) if (value[key] !== defaults[key]) config.main[key] = value[key];
   });
-  // 规则的真源是 MEMORY.md 的 `## 规则`；JSON 里那份只作为回落
+  // 角色节的真源是 MEMORY.md；JSON 里那两份只作为回落。恢复默认时移除该节。
   try {
     const file = path.join(emHome(), "memory", "MEMORY.md");
-    const current = readText(file) ?? "# MEMORY\n\n";
-    atomicWrite(file, writeSection(current, "规则", value.rules));
+    const defaults = getPromptDefaults().main;
+    let current = readText(file) ?? "# MEMORY\n\n";
+    current = writeSection(current, "规则", value.rules === defaults.rules ? "" : value.rules);
+    current = writeSection(current, "人设", value.personality === defaults.personality ? "" : value.personality);
+    atomicWrite(file, current);
   } catch { /* 写文件失败不影响保存结果，读取侧仍可用 JSON 回落 */ }
   return getConversationConfig();
 }
 export function restoreMainChat(expectedRevision?: string): ConversationConfig {
   mutate(config => { checkRevision(hash({ ...getPromptDefaults().main, ...config.main }), expectedRevision); config.main = {}; });
+  // 恢复默认要连文件里的角色节一起清掉，否则读取侧仍会用文件里的旧文本
+  try {
+    const file = path.join(emHome(), "memory", "MEMORY.md");
+    const current = readText(file);
+    if (current) atomicWrite(file, writeSection(writeSection(current, "规则", ""), "人设", ""));
+  } catch { /* 文件不可写时保持原状，界面仍可用 JSON 值 */ }
   return getConversationConfig();
 }
 export function saveCollaborationMode(input: Omit<CollaborationMode, "id" | "builtin"> & { id?: string }): ConversationConfig {
@@ -338,12 +350,23 @@ function mainRules(config: ConversationConfig): string {
   return config.main.rules;
 }
 
+/** 角色层人设：`MEMORY.md` 的 `## 人设` 优先，缺失时回落系统提示配置里的 personality。 */
+function mainPersonality(config: ConversationConfig): string {
+  try {
+    const file = path.join(emHome(), "memory", "MEMORY.md");
+    const content = readText(file);
+    const fromFile = content ? sectionText(content, "人设") : null;
+    if (fromFile) return fromFile;
+  } catch { /* 读不到就回落，不影响启动 */ }
+  return config.main.personality;
+}
+
 /** 仅返回可变段正文；宿主使用 SDK section 键替换，不解析用户输入中的同名标签。 */
 export function conversationPromptSection(modeIds: string[], config = getConversationConfig()): string {
   const enabled = config.modes.filter(mode => modeIds.includes(mode.id));
   return [config.warning ? `配置加载诊断：${config.warning}。不得声称已应用未加载内容。` : "",
     `当前主对话身份以本段为准。你的昵称是 ${JSON.stringify(config.main.nickname)}。`,
-    `<personality>\n${config.main.personality}\n</personality>`, `<user_rules>\n${mainRules(config)}\n</user_rules>`,
+    `<personality>\n${mainPersonality(config)}\n</personality>`, `<user_rules>\n${mainRules(config)}\n</user_rules>`,
     `当前启用的协作模式：${enabled.map(mode => mode.name).join("、") || "标准"}。仅按当前模式工作，历史选择以本段为准。`,
     "模式补充当前工作方式，不改变权限或新增工具；兼容要求叠加，真正冲突按当前用户目标处理。",
     ...enabled.map(mode => `<collaboration_mode name=${JSON.stringify(mode.name)}>\n${mode.id === DOMAIN_GUIDANCE_MODE_ID ? "用户已启用领域引导，沿用这个选择，不再次邀请。\n" : ""}${mode.prompt}\n</collaboration_mode>`),

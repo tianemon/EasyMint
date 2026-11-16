@@ -30,6 +30,12 @@ it("replaces a section in place and keeps the rest of the document", () => {
   expect(next).not.toContain("不跳过验证");
 });
 
+it("removes the whole section when the body is empty", () => {
+  const next = writeSection(doc, "规则", "");
+  expect(next).not.toContain("## 规则");
+  expect(next).toContain("- 旧条目 <!-- m:one -->");
+});
+
 it("appends a section that does not exist yet", () => {
   const next = writeSection("# MEMORY\n", "规则", "- 先验证");
   expect(next).toBe("# MEMORY\n\n## 规则\n\n- 先验证\n");
