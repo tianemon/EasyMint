@@ -6,8 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Store } from "./store";
 import { NativeConfig } from "./native-config";
 import { NativeConfigStorage, atomicWrite, encode } from "./native-config-storage";
-import { getProviderStaticModels } from "./pi-init-static";
-import { apiKeysFromDisk } from "./em-settings-schema";
 import { trackRoutingSession } from "./auto-model-routing";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
@@ -51,80 +49,9 @@ describe("pi-native configuration", () => {
     expect(repo.getDefaultModel()?.baseUrl).toBe(two.baseUrl);
     expect(read(file("settings"))).toMatchObject({defaultProvider:two.id,defaultModel:"shared"});
   },60000);
-  it("migrates legacy official Kimi overrides transactionally and inherits the official protocol", async () => {
-    const { dir, store, file } = fixture();
-    // create() 不再预热运行时（2026-10-26 启动优化），先显式建一次，让 auth.json 的
-    // 「迁移前基线」与后续状态同源——本用例断言的是迁移不碰凭据，不是运行时初始化时机。
-    await (await NativeConfig.create(store)).getRuntime();
-    const original = encode({ providers: { "kimi-coding": { api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding/",
-      headers: { "X-Custom": "keep" }, apiKey: "fixture",
-      models: [{ id: "k3", api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding", contextWindow: 123456, maxTokens: 8192 }],
-      modelOverrides: { "k3-256k": { contextWindow: 234567 } },
-    } } });
-    atomicWrite(file("models"), original);
-    const beforeAuth = fs.existsSync(file("auth")) ? fs.readFileSync(file("auth"), "utf8") : null;
-    const repo = await NativeConfig.create(new Store(dir));
-    const model = (await repo.getRuntime()).getModel("kimi-coding", "k3");
-    expect(model).toMatchObject({ api: "openai-completions", baseUrl: "https://api.kimi.com/coding/v1", contextWindow: 123456 });
-    expect(read(file("models")).providers["kimi-coding"]).toMatchObject({ headers: { "X-Custom": "keep" }, apiKey: "fixture", modelOverrides: { "k3-256k": { contextWindow: 234567 } } });
-    expect(read(file("models")).providers["kimi-coding"].api).toBeUndefined();
-    const backup = fs.readdirSync(path.join(dir, "config-backups")).find(name => name.startsWith("pi-1.3-kimi-"))!;
-    expect(fs.readFileSync(path.join(dir, "config-backups", backup, "agent/models.json"), "utf8")).toBe(original);
-    expect(fs.existsSync(file("auth")) ? fs.readFileSync(file("auth"), "utf8") : null).toBe(beforeAuth);
-    const after = fs.readFileSync(file("models"), "utf8");
-    await NativeConfig.create(new Store(dir));
-    expect(fs.readFileSync(file("models"), "utf8")).toBe(after);
-    expect(fs.readdirSync(path.join(dir, "config-backups")).filter(name => name.startsWith("pi-1.3-kimi-"))).toHaveLength(1);
-  });
 
-  it.each([undefined, "https://api.kimi.com/coding", "https://api.kimi.com/coding/v1"])("preserves effective proxy protocols in mixed Kimi config (base=%s)", async baseUrl => {
-    const { dir, store, file } = fixture(); await NativeConfig.create(store);
-    const proxyUrl = "https://proxy.example.invalid/anthropic";
-    const original = encode({ providers: { "kimi-coding": { api: "anthropic-messages", baseUrl, apiKey: "fixture",
-      models: [
-        { id: "inherited-proxy", baseUrl: proxyUrl, contextWindow: 10000, maxTokens: 1000 },
-        { id: "explicit-proxy", baseUrl: "https://proxy.example.invalid/v1", api: "openai-completions", contextWindow: 12000, maxTokens: 2000 },
-        { id: "explicit-anthropic", baseUrl: proxyUrl, api: "anthropic-messages", contextWindow: 14000, maxTokens: 3000 },
-        { id: "k3", contextWindow: 123456, maxTokens: 8192 },
-      ],
-    } } });
-    atomicWrite(file("models"), original);
-    const repo = await NativeConfig.create(new Store(dir));
-    const runtime = await repo.getRuntime();
-    expect(runtime.getModel("kimi-coding", "inherited-proxy")).toMatchObject({ api: "anthropic-messages", baseUrl: proxyUrl, contextWindow: 10000 });
-    expect(runtime.getModel("kimi-coding", "explicit-proxy")).toMatchObject({ api: "openai-completions", baseUrl: "https://proxy.example.invalid/v1" });
-    expect(runtime.getModel("kimi-coding", "explicit-anthropic")).toMatchObject({ api: "anthropic-messages", baseUrl: proxyUrl });
-    expect(runtime.getModel("kimi-coding", "k3")).toMatchObject({ api: "openai-completions", baseUrl: "https://api.kimi.com/coding/v1", contextWindow: 123456 });
-    const backup = fs.readdirSync(path.join(dir, "config-backups")).find(name => name.startsWith("pi-1.3-kimi-"))!;
-    expect(fs.readFileSync(path.join(dir, "config-backups", backup, "agent/models.json"), "utf8")).toBe(original);
-    const after = fs.readFileSync(file("models"), "utf8");
-    await NativeConfig.create(new Store(dir));
-    expect(fs.readFileSync(file("models"), "utf8")).toBe(after);
-    expect(fs.readdirSync(path.join(dir, "config-backups")).filter(name => name.startsWith("pi-1.3-kimi-"))).toHaveLength(1);
-  });
 
-  it.each([
-    {},
-    [{ id: "invalid-proxy", baseUrl: "https://proxy.example.invalid/anthropic", contextWindow: -1, maxTokens: 1000 }],
-  ])("does not write legacy Kimi files when migrated config fails validation (%j)", async models => {
-    const { dir, store, file } = fixture(); await NativeConfig.create(store);
-    const original = encode({ providers: { "kimi-coding": { baseUrl: "https://api.kimi.com/coding", api: "anthropic-messages", models } } });
-    atomicWrite(file("models"), original);
-    await expect(NativeConfig.create(new Store(dir))).rejects.toThrow(file("models"));
-    expect(fs.readFileSync(file("models"), "utf8")).toBe(original);
-    expect(fs.readdirSync(path.join(dir, "config-backups")).filter(name => name.startsWith("pi-1.3-kimi-"))).toHaveLength(0);
-  });
 
-  it("preserves custom Kimi proxies and unrelated providers byte for byte", async () => {
-    const { dir, store, file } = fixture(); await NativeConfig.create(store);
-    const original = encode({ providers: {
-      "kimi-coding": { api: "anthropic-messages", baseUrl: "https://proxy.example.invalid/kimi", apiKey: "fixture" },
-      local: { api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding", models: [{ id: "custom", contextWindow: 10000, maxTokens: 1000 }] },
-    } });
-    atomicWrite(file("models"), original);
-    await NativeConfig.create(new Store(dir));
-    expect(fs.readFileSync(file("models"), "utf8")).toBe(original);
-  });
 
   it("persists native AI routing without copying virtual models into models.json", async () => {
     const { store, file } = fixture();
@@ -177,84 +104,6 @@ describe("pi-native configuration", () => {
     await ready; busy = true; finish();
     await expect(saving).rejects.toThrow("run started during preparation");
     expect(store.getSettings().nativeAi).toEqual(config);
-  });
-  it("migrates credentials, custom models and defaults once, with exact backups and duplicate selection", async () => {
-    const id = [...getProviderStaticModels("deepseek").keys()][0]!;
-    const builtin = { ...custom, id: "ds-active", presetId: "deepseek", model: id, models: [id], extraModels: [] };
-    const old = { setupComplete: true, apiKeys: { TAVILY_API_KEY: "search-test" }, chatThinkingLevel: "high", apiProviders: {
-      current: "ds-active", configs: { "ds-other": { ...builtin, id: "ds-other", apiKey: "other-key" }, "ds-active": builtin, [custom.id]: custom },
-    } };
-    const { dir, store, file } = fixture(old);
-    atomicWrite(file("auth"), encode({ "openai-codex": { type: "oauth", access: "test-access", refresh: "test-refresh", expires: 9999999999999 } }));
-    const before = fs.readFileSync(path.join(dir, "em-settings.json"), "utf8");
-    const repo = await NativeConfig.create(store);
-    expect(read(file("auth")).deepseek).toEqual({ type: "api_key", key: "test-key" });
-    expect(read(file("auth"))["openai-codex"].refresh).toBe("test-refresh");
-    expect(read(file("settings"))).toMatchObject({ defaultProvider: "deepseek", defaultModel: id, defaultThinkingLevel: "high" });
-    expect((await repo.getRuntime()).getModel(custom.id, "test-model")?.contextWindow).toBe(100000);
-    const em = read(path.join(dir, "em-settings.json"));
-    expect(em.apiProviders).toBeUndefined(); expect(em.chatThinkingLevel).toBeUndefined();
-    // apiKeys 已拆成「能力增强」的结构化位置，旧扁平键不再保留；
-    // 断言「组装回来与写入前等价」——保护强度不低于原来那条 toEqual
-    expect(em.apiKeys).toBeUndefined();
-    expect(em.capabilities.web.apiKey).toBe(old.apiKeys.TAVILY_API_KEY);
-    expect(apiKeysFromDisk(em)).toEqual(old.apiKeys);
-    expect(em.migration.nativeConfigMigration.duplicateConfigIds).toEqual(["ds-other"]);
-    expect(repo.resolveProviderId("ds-active")).toBe("deepseek");
-    // 结构迁移与原生迁移各建一个备份目录（commit 按 label 命名）；readdir 顺序 POSIX 未定义，
-    // 断言「备份 == 迁移前原文」必须点名结构迁移那一个——否则 Linux 上可能取到原生那份（已是新结构）。
-    const backups = fs.readdirSync(path.join(dir, "config-backups"));
-    const shapeBackup = backups.find((n) => n.startsWith("em-settings-shape-"));
-    expect(shapeBackup, "应存在结构迁移备份").toBeDefined();
-    const backupDir = path.join(dir, "config-backups", shapeBackup!);
-    expect(fs.readFileSync(path.join(backupDir, "em-settings.json"), "utf8")).toBe(before);
-    const snapshot = [file("models"), file("auth"), file("settings")].map(p => fs.readFileSync(p, "utf8"));
-    await NativeConfig.create(new Store(dir));
-    expect([file("models"), file("auth"), file("settings")].map(p => fs.readFileSync(p, "utf8"))).toEqual(snapshot);
-    store.saveSettings({ ...store.getSettings(), lastProjectId: "project" });
-    expect(read(path.join(dir, "em-settings.json")).apiProviders).toBeUndefined();
-  }, 60000);
-
-  it("reads existing pi files and edits only requested fields, preserving advanced declarations", async () => {
-    const { store, file } = fixture();
-    const native = { providers: { local: {
-      name: "Hand written", api: "openai-completions", baseUrl: "http://localhost:1234/v1", headers: { "X-Test": "keep" },
-      models: [{ id: "m", name: "M", contextWindow: 50000, maxTokens: 4000, samplingParams: { temperature: 0.3 }, compat: { supportsDeveloperRole: false } }],
-    } } };
-    atomicWrite(file("models"), encode(native));
-    const repo = await NativeConfig.create(store);
-    expect(repo.view().apiProviders.configs.local?.models).toEqual(["m"]);
-    const view = repo.view().apiProviders;
-    view.configs.local!.extraModels![0] = { ...(view.configs.local!.extraModels![0] as any), contextWindow: 60000 };
-    view.current = "local";
-    await repo.saveProviders(view);
-    expect(read(file("models")).providers.local.models[0]).toMatchObject({ contextWindow: 60000, samplingParams: { temperature: 0.3 }, compat: { supportsDeveloperRole: false } });
-    expect(read(file("models")).providers.local.headers).toEqual({ "X-Test": "keep" });
-    expect((await repo.getRuntime()).getModel("local", "m")?.contextWindow).toBe(60000);
-    const bytes = fs.readFileSync(file("models"), "utf8");
-    await repo.saveProviders(repo.view().apiProviders);
-    expect(fs.readFileSync(file("models"), "utf8")).toBe(bytes);
-  }, 60000);
-
-  it("does not rewrite commented models files on startup, provider selection or default edits", async () => {
-    const { store, file } = fixture();
-    const modelId = [...getProviderStaticModels("deepseek").keys()][0]!;
-    const text = `{\n// retain this comment\n"providers":{"deepseek":{"name":"DS","modelOverrides":{"${modelId}":{"contextWindow":654321}}}}}\n`;
-    atomicWrite(file("models"), text);
-    const repo = await NativeConfig.create(store);
-    expect((await repo.getRuntime()).getModel("deepseek", modelId)?.contextWindow).toBe(654321);
-    await repo.setThinkingLevel("high");
-    const view = repo.view().apiProviders; view.current = "deepseek";
-    await repo.saveProviders(view);
-    expect(fs.readFileSync(file("models"), "utf8")).toBe(text);
-  }, 60000);
-
-  it("rejects malformed native files without touching them", async () => {
-    const { store, file } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
-    atomicWrite(file("models"), "{ broken");
-    await expect(NativeConfig.create(store)).rejects.toThrow();
-    // 损坏的原生文件一个字节不动：读侧报错，不静默覆盖用户配置
-    expect(fs.readFileSync(file("models"), "utf8")).toBe("{ broken");
   });
 
   it("rejects invalid model edits and stale saves without changing credentials or disk", async () => {

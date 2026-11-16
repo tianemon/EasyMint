@@ -110,8 +110,9 @@ describe("pi import", () => {
       baseUrl: "http://em.example/v1", apiType: "openai-completions",
       extraModels: [{ id: "m", name: "M", contextWindow: 30000, maxTokens: 4000 }] };
     const store = new Store(target);
-    atomicWrite(path.join(target, "em-settings.json"), encode({ apiProviders: { current: "local", configs: { local } } }));
     const repo = await NativeConfig.create(store);
+    // 用现行 API 写入既有供应商（不再依赖旧配置迁移）
+    await repo.saveProviders({ ...repo.view().apiProviders, current: "local", configs: { local } } as never);
     atomicWrite(path.join(source, "models.json"), encode({ providers: { local: {
       api: "openai-completions", baseUrl: "http://pi.example/v1",
       models: [{ id: "m", name: "M", contextWindow: 30000, maxTokens: 4000 }],

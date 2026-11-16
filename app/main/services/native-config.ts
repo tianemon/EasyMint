@@ -14,9 +14,8 @@ import { Store, registerNativeSettingsView } from "./store";
 import { getModelRuntimeClass } from "./pi-sdk";
 import { getProviderStaticModels } from "./pi-init-static";
 import { NativeConfigStorage, readText, type JsonObject } from "./native-config-storage";
-import { EM_PATH, EM_SCHEMA_VERSION, EXTERNAL_FIELD_MOVES, NATIVE_CONFIG_FIELDS, SETTINGS_FIELDS, applyApiKeysToDisk, deletePath, getPath, setPath } from "./em-settings-schema";
+import { EM_PATH, EM_SCHEMA_VERSION, getPath, setPath } from "./em-settings-schema";
 
-const LEGACY_FIELDS = ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"];
 const repositories = new Map<string, Promise<NativeConfig>>();
 const PARAM_FIELDS = ["name", "contextWindow", "maxTokens", "reasoning", "input", "thinkingLevelMap"];
 function validateDefaults(settings: JsonObject): void {
@@ -239,53 +238,10 @@ export class NativeConfig {
    */
   private async migrate(): Promise<void> {
     this.assertSupportedVersions();
-    await this.migrateEmSettingsShape();
-    await this.migratePiNative();
-    await this.migrateKimiCoding();
     // 最后清掉会话缓存里指向「已不存在的供应商」的绑定。**刻意不设版本标记**——它幂等、
     // 只在真有悬挂时才写盘，而且必须能覆盖「迁移之后才产生的悬挂」（删供应商发生在任意时刻，
     // 不是一次性事件）。原生迁移只改写「在本次迁移映射里」的 id，管不到后续的悬挂。
     await this.pruneDanglingSessionRefs();
-  }
-
-  /** Pi 1.3 官方 Kimi Coding 已改用 Chat Completions；旧官方覆盖重新继承目录。
-   * 自定义 provider / 代理端点保持原意，迁移沿用配置事务的备份与并发校验。 */
-  private async migrateKimiCoding(): Promise<void> {
-    const originals = this.originals();
-    const models = this.storage.read(this.files.models);
-    const provider = models.providers?.["kimi-coding"];
-    if (!provider) return;
-    const current = getProviderStaticModels("kimi-coding").values().next().value;
-    if (!current) return;
-    const canonical = (value: unknown): string | undefined => {
-      if (typeof value !== "string") return undefined;
-      try { return new URL(value).href.replace(/\/$/, ""); } catch { return undefined; }
-    };
-    const legacyBase = "https://api.kimi.com/coding";
-    const currentBase = canonical(current.baseUrl);
-    const isOfficial = (value: unknown) => value === undefined || canonical(value) === legacyBase || (currentBase !== undefined && canonical(value) === currentBase);
-    if (!isOfficial(provider.baseUrl)) return;
-    let changed = false;
-    const inheritOfficial = (record: JsonObject | null) => {
-      if (!record || typeof record !== "object" || Array.isArray(record) || !isOfficial(record.baseUrl)) return;
-      if (canonical(record.baseUrl) === legacyBase) { delete record.baseUrl; changed = true; }
-      if (record.api === "anthropic-messages") { delete record.api; changed = true; }
-    };
-    const inheritedApi = provider.api;
-    inheritOfficial(provider);
-    for (const model of Array.isArray(provider.models) ? provider.models : []) {
-      // 父级旧协议被移除时，为代理模型固定其原有效协议，避免随官方目录切换。
-      if (inheritedApi === "anthropic-messages" && model?.api === undefined && !isOfficial(model?.baseUrl)) {
-        model.api = inheritedApi;
-        changed = true;
-      }
-      inheritOfficial(model);
-    }
-    for (const override of Object.values(provider.modelOverrides ?? {})) inheritOfficial(override as JsonObject);
-    if (!changed) return;
-    ensureNativeProvider(provider);
-    await this.storage.validateModels(models);
-    await this.storage.commit(new Map([[this.files.models, models]]), "pi-1.3-kimi", originals);
   }
 
   /**
@@ -300,134 +256,6 @@ export class NativeConfig {
     // 兼容读旧扁平键：版本标记本身也可能还在旧位置
     const native = getPath(em, EM_PATH.migrationNativeVersion) ?? em.nativeConfigVersion;
     if (native !== undefined && native !== 1) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
-  }
-
-  /**
-   * 一次性把 em-settings.json 从扁平结构重排为分组结构（**只改位置，不改语义**）。
-   *
-   * 搬迁范围（路径声明集中在 `em-settings-schema`）：
-   * - `SETTINGS_FIELDS` / `NATIVE_CONFIG_FIELDS`：Store 与本文件读写的字段；
-   * - `EXTERNAL_FIELD_MOVES`：外部模块直写的字段（hiddenSkills / hiddenMcpServers /
-   *   mcpApproved / sandboxExtraDomains）；
-   * - `apiKeys`：拆成 `capabilities.vision.*` + `capabilities.web.apiKey` + `env` 池。
-   *   这是唯一"改名"的一处——它的键名本就是注入给 MCP server 的环境变量名，
-   *   不能改成嵌套对象，否则注入契约断掉。
-   *
-   * 安全要点：**幂等**（版本已是当前值就直接返回，连文件都不碰）；**走事务**
-   * （与 pi 原生迁移共用 `storage.commit`，白得备份、恢复日志、外部修改检测与中断回滚）；
-   * **值原样**（除 apiKeys 的结构拆分外一个字节不改，也不做类型归一化——那是读侧职责）。
-   */
-  private async migrateEmSettingsShape(): Promise<void> {
-    const em = this.storage.read(this.files.em);
-    if (getPath(em, EM_PATH.migrationSchemaVersion) === EM_SCHEMA_VERSION) return;
-    const originals = this.originals();
-
-    for (const [field, flatKey] of [...SETTINGS_FIELDS, ...NATIVE_CONFIG_FIELDS, ...EXTERNAL_FIELD_MOVES]) {
-      if (!(flatKey in em)) continue;   // 旧键不在：新位置可能已有值，保持不动
-      const value = em[flatKey];
-      deletePath(em, flatKey);
-      // **新位置优先**：两处都有值时不用旧值盖掉已排好的新值。正常路径下不可达（新位置只在
-      // 本步跑过之后才存在），写成这样是为了让这段循环被复用时不会静默用旧值覆盖新值。
-      if (value !== undefined && getPath(em, field) === undefined) setPath(em, field, value);
-    }
-    if (em.apiKeys !== undefined) {
-      applyApiKeysToDisk(em, em.apiKeys as Record<string, string>);
-      deletePath(em, "apiKeys");
-    }
-    setPath(em, EM_PATH.migrationSchemaVersion, EM_SCHEMA_VERSION);
-
-    await this.storage.commit(new Map([[this.files.em, em]]), "em-settings-shape", originals);
-  }
-
-  private async migratePiNative(): Promise<void> {
-    const originals = this.originals();
-    const em = this.storage.read(this.files.em);
-    // 幂等：原生迁移已完成就不再动文件。版本过高不在这里判——`assertSupportedVersions()` 已在
-    // **动文件之前**拦下（见 `migrate()` 的调用顺序），此处再判一次是永不成立的分支。
-    if (getPath(em, EM_PATH.migrationNativeVersion) === 1) return;
-    const models = this.storage.read(this.files.models);
-    models.providers ??= {};
-    const auth = this.storage.read(this.files.auth);
-    const settings = this.storage.read(this.files.settings);
-    // Run previous migrations on an in-memory copy, before *any* original is changed.
-    const legacy = { ...this.store.getSettings() };
-
-    const old = legacy.apiProviders;
-    const ordered = Object.values(old?.configs ?? {}).sort((a, b) =>
-      a.id === old?.current ? -1 : b.id === old?.current ? 1 : a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-    const selected = new Set<string>();
-    const aliases: Record<string, string> = {};
-    const duplicates: string[] = [];
-    const preferences: JsonObject = { ...((getPath(em, EM_PATH.providerPreferences) as JsonObject | undefined) ?? {}) };
-    for (const cfg of ordered) {
-      const id = nativeProviderId(cfg) || cfg.id;
-      aliases[cfg.id] = id;
-      const duplicate = selected.has(id);
-      if (duplicate) duplicates.push(cfg.id);
-      selected.add(id);
-      const existing = models.providers[id] ?? {};
-      const next: JsonObject = { name: cfg.name || id, ...existing };
-      const custom = !cfg.presetId || cfg.presetId === "custom";
-      if (custom) {
-        next.baseUrl ??= cfg.baseUrl;
-        next.api ??= cfg.apiType || "anthropic-messages";
-      }
-      const extras = normalizeExtraModels(cfg.extraModels);
-      const declarations = new Map(extras.map(e => [e.id, e]));
-      const ids = custom ? [...new Set([...(cfg.models ?? []), ...declarations.keys()])] : [...declarations.keys()];
-      const nativeModels = new Map<string, JsonObject>((existing.models ?? []).map((m: JsonObject) => [m.id, m]));
-      for (const modelId of ids) {
-        if (nativeModels.has(modelId) || (!custom && getProviderStaticModels(id).has(modelId))) continue; // Native hand-written values win.
-        const declaration = declarations.get(modelId);
-        const entry = declaration?.entry ?? {};
-        // Retain old custom-provider defaults during migration only.
-        nativeModels.set(modelId, {
-          contextWindow: 200000, maxTokens: 32768,
-          ...(custom ? { reasoning: true, input: ["text"], compat: { supportsDeveloperRole: false }, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } : {}),
-          ...entry, id: modelId, name: declaration?.name ?? modelId,
-        });
-      }
-      if (nativeModels.size) next.models = [...nativeModels.values()];
-      const oldOverrides = Object.fromEntries(Object.entries(cfg.modelOverrides ?? {}).filter(([modelId]) => !getProviderStaticModels(id).has(modelId)));
-      if (Object.keys(oldOverrides).length) next.modelOverrides = { ...oldOverrides, ...existing.modelOverrides };
-      ensureNativeProvider(next);
-      models.providers[id] = next;
-      // Legacy runtime overrides took priority over auth.json; preserve that effective key.
-      if (!duplicate && cfg.authType !== "oauth" && cfg.apiKey) auth[id] = { type: "api_key", key: cfg.apiKey };
-      if (!duplicate) preferences[id] = { ...preferences[id], createdAt: cfg.createdAt, lastModel: cfg.model };
-    }
-    const active = old?.current ? old.configs[old.current] : undefined;
-    if (active) {
-      settings.defaultProvider = nativeProviderId(active) || active.id;
-      settings.defaultModel = active.model;
-    }
-    const hadThinkingLevel = em.chatThinkingLevel !== undefined;
-    if (em.chatThinkingLevel && (THINKING_ORDER as readonly string[]).includes(em.chatThinkingLevel)) settings.defaultThinkingLevel = em.chatThinkingLevel;
-    setPath(em, EM_PATH.providerPreferences, preferences);
-    // Old EM tab/session-cache references only.
-    setPath(em, EM_PATH.providerLegacyIds, { ...(getPath(em, EM_PATH.providerLegacyIds) as JsonObject | undefined), ...aliases });
-    setPath(em, EM_PATH.migrationNativeVersion, 1);
-    setPath(em, EM_PATH.migrationNativeRecord, { migratedAt: new Date().toISOString(), duplicateConfigIds: duplicates });
-    for (const field of LEGACY_FIELDS) delete em[field];
-    validateDefaults(settings);
-    await this.storage.validateModels(models);
-    const values = new Map<string, JsonObject>([[this.files.em, em]]);
-    if (selected.size) { values.set(this.files.models, models); values.set(this.files.auth, auth); }
-    if (active || hadThinkingLevel) values.set(this.files.settings, settings);
-    const cacheDir = path.join(this.store.getDataDir(), "session-cache");
-    if (fs.existsSync(cacheDir)) for (const entry of fs.readdirSync(cacheDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      const file = path.join(cacheDir, entry.name);
-      const before = readText(file);
-      let cache: JsonObject;
-      try { cache = this.storage.read(file); } catch { continue; }
-      if (typeof cache.provider === "string" && aliases[cache.provider] && aliases[cache.provider] !== cache.provider) {
-        originals.set(file, before);
-        values.set(file, { ...cache, provider: aliases[cache.provider] });
-      }
-    }
-    const backup = await this.storage.commit(values, "pi-native-v1", originals);
-    if (ordered.length) console.info(`[config] 原生配置迁移完成，备份：${backup}；重复配置 ${duplicates.length} 份保留在备份中`);
   }
 
   /**
