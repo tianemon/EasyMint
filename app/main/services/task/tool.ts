@@ -194,7 +194,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       } else {
         const desc = (params.description as string) || (params.prompt as string) || "";
         if (!desc) {
-          return { content: [{ type: "text" as const, text: "请提供 description 或 prompt 描述子 Agent 的任务" }] };
+          return { content: [{ type: "text" as const, text: "请提供 description 或 prompt 描述子 Agent 的任务" }], details: undefined };
         }
         tasks.push({
           agent: agentName,
@@ -330,7 +330,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         details: { phase: "accepted", delegationId: record.delegationId, taskCount: n, completionEvidence: false },
       };
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 /** Mint 建模板工具:一句话创建 Agent 模板(阶段D)。
@@ -367,12 +367,12 @@ export async function createAgentTemplateTool(): Promise<ToolDefinition> {
           prompt: String(params.prompt || ""),
           agentType: "custom",
         });
-        return { content: [{ type: "text" as const, text: `Agent 模板已创建: ${tpl.id}\\n名称: ${tpl.name}\\n可通过 task 工具 agent="${tpl.id}" 选用。` }] };
+        return { content: [{ type: "text" as const, text: `Agent 模板已创建: ${tpl.id}\\n名称: ${tpl.name}\\n可通过 task 工具 agent="${tpl.id}" 选用。` }], details: undefined };
       } catch (e) {
-        return { content: [{ type: "text" as const, text: `创建失败: ${(e as Error).message}` }] };
+        return { content: [{ type: "text" as const, text: `创建失败: ${(e as Error).message}` }], details: undefined };
       }
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 function buildPrompt(description: string, prompt: string): string {

@@ -80,7 +80,7 @@ export async function createSkillTool(projectPath: string | undefined, hooks: Sk
         `# skill: ${detail.name}\n\n脚本与资源根目录：${hit.path}\n（skill 内的相对路径均以此目录解析）\n\n${detail.body}${argNote}${modelNote}`,
       );
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 export async function createManageSkillTool(projectPath: string | undefined): Promise<ToolDefinition> {
@@ -129,5 +129,5 @@ export async function createManageSkillTool(projectPath: string | undefined): Pr
       const verb = action === "create" ? "已创建" : action === "update" ? "已更新" : "已删除";
       return text(`manage_skill 成功：${verb} AI 管理区 skill「${name}」${action === "delete" ? "，已从磁盘移除" : "，当前会话即可用 use_skill 加载，重启后进入 Skills 列表"}`);
     },
-  } as any) as ToolDefinition;
+  });
 }

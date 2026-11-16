@@ -119,5 +119,5 @@ export async function createMemoryTool(service:MemoryService,getContext:()=>Memo
       }
       throw new Error("不支持的记忆操作");
     },
-  } as any) as ToolDefinition;
+  });
 }

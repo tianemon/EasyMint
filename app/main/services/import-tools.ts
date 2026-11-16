@@ -54,7 +54,7 @@ export async function createImportTools(): Promise<ToolDefinition[]> {
         + (results.some((r) => r.startsWith("✅")) ? "\n已写入用户级配置，新会话中可用（进行中的会话保持原工具集）。" + (anyOverwrite ? "注意：有同名服务器被覆盖。" : "") : "");
       return { content: [{ type: "text" as const, text }], details: {} };
     },
-  }) as any as ToolDefinition);
+  }));
 
   tools.push(defineTool({
     name: "import_skill",
@@ -83,7 +83,7 @@ export async function createImportTools(): Promise<ToolDefinition[]> {
         : `导入失败：${r.error}`;
       return { content: [{ type: "text" as const, text }], details: {} };
     },
-  }) as any as ToolDefinition);
+  }));
 
   return tools;
 }

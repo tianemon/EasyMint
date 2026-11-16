@@ -2,6 +2,7 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getCreateExtraBuiltinTools } from "../pi-sdk";
 import { executeForeground } from "./tool";
+import { defineTool } from "../tools/result";
 import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "../sandbox/manager";
 import { EXECUTION_POLICY } from "../permission/wrap-tool";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
@@ -9,7 +10,7 @@ import { createExecutionContext, type ExecutionContext } from "../permission/exe
 export async function createEnhancedPowerShellTool(cwd: string): Promise<ToolDefinition> {
   const { createPowerShellToolDefinition } = await getCreateExtraBuiltinTools();
   const native = createPowerShellToolDefinition(cwd);
-  return {
+  return defineTool({
     ...native,
     async execute(_toolCallId: string, params: Record<PropertyKey, unknown>, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       const command = String(params.command ?? "");
@@ -38,5 +39,5 @@ export async function createEnhancedPowerShellTool(cwd: string): Promise<ToolDef
         return { content: [{ type: "text" as const, text: `PowerShell 执行失败：${(error as Error).message}` }], details: {} };
       }
     },
-  } as ToolDefinition;
+  });
 }

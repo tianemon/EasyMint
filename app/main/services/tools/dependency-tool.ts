@@ -92,7 +92,7 @@ export async function createDependencyTool(cwd: string): Promise<ToolDefinition>
       const target = executionTarget(wrapped);
       return executeForeground(target, context.workspaceRealPath, signal, undefined, undefined, onUpdate);
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 export const dependencyToolInternals = { installCommand, packageArgs, executionTarget };

@@ -22,5 +22,5 @@ export async function createProjectDesignTool(projectPath?: string): Promise<Too
             const spec = Object.keys(input).length ? saveProjectDesign(projectPath, selection) : existing;
             return { content: [{ type: "text" as const, text: spec ? visualSpecPrompt(spec) : "当前项目没有结构化视觉规范。可选择风格建立规范，既有用户文件不会被覆盖。" }], details: {} };
         },
-    } as any) as ToolDefinition;
+    });
 }

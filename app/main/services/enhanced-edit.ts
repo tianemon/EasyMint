@@ -7,13 +7,14 @@
  */
 
 import type { ToolDefinition } from "./pi-sdk";
+import { defineTool } from "./tools/result";
 import { getCreateEditToolDefinition } from "./pi-sdk";
 
 export async function createEnhancedEditTool(cwd: string): Promise<ToolDefinition> {
   const createEditToolDefinition = await getCreateEditToolDefinition();
   const native = createEditToolDefinition(cwd);
 
-  return {
+  return defineTool({
     ...native,
     name: "edit",
     label: "edit",
@@ -45,5 +46,5 @@ export async function createEnhancedEditTool(cwd: string): Promise<ToolDefinitio
       }
       return result;
     },
-  } as any as ToolDefinition;
+  });
 }

@@ -97,5 +97,5 @@ export async function createTodoWriteTool(
       if (warnings.length === 0) return text(summarize(todos));
       return text(`${summarize(todos)}\n\n⚠️ 清单比对提醒（写入已生效，正常调整可忽略）：\n${warnings.map((w) => `- ${w}`).join("\n")}`);
     },
-  } as any) as ToolDefinition;
+  });
 }

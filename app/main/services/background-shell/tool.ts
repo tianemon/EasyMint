@@ -93,7 +93,7 @@ export async function executeForeground(
   onUpdate?: (partial: ToolResult) => void,
   /** 输出里出现「需要人操作」信号时的回调(前台阻塞时同样要能交接,否则 npm login 只能挂到超时) */
   onHumanAction?: (action: HumanAction) => void,
-): Promise<{ content: TextItem[] }> {
+): Promise<ToolResult> {
   return new Promise((resolve, reject) => {
     const spawnPlan = "argv" in command
       ? { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env, windowsHide: true }, error: undefined }
@@ -101,7 +101,7 @@ export async function executeForeground(
     const { file, args, opts, error } = spawnPlan;
     if (error) {
       void command.release?.();
-      resolve({ content: [{ type: "text", text: error }] });
+      resolve(ok(error));
       return;
     }
     // 注入 PI_* 环境变量(对齐 Pi resolveSpawnContext):脚本可读当前会话/模型信息。
@@ -190,16 +190,16 @@ export async function executeForeground(
       // 凭据脱敏：agent 若违规内联密码/连接串，明文不进模型可见的输出
       const text = maskSecrets([output, errOutput].filter(Boolean).join("\n") || "(无输出)");
       if (timedOut) {
-        resolve({ content: [{ type: "text", text: `${text}\n\n(命令超时,已中止)` }] });
+        resolve(ok(`${text}\n\n(命令超时,已中止)`));
         return;
       }
       // 输出截断提示(对齐 Pi:超过 8KB 仅显示尾部)
       if (Buffer.byteLength(text, "utf-8") > 8192) {
         const tail = text.slice(-6000);
-        resolve({ content: [{ type: "text", text: `${tail}\n\n[输出过长,仅显示尾部。完整输出见日志]` }] });
+        resolve(ok(`${tail}\n\n[输出过长,仅显示尾部。完整输出见日志]`));
         return;
       }
-      resolve({ content: [{ type: "text", text: code === 0 ? text : `${text}\n\n(退出码: ${code})` }] });
+      resolve(ok(code === 0 ? text : `${text}\n\n(退出码: ${code})`));
     });
     if (signal) {
       if (signal.aborted) killTree();

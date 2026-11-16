@@ -13,8 +13,12 @@ export type ToolResult = { content: TextItem[]; details: unknown };
 /** 纯文本结果（最常用）。 */
 export const ok = (text: string, details: unknown = undefined): ToolResult => ({ content: [{ type: "text", text }], details });
 
-type LooseExecute = (...args: unknown[]) => Promise<{ content: unknown[]; details?: unknown }>;
-type LooseTool = Omit<ToolDefinition, "execute"> & { execute: LooseExecute };
+type LooseExecute = (...args: any[]) => Promise<{ content: any[]; details?: unknown }>;
+type LooseTool = {
+  readonly name: string;
+  readonly execute: LooseExecute;
+  readonly [key: string]: unknown;
+};
 
 /**
  * 统一工具定义：把 execute 的返回值补齐 details，并断言一次类型。

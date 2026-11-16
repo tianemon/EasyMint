@@ -112,5 +112,5 @@ export async function createUserTodoTool(projectPath: string): Promise<ToolDefin
 
       return text(`todo_user 参数错误：action 必须是 list/add/toggle/remove/update（收到 ${action}）`);
     },
-  } as any) as ToolDefinition;
+  });
 }

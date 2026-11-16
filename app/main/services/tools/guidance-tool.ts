@@ -25,5 +25,5 @@ export async function createGuidanceTool(sessionId: string): Promise<ToolDefinit
       }
       return { content: [{ type: "text" as const, text }], details: undefined };
     },
-  }) as ToolDefinition;
+  });
 }

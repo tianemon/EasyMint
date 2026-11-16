@@ -164,7 +164,7 @@ export async function createEnvironmentTool(projectPath: string): Promise<ToolDe
       atomicWrite(file, updateKeyValue(current, name, value, (key, val) => `${key}=${JSON.stringify(val)}`));
       return { content: [{ type: "text" as const, text: `已${action === "set" ? "设置" : "移除"}项目环境变量 ${name}。` }], details: {} };
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 export const environmentToolInternals = {

@@ -233,21 +233,21 @@ async function createStopAgentTool(sessionId: string): Promise<ToolDefinition> {
         const did = String(params.delegation_id);
         const { getRunningDelegations } = await import("./task/registry");
         const match = getRunningDelegations(sessionId).find((r) => r.delegationId === did || r.delegationId.startsWith(did));
-        if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 未在运行中` }] };
+        if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 未在运行中` }], details: undefined };
         if (typeof params.index === "number") {
           abortTask(match.delegationId, params.index, "mint");
-          return { content: [{ type: "text" as const, text: `已停止任务 ${match.delegationId} 的 #${params.index}${reason ? `(${reason})` : ""}` }] };
+          return { content: [{ type: "text" as const, text: `已停止任务 ${match.delegationId} 的 #${params.index}${reason ? `(${reason})` : ""}` }], details: undefined };
         }
         match.abort("mint");
-        return { content: [{ type: "text" as const, text: `已停止委派 ${match.delegationId}${reason ? `(${reason})` : ""}` }] };
+        return { content: [{ type: "text" as const, text: `已停止委派 ${match.delegationId}${reason ? `(${reason})` : ""}` }], details: undefined };
       }
       const count = abortDelegations(sessionId, "mint");
       const text = count > 0
         ? `已停止 ${count} 个运行中的子 Agent${reason ? `(${reason})` : ""}`
         : "当前没有运行中的子 Agent";
-      return { content: [{ type: "text" as const, text }] };
+      return { content: [{ type: "text" as const, text }], details: undefined };
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 /** Mint 查看委派进度工具:返回当前会话运行中的委派任务状态清单,
@@ -272,7 +272,7 @@ async function createListAgentsTool(sessionId: string): Promise<ToolDefinition> 
     async execute() {
       const { getRunningDelegations } = await import("./task/registry");
       const running = getRunningDelegations(sessionId);
-      if (running.length === 0) return { content: [{ type: "text" as const, text: "当前没有运行中的子 Agent" }] };
+      if (running.length === 0) return { content: [{ type: "text" as const, text: "当前没有运行中的子 Agent" }], details: undefined };
       const lines: string[] = [];
       for (const r of running) {
         const elapsed = Math.max(0, Math.round((Date.now() - r.startedAt) / 1000));
@@ -290,9 +290,9 @@ async function createListAgentsTool(sessionId: string): Promise<ToolDefinition> 
           lines.push(`  任务 ${i}: [${status}] ${title}${extra}`);
         }
       }
-      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+      return { content: [{ type: "text" as const, text: lines.join("\n") }], details: undefined };
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 /** Mint 查看子 Agent 执行过程工具(阶梯式):
@@ -338,12 +338,12 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
         const rec = getDelegation(did);
         if (rec && (rec.parentSessionId === sessionId || rec.tempParentSessionId === sessionId)) match = rec;
       }
-      if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 不存在或不属于当前会话` }] };
+      if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 不存在或不属于当前会话` }], details: undefined };
       const file = match.childSessionFiles[idx];
-      if (!file) return { content: [{ type: "text" as const, text: `任务 ${idx} 尚未创建会话(jsonl 未生成)` }] };
+      if (!file) return { content: [{ type: "text" as const, text: `任务 ${idx} 尚未创建会话(jsonl 未生成)` }], details: undefined };
       const { getSubagentMessages } = await import("./session-service");
       const msgs = await getSubagentMessages(file);
-      if (msgs.length === 0) return { content: [{ type: "text" as const, text: "暂无已落盘的执行内容" }] };
+      if (msgs.length === 0) return { content: [{ type: "text" as const, text: "暂无已落盘的执行内容" }], details: undefined };
 
       // 解析消息 content 块(主进程出口已归一化:toolCall→tool_use、arguments→input)
       // toolResult 是独立消息(role=toolResult):解析时把 tool_use 与紧随的 toolResult 合并,
@@ -373,13 +373,13 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
           }
         }
       }
-      if (blocks.length === 0) return { content: [{ type: "text" as const, text: "已落盘但无解析内容" }] };
+      if (blocks.length === 0) return { content: [{ type: "text" as const, text: "已落盘但无解析内容" }], details: undefined };
 
       if (level <= 1) {
         // level 1: 最新一条文本输出
         const lastText = [...blocks].reverse().find((b) => b.type === "text" && b.text?.trim());
         const text = lastText?.text?.trim() || "(暂无文本输出)";
-        return { content: [{ type: "text" as const, text: `最新输出:\n${text.slice(0, 1000)}` }] };
+        return { content: [{ type: "text" as const, text: `最新输出:\n${text.slice(0, 1000)}` }], details: undefined };
       }
 
       const toolIndex = Number(params.tool_index);
@@ -390,7 +390,7 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
           const t = tools[toolIndex - 1]!;
           const inputStr = t.input !== undefined ? JSON.stringify(t.input) : "(无参数)";
           const resultStr = t.result ? t.result.slice(0, 2000) : "(运行中未落盘结果,完成后可查看)";
-          return { content: [{ type: "text" as const, text: `第 ${toolIndex} 次工具调用:\n[${t.name || "?"}] 输入: ${inputStr}\n输出: ${resultStr}` }] };
+          return { content: [{ type: "text" as const, text: `第 ${toolIndex} 次工具调用:\n[${t.name || "?"}] 输入: ${inputStr}\n输出: ${resultStr}` }], details: undefined };
         }
         // 默认:工具执行清单(序号 + 名 + 参数截断 + 结果首行)
         const lines: string[] = [];
@@ -401,7 +401,7 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
           lines.push(`${i + 1}. [${t.name || "?"}]${inputStr ? ` ${inputStr.slice(0, 120)}` : ""}${resultHead}`);
         });
         if (lines.length === 0) lines.push("(暂无工具调用)");
-        return { content: [{ type: "text" as const, text: `工具执行(${tools.length} 条):\n${lines.join("\n")}\n\n提示: 指定 tool_index=N 查看第 N 次的完整输入输出` }] };
+        return { content: [{ type: "text" as const, text: `工具执行(${tools.length} 条):\n${lines.join("\n")}\n\n提示: 指定 tool_index=N 查看第 N 次的完整输入输出` }], details: undefined };
       }
 
       // level 3: 全量(思考+工具+输出)
@@ -417,9 +417,9 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
         else if (b.type === "text" && b.text?.trim()) lines.push(`[输出] ${b.text.trim().slice(0, 500)}`);
       }
       const body = lines.join("\n").slice(0, 6000);
-      return { content: [{ type: "text" as const, text: `执行过程:\n${body}` }] };
+      return { content: [{ type: "text" as const, text: `执行过程:\n${body}` }], details: undefined };
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 // ── ask_user 结构化提问（Mint → 用户点选） ──────────────
@@ -557,11 +557,11 @@ export async function createAskUserTool(sessionId: string): Promise<ToolDefiniti
     async execute(_tid: string, params: Record<string, unknown>, signal: AbortSignal | undefined) {
       const rawQuestions = params.questions;
       if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
-        return { content: [{ type: "text" as const, text: "ask_user 参数错误：questions 必须是非空数组" }] };
+        return { content: [{ type: "text" as const, text: "ask_user 参数错误：questions 必须是非空数组" }], details: undefined };
       }
       const questions = rawQuestions.map((q) => q as Record<string, unknown>);
       if (questions.some((q) => typeof q.id !== "string" || typeof q.question !== "string")) {
-        return { content: [{ type: "text" as const, text: "ask_user 参数错误：每个问题必须含 id(string) 和 question(string)" }] };
+        return { content: [{ type: "text" as const, text: "ask_user 参数错误：每个问题必须含 id(string) 和 question(string)" }], details: undefined };
       }
       // 选项 value 自动补全:模型偶尔漏 value(schema 已放宽 required 只留 label)——
       // 缺省时用 label 做机器标识;跨题重复时追加序号保证唯一(答案按 value 返回,必须不重)
@@ -627,9 +627,9 @@ export async function createAskUserTool(sessionId: string): Promise<ToolDefiniti
           createdAt,
         });
       });
-      return { content: [{ type: "text" as const, text: answer }], ...(!answer.startsWith("（") ? { details: { memoryUserEvidence: answer } } : {}) };
+      return { content: [{ type: "text" as const, text: answer }], details: !answer.startsWith("（") ? { memoryUserEvidence: answer } : undefined };
     },
-  } as any) as ToolDefinition;
+  });
 }
 
 export class AgentService {
