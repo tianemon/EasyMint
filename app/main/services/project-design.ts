@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { getResourcesDir } from "../utils/paths";
-import { createVisualSpec, parseVisualSpec, resolvedComponents, visualSpecPrompt, VISUAL_LAYOUTS, type VisualSelection, type VisualSpec } from "../../shared/visual-design/spec";
+import { createVisualSpec, parseVisualSpec, resolvedComponents, visualSpecPrompt, VISUAL_LAYOUTS, VISUAL_SPEC_VERSION, STYLE_PACK_VERSION, type VisualSelection, type VisualSpec } from "../../shared/visual-design/spec";
 import { deriveThemeCss, renderVisualDocument, VISUAL_STYLE_FILES, type VisualAssets } from "../../shared/visual-design/document";
 import { updatePrototypeHtml } from "./project-design-html";
 const DIR = '.easymint/design';
@@ -171,7 +171,7 @@ export function saveProjectDesign(root: string, selection: VisualSelection, plat
         if (original !== null && original !== after && (!manifest.files[relative] || hash(original) !== manifest.files[relative]))
             throw new Error(`Design file has user changes: ${relative}. Nothing was overwritten.`);
     }
-    files.set(`${DIR}/manifest.json`, JSON.stringify({ schemaVersion: 1, packVersion: 1, files: Object.fromEntries([...files].filter(([r]) => r !== profileFile && r !== 'prototype/index.html').map(([r, text]) => [r, hash(text)])) }, null, 2) + '\n');
+    files.set(`${DIR}/manifest.json`, JSON.stringify({ schemaVersion: VISUAL_SPEC_VERSION, packVersion: STYLE_PACK_VERSION, files: Object.fromEntries([...files].filter(([r]) => r !== profileFile && r !== 'prototype/index.html').map(([r, text]) => [r, hash(text)])) }, null, 2) + '\n');
     const changes: Change[] = [...files].map(([relative, after]) => ({ relative, before: before(relative), after })).filter(c => c.before !== c.after);
     if (!changes.length)
         return spec;
