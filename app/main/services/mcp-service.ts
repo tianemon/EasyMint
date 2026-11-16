@@ -135,7 +135,7 @@ function emMcpPath(): string {
   return path.join(emAgentDir(), "mcp.json");
 }
 
-/** 归位前的旧位置（`~/.easymint/mcp.json`）——只读兜底，见mcp-config-migration。 */
+/** 归位前的旧位置（`~/.easymint/mcp.json`）——只读兜底；归位迁移已移除，此兜底只对历史文件生效。 */
 function legacyMcpPath(): string {
   return path.join(emHome(), "mcp.json");
 }
@@ -178,11 +178,10 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
  * 为什么读和写都要走这一个函数（而不是只给读加回落）：
  * - 只让读回落、写仍写新位置 ⇒ 用户在设置页改一个 server 时，配置被劈成两份
  *   （旧文件里原有的 + 新文件里刚改的），下一次读新位置非空就不再回落，其余 server 看起来"消失"。
- * - 路径切换的职责归迁移本身（`mcp-config-migration`）：搬成功后 `emMcpPath()` 自然接管；
- *   搬失败就一直沿用旧位置，行为与迁移前逐字一致。
+ * - 路径切换由用户/历史文件决定：新位置存在就用新位置；只有新位置缺失或损坏才回落旧位置。
  *
- * 归位迁移（`~/.easymint/mcp.json` → `~/.easymint/agent/mcp.json`）是 best-effort 的
- * （失败不阻断启动，下次启动重试），所以这个回落窗口真实存在。
+ * 归位迁移（`~/.easymint/mcp.json` → `~/.easymint/agent/mcp.json`）已移除，
+ * 但历史文件可能还在，所以回落分支仍需保留。
  */
 let legacyPathWarned = false;
 function userMcpPath(dataDir?: string): string {

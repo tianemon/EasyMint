@@ -22,7 +22,7 @@ export interface ModelParams {
  *  id / name 与 SDK Model 一一对应,没有别名概念:
  *    id   = 发给供应商的请求标识(SDK Model.id),供应商内唯一
  *    name = 界面显示名(SDK Model.name)
- *  存量数据的 alias 由启动迁移改写为这套语义(见 extra-models-migration.ts)。 */
+ *  存量数据的 alias 由 providerLegacyIds 维护（启动迁移已移除）。 */
 export interface ExtraModelCapability {
   /** 请求标识:发给供应商的模型名(SDK Model.id) */
   id: string;

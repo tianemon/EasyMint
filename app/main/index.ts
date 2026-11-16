@@ -398,8 +398,8 @@ app.whenReady().then(async () => {
   // 会把窗口出现与首帧一起推迟。改为「首屏后启动 + 注册会话目录就绪门」：pi-session-dir 的异步会话入口
   // （create/resume/list）先 await 这道门，保证读写发生在迁移之后；门本身在首屏后才放行。
   // 注意：NEW_SESSIONS_DIR 必须与顶部 PI_CODING_AGENT_DIR 推导出的 agentDir/sessions 一致，
-  // 否则迁移扫的目录 ≠ 会话实际落盘目录（迁了个寂寞）；改任一处都要同时改另一处。
-  // ⚠️ 一次性迁移（待移除）：清理清单见 session-dir-migration.ts 顶部
+  // 否则会话实际落盘目录与本处不一致；改任一处都要同时改另一处。
+  // 就绪门现在只等「SDK 预热」完成（旧会话目录迁移已移除）。
   let openSessionBootGate: () => void = () => {};
   const sessionBootGate = new Promise<void>((resolve) => { openSessionBootGate = resolve; });
   armSessionDirReady(

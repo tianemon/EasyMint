@@ -29,10 +29,9 @@ let _priming: Promise<void> | null = null;
 let _readyGate: Promise<void> | null = null;
 
 /**
- * 注册「会话目录就绪门」：启动期把「预热 + 旧目录迁移」的 promise 交给本模块。
+ * 注册「会话目录就绪门」：启动期把 SDK 预热的 promise 交给本模块。
  *
- * ⚠️ 就绪门只服务「旧会话目录一次性迁移」这个需求（见 session-dir-migration.ts 顶部移除清单）——
- * 迁移代码移除时，本函数、`_readyGate` 与 `ensureSessionManagerClass` 里的等门那一句一并删除。
+ * 旧会话目录迁移已移除，就绪门现在只服务「预热完成后再建会话」这一件事。
  *
  * 为什么要门：首次 dynamic import SDK 冷启实测 7~10 秒（包体大，几乎全是文件 IO），**不能在 createWindow 前 await**，
  * 否则窗口出现会被推迟同样久；但迁移又必须早于会话读写。于是启动期把它当后台任务跑、
