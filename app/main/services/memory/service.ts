@@ -512,6 +512,9 @@ export class MemoryService {
   async manageFromAgent(context:MemorySessionContext,action:"edit"|"archive"|"restore"|"cancel",request:{key?:string;revision?:number;entries?:Array<{key:string;revision:number}>;input?:MemoryWrite;quote?:string;projectId?:string},signal?:AbortSignal) {
     return withSessionCreationLock(async()=>{
       if(!this.canRecord(context.sessionId))throw new Error("当前会话不允许管理记忆");
+      // 运行时白名单：调用方可能绕过类型（IPC／动态分发）传入旧动作名。
+      // 没有这条，未知动作会落到 patch 链最后的 restore 分支，把条目静默"恢复"。
+      if(!["edit","archive","restore","cancel"].includes(action))throw new Error("不支持的记忆管理动作");
       await this.bindInput(context,"preference","inference",undefined,signal);
       const live=(context.current?.() ?? context);
       if(!await this.maintenanceAllowed(live,request.quote))throw new Error("需要当前用户明确的整理／更正／历史管理请求；只检查时不要写入");
