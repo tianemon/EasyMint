@@ -6,7 +6,7 @@
 
 | 场景 | 文档 |
 |------|------|
-| 了解整体架构 | `private_docs/技术架构.md` |
+| 了解整体架构与运行环境 | `private_docs/技术架构.md`（含运行环境、上下文组装、记忆机制） |
 | 了解功能规格 | `private_docs/需求文档.md` |
 | 了解当前进度 | `private_docs/开发记录.md` + `private_docs/开发记录/` |
 | 了解待办 | `.easymint/todos.json`（UI「待办」面板） |
