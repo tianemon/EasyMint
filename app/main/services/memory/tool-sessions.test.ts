@@ -63,9 +63,8 @@ it("渲染成一句话路标，带相对时间", () => {
       { tool: "codex", file: "a", mtime: NOW - 3600_000 },
       { tool: "claude", file: "b", mtime: NOW - 2 * DAY },
     ],
-    NOW,
   );
-  expect(text).toBe("其他工具最近动过：codex 今天、claude 2 天前");
+  expect(text).toBe("其他工具最近动过：codex 11-16、claude 11-14");
 });
 
 it("按需读取其他工具会话的最后一段助手结论（codex 格式）", () => {

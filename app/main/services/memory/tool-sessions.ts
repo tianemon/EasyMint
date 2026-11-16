@@ -85,12 +85,10 @@ export function listToolSessions(options: ToolScanOptions, deps: ToolScanDeps): 
 }
 
 /** 一句话路标，用于注入；没有任何活动返回 undefined。 */
-export function describeToolSessions(hits: ToolSessionHit[], now = Date.now()): string | undefined {
+export function describeToolSessions(hits: ToolSessionHit[]): string | undefined {
   if (!hits.length) return undefined;
-  const parts = hits.map((hit) => {
-    const days = Math.max(0, Math.round((now - hit.mtime) / 86_400_000));
-    return `${hit.tool} ${days === 0 ? "今天" : `${days} 天前`}`;
-  });
+  // 用绝对日期而不是"今天/N 天前"：相对时间每天都会变，会让注入版本漂移。
+  const parts = hits.map((hit) => `${hit.tool} ${new Date(hit.mtime).toISOString().slice(5, 10)}`);
   return `其他工具最近动过：${parts.join("、")}`;
 }
 

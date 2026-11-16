@@ -9,7 +9,7 @@ import { MemoryDatabase } from "./database";
 import { upsertDocumentEntry } from "./document-store";
 import { MemoryService } from "./service";
 import { migrateExperiences } from "./migration";
-import {writeSummary,readSummary,readSummaryDocument,saveSummaryDocument,type SummaryProject} from "./summary";
+import {writeSummary,readSummary,type SummaryProject} from "./summary";
 import { documentStatus } from "./documents";
 import type { MemoryPort } from "./client";
 vi.mock("electron",()=>({app:{isPackaged:false,getPath:()=>os.tmpdir()},BrowserWindow:{getAllWindows:()=>[]}}));
@@ -50,11 +50,9 @@ it("sends real memory-service references after the current user, with unchanged 
     await session.prompt("USER_FIRST 历史决定");await session.prompt("USER_SECOND 历史决定");
     const updated=db.update(item.key,undefined,1,{text:"用户偏好 MEMORY_REV2_SUPERSEDES_REV1"});
     upsertDocumentEntry(memoryFile,{key:item.key,text:"用户偏好 MEMORY_REV2_SUPERSEDES_REV1",dbRevision:updated.revision});
-    const doc=readSummaryDocument(db,path.join(root,"memory","MEMORY.md"),[]);
-    saveSummaryDocument(db,doc.file,[],doc.content.split("\n").filter(line=>!line.includes(`memory:${item.key} `)).join("\n")+"\n"+doc.changes,doc.hash);
     await session.prompt("USER_THIRD 历史决定");
-    const manual=readSummaryDocument(db,path.join(root,"memory","MEMORY.md"),[]);
-    saveSummaryDocument(db,manual.file,[],manual.content.replace("MEMORY_REV2_SUPERSEDES_REV1","MEMORY_USER_EDIT_SAME_REVISION"),manual.hash);
+    // 用户直接改文件（版本号不变、只改正文）：这是"手改优先"的最小复现。
+    upsertDocumentEntry(memoryFile,{key:item.key,text:"用户偏好 MEMORY_USER_EDIT_SAME_REVISION",dbRevision:item.revision});
     await session.prompt("USER_FOURTH 历史决定");
     expect(requests).toHaveLength(4);
     expect(JSON.stringify(requests[3]).indexOf("MEMORY_USER_EDIT_SAME_REVISION")).toBeGreaterThan(JSON.stringify(requests[3]).indexOf("USER_FOURTH"));

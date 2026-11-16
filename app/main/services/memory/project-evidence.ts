@@ -155,19 +155,20 @@ export function evidenceChanged(previousSignal: string | undefined, evidence: Pr
 }
 
 /** 压缩成给模型看的证据摘要（不含代码正文，只有指针）。 */
-export function describeEvidence(evidence: ProjectEvidence, now = Date.now()): string {
+export function describeEvidence(evidence: ProjectEvidence): string {
   const out: string[] = [];
   if (evidence.git) {
-    const { head, commits, dirty, recent } = evidence.git;
-    out.push(`git: HEAD ${head}，共 ${commits} 次提交，未提交 ${dirty} 项`);
+    const { head, commits, recent } = evidence.git;
+    out.push(`git: HEAD ${head}，共 ${commits} 次提交`);
     for (const item of recent) out.push(`  ${item.date} ${item.subject}`);
   } else {
     out.push("git: 无（项目未使用 git 或未安装）");
   }
   if (evidence.files) {
-    const days = Math.max(0, Math.round((now - evidence.files.latestMtime) / 86_400_000));
+    // 只写绝对日期与慢变量：相对时间会让版本每轮变化，破坏"内容没变不注入"。
+    const at = evidence.files.latestMtime ? new Date(evidence.files.latestMtime).toISOString().slice(0, 10) : "未知";
     const dirs = evidence.files.topDirs.map((item) => `${item.dir}(${item.count})`).join("、");
-    out.push(`文件: ${evidence.files.count} 个，最近修改 ${days} 天前${dirs ? `，集中 ${dirs}` : ""}`);
+    out.push(`文件: ${evidence.files.count} 个，最后提交 ${at}${dirs ? `，集中 ${dirs}` : ""}`);
   }
   return out.join("\n");
 }

@@ -22,7 +22,8 @@ import { planDelivery } from "./context-plan";
 import { buildDeliverables } from "./deliverables";
 import { machineSnapshot, readDevelopLog, type MachineCache } from "./memory-source";
 import { collectEvidence, type ProjectEvidence } from "./project-evidence";
-import { migrateDocument, removeDocumentEntry, upsertDocumentEntry } from "./document-store";
+import { parseDevelopLog } from "./develop-log";
+import { migrateDocument, readDocument, removeDocumentEntry, upsertDocumentEntry } from "./document-store";
 import { describeToolSessions, listToolSessions } from "./tool-sessions";
 import { digestMessages, type SessionDigest } from "./session-digest";
 
@@ -423,8 +424,12 @@ export class MemoryService {
     let memory:string|null=null;
     try{
       const db=await this.readDatabase();
-      const digest=await db.call("readSummary",this.summaryProjects(),project?.id) as {content?:string}|undefined;
-      memory=digest?.content ?? null;
+      // 文件是正文：注入直接读文件，避免被"摘要资格"过滤掉你刚说"记住"的条目。
+      memory=readDocument(this.memoryFile());
+      if(memory===null){
+        const digest=await db.call("readSummary",this.summaryProjects(),project?.id) as {content?:string}|undefined;
+        memory=digest?.content ?? null;
+      }
       // 正文以文件为本体，但"来源是否仍有效"只能回查索引：会话被撤销/改写后，旧条目必须停止注入。
       if(memory){
         const keys=[...memory.matchAll(/<!-- memory:(\S+) r:\d+ -->/gu)].map(match=>match[1]!).filter(Boolean);
@@ -436,9 +441,13 @@ export class MemoryService {
       }
     }catch{memory=null;}
 
-    const developLog=readDevelopLog(projectPath,{readFile:file=>{try{return syncFs.readFileSync(file,"utf8");}catch{return null;}}});
-    const evidence=developLog?undefined:this.cachedEvidence(projectPath);
-    const session=!developLog && !evidence?.hasContent ? await this.cachedLastSession(projectPath) : undefined;
+    const developText=readDevelopLog(projectPath,{readFile:file=>{try{return syncFs.readFileSync(file,"utf8");}catch{return null;}}});
+    // 只有真解析出内容才算"有开发记录"；空模板/畸形文件应继续降级。
+    const parsedDevelop=parseDevelopLog(developText ?? "");
+    const hasDevelop=parsedDevelop.snapshot.length>0 || parsedDevelop.index.length>0;
+    const developLog=hasDevelop?developText:null;
+    const evidence=hasDevelop?undefined:this.cachedEvidence(projectPath);
+    const session=!hasDevelop && !evidence?.hasContent ? await this.cachedLastSession(projectPath) : undefined;
     const deliverables=buildDeliverables({memory,projectName:project?.name,developLog,evidence,session,machine:this.cachedMachine(),toolHint:this.cachedToolHint(projectPath)});
     if(!deliverables.length)return;
     const plan=planDelivery(deliverables,{delivered:visibility.delivered,allowance});
@@ -659,7 +668,6 @@ export class MemoryService {
         this.notify();
       }
       if(!this.settings().background || this.stopped)return;
-      const status=await db.call("status",day);
       const first=await db.call("claim");if(!first)return;
       jobs.push(first);
       // 先按同一场会话连续取（保证一批里是连续脉络），不足 3 条再用其它会话补齐。
@@ -718,7 +726,9 @@ export class MemoryService {
       const parsed=JSON.parse(raw) as {items:unknown[]};
       if(!Array.isArray(parsed.items)||parsed.items.length>20)throw new Error("后台记忆输出格式无效");
       const allowed=new Map(chosen.map(entry=>[entry.job.ref,entry]));
-      const items:MemoryAnalysisWrite[]=parsed.items.map(value=>{
+      // 单条不合规则只丢这一条，不让整批失败（文档承诺的行为）。
+      const items:MemoryAnalysisWrite[]=parsed.items.flatMap(value=>{
+        try{
         const item=value as MemoryWrite & {updateKey?:string;revision?:number;sourceRef?:string;scope?:string;basis?:string;quote?:string};
         const origin=allowed.get(item.sourceRef ?? (chosen.length===1?chosen[0]!.job.ref:""));
         if(!origin || !MEMORY_KINDS.includes(item.kind)||typeof item.text!=="string")throw new Error("后台记忆条目或来源无效");
@@ -730,11 +740,13 @@ export class MemoryService {
         const source:MemorySource={ref:job.ref,type:"session",sessionId:job.sessionId,entryId:job.entryId,hash:job.hash,anchorRef:job.anchorRef,timezone:job.timezone,
           ...(job.projectId?{projectId:job.projectId}:{}),...(explicit?{role:"user" as const}:{role:"assistant" as const})};
         const projectSpecific=typeof item.quote==="string" && /(本项目|当前项目|这个项目|this project)/iu.test(item.quote);
-        return {input:{kind:item.kind,text:reported?`助手报告，未经独立核实：${item.text}`:item.text,
+        return [{input:{kind:item.kind,text:reported?`助手报告，未经独立核实：${item.text}`:item.text,
           details:item.details,tags:item.tags,importance:item.importance,occurredAt:item.occurredAt || undefined,expiresAt:item.expiresAt || undefined,summary:item.summary,effectiveAt:item.effectiveAt || undefined},
           context:{projectId:item.scope==="global" && !projectSpecific?undefined:job.projectId,source,confirmed:(explicit||reported)&&!(projectSpecific&&!job.projectId),pinned:explicit&&explicitLongTerm(item.kind,item.quote),evidenceAt:explicit?snapshot.user?.timestamp:snapshot.assistant.timestamp},
-          ...(item.updateKey?{target:{key:item.updateKey,revision:existing.items.find(existing=>existing.key===item.updateKey)?.revision===item.revision?item.revision!:-1}}:{})};
+          ...(item.updateKey?{target:{key:item.updateKey,revision:existing.items.find(existing=>existing.key===item.updateKey)?.revision===item.revision?item.revision!:-1}}:{})}];
+        }catch{return [];}
       });
+      if(!items.length && parsed.items.length>0)throw new Error("后台记忆没有可用条目");
       await withSessionCreationLock(async()=>{
         const valid:Prepared[]=[];
         for(const entry of chosen) {

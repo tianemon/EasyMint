@@ -82,9 +82,9 @@ it("既无 git 又无文件时给出空信号，不抛错", () => {
 });
 
 it("证据摘要里明确写出无 git，便于模型知道降级了", () => {
-  const text = describeEvidence(collectEvidence("/plain", repo({}, { latestMtime: 1_700_000_000_000, count: 3, topDirs: [{ dir: "docs", count: 3 }] })), 1_700_086_400_000);
+  const text = describeEvidence(collectEvidence("/plain", repo({}, { latestMtime: 1_700_000_000_000, count: 3, topDirs: [{ dir: "docs", count: 3 }] })));
   expect(text).toContain("git: 无");
-  expect(text).toContain("最近修改 1 天前");
+  expect(text).toContain("最后提交 2023-11-14");
   expect(text).toContain("docs(3)");
 });
 

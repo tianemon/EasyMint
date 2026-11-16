@@ -86,8 +86,11 @@ export interface MemorySettings {
 export const DEFAULT_MEMORY_SETTINGS: MemorySettings = { enabled: true, background: true };
 export function parseMemorySettings(raw: unknown, legacyEnabled = false): MemorySettings {
   const r = raw && typeof raw === "object" ? raw as Partial<MemorySettings> : {};
-  return { enabled: typeof r.enabled === "boolean" ? r.enabled : raw === undefined && legacyEnabled,
-    background: typeof r.enabled === "boolean" && r.background === true,
+  // 未配置时按默认开启；只有显式写 false 才算关闭（旧的 learnEnabled 仍可把新装用户打开）。
+  const enabled = typeof r.enabled === "boolean" ? r.enabled : DEFAULT_MEMORY_SETTINGS.enabled || legacyEnabled;
+  const background = typeof r.background === "boolean" ? r.background : enabled;
+  return { enabled,
+    background,
     ...(typeof r.enabledAt === "number" && Number.isFinite(r.enabledAt) ? { enabledAt: r.enabledAt } : {}) };
 }
 export interface MemoryConclusion {
