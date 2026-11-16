@@ -18,8 +18,8 @@ export interface SkillToolHooks {
   onModelSwitch?: (modelName: string) => Promise<boolean>;
 }
 
-function text(t: string): { content: Array<{ type: "text"; text: string }> } {
-  return { content: [{ type: "text" as const, text: t }] };
+function text(t: string): { content: Array<{ type: "text"; text: string }>; details: unknown } {
+  return { content: [{ type: "text" as const, text: t }], details: undefined };
 }
 
 export async function createSkillTool(projectPath: string | undefined, hooks: SkillToolHooks = {}): Promise<ToolDefinition> {

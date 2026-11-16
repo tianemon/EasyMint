@@ -8,8 +8,8 @@ import { getDefineToolFn } from "../pi-sdk";
 import { broadcast } from "../ipc-broadcast";
 import { readSessionTodos, replaceSessionTodos, compareSessionTodos, type SessionTodo } from "../session-todos";
 
-function text(t: string): { content: Array<{ type: "text"; text: string }> } {
-  return { content: [{ type: "text" as const, text: t }] };
+function text(t: string): { content: Array<{ type: "text"; text: string }>; details: unknown } {
+  return { content: [{ type: "text" as const, text: t }], details: undefined };
 }
 
 const STATUS_LABEL: Record<string, string> = { pending: "待办", in_progress: "进行中", completed: "完成" };

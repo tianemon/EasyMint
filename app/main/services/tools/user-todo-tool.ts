@@ -9,8 +9,8 @@ import { getDefineToolFn } from "../pi-sdk";
 import { broadcast } from "../ipc-broadcast";
 import { addTodo, listTodos, removeTodo, toggleTodo, updateTodo } from "../todo-service";
 
-function text(t: string): { content: Array<{ type: "text"; text: string }> } {
-  return { content: [{ type: "text" as const, text: t }] };
+function text(t: string): { content: Array<{ type: "text"; text: string }>; details: unknown } {
+  return { content: [{ type: "text" as const, text: t }], details: undefined };
 }
 
 /** 操作后统计摘要（含未完成列表——自证结果，用户可直接核对） */
