@@ -29,14 +29,14 @@ jobs:
             found { print }
           ' CHANGELOG.md)
           if [ -z "$NOTES" ]; then
-            NOTES="Release $TAG"
+            echo "::error::Missing changelog for $TAG"
+            exit 1
           fi
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NOTES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
   build-macos:
-    needs: prepare-notes
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
@@ -66,18 +66,18 @@ jobs:
         run: npm run build:ci -- -c.mac.identity=-
 
       - name: Upload artifacts
-        uses: softprops/action-gh-release@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.ref_name }}
-          body: ${{ needs.prepare-notes.outputs.notes }}
-          files: |
+          name: release-macos
+          if-no-files-found: error
+          compression-level: 0
+          path: |
             dist-electron/*.dmg
             dist-electron/*.zip
             dist-electron/*.blockmap
             dist-electron/latest-mac.yml
 
   build-windows:
-    needs: prepare-notes
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -104,18 +104,18 @@ jobs:
         run: npm run build:ci
 
       - name: Upload artifacts
-        uses: softprops/action-gh-release@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.ref_name }}
-          body: ${{ needs.prepare-notes.outputs.notes }}
-          files: |
+          name: release-windows
+          if-no-files-found: error
+          compression-level: 0
+          path: |
             dist-electron/*.exe
             dist-electron/*-windows-*.zip
             dist-electron/*.blockmap
             dist-electron/latest.yml
 
   build-linux:
-    needs: prepare-notes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -142,14 +142,65 @@ jobs:
         run: npm run build:ci
 
       - name: Upload artifacts
-        uses: softprops/action-gh-release@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.ref_name }}
-          body: ${{ needs.prepare-notes.outputs.notes }}
-          files: |
+          name: release-linux
+          if-no-files-found: error
+          compression-level: 0
+          path: |
             dist-electron/*.AppImage
             dist-electron/*.deb
             dist-electron/*.tar.gz
             dist-electron/*.blockmap
             dist-electron/latest-linux.yml
+
+  publish:
+    needs: [prepare-notes, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist-electron
+
+      - name: Verify installers and update manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist-electron
+          shopt -s nullglob
+          for pattern in '*.dmg' '*-macOS-*.zip' '*.exe' '*-windows-*.zip' '*.AppImage' '*.deb' '*.tar.gz' '*.dmg.blockmap' '*.zip.blockmap' '*.exe.blockmap'; do
+            files=( $pattern )
+            if [ "${#files[@]}" -eq 0 ]; then
+              echo "::error::Missing release file matching $pattern"
+              exit 1
+            fi
+          done
+          for manifest in latest-mac.yml latest.yml latest-linux.yml; do
+            version=$(awk '$1 == "version:" { print $2; exit }' "$manifest")
+            if [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
+              echo "::error::$manifest version '$version' does not match $GITHUB_REF_NAME"
+              exit 1
+            fi
+            asset=$(awk '$1 == "path:" { print $2; exit }' "$manifest")
+            if [ -z "$asset" ] || [ "$asset" != "${asset##*/}" ] || [ ! -s "$asset" ]; then
+              echo "::error::$manifest references a missing release asset '$asset'"
+              exit 1
+            fi
+          done
+
+      - name: Upload release draft
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ needs.prepare-notes.outputs.notes }}
+          files: dist-electron/*
+          fail_on_unmatched_files: true
+          draft: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
