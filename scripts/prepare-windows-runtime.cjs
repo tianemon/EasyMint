@@ -9,7 +9,7 @@ const ROOT = path.join(__dirname, "..");
 const ARCHIVE = "portable-git.7z.exe";
 
 // Sources and digests are pinned together from the official release API and SHA-256 table:
-// https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.4
+// See app/shared/windows-runtime.json for the release URLs.
 function sourceFor(arch, source = SOURCE) {
   if (arch !== "x64" && arch !== "arm64") throw new Error(`Unsupported Windows runtime architecture: ${arch}`);
   return source.archives[arch];

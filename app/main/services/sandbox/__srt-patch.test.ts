@@ -3,17 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-/**
- * sandbox-runtime 补丁的守卫（补丁在 postinstall 应用，`npm ci` 时自动生效）。
- *
- * 重点守的是「根路径 allowWrite 判定」这条：
- * 上游实现 `candidatePath.startsWith(allowedPath + '/')` 在 allowedPath === "/" 时拼出 "//"，
- * 判定恒 false → EM 在「完全访问」模式下传的 allowWrite: ["/"] 会让**整张 denyWrite 表被跳过**
- * （srt 日志：Skipping deny path not within allowed paths），受保护路径在 shell 命令下全部可写。
- *
- * 测试不只看字符串：把 dist 里的判定函数原文抽出来编译后按真实语义测——
- * 这样"补丁被上游结构变化挤掉"或"改错语义"都会红。
- */
 const SRT_SANDBOX_DIR = path.join(process.cwd(), "node_modules", "@anthropic-ai", "sandbox-runtime", "dist", "sandbox");
 const LINUX_FILE = path.join(SRT_SANDBOX_DIR, "linux-sandbox-utils.js");
 const MAC_FILE = path.join(SRT_SANDBOX_DIR, "macos-sandbox-utils.js");
@@ -23,12 +12,15 @@ function compileIsWithinAllowedWrite(allowedWritePaths: string[]): (candidate: s
   const source = fs.readFileSync(LINUX_FILE, "utf-8");
   const matched = source.match(/const isWithinAnyAllowedWritePath = ([\s\S]*?);\n/);
   if (!matched) throw new Error("dist 里找不到 isWithinAnyAllowedWritePath（上游结构变化？）");
-  const factory = new Function("allowedWritePaths", `return ${matched[1]};`) as (a: string[]) => (c: string) => boolean;
+  const shared = fs.readFileSync(path.join(SRT_SANDBOX_DIR, "sandbox-utils.js"), "utf-8");
+  const helper = shared.match(/export (function isAtOrUnder\([^\n]+\) \{[\s\S]*?\n\})/);
+  if (!helper) throw new Error("上游的根路径判定结构已变化");
+  const factory = new Function("allowedWritePaths", `${helper[1]}\nreturn ${matched[1]};`) as (a: string[]) => (c: string) => boolean;
   return factory(allowedWritePaths);
 }
 
 describe("sandbox-runtime 补丁", () => {
-  it("根路径 allowWrite 修复已应用：\"/\" 覆盖一切绝对路径（这正是完全访问模式的取值）", () => {
+  it("上游根路径 allowWrite 覆盖绝对路径", () => {
     const within = compileIsWithinAllowedWrite(["/"]);
     expect(within("/home/u/.easymint/mcp.json")).toBe(true);
     expect(within("/etc/passwd")).toBe(true);
@@ -52,7 +44,7 @@ describe("sandbox-runtime 补丁", () => {
       expect(source).toContain("// EasyMint: retain executable configuration protections.");
     }
     for (const name of [".mcp.json", ".gitconfig", ".bashrc", ".ripgreprc"]) {
-      expect(linux).toContain(name);
+      expect(fs.readFileSync(path.join(SRT_SANDBOX_DIR, "sandbox-utils.js"), "utf-8")).toContain(name);
     }
   });
 

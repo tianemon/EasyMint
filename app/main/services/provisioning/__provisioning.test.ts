@@ -289,14 +289,14 @@ describe("Linux 环境探测：一键通道以 pkexec 存在为前提", () => {
 describe("Windows 手动安装命令", () => {
   it("作用域包名 + 钉版本 + --yes，且是单行（界面整块当代码复制）", () => {
     const cmd = windowsInstallCommand("0.0.75");
-    expect(cmd).toBe("npx --yes @anthropic-ai/sandbox-runtime@0.0.75 windows-install");
+    expect(cmd).toBe("npx --yes @anthropic-ai/sandbox-runtime@0.0.75 windows-install --skip-profile-grant --force");
     expect(cmd).not.toContain("\n");            // 混进散文后，复制到终端第一行就不是命令
     expect(cmd).not.toContain("--no-install");  // npm 11 译为 `--yes false`，必失败（用户实测形态）
   });
 
   it("读不到包内版本时退化为 latest —— 但仍必须是作用域名", () => {
     const cmd = windowsInstallCommand();
-    expect(cmd).toBe("npx --yes @anthropic-ai/sandbox-runtime windows-install");
+    expect(cmd).toBe("npx --yes @anthropic-ai/sandbox-runtime windows-install --skip-profile-grant");
     expect(cmd).not.toContain("sandbox-runtime@");
     // 非作用域的 `sandbox-runtime` 在 npm 上是别人的「Empty package」（维护者与本项目无关）——
     // 照那种写法跑等于把陌生人的代码拉下来执行，故用正则钉住"必须带作用域前缀"
@@ -338,7 +338,7 @@ describe("Windows 环境探测（平台注入 + srt 打桩）", () => {
     expect(item?.status).toBe("missing");
     expect(item?.detail).toContain("隔离账户未就绪");
     expect(item?.fix.auto).toEqual({ strategy: "winInstall" });
-    expect(item?.fix.manual?.command).toBe("npx --yes @anthropic-ai/sandbox-runtime@9.9.9 windows-install");
+    expect(item?.fix.manual?.command).toBe("npx --yes @anthropic-ai/sandbox-runtime@9.9.9 windows-install --skip-profile-grant --force");
   });
 });
 

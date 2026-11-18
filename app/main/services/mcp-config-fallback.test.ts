@@ -106,6 +106,19 @@ describe("MCP 配置：唯一位置与首次落点", () => {
     expect(mcp.scanMcpServers().find((s) => s.name === "codegraph")?.enabled).toBe(true);
   });
 
+  it.each([false, true])("pins the legacy Playwright preset and preserves customized presets (%s)", async customized => {
+    const config = { type: "stdio", command: "npx", args: ["@playwright/mcp@latest", "--headless"],
+      ...(customized ? { env: { PLAYWRIGHT_MCP_ISOLATED: "true" } } : {}) };
+    writeAt(path.join(home, "agent"), "mcp.json", JSON.stringify({ mcpServers: { playwright: config } }));
+    const mcp = await loadService();
+    mcp.seedDefaultMcp();
+    mcp.seedDefaultMcp();
+    const saved = JSON.parse(fs.readFileSync(mcp.getMcpConfigPath(), "utf8"));
+    expect(saved.mcpServers.playwright).toEqual(customized ? config : {
+      type: "stdio", command: "npx", args: ["--yes", "@playwright/mcp@0.0.85", "--headless"],
+    });
+  });
+
   it("does not publish CodeGraph when the default-off settings cannot be saved, and retries safely", async () => {
     fs.mkdirSync(path.join(home, "em-settings.json"), { recursive: true });
     const mcp = await loadService();

@@ -1,34 +1,34 @@
 {
-  "version": "2.56.0.4",
-  "releaseTag": "v2.56.0.windows.4",
+  "version": "2.56.1",
+  "releaseTag": "v2.56.1.windows.1",
   "archives": {
     "x64": {
-      "fileName": "PortableGit-2.56.0.4-64-bit.7z.exe",
-      "sha256": "b1f3e52216e2ed6882d1bebfd4d3fdf319bec40d2edbbf9fd26ec4fd3fce7ed1",
-      "url": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/PortableGit-2.56.0.4-64-bit.7z.exe"
+      "fileName": "PortableGit-2.56.1-64-bit.7z.exe",
+      "sha256": "9dd04a608ceb5f6ab32a73709e0ecb159d211da71b697c45ff81f6dd0c6b49c7",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/PortableGit-2.56.1-64-bit.7z.exe"
     },
     "arm64": {
-      "fileName": "PortableGit-2.56.0.4-arm64.7z.exe",
-      "sha256": "044110f9d951858452ddb5e4b5415ea0f2b5b2598e794d6fec77fe28b9aa8cc0",
-      "url": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/PortableGit-2.56.0.4-arm64.7z.exe"
+      "fileName": "PortableGit-2.56.1-arm64.7z.exe",
+      "sha256": "0dca0d9f760924a7e6752235d7dd6eb1a9b508ee714b6ed15d89252e5a58c5c9",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/PortableGit-2.56.1-arm64.7z.exe"
     }
   },
   "extractor": {
-    "version": "26.05",
+    "version": "26.06",
     "archives": {
       "x64": {
-        "url": "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-extra.7z",
-        "archiveSha256": "f27a8f103c84785026edcba1f67faf1357225df9d19ddb0b7760d55947141bc7",
+        "url": "https://github.com/ip7z/7zip/releases/download/26.06/7z2606-extra.7z",
+        "archiveSha256": "396c180f12d2247c24b0b1fcd482c6fc2a2700f61211ffede1061dd971f5e104",
         "entry": "x64/7za.exe",
         "fileName": "7za.exe",
-        "sha256": "7ddf0a3bc451e166679296be630d6f0573eb386159c04184761c43020c484291"
+        "sha256": "dd3757f31c97e33776f2590317d4fb12f2da075db3dbb1e3f94d0f2a01d84ffa"
       },
       "arm64": {
-        "url": "https://github.com/ip7z/7zip/releases/download/26.05/7z2605-extra.7z",
-        "archiveSha256": "f27a8f103c84785026edcba1f67faf1357225df9d19ddb0b7760d55947141bc7",
+        "url": "https://github.com/ip7z/7zip/releases/download/26.06/7z2606-extra.7z",
+        "archiveSha256": "396c180f12d2247c24b0b1fcd482c6fc2a2700f61211ffede1061dd971f5e104",
         "entry": "arm64/7za.exe",
         "fileName": "7za.exe",
-        "sha256": "86a2064dfe2a362f03e3c95e577cab88a9d2caaca9e442520046a050044d2d4d"
+        "sha256": "4c7ead0105afb7abb564b30753b483e8e9f4652b0ecdec8081e073f098552552"
       }
     }
   }

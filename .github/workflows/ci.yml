@@ -42,5 +42,11 @@ jobs:
       - name: 安装沙盒系统依赖
         run: sudo apt-get update && sudo apt-get install -y bubblewrap socat ripgrep
 
+      # Electron downloads on first use. Prepare once before Vitest starts parallel workers.
+      - name: Prepare Electron binary
+        run: node node_modules/electron/install.js
+        env:
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+
       - name: Unit tests
         run: npx vitest run

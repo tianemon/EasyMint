@@ -37,7 +37,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { SrtWinSpawn } from "@anthropic-ai/sandbox-runtime";
+import type { SrtWinSpawn, WindowsSandboxStatus } from "@anthropic-ai/sandbox-runtime";
 
 type SrtModule = typeof import("@anthropic-ai/sandbox-runtime");
 
@@ -70,12 +70,27 @@ export function srtWinSpawn(srt: SrtModule): SrtWinSpawn {
  * 读不到返回 undefined（调用方退化为"不钉版本"），绝不抛。
  */
 export function packagedSrtVersion(srt: SrtModule): string | undefined {
-  try {
-    const pkgPath = path.join(path.dirname(srtWinPath(srt)), "..", "..", "..", "package.json");
-    const parsed = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version?: unknown };
-    const v = parsed.version;
-    return typeof v === "string" && v.length > 0 ? v : undefined;
-  } catch {
-    return undefined;
+  // Electron can read package metadata inside the archive. Only the executable needs an unpacked path.
+  for (const exe of new Set([srt.VENDORED_SRT_WIN_EXE, srtWinPath(srt)])) {
+    try {
+      const pkgPath = path.join(path.dirname(exe), "..", "..", "..", "package.json");
+      const { version } = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version?: unknown };
+      if (typeof version === "string" && version.length > 0) return version;
+    } catch { /* try the alternate packaged layout */ }
   }
+  return undefined;
+}
+
+/** WFP enumeration may be unavailable without elevation. SRT verifies it on initialization. */
+export function windowsSandboxIssue(status: WindowsSandboxStatus): string | undefined {
+  const { user, wfp } = status;
+  if (!user?.provisioned || !user.credPresent) return "隔离账户未就绪";
+  if (user.setupVersion !== undefined && user.markerVersion !== user.setupVersion) {
+    return "隔离组件版本不匹配，请到设置 → 环境检测重新准备系统保护";
+  }
+  if (wfp?.state === "absent") return "网络过滤未生效";
+  if (wfp?.state === "loopback-mismatch" || (wfp?.state === "installed" && wfp.allowLoopback)) {
+    return "网络过滤配置不匹配，请到设置 → 环境检测重新准备系统保护";
+  }
+  return undefined;
 }

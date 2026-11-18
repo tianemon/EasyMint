@@ -80,7 +80,7 @@ async function defaultInstallWin(): Promise<WinInstallOutcome> {
   const srt = await import("@anthropic-ai/sandbox-runtime");
   // 必须传 srtWin（srt 的 spawn 规格）：不传时 srt 内部 `opts.srtWin ?? resolveSrtWin()` 会抛
   // `no srt-win path configured` —— 见 sandbox/srt-win.ts
-  const st = await srt.installWindowsSandboxAsync({ srtWin: srtWinSpawn(srt) });
+  const st = await srt.installWindowsSandboxAsync({ srtWin: srtWinSpawn(srt), force: true, skipProfileGrant: true });
   // 「用户关掉了 UAC 弹窗」这件事 srt 是用返回值表达的（cancel 不抛异常）：必须把它接出来，
   // 否则复核后发现没装上，只能笼统报"安装未完成（退出码 null）"，把用户自己的选择说成故障
   return { cancelled: st?.cancelled === true };

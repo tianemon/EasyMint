@@ -55,6 +55,6 @@ jobs:
       - name: 安装依赖
         run: npm ci --ignore-scripts
       - name: 一次性安装沙盒组件（srt-sandbox 账户 + WFP 过滤）
-        run: npx --no-install @anthropic-ai/sandbox-runtime windows-install
+        run: npx --no-install @anthropic-ai/sandbox-runtime windows-install --skip-profile-grant
       - name: 沙盒冒烟（initialize + wrap + 执行）
         run: node scripts/ci-sandbox-smoke.mjs

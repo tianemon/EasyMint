@@ -14,7 +14,7 @@ import { buildExecutionPolicy, type PermissionMode } from "../permission/access-
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
 import { wrapWithWindowsWorker } from "./windows-execution-manager";
 import { linuxSandboxConfig } from "./srt-linux";
-import { srtWinPath, srtWinSpawn } from "./srt-win";
+import { srtWinPath, srtWinSpawn, windowsSandboxIssue } from "./srt-win";
 import { isSandboxExcludedCommand } from "./compat-policy";
 import { joinWindowsRuntime, preparedWindowsRuntime, windowsRuntimeEnvironment } from "../windows-runtime";
 
@@ -142,10 +142,8 @@ async function platformFailureReason(e: Error): Promise<string | null> {
     try {
       const srt = await getSrt();
       const st = await srt.checkWindowsSandboxStatusAsync({ srtWin: srtWinSpawn(srt) });
-      const userOk = Boolean(st?.user?.provisioned && st.user.credPresent);
-      if (!userOk) {
-        return `Windows 系统保护组件未安装（需一次性管理员安装，将弹出 UAC 授权）——安装指引见文档`;
-      }
+      const issue = windowsSandboxIssue(st);
+      if (issue) return `Windows 系统保护未就绪：${issue}`;
     } catch (e) { /* 状态探测失败按通用错误处理——但要留痕，静默过一次（spawn_failed 被吞） */
       console.warn("[sandbox] Windows 状态探测失败:", (e as Error).message);
     }
@@ -185,9 +183,8 @@ export async function ensureSandbox(cwd: string, mode?: PermissionMode): Promise
     // worker 内完成，主进程这里只检查系统组件，绝不能初始化共享实例。
     if (process.platform === "win32") {
       const status = await srt.checkWindowsSandboxStatusAsync({ srtWin: srtWinSpawn(srt) });
-      if (!status.user.provisioned || !status.user.credPresent) {
-        throw new Error("Windows 系统保护组件未安装");
-      }
+      const issue = windowsSandboxIssue(status);
+      if (issue) throw new Error(issue);
       _state = "ok";
       return { ok: true };
     }
@@ -312,7 +309,7 @@ export async function wrapForSandbox(
     const wrapped = await wrapWithWindowsWorker(command, context, opts.gitBashPath, opts.windowsShell);
     // Windows 的 commandId 由 worker 侧的 leaseId 决定，必须用它（不能用本地另生成的 key，
     // 否则违规注解匹配不上——见 annotateSandboxFailures）。
-    return { kind: "argv", ...wrapped, violationKey: wrapped.commandId, release: createSandboxLease() };
+    return { kind: "argv", ...wrapped, violationKey: wrapped.commandId, release: wrapped.release };
   }
   const policy = await applyPlatformConfig(buildExecutionPolicy(context));
   // srt 会在外层把 TMPDIR 设为自己的 scratch 目录。非完全访问档在最内层恢复运行区变量，

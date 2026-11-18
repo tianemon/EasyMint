@@ -555,7 +555,7 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   playwright: {
     type: "stdio",
     command: "npx",
-    args: ["@playwright/mcp@latest", "--headless"],
+    args: ["--yes", "@playwright/mcp@0.0.85", "--headless"],
   },
   codegraph: {
     type: "stdio",
@@ -565,7 +565,7 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
 };
 
 /** Write default MCP server configs on first launch. Merges into existing
- *  config — never overwrites servers already configured.
+ *  config and updates the exact legacy Playwright preset.
  *  与 Claude Code 解耦:EM 配置独立存 ~/.easymint/agent/mcp.json（与 Pi 的 agentDir 同层）。
  *  首次启动时若旧共享配置(~/.claude/.claude.json)存在 → 一次性迁移导入,此后不再读写 CC 配置。 */
 export function seedDefaultMcp(): void {
@@ -587,6 +587,16 @@ export function seedDefaultMcp(): void {
     (data.mcpServers as Record<string, McpServerConfig>) || {};
   // 既有条目的启用状态无法区分用户选择与旧默认，升级时必须保留。
   const hadCodegraph = Object.prototype.hasOwnProperty.call(existing, "codegraph");
+
+  const playwright = existing.playwright;
+  const legacyPlaywright = playwright && Object.keys(playwright).length === 3
+    && playwright.type === "stdio" && playwright.command === "npx"
+    && Array.isArray(playwright.args) && playwright.args.length === 2
+    && playwright.args[0] === "@playwright/mcp@latest" && playwright.args[1] === "--headless";
+  if (legacyPlaywright) {
+    existing.playwright = DEFAULT_MCP_SERVERS.playwright!;
+    changed = true;
+  }
 
   // Standard servers — just write config entries
   for (const [name, cfg] of Object.entries(DEFAULT_MCP_SERVERS)) {

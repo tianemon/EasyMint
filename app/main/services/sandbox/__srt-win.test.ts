@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { packagedSrtVersion, srtWinPath, srtWinSpawn, unpackedAsarPath } from "./srt-win";
+import { packagedSrtVersion, srtWinPath, srtWinSpawn, unpackedAsarPath, windowsSandboxIssue } from "./srt-win";
 
 /** 假 srt 模块：只提供我们用到的那两个公开量（真模块同样从包根导出它们） */
 function fakeSrt(exe: string) {
@@ -76,6 +76,16 @@ describe("包内 srt 版本（供手动命令钉版本，不写死第二处）",
     expect(packagedSrtVersion(fakeSrt("/nowhere/srt-win.exe").mod)).toBeUndefined();
   });
 
+  it("reads package metadata from the archive when only the exe is unpacked", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "em-srt-ver-asar-"));
+    dirs.push(root);
+    const archive = path.join(root, "app.asar");
+    mkdirSync(archive);
+    writeFileSync(path.join(archive, "package.json"), JSON.stringify({ version: "0.0.83" }));
+    const exe = path.join(archive, "vendor", "srt-win", "x64", "srt-win.exe");
+    expect(packagedSrtVersion(fakeSrt(exe).mod)).toBe("0.0.83");
+  });
+
   it("打包形态：exe 在 `app.asar` 内、package.json 只存在于 `.asar.unpacked` 时仍读到版本", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "srt-ver-asar-"));
     dirs.push(root);
@@ -88,4 +98,12 @@ describe("包内 srt 版本（供手动命令钉版本，不写死第二处）",
     const asarExe = path.join(root, "app.asar", "vendor", "srt-win", "x64", "srt-win.exe");
     expect(packagedSrtVersion(fakeSrt(asarExe).mod)).toBe("0.0.75");
   });
+});
+
+it("distinguishes stale Windows sandbox setup from limited WFP visibility", () => {
+  const user = { provisioned: true, credPresent: true, setupVersion: 6, markerVersion: 6 } as Parameters<typeof windowsSandboxIssue>[0]["user"];
+  const wfp = { state: "cannot-read", allowLoopback: false, filters: 0 } as const;
+  expect(windowsSandboxIssue({ user, wfp })).toBeUndefined();
+  expect(windowsSandboxIssue({ user: { ...user, markerVersion: 5 }, wfp })).toContain("版本不匹配");
+  expect(windowsSandboxIssue({ user, wfp: { ...wfp, state: "loopback-mismatch" } })).toContain("配置不匹配");
 });

@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { fixUserns, installDependencies, isWindowsInstallRequest, outputTail, type InstallEvent } from "./run";
 import type { EnvItem, EnvReport } from "./types";
 
+const installSandbox = vi.hoisted(() => vi.fn(async () => ({ cancelled: false })));
+vi.mock("@anthropic-ai/sandbox-runtime", () => ({
+  VENDORED_SRT_WIN_EXE: "/fixture/srt-win.exe",
+  resolveSrtWin: ({ path }: { path: string }) => ({ exe: path, prependArgs: [] }),
+  installWindowsSandboxAsync: installSandbox,
+}));
+
 /** 假子进程：close 在下一个微任务里触发，模拟 spawn→退出 */
 function fakeChild(code: number | null) {
   const child = new EventEmitter() as EventEmitter & {
@@ -88,6 +95,20 @@ describe("依赖安装执行层", () => {
     const child = spawnFn.mock.results[0]!.value as { kill: ReturnType<typeof vi.fn> };
     expect(child.kill).toHaveBeenCalled();
     expect(res.reason).toBe("安装已取消");
+  });
+
+  it("Windows：修复隔离账户和过滤规则时跳过用户目录授权", async () => {
+    const result = await installDependencies(["winSandbox"], () => {}, {
+      plan: { strategy: "winInstall" },
+      logger: () => {},
+      probe: async () => report(["ok"], ["winSandbox"]),
+    });
+    expect(result.ok).toBe(true);
+    expect(installSandbox).toHaveBeenCalledWith({
+      srtWin: { exe: "/fixture/srt-win.exe", prependArgs: [] },
+      force: true,
+      skipProfileGrant: true,
+    });
   });
 
   it("Windows：用户关掉 UAC 弹窗 → 说成「你点了取消」，不冒充安装失败", async () => {

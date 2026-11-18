@@ -269,7 +269,8 @@ export function buildExecutionPolicy(context: Pick<ExecutionContext, "mode" | "w
       strictAllowlist: true,
       // 开发服务器必须能监听本机端口；同时 srt 会额外放行"回环出站"，
       // 所以 `curl localhost:3000` 这类本机互访不受白名单影响。
-      allowLocalBinding: true,
+      // SRT 0.0.81+ also applies this to Windows WFP. Preserve the existing Windows loopback policy.
+      allowLocalBinding: process.platform !== "win32",
       // **唯一放行的 unix socket 是 ssh-agent**（取舍与发现逻辑见 compat-policy）：
       // 让 `git push` / `fetch` 借用 agent 签名，而私钥不进会话环境。
       // ⚠️ 空数组意味着 srt 禁掉**全部** unix socket（docker.sock、gradle daemon 等一并不可用）——

@@ -21,7 +21,7 @@ import {
 } from "./plan";
 import { probeWindowsRuntime, type WindowsRuntimeProbe } from "../windows-runtime";
 import { linuxSandboxProbeArgs } from "../sandbox/srt-linux";
-import { packagedSrtVersion, srtWinSpawn } from "../sandbox/srt-win";
+import { packagedSrtVersion, srtWinSpawn, windowsSandboxIssue } from "../sandbox/srt-win";
 import type { EnvItem, EnvItemId, EnvItemStatus, EnvReport } from "./types";
 
 /** 传下去会让被测程序行为异常的变量（本项目实际见过外部注入 NODE_OPTIONS） */
@@ -295,12 +295,11 @@ export async function probeEnvironment(
     try {
       const srt = await import("@anthropic-ai/sandbox-runtime");
       const st = await srt.checkWindowsSandboxStatusAsync({ srtWin: srtWinSpawn(srt) });
-      const userOk = Boolean(st.user?.provisioned && st.user?.credPresent);
       // WFP 三态：installed / absent / cannot-read。**cannot-read 不是"没装"**——BFE 枚举需要管理员，
       // 非提权进程读不到；按 srt 的说明此时应以账户状态为准（同「探测失败 ≠ 未安装」这条铁律）。
       const wfpState = st.wfp?.state;
-      const ok = userOk && wfpState !== "absent";
-      const missingPart = !userOk ? "隔离账户未就绪" : "网络过滤未生效";
+      const issue = windowsSandboxIssue(st);
+      const ok = issue === undefined;
       items.push({
         id: "winSandbox",
         label: "系统保护（隔离账户 + 网络过滤）",
@@ -309,7 +308,7 @@ export async function probeEnvironment(
         impact: WIN_SANDBOX_IMPACT,
         ...(ok
           ? { version: wfpState === "cannot-read" ? "网络过滤需管理员权限才能读取（不影响使用）" : undefined }
-          : { detail: `未安装：${missingPart}（安装时会弹一次系统授权窗口）` }),
+          : { detail: `${issue}（准备时会弹一次系统授权窗口）` }),
         fix: ok ? {} : {
           auto: { strategy: "winInstall" },
           // 手工指引用我们自己的命令：srt 原文的包名是非作用域的（npm 上那是别人的包）且含散文，

@@ -17,7 +17,7 @@ const context = (mode: "full" | "standard"): ExecutionContext => ({ mode, worksp
 beforeEach(() => {
   mocks.ensure.mockReset().mockResolvedValue(paths); mocks.join.mockReset().mockResolvedValue(paths);
   mocks.prepared.mockReset().mockReturnValue(undefined);
-  mocks.init.mockReset(); mocks.wrap.mockReset().mockResolvedValue({ argv: ["srt-win.exe"], env: {}, commandId: "lease" });
+  mocks.init.mockReset(); mocks.wrap.mockReset().mockResolvedValue({ argv: ["srt-win.exe"], env: {}, commandId: "lease", release: vi.fn(async () => {}) });
   const win = Object.create(process); Object.defineProperty(win, "platform", { value: "win32" }); vi.stubGlobal("process", win);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -33,8 +33,11 @@ it("uses the verified bundled Bash and child PATH without initializing full-mode
   expect(mocks.init).not.toHaveBeenCalled(); expect(mocks.wrap).not.toHaveBeenCalled();
 });
 it("keeps Windows sandbox execution and passes the verified tools read root with the owner", async () => {
-  await wrapForSandbox("echo hi", { context: context("standard") });
+  const spec = await wrapForSandbox("echo hi", { context: context("standard") });
   expect(mocks.wrap).toHaveBeenCalledWith("echo hi", expect.objectContaining({ mode: "standard", ownerId: "session-a", bundledRuntimeRoot: paths.root }), paths.bash, undefined);
+  const worker = await mocks.wrap.mock.results[0]!.value;
+  await spec.release?.();
+  expect(worker.release).toHaveBeenCalledOnce();
 });
 it("preserves a native PowerShell fallback without forcing Bash preparation or sandbox setup in full mode", async () => {
   const spec = await wrapForSandbox("Get-Location", { context: context("full"), windowsShell: "powershell" });

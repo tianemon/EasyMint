@@ -272,7 +272,7 @@ export function manualInstallCommand(ids: readonly string[], installer: Installe
  */
 export function windowsInstallCommand(version?: string): string {
   const spec = version ? `@anthropic-ai/sandbox-runtime@${version}` : "@anthropic-ai/sandbox-runtime";
-  return `npx --yes ${spec} windows-install`;
+  return `npx --yes ${spec} windows-install --skip-profile-grant${version ? " --force" : ""}`;
 }
 
 /**
