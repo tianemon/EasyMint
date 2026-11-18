@@ -18,6 +18,7 @@ interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
   initialTab?: SettingsTab;
+  environmentTarget?: string;
   /** 窗口内当前打开的项目路径（由 ProjectPage 传入，MCP 插件页用它查询项目级配置与状态） */
   projectPath?: string;
 }
@@ -32,7 +33,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "about", label: "settings.about" },
 ];
 
-export function SettingsDialog({ open, onClose, initialTab, projectPath }: SettingsDialogProps): JSX.Element | null {
+export function SettingsDialog({ open, onClose, initialTab, projectPath, environmentTarget }: SettingsDialogProps): JSX.Element | null {
   const { t } = useTranslation();
   const { loadFromElectron } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
@@ -102,7 +103,7 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
         {/* Body(作用域类:无边框拼色设计语言只作用于此,见 index.css .settings-body) */}
         <div className="settings-body px-6 py-5 flex-1 overflow-y-auto">
           {activeTab === "general" ? (
-            <GeneralTab />
+            <GeneralTab environmentTarget={environmentTarget} />
           ) : activeTab === "appearance" ? (
             <AppearanceTab />
           ) : activeTab === "plugins" ? (

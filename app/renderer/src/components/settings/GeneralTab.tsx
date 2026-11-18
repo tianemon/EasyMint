@@ -1,118 +1,9 @@
 import { useTranslation } from "react-i18next";
 import "../../lib/i18n";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
-import { EnvPanel, type EnvPanelHandle } from "../env/EnvPanel";
-import { EnvRetestButton } from "../env/EnvRetestButton";
+import { EnvPanel } from "../env/EnvPanel";
 import { PiImportSection } from "./PiImport";
-
-// ── Git Check ─────────────────────────────────────────────────────────────────
-
-type DetectInfo = { found: boolean; version?: string; reason?: "not-found" | "probe-error" };
-
-function useDetect(cmd: "git" | "nodeRuntime" | "codegraph", enabled = true) {
-  const [info, setInfo] = useState<DetectInfo | null>(null);
-  const [nonce, setNonce] = useState(0);
-  useEffect(() => {
-    if (!enabled) return;
-    // IPC 层报错也是「探测失败」而非「没装」——避免把异常断言成未安装
-    window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false, reason: "probe-error" }));
-  }, [cmd, nonce, enabled]);
-  /** 重新检测：先置空显示「检测中...」，再触发一次 IPC——装了工具但没重启 EM 时用它重测 */
-  const refresh = useCallback(() => {
-    setInfo(null);
-    setNonce((n) => n + 1);
-  }, []);
-  return { info, refresh };
-}
-
-function EnvRow({ label, info, installUrl }: {
-  label: string;
-  info: DetectInfo | null;
-  installUrl?: string;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="px-4 py-2.5 flex items-center justify-between em-hover-row transition-shadow">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-text-secondary">{label}</span>
-        {info === null ? (
-          <span className="text-xs text-text-muted">{t("settings.detecting")}</span>
-        ) : info.found ? (
-          <span className="text-xs text-text-secondary">{info.version}</span>
-        ) : (
-          <span className="text-xs text-danger">{t(info.reason === "probe-error" ? "settings.detectFailed" : "settings.notInstalled")}</span>
-        )}
-      </div>
-      {info && !info.found && info.reason !== "probe-error" && installUrl && (
-        <a
-          href={installUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium"
-        >
-          {t("settings.installTool", { name: label })}
-        </a>
-      )}
-    </div>
-  );
-}
-
-/** CodeGraph 是可选能力：默认停用，未安装是正常态，不催装、不报红。
- *  启用入口统一在「设置 → 插件 → MCP」，这里只显示检测结论。 */
-function CodegraphRow({ info }: { info: DetectInfo | null }) {
-  const { t } = useTranslation();
-  return (
-    <div className="px-4 py-2.5 flex items-center justify-between em-hover-row transition-shadow">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-text-secondary">CodeGraph</span>
-        {info === null ? (
-          <span className="text-xs text-text-muted">{t("settings.detecting")}</span>
-        ) : info.found ? (
-          <span className="text-xs text-text-secondary">{info.version}</span>
-        ) : (
-          <span className="text-xs text-text-muted">{t("settings.optionalTool")}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EnvCheckSection(): JSX.Element {
-  const { t } = useTranslation();
-  const isWindows = typeof window !== "undefined" && window.electronAPI?.platform === "win32";
-  const git = useDetect("git", !isWindows);
-  const [windowsGit, setWindowsGit] = useState<DetectInfo | null>(null);
-  const onEnvironmentReport = useCallback((report: EnvReportShape | null) => {
-    if (!isWindows) return;
-    const runtime = report?.items.find(item => item.id === "windowsRuntime");
-    setWindowsGit(runtime ? { found: runtime.status === "ok", version: runtime.version,
-      reason: runtime.status === "missing" ? "not-found" : "probe-error" } : { found: false, reason: "probe-error" });
-  }, [isWindows]);
-  const nodeRt = useDetect("nodeRuntime");
-  const codegraph = useDetect("codegraph");
-  // 「重新检测」= 三个检测器 + 环境面板重探。按钮与动作都是共用的那一份
-  // （EnvRetestButton + EnvPanelHandle.retest），本页不自己拼一套
-  const envPanel = useRef<EnvPanelHandle>(null);
-
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-text-secondary">{t("settings.environment")}</h3>
-        <EnvRetestButton
-          panel={envPanel}
-          onBeforeRetest={() => { git.refresh(); nodeRt.refresh(); codegraph.refresh(); }}
-        />
-      </div>
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden">
-        <EnvRow label="Git" info={isWindows ? windowsGit : git.info} installUrl={isWindows ? undefined : "https://git-scm.com/downloads"} />
-        <EnvRow label="Node.js" info={nodeRt.info} installUrl="https://nodejs.org/" />
-        <CodegraphRow info={codegraph.info} />
-        <EnvPanel ref={envPanel} variant="settings" onReport={onEnvironmentReport} />
-      </div>
-    </section>
-  );
-}
 
 // ── Cache Management ──────────────────────────────────────────────────────────
 
@@ -201,7 +92,7 @@ function CacheManagementSection(): JSX.Element {
 }
 
 /** 通用设置:默认项目路径 / 压缩阈值 / 缓存 / 环境检测 / 原生 pi 配置导入 */
-export function GeneralTab(): JSX.Element {
+export function GeneralTab({ environmentTarget }: { environmentTarget?: string }): JSX.Element {
   const { t } = useTranslation();
   const {
     defaultProjectDir,
@@ -210,8 +101,11 @@ export function GeneralTab(): JSX.Element {
     setContextThreshold,
   } = useSettingsStore();
 
+  const environment = <EnvPanel focusId={environmentTarget} />;
   return (
     <div className="space-y-5">
+      {environmentTarget && environment}
+
       {/* 路径 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">{t("settings.defaultProjectDir")}</h3>
@@ -250,7 +144,7 @@ export function GeneralTab(): JSX.Element {
       <CacheManagementSection />
 
       {/* 环境检测 */}
-      <EnvCheckSection />
+      {!environmentTarget && environment}
 
       {/* 原生 pi 配置导入（手动触发；引导页 Step 2 是同一份流程的自动探测形态） */}
       <PiImportSection />

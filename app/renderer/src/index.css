@@ -1815,110 +1815,6 @@ select.input {
   animation: progressIndeterminate 2s ease-in-out infinite;
 }
 
-/* 环境检测的「来回往复」柔光带（2026-09-15 用户指定：参考输入卡片的「顶部滑动」光效观感）。
- * 与输入卡片那套的区别（用户明确要求，别照搬）：
- *  - **不用 canvas / Worker**：那套是为长会话帧率（主线程繁忙时降采样），这里是几秒钟的短动效，
- *    纯 CSS 更简单、也不掉帧；
- *  - **形状不一样**：卡片那条贴着上边框、底部是平的；这里是**上下对称 + 左右两端收细**的透镜形
- *    （`rounded-[50%]` 让两端自然收细），因为它没有"贴着某条边"的语义。
- * 位移复用上面的 progressIndeterminate（-100% → 250%，两端都完全移出轨道），
- * 只把方向改成 `alternate` —— 即"来回往复"；时长比扫描条慢一点，观感更柔和。
- *
- * 2026-09-15 定稿（用户看过演示页后）：**光带不柔化**（去掉 `blur-[1px]`，硬边）、4px 厚、**底衬轨道
- * 彻底去掉** —— 用户原话"把轨道的线彻底去掉"，于是往复本身是唯一的视觉主体（装饰性动画，不是进度条）。
- * 节奏 1.8s/单程（一次往返约 3.6s）。 */
-/* 光带的行程：**全程留在容器内**（用户 2026-09-15 定：「不要让动画线条消失，在一个背景内完整移动，
- * 不超出边界」）。所以**不能复用 `progressIndeterminate`** —— 那条是 `-100% → 250%`，两端都完全
- * 移出轨道（给 ProjectPage 的扫描条用，那里要"扫出去"），而这里要"界内往返"，故另立一条。
- *
- * **尺寸定稿（用户 2026-09-15 给出具体数值）**：「窗口宽960，容器可以用800，光带本身300，
- * 在800的范围内移动」→ 轨道 800px / 光带 300px / 行程 500px。三者关系恒为
- *   **行程 = 轨道宽 − 光带宽**（界内往返的硬约束，"贴边即返"，所以光带永远完整可见：
- *   不越界、不被裁、也不淡出。曾用"容器两端加软化区"解决切边，但那样靠近边界会淡掉 ——
- *   用户要的是"完整移动"，那条已移除，别再按软化区的思路改回来）。
- *
- * **关键：行程用容器查询单位自动算出来，不再手写百分比系数。**
- *   `100cqw` = 轨道（`container-type: inline-size` 的 `.sweep-track`）的内联尺寸，
- *   `100%`   = 光带自身宽度（translateX 的百分比基准是元素自己）；
- *   于是 `calc(100cqw - 100%)` 天然等于"轨道宽 − 光带宽"，**光带宽度怎么改都不会漂**。
- *   旧写法是 `calc(100% / 0.33 - 100%)`：那个 0.33 必须与 `.env-sweep-glow` 的 width 手工同步，
- *   改一处忘一处就会越界或走不满（本文件曾为此写了两段警告注释）。容器查询单位（cqw）
- *   自 Chromium 105 起可用，本应用渲染层是 Electron 43（Chromium 远高于此），可放心用。
- *   `max(0px, …)` 兜底：窗口被拖得极窄、轨道比光带还窄时行程取 0，光带停住也不越界。
- *
- * 配合 `alternate` 即来回往复。 */
-@keyframes envSweep {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(max(0px, calc(100cqw - 100%))); }
-}
-
-/* 轨道：光带的活动范围（**注意它不等于内容宽度** —— 引导页内容只有 540px，这条轨道刻意更宽，
- * 由 EnvPanel 里的 `flex justify-center` 让它相对页面居中，见那边的注释）。
- * `container-type: inline-size` 只为让上面的 `100cqw` 能取到本元素的宽度。
- * 它同时建立了一个容器查询上下文；子元素（光带）里没有别的 cqw 引用，不影响其它样式。 */
-.sweep-track {
-  container-type: inline-size;
-  /* 宽度 900px 由 EnvPanel 的 `w-[900px]` 给（那是内容层的事），这里只管**上限**：
-   * 与引导页内容区的 `px-8` 对齐，窗口拖窄时跟随收缩，此时 cqw 公式自动缩短行程，仍不越界
-   * （实测窗口 700 → 轨道 636/行程 336、窗口 400 → 轨道 436/行程 136，两端都恰好贴边）。
-   * 写在这里而不是 Tailwind 的 `max-w-[calc(100vw-64px)]`：CSS 的 calc 减号两侧必须有空格，
-   * 放进任意值要靠 Tailwind 的容错去补，写在 CSS 里没有这层不确定性。 */
-  max-width: calc(100vw - 64px);
-}
-
-.env-sweep-glow {
-  /* 光带色＝主题 accent（用户 2026-09-15 定："恢复成accent吧"）。
-   * 曾为调"淡绿"另起过字面量（先降饱和 → 再满饱和换色相 158°），最后决定回落到主题色：
-   * 好处是换肤/改 accent 时自动跟随，不再多维护一份绿。亮色 #16a34a、暗色 #d4d4d4。 */
-  --sweep-color: var(--color-accent);
-  /* 光带长度＝300px（用户 2026-09-15 给定："光带本身300"）。宽度写在这里、运动在 keyframes 里，
-   * 但**两者已解耦**：行程是 `100cqw - 100%` 自动算的，改这个 width 不需要动 keyframes。
-   * 注意它是**固定像素**而非百分比 —— 轨道（800px）由窗口决定，宽度恒定时行程也恒定。
-   * 窗口被拖窄时轨道会跟着 `max-w-[calc(100vw-64px)]` 收缩，此时行程自动变小（仍是界内往返）。 */
-  width: 300px;
-  animation: envSweep 1.8s ease-in-out infinite alternate;
-  /* 绿底上内嵌的"芯"：用**径向**渐变一次拿到两个方向 —— 水平半径 = 多长（只占中段）、
-   * 垂直半径 50% = 只占中线，而椭圆的固有形状让芯**自己在两端收细**（不必再叠锥形）。
-   * （不能用竖直的 linear-gradient：那会横贯整条；两条 linear-gradient 放进 background-image
-   *  只会互相覆盖，不会相乘。）拆成 background-color + background-image，长度/浓度可分开调。
-   * 亮色＝白芯（用户："在绿色上内嵌一点白色，看起来像发光一样"）；
-   * 暗色＝黑芯（用户 2026-09-15："以同样的方式给暗色下加个黑芯"）——故颜色走变量，随主题切。 */
-  --core-rgb: 255, 255, 255;
-  --core-w: 25%;       /* 芯的长度（水平半径占光带宽度的比例） */
-  --core: 0.5;         /* 芯的浓度 */
-  background-color: var(--sweep-color);
-  background-image: radial-gradient(
-    ellipse var(--core-w) 50% at 50% 50%,
-    rgba(var(--core-rgb), var(--core)),
-    transparent
-  );
-  /* 两端渐隐（把"拖尾"从运动错觉变成形状本身，用户 2026-09-15 要求）。
-   * 改用 mask 而非背景里的水平渐变，是因为白芯是**二维**的：竖直的 white 与水平的 fade
-   * 没法用一条 linear-gradient 表达。mask 一次裁出水平渐隐，绿底与白芯同时被裁，观感与原来一致。
-   * （曾试过 box-shadow / drop-shadow 做"黑晕"，用户 2026-09-15 明确去掉，不要再加。） */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 22%, #000 78%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 22%, #000 78%, transparent);
-}
-
-[data-theme="dark"] .env-sweep-glow {
-  /* 只覆盖"芯"：光带色已直接取 accent（暗色下本就是浅灰 #d4d4d4），不必再写一遍。
-   * 芯改为**黑**——浅灰光带上一条暗芯，与亮色的"绿底 + 白芯"对称。 */
-  --core-rgb: 0, 0, 0;
-}
-
-/* （此处曾有一个 `.env-sweep-clip`：给裁剪框两端各加 10% 软化区，让光带进出时淡入淡出。）
- * 已随"界内往返"方案删除：光带现在**全程留在容器内**，本就不会被裁，也就不需要软化；
- * 而且软化会让它靠近边界时淡掉 —— 与"完整移动"的要求正相反。别再按软化区的思路改回来。 */
-@media (prefers-reduced-motion: reduce) {
-  /* 降级：不来回走，但居中留一条光带（"正在工作"这件事由"只显示标题 + 动画"这层表达） */
-  .env-sweep-glow { animation: none; left: 50%; transform: translateX(-50%); }
-}
-
-/* ── Scan / Onboarding ────────────────────────────── */
-
-
-
-
 /* ── SVG fill/stroke utilities ────────────────────────── */
 
 .fill-success  { fill: var(--color-success); }
@@ -2252,3 +2148,63 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
 .msg-process-stack .msg-process-detail { background: transparent !important; border-radius: 0; }
 .msg-system-flow { background: transparent; box-shadow: none; }
 .msg-system-flow > button, .msg-system-flow > div { padding-inline: 0; }
+
+/* Environment dependencies share the settings pane's flat surfaces and action buttons. */
+.environment-panel { display: grid; gap: 12px; container-type: inline-size; }
+.environment-heading, .environment-group-heading {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+}
+.environment-onboarding .environment-heading { justify-content: center; }
+.environment-summary {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 12px;
+  padding: 9px 12px; border-radius: var(--radius-lg); background: var(--color-surface-alt);
+  color: var(--color-text-primary); font-size: var(--text-xs);
+}
+.environment-summary[data-warning="true"] { background: color-mix(in srgb, var(--color-warning) 9%, var(--color-surface-alt)); }
+.environment-summary strong { font-weight: 600; }
+.environment-summary span { color: var(--color-text-secondary); }
+.environment-group { display: grid; gap: 6px; }
+.environment-group-heading h3 { font-size: var(--text-xs); font-weight: 500; color: var(--color-text-secondary); }
+.environment-list { padding: 0; margin: 0; list-style: none; border-radius: var(--radius-lg); background: var(--color-surface-alt); }
+.environment-row + .environment-row { border-top: 1px solid var(--color-border-light); }
+.environment-row-target { border-radius: var(--radius-lg); background: color-mix(in srgb, var(--color-warning) 6%, var(--color-surface-alt)); }
+.environment-row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-lg); }
+.environment-row-main {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(92px, auto) minmax(115px, auto);
+  align-items: center; gap: 7px 12px; padding: 9px 12px; min-height: 46px;
+}
+.environment-component { min-width: 0; overflow-wrap: anywhere; }
+.environment-status { color: var(--color-text-secondary); font-size: var(--text-xs); }
+.environment-status.text-danger { color: var(--color-danger); }
+.environment-status-ready { color: #166c38; }
+.environment-status-warning { color: #854f07; }
+[data-theme="dark"] .environment-status-ready { color: #69ce8e; }
+[data-theme="dark"] .environment-status-warning { color: #f2bb61; }
+.environment-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 4px; }
+.environment-actions a, .environment-row-detail a { text-decoration: none; }
+.environment-row-detail { display: grid; justify-items: start; gap: 5px; padding: 0 12px 10px; color: var(--color-text-secondary); font-size: var(--text-xs); }
+.environment-command {
+  max-width: 100%; width: fit-content; user-select: text; -webkit-user-select: text;
+  background: var(--field-idle); padding: 6px 9px; border-radius: var(--radius-lg); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.environment-progress {
+  width: 100%; max-width: 290px; height: 3px; border-radius: 4px;
+  overflow: hidden; background: var(--color-surface-hover); margin-block: 2px;
+}
+.environment-progress::after {
+  content: ""; display: block; width: 32%; height: 100%; background: var(--color-accent);
+  border-radius: inherit; animation: environment-sweep 1.5s ease-in-out infinite alternate;
+}
+.environment-onboarding > .environment-progress { justify-self: center; max-width: 100%; }
+@keyframes environment-sweep { to { transform: translateX(210%); } }
+@media (prefers-reduced-motion: reduce) { .environment-progress::after { animation: none; } }
+@container (max-width: 400px) {
+  .environment-row-main { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
+  .environment-component { grid-column: 1 / -1; }
+}
+.environment-notice {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: var(--z-index-float);
+  display: grid; gap: 6px; width: min(316px, calc(100vw - 32px)); max-width: calc(300px - 2 * var(--s4));
+  padding: 12px; border-radius: var(--radius-lg); background: var(--color-drawer-card);
+  box-shadow: var(--shadow-menu); -webkit-app-region: no-drag;
+}

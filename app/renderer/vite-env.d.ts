@@ -15,47 +15,6 @@ declare namespace JSX {
   type Element = import("react").ReactElement;
 }
 
-// ── 环境自检与依赖安装（env:*）────────────────────────────────────────────────
-/** 与 main 的 provisioning/types.ts 对齐（渲染层不 import main，故在此镜像声明） */
-interface EnvFixShape {
-  /** pkg=包管理器（Linux，命令在 main 侧按发行版生成）；usernsProfile=加载 AppArmor profile；
-   *  winInstall=srt 的 Windows 一次性装配；windowsRuntime=免管理员命令环境 */
-  auto?: { strategy: "pkg"; packages: string[] } | { strategy: "usernsProfile" } | { strategy: "winInstall" } | { strategy: "windowsRuntime" };
-  /** command 可以是多行（\n 分隔的步骤），界面按多行展示、整体复制 */
-  manual?: { command?: string; url?: string };
-  sandboxOff?: boolean;
-}
-interface EnvItemShape {
-  id: string;
-  label: string;
-  required: boolean;
-  /** blocked=装了但被系统策略挡（如 Ubuntu 24.04 的 AppArmor）；unknown=探测失败，都不是"未安装" */
-  status: "ok" | "missing" | "blocked" | "unknown";
-  version?: string;
-  /** 缺了它会影响什么功能（说能力，不说包名）；面板只在非 ok 时展示 */
-  impact?: string;
-  detail?: string;
-  fix: EnvFixShape;
-}
-interface EnvReportShape {
-  items: EnvItemShape[];
-  distro: { id: string; idLike?: string[]; versionId?: string; autoInstallable: boolean };
-  probedAt: number;
-}
-interface EnvInstallResultShape {
-  ok: boolean;
-  manualCommand?: string;
-  reason?: string;
-  exitCode?: number | null;
-  report?: EnvReportShape;
-}
-interface EnvProgressShape {
-  phase: "preparing" | "installing" | "verifying" | "done" | "failed";
-  index: number;
-  total: number;
-  message?: string;
-}
-
 /** MCP 服务器配置（与 main/services/mcp-service.ts 的 McpServerConfig 对齐） */
 interface McpServerCfg {
   type: "stdio" | "http" | "sse";
@@ -582,18 +541,13 @@ interface ElectronAPI {
     detect: () => Promise<{ found: boolean; version?: string; reason?: "not-found" | "probe-error" }>;
   };
   env: {
-    /** 环境自检（只读） */
-    probe: () => Promise<EnvReportShape>;
-    /** 重新检测：重置沙盒失败缓存后再探测（装完依赖点它即可生效，不必重启） */
-    retest: () => Promise<EnvReportShape>;
-    /** 安装缺失项（id 白名单在 main 侧；进度走 onProgress） */
-    install: (ids: string[]) => Promise<EnvInstallResultShape>;
-    /** 「一键修复」bwrap 的 userns 放行（不带参数；命令全在 main 侧常量表里） */
-    fixUserns: () => Promise<EnvInstallResultShape>;
+    state: () => Promise<import("../shared/environment").EnvironmentState>;
+    probe: () => Promise<import("../shared/environment").EnvironmentState>;
+    retest: () => Promise<import("../shared/environment").EnvironmentState>;
+    install: (ids: string[]) => Promise<import("../shared/environment").EnvironmentState>;
+    fixUserns: () => Promise<import("../shared/environment").EnvironmentState>;
     cancel: () => Promise<void>;
-    onProgress: (cb: (ev: EnvProgressShape) => void) => () => void;
-    /** 启动自检结果（侧边栏红点） */
-    onReport: (cb: (report: EnvReportShape) => void) => () => void;
+    onChanged: (callback: (state: import("../shared/environment").EnvironmentState) => void) => () => void;
   };
   conv: {
     list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;

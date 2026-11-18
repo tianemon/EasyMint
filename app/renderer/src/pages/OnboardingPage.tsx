@@ -7,6 +7,7 @@ import { useThemeStore } from "../stores/theme-store";
 import { PiImportCard, envAutoAdvanceAllowed, manualSkipDropsAutoAdvance } from "../components/settings/PiImport";
 import { ProviderForm } from "../components/settings/ProviderSettings";
 import { EnvPanel } from "../components/env/EnvPanel";
+import { requiredEnvironmentProblems, useEnvironment } from "../components/env/useEnvironment";
 import { TavilyKeySection } from "../components/settings/TavilyKeySection";
 import { WindowControls } from "../components/WindowControls";
 import type { ProviderConfig, ApiProvidersData } from "@shared/platform-presets";
@@ -29,7 +30,9 @@ export function OnboardingPage(): JSX.Element {
   const { t } = useTranslation();
   const isDark = useThemeStore((s) => s.effective) === "dark";
   const [currentStep, setCurrentStep] = useState(0);
-  const { setApiProviders } = useSettingsStore();
+  const { setApiProviders, sandboxDisabled } = useSettingsStore();
+  const environment = useEnvironment();
+  const skipEnvironment = environment.probeFailed || requiredEnvironmentProblems(environment.report, sandboxDisabled).length > 0;
 
   // 记录本次已保存的供应商 ID，避免重复保存
   const [savedCfg, setSavedCfg] = useState<ProviderConfig | null>(null);
@@ -209,15 +212,7 @@ export function OnboardingPage(): JSX.Element {
               </div>
             </div>
           ) : currentStep === 1 ? (
-            /* ── Step 2: 环境准备（缺失依赖在这里装/引导，避免进工作台后命令全跑不了）──
-               刷新按钮由本页提供（面板自身不再渲染）：动作与设置页是同一份实现。
-               autoFix：进来就自动装（不再要求用户点「一键安装」）；就绪即自动进下一步。
-               pi 检测命中时追加「导入 pi 配置」卡片（2026-09-21）：卡片与 EnvPanel 并列，
-               自动跳转由 handleEnvReady 的门控收走，跳过走底部「下一步」（不锁定）；
-               未命中/探测中不渲染任何额外内容——本步保持纯过场。
-               这里**不放「重新检测」按钮**（用户 2026-09-15：那个按钮不该出现在动画下方）——
-               这一步的出路是「一键安装/一键修复」（面板内）或底部的「下一步」跳过；
-               真要重测，去「设置 → 环境检测」（那里的按钮由设置页提供，是全项目唯一一处）。 */
+            /* Share the environment list with Settings while keeping the Pi import handoff. */
             <div className="w-full max-w-[540px] space-y-4">
               <EnvPanel
                 variant="onboarding"
@@ -295,9 +290,10 @@ export function OnboardingPage(): JSX.Element {
         {currentStep === 1 && (
           <button
             className="btn-accent px-6 py-2 rounded-[var(--radius-lg)] font-medium"
+            disabled={Boolean(environment.operation)}
             onClick={goNext}
           >
-            {t("common.next")}
+            {t(skipEnvironment ? "environment.setupLater" : "common.next")}
           </button>
         )}
         {currentStep === 2 && (

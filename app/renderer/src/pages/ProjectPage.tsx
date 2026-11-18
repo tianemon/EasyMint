@@ -38,6 +38,7 @@ export function ProjectPage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const [showSettings, setShowSettings] = useState(false);
+  const [environmentTarget, setEnvironmentTarget] = useState<string>();
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
@@ -457,7 +458,9 @@ export function ProjectPage(): JSX.Element {
         onNewProject={() => setShowNewProject(true)}
         onOpenProject={handleOpenProject}
         onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
-        onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
+        settingsOpen={showSettings}
+        onSettings={() => { setEnvironmentTarget(undefined); setSettingsTab(undefined); setShowSettings(true); }}
+        onEnvironmentRepair={id => { setEnvironmentTarget(id); setSettingsTab("general"); setShowSettings(true); }}
       />
 
       <main className="main-area">
@@ -501,7 +504,7 @@ export function ProjectPage(): JSX.Element {
         </>}
       </main>
 
-      <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} projectPath={projectPath} />
+      <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setEnvironmentTarget(undefined); setSettingsTab(undefined); }} initialTab={settingsTab} environmentTarget={environmentTarget} projectPath={projectPath} />
 
       {/* 图片查看器：聊天文件链接 / 文件树图片 / 附件缩略图共用（状态在 viewer-store） */}
       <ImageViewer

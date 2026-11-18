@@ -17,6 +17,7 @@ import { useThemeStore } from "../stores/theme-store";
 import { readVersion, markRead } from "../lib/update-notice";
 import { SelectionIndicator } from "./ui/SelectionIndicator";
 import { ProjectMenuIcon } from "./ui/ProjectMenuIcon";
+import { EnvironmentNotice, useEnvironmentNotice } from "./env/EnvironmentNotice";
 
 export type SidebarTab = "sessions" | "files";
 type DrawerTab = "tasks" | "issues" | "runs";
@@ -36,6 +37,8 @@ interface SidebarProps {
   onOpenProject?: () => void;
   onRenameProject?: () => void;
   onSettings?: () => void;
+  settingsOpen?: boolean;
+  onEnvironmentRepair?: (id: string) => void;
   onShowUpdate?: () => void;
 }
 
@@ -44,7 +47,7 @@ export function Sidebar({
   activeSessionId, sessionRefreshKey,
   onNewSession, onSessionClick, onSessionDelete,
   onFileClick, onNewProject, onOpenProject, onRenameProject,
-  onSettings,
+  onSettings, settingsOpen, onEnvironmentRepair,
 }: SidebarProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<SidebarTab>("sessions");
@@ -61,6 +64,7 @@ export function Sidebar({
   const [fileRefresh, setFileRefresh] = useState(0);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const newProjectRef = useRef<HTMLButtonElement>(null);
   const creationGuide = useProjectCreationGuide(projectId);
   const mobileGuide = useMobileConnectionGuide(creationGuide.active || toolboxOpen || devicePanelOpen || mobilePanelOpen || menuOpen || drawerOpen);
@@ -89,14 +93,21 @@ export function Sidebar({
   // 已读状态(按版本):红点 = 有版本且未读;气泡显示时红点隐藏(气泡是更强的未读提示)
   const dotUnread = updateInfo?.version != null && updateInfo.version !== readVersion("dot");
   const bubbleUnread = updateInfo?.downloaded && updateInfo.version != null && updateInfo.version !== readVersion("bubble");
-  const showDot = !!dotUnread && !bubbleUnread;
+  const environment = useEnvironmentNotice();
+  const showDot = Boolean(environment.id) || (!!dotUnread && !bubbleUnread);
+  const openEnvironment = () => {
+    if (!environment.id) return;
+    environment.dismiss();
+    onEnvironmentRepair?.(environment.id);
+  };
 
   const handleSettings = () => {
     if (updateInfo?.version) {
       markRead("dot", updateInfo.version);
       markRead("bubble", updateInfo.version);
     }
-    onSettings?.();
+    if (environment.id && onEnvironmentRepair) openEnvironment();
+    else onSettings?.();
   };
 
   // 点击下拉菜单以外区域 → 关闭
@@ -296,7 +307,10 @@ export function Sidebar({
         <div className="sb-foot-bottom">
           {/* 左组:设置 + 重启升级(下载完成后显示,同款图标按钮) */}
           <div className="relative inline-flex gap-1">
-            <button className={`sb-foot-btn ${showDot ? "has-dot" : ""}`} onClick={handleSettings}>
+            {environment.visible && !settingsOpen && !mobileGuide.visible && !creationGuide.active && onEnvironmentRepair && (
+              <EnvironmentNotice runtime={environment.id === "windowsRuntime"} onLater={() => { environment.dismiss(); settingsButtonRef.current?.focus(); }} onRepair={openEnvironment} />
+            )}
+            <button ref={settingsButtonRef} type="button" aria-label={t("environment.settings")} className={`sb-foot-btn ${showDot ? "has-dot" : ""}`} onClick={handleSettings}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             </button>
             {/* 下载完成 → 「重启升级」文字按钮(比背景略亮的灰,略矮):点击直接执行安装;点设置按钮后消失 */}

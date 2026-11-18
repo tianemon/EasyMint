@@ -82,23 +82,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     detect: () => ipcRenderer.invoke("codegraph:detect"),
   },
   env: {
+    state: () => ipcRenderer.invoke("env:state"),
     probe: () => ipcRenderer.invoke("env:probe"),
     retest: () => ipcRenderer.invoke("env:retest"),
     install: (ids: string[]) => ipcRenderer.invoke("env:install", { ids }),
-    /** 「一键修复」bwrap 的 userns 放行（AppImage / tar.gz 没有安装钩子时用）。**不带参数**：命令全在 main 侧 */
     fixUserns: () => ipcRenderer.invoke("env:fixUserns"),
     cancel: () => ipcRenderer.invoke("env:cancel"),
-    /** 订阅安装进度；返回取消订阅函数（与 todos:changed 同一形态） */
-    onProgress: (cb: (ev: { phase: string; index: number; total: number; message?: string }) => void) => {
-      const handler = (_e: unknown, ev: { phase: string; index: number; total: number; message?: string }): void => cb(ev);
-      ipcRenderer.on("env:progress", handler as never);
-      return () => { ipcRenderer.removeListener("env:progress", handler as never); };
-    },
-    /** 订阅启动自检结果（env:report），仅供环境面板消费 */
-    onReport: (cb: (report: unknown) => void) => {
-      const handler = (_e: unknown, report: unknown): void => cb(report);
-      ipcRenderer.on("env:report", handler as never);
-      return () => { ipcRenderer.removeListener("env:report", handler as never); };
+    onChanged: (callback: (state: import("../shared/environment").EnvironmentState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: import("../shared/environment").EnvironmentState) => callback(state);
+      ipcRenderer.on("env:changed", handler);
+      return () => { ipcRenderer.removeListener("env:changed", handler); };
     },
   },
   memory: {

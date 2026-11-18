@@ -19,6 +19,7 @@ import { broadcast } from "./services/ipc-broadcast";
 import { getNativeConfig, setNativeRuntimeReadyNotifier } from "./services/native-config";
 import { setSandboxDisabledProvider, resetSandboxState } from "./services/sandbox/manager";
 import { probeEnvironment } from "./services/provisioning/probe";
+import { createEnvironmentController } from "./services/provisioning/controller";
 import { ensureWindowsRuntime, resetWindowsRuntimeProbe } from "./services/windows-runtime";
 import { installDependencies, fixUserns } from "./services/provisioning/run";
 import { IMAGE_MIME, resolveHome, nearestExistingDir, emHome } from "./utils/paths";
@@ -200,9 +201,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // 改名分流的活会话读取器接线：在内存里有 AgentSession 的会话走 SDK setSessionName（能拿事件），
   // 没打开的会话直写文件（见 session-service.renameSession）
   setLiveSessionLookup((sessionId) => agentService.findActiveChat(sessionId)?.session ?? null);
-
-  /** 进行中的依赖安装（同一时刻只允许一个，取消靠 abort） */
-  let envInstallAbort: AbortController | null = null;
 
   // dialog:*
   /**
@@ -753,75 +751,43 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // env:* — 环境自检与依赖安装（引导流程 / 启动自检共用同一引擎）
   // 不走权限系统：这些是**产品自身的前置依赖**，不是 AI 提出的操作；命令由 provisioning/plan 白名单生成，
   // 提权交给系统弹窗（Linux pkexec → polkit / Windows UAC）。
-  ipcMain.handle("env:probe", () => probeEnvironment());
-  // 「重新检测」：先重置沙盒失败缓存——否则装好依赖仍会被缓存的 fail-closed 挡住，用户以为白装了
-  ipcMain.handle("env:retest", async () => {
-    if (process.platform === "win32") resetWindowsRuntimeProbe();
-    await resetSandboxState();
-    return probeEnvironment();
-  });
-  ipcMain.handle("env:install", async (e, payload: unknown) => {
-    const raw = (payload as { ids?: unknown } | undefined)?.ids;
-    const ids = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
-    if (ids.length === 0) return { ok: false, reason: "没有需要安装的条目" };
-    if (envInstallAbort) return { ok: false, reason: "已有安装或修复正在进行，请稍候" }; // 避免同时弹两个授权框
-    envInstallAbort = new AbortController();
-    try {
-      const result = await installDependencies(
-        ids,
-        (ev) => { try { e.sender.send("env:progress", ev); } catch { /* 窗口已关闭 */ } },
-        {},
-        envInstallAbort.signal,
-      );
-      // 成功时保留复检得到的ready，Git探测与skill导入会同步读取这份快照。
+  const environment = createEnvironmentController({
+    probe: probeEnvironment,
+    resetBeforeCheck: async () => {
+      if (process.platform === "win32") resetWindowsRuntimeProbe();
+      await resetSandboxState();
+    },
+    settleRepair: async result => {
+      // Retain the verified portable runtime cache on success.
       if (!result.ok && process.platform === "win32") resetWindowsRuntimeProbe();
-      if (result.ok || process.platform === "win32") await resetSandboxState(); // Windows 安装后允许下一次执行重新验证
-      return result;
-    } finally {
-      envInstallAbort = null;
-    }
+      if (result.ok || process.platform === "win32") await resetSandboxState();
+    },
+    publish: snapshot => broadcast("env:changed", snapshot),
   });
-  // 「一键修复」bwrap 的 userns 放行（Ubuntu 24.04+；AppImage / tar.gz / 源码运行没有安装钩子，只有这条路）。
-  // **不收任何参数**：三条 pkexec 命令全部来自 provisioning/plan 的常量表，渲染层无法影响执行内容。
-  // 改的是系统安全配置，所以每一步都由系统弹授权框（不是静默执行）。
-  ipcMain.handle("env:fixUserns", async (e) => {
-    if (envInstallAbort) return { ok: false, reason: "已有安装或修复正在进行，请稍候" };
-    envInstallAbort = new AbortController();
-    try {
-      const result = await fixUserns(
-        (ev) => { try { e.sender.send("env:progress", ev); } catch { /* 窗口已关闭 */ } },
-        {},
-        envInstallAbort.signal,
-      );
-      if (result.ok) await resetSandboxState(); // 修好即生效，否则缓存的 fail-closed 会让用户以为白修了
-      return result;
-    } finally {
-      envInstallAbort = null;
-    }
+  ipcMain.handle("env:state", () => environment.state());
+  ipcMain.handle("env:probe", () => environment.probe());
+  ipcMain.handle("env:retest", () => environment.probe(true));
+  ipcMain.handle("env:install", (_event, payload: unknown) => {
+    const { ids } = expectPayload(z.object({ ids: z.array(z.string()).min(1).max(3) }), payload);
+    return environment.repair(ids, !ids.includes("winSandbox"), (progress, signal) =>
+      installDependencies(ids, progress, {}, signal));
   });
-  ipcMain.handle("env:cancel", () => { envInstallAbort?.abort(); });
+  ipcMain.handle("env:fixUserns", () => environment.repair(["userns"], true, (progress, signal) =>
+    fixUserns(progress, {}, signal)));
+  ipcMain.handle("env:cancel", () => environment.cancel());
 
-  // Upgrade preparation stays silent and never installs the elevated sandbox component.
-  // 失败后**再静默重试一次**（2 分钟后）：解压被杀软临时占用、磁盘短暂繁忙这类抖动很常见，
-  // 让用户为此手动点按钮不划算；两次都失败才留给人处理（面板照实显示"未安装"与原因）。
+  // Portable Git is prepared silently. Elevated system protection remains opt-in.
   const prepareRuntime = async (attempt: number): Promise<void> => {
-    if (process.platform !== "win32") return;
-    try { await ensureWindowsRuntime(); }
-    catch (error) {
-      console.warn(`[provisioning] 命令运行环境准备失败（第 ${attempt + 1} 次）:`, error);
-      if (attempt === 0) setTimeout(() => { void prepareRuntime(1); }, 120_000);
-      return;
+    if (process.platform === "win32" && !environment.state().operation) {
+      try { await ensureWindowsRuntime(); }
+      catch (error) {
+        console.warn(`[provisioning] 命令运行环境准备失败（第 ${attempt + 1} 次）:`, error);
+        if (attempt === 0) setTimeout(() => { void prepareRuntime(1); }, 120_000);
+      }
     }
-    // 装好了立刻刷新面板，用户不用自己去点「重新检测」
-    if (attempt > 0) broadcast("env:report", await probeEnvironment());
+    await environment.probe();
   };
-  setTimeout(() => {
-    void (async () => {
-      await prepareRuntime(0);
-      const report = await probeEnvironment();
-      broadcast("env:report", report);
-    })().catch(error => console.warn("[provisioning] 启动环境检测失败:", error));
-  }, 1500);
+  setTimeout(() => { void prepareRuntime(0); }, 1500);
 
   // appearance:* — 渲染层上报「当前生效主题」（单一真相源：theme-store 设置 data-theme 的同一处）
   // 主进程据此切换 macOS Dock 图标；其它平台在 applyDockIcon 内安全跳过

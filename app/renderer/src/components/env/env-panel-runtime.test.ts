@@ -2,121 +2,161 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { EnvPanel, nextAutoAction } from "./EnvPanel";
+import { DEFAULT_ENVIRONMENT_STATE, type EnvItem, type EnvReport, type EnvironmentState } from "@shared/environment";
+import { EnvPanel } from "./EnvPanel";
+import { requiredEnvironmentProblems } from "./useEnvironment";
+import { uiI18n } from "../../lib/i18n";
 
 vi.mock("../../stores/settings-store", () => ({ useSettingsStore: (selector: (state: unknown) => unknown) => selector({ sandboxDisabled: true, setSandboxDisabled: vi.fn() }) }));
 vi.mock("../ui/ConfirmDialog", () => ({ confirmDialog: vi.fn() }));
-let container: HTMLDivElement, root: Root;
-const report = (status: EnvItemShape["status"]): EnvReportShape => ({
-  items: [
-    { id: "windowsRuntime", label: "Git + Bash fixture", required: true, status, fix: status === "ok" ? {} : { auto: { strategy: "windowsRuntime" } } },
-    { id: "winSandbox", label: "Sandbox UAC fixture", required: false, status: "missing", fix: { auto: { strategy: "winInstall" } } },
-  ], distro: { id: "windows", autoInstallable: false }, probedAt: 1,
-});
-const probe = vi.fn(), install = vi.fn();
-/** 主进程阶段事件的订阅者：让单测能注入 done/verifying，验证读数门槛。 */
-let progressHandler: ((ev: { phase: string }) => void) | null = null;
-let reportHandler: (() => void) | null = null;
-beforeEach(() => {
+
+let container: HTMLDivElement;
+let root: Root;
+let snapshot: EnvironmentState;
+let listener: ((value: EnvironmentState) => void) | undefined;
+const probe = vi.fn<() => Promise<EnvironmentState>>();
+const install = vi.fn<(ids: string[]) => Promise<EnvironmentState>>();
+const cancel = vi.fn(async () => {});
+
+function update(patch: Partial<EnvironmentState>): EnvironmentState {
+  snapshot = { ...snapshot, ...patch, revision: snapshot.revision + 1 };
+  listener?.(snapshot);
+  return snapshot;
+}
+
+function windows(status: EnvItem["status"]): EnvReport {
+  return {
+    items: [
+      { id: "windowsRuntime", label: "Portable Git", required: true, status, repairNeeded: status === "unknown",
+        fix: status === "ok" ? {} : { auto: { strategy: "windowsRuntime" } } },
+      { id: "winSandbox", label: "System protection", required: false, status: "missing", fix: { auto: { strategy: "winInstall" } } },
+    ],
+    distro: { id: "windows", autoInstallable: false },
+    probedAt: 1,
+  };
+}
+
+function row(id: string): HTMLLIElement {
+  const item = container.querySelector<HTMLLIElement>(`[data-environment-id="${id}"]`);
+  expect(item).toBeTruthy();
+  return item!;
+}
+
+function button(name: string, within: ParentNode = container): HTMLButtonElement {
+  const matched = [...within.querySelectorAll("button")].find(item => item.textContent === name);
+  expect(matched).toBeTruthy();
+  return matched!;
+}
+
+beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  probe.mockReset(); install.mockReset(); progressHandler = null; reportHandler = null;
-  Object.assign(window, { electronAPI: { env: {
-    probe, retest: probe, install, cancel: vi.fn(),
-    onReport: (cb: () => void) => { reportHandler = cb; return () => { reportHandler = null; }; },
-    onProgress: (cb: (ev: { phase: string }) => void) => {
-      progressHandler = cb;
-      return () => { progressHandler = null; };
+  await uiI18n.changeLanguage("zh-CN");
+  snapshot = DEFAULT_ENVIRONMENT_STATE;
+  listener = undefined;
+  probe.mockReset().mockImplementation(async () => snapshot);
+  install.mockReset().mockImplementation(async () => snapshot);
+  cancel.mockClear();
+  Object.assign(window, { electronAPI: {
+    platform: "win32",
+    git: { detect: vi.fn(async () => ({ found: true, version: "fixture" })) },
+    nodeRuntime: { detect: async () => ({ found: true, version: "22.14.0" }) },
+    codegraph: { detect: async () => ({ found: false, reason: "not-found" }) },
+    env: {
+      probe, retest: probe, install, cancel,
+      onChanged: (cb: (value: EnvironmentState) => void) => { listener = cb; return () => { listener = undefined; }; },
     },
-  } } });
-  container = document.createElement("div"); document.body.append(container); root = createRoot(container);
+  } });
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
 });
 
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); vi.useRealTimers(); });
-
-it("引导页工作屏幕显示数字百分比，并随最短停留推进", async () => {
-  vi.useFakeTimers();
-  probe.mockResolvedValue(report("ok"));
-  await act(async () => root.render(createElement(EnvPanel, { variant: "onboarding", autoFix: true, onReady: vi.fn() })));
-  const readPercent = (): number => Number((container.textContent?.match(/(\d+)%/) ?? [])[1]);
-  expect(container.textContent).toContain("%");
-  const before = readPercent();
-  await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
-  expect(readPercent()).toBeGreaterThan(before);
+afterEach(async () => {
+  await act(async () => root.unmount());
+  container.remove();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
-it("done 阶段不谎报 100，只有交回宿主才到 100", async () => {
-  vi.useFakeTimers();
-  probe.mockResolvedValue(report("ok"));
-  const readPercent = (): number => Number((container.textContent?.match(/(\d+)%/) ?? [])[1]);
-  await act(async () => root.render(createElement(EnvPanel, { variant: "onboarding", autoFix: true, onReady: vi.fn() })));
-  // 主进程在「所选组件已装完、仍有其它环境问题」时也会发 done，不能当成整体就绪
-  await act(async () => { progressHandler?.({ phase: "done" }); });
-  expect(readPercent()).toBeLessThan(100);
-  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-  expect(readPercent()).toBe(100);
-});
-
-it("onboarding prepares only portable runtime even with sandbox disabled, then continues without UAC", async () => {
-  vi.useFakeTimers();
-  probe.mockResolvedValue(report("missing")); install.mockResolvedValue({ ok: true, report: report("ok") });
-  const onReady = vi.fn();
-  await act(async () => root.render(createElement(EnvPanel, { variant: "onboarding", autoFix: true, onReady })));
-  expect(install).toHaveBeenCalledExactlyOnceWith(["windowsRuntime"]);
-  expect(container.textContent).not.toContain("Sandbox UAC fixture");
-  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-  expect(onReady).toHaveBeenCalledOnce();
-  expect(install).toHaveBeenCalledTimes(1);
-});
-
-it("settings installs sandbox only after an explicit click and never mixes it with runtime repair", async () => {
-  probe.mockResolvedValue(report("unknown")); install.mockResolvedValue({ ok: true, report: report("unknown") });
-  await act(async () => root.render(createElement(EnvPanel, { variant: "settings" })));
+it("shows a single Windows runtime row and keeps optional protection behind explicit authorization", async () => {
+  update({ report: windows("unknown") });
+  await act(async () => root.render(createElement(EnvPanel)));
+  expect(row("windowsRuntime").textContent).toContain("需修复");
+  expect(container.querySelector('[data-environment-id="git"]')).toBeNull();
+  expect(window.electronAPI.git.detect).not.toHaveBeenCalled();
+  expect(container.querySelector("svg")).toBeNull();
   expect(install).not.toHaveBeenCalled();
-  expect(container.textContent).toContain("Sandbox UAC fixture");
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent?.includes("安装系统保护"));
-  expect(button).toBeDefined();
-  await act(async () => button!.click());
+  await act(async () => button("安装", row("winSandbox")).click());
+  expect(install).not.toHaveBeenCalled();
+  await act(async () => button("取消", row("winSandbox")).click());
+  expect(install).not.toHaveBeenCalled();
+  await act(async () => button("安装", row("winSandbox")).click());
+  await act(async () => button("继续", row("winSandbox")).click());
   expect(install).toHaveBeenCalledExactlyOnceWith(["winSandbox"]);
 });
 
-it("settings can repair an installed but broken runtime, with errors kept inside the panel", async () => {
-  probe.mockResolvedValue(report("unknown")); install.mockResolvedValue({ ok: false, reason: "archive damaged", report: report("unknown") });
-  await act(async () => root.render(createElement(EnvPanel, { variant: "settings" })));
-  // 运行环境那条的按钮文案是「准备运行环境 / 重新准备运行环境」（不是"安装"）——按动作找，别按旧文案找
-  const runtimeAction = /准备运行环境|一键安装|重试安装/;
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && runtimeAction.test(b.textContent ?? ""));
-  expect(button).toBeDefined();
-  await act(async () => button!.click());
+it("keeps runtime progress, cancellation and actionable failure inside its component row", async () => {
+  update({ report: windows("unknown") });
+  install.mockImplementation(async ids => update({ operation: { ids, phase: "installing", cancellable: true, cancelling: false } }));
+  await act(async () => root.render(createElement(EnvPanel, { focusId: "windowsRuntime" })));
+  expect(document.activeElement).toBe(row("windowsRuntime"));
+  await act(async () => button("修复", row("windowsRuntime")).click());
+  expect(row("windowsRuntime").textContent).toContain("正在修复");
+  expect(row("windowsRuntime").querySelector('[role="progressbar"]')).toBeTruthy();
+  expect(row("winSandbox").querySelector('[role="progressbar"]')).toBeNull();
+  expect(button("重新检测").disabled).toBe(true);
+  await act(async () => button("取消", row("windowsRuntime")).click());
+  expect(cancel).toHaveBeenCalledOnce();
+  await act(async () => update({ operation: null, failure: { ids: ["windowsRuntime"], reason: "archive damaged" } }));
+  expect(row("windowsRuntime").textContent).toContain("archive damaged");
+  expect(row("winSandbox").textContent).not.toContain("archive damaged");
+  expect(button("重试", row("windowsRuntime"))).toBeTruthy();
+});
+
+it("first run shows auto preparation in its row, then hands off once following verification", async () => {
+  vi.useFakeTimers();
+  update({ report: windows("missing") });
+  install.mockImplementation(async ids => update({ operation: { ids, phase: "preparing", cancellable: true, cancelling: false } }));
+  const onReady = vi.fn();
+  await act(async () => root.render(createElement(EnvPanel, { variant: "onboarding", autoFix: true, waitForUser: true, onReady })));
   expect(install).toHaveBeenCalledExactlyOnceWith(["windowsRuntime"]);
-  expect(container.textContent).toContain("archive damaged");
+  expect(row("windowsRuntime").querySelector('[role="progressbar"]')).toBeTruthy();
+  expect(container.querySelector('[data-environment-id="winSandbox"]')).toBeNull();
+  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+  expect(onReady).not.toHaveBeenCalled();
+  await act(async () => update({ report: windows("ok"), operation: null }));
+  expect(onReady).toHaveBeenCalledOnce();
+  expect(row("windowsRuntime").textContent).toContain("已就绪");
 });
 
-it("automatically prepares the portable runtime once, independently of sandbox settings", () => {
-  const state = { autoFix: true, hasReport: true, probeFailed: false, probing: false, installing: false, sandboxDisabled: true, installableCount: 0, fixableCount: 0, runtimeCount: 1 };
-  expect(nextAutoAction({ ...state, done: new Set() })).toBe("windowsRuntime");
-  expect(nextAutoAction({ ...state, done: new Set(["windowsRuntime"]) })).toBeNull();
+it("does not prompt for optional tools when macOS needs nothing to run", async () => {
+  update({ report: { ...windows("ok"), items: [], distro: { id: "macos", autoInstallable: false } } });
+  Object.assign(window.electronAPI, { platform: "darwin" });
+  await act(async () => root.render(createElement(EnvPanel)));
+  expect(container.textContent).toContain("环境已就绪");
+  expect(container.textContent).toContain("开发工具");
+  expect(row("git")).toBeTruthy();
+  expect(install).not.toHaveBeenCalled();
 });
 
-it("refreshes the runtime report after background preparation", async () => {
-  probe.mockResolvedValueOnce(report("missing")).mockResolvedValueOnce(report("ok"));
-  const onReport = vi.fn();
-  await act(async () => root.render(createElement(EnvPanel, { onReport })));
-  expect(onReport.mock.lastCall?.[0].items[0].status).toBe("missing");
-  await act(async () => { reportHandler?.(); });
-  expect(onReport.mock.lastCall?.[0].items[0].status).toBe("ok");
+it("ignores an older initial response after the result arrives on the shared channel", async () => {
+  let finish!: (value: EnvironmentState) => void;
+  probe.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  await act(async () => root.render(createElement(EnvPanel)));
+  await act(async () => update({ report: windows("ok") }));
+  await act(async () => { finish({ ...DEFAULT_ENVIRONMENT_STATE, report: windows("missing") }); });
+  expect(row("windowsRuntime").textContent).toContain("已就绪");
 });
 
-it("does not let an old probe overwrite the result of runtime installation", async () => {
-  let finishProbe!: (value: EnvReportShape) => void;
-  probe.mockResolvedValueOnce(report("missing")).mockImplementationOnce(() => new Promise(resolve => { finishProbe = resolve; }));
-  install.mockResolvedValue({ ok: true, report: report("ok") });
-  const onReport = vi.fn();
-  await act(async () => root.render(createElement(EnvPanel, { onReport })));
-  await act(async () => { reportHandler?.(); });
-  // 运行环境那条的按钮文案是「准备运行环境 / 重新准备运行环境」（不是"安装"）——按动作找，别按旧文案找
-  const runtimeAction = /准备运行环境|一键安装|重试安装/;
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => !b.textContent?.includes("系统保护") && runtimeAction.test(b.textContent ?? ""));
-  await act(async () => button!.click());
-  await act(async () => finishProbe(report("missing")));
-  expect(onReport.mock.lastCall?.[0].items[0].status).toBe("ok");
+it("counts Linux sandbox prerequisites without double-counting a deferred userns check", () => {
+  const report: EnvReport = {
+    ...windows("ok"),
+    items: [
+      { id: "bwrap", label: "bubblewrap", required: true, status: "missing", fix: {} },
+      { id: "userns", label: "user namespaces", required: true, status: "unknown", fix: {} },
+    ],
+  };
+  expect(requiredEnvironmentProblems(report, false).map(item => item.id)).toEqual(["bwrap"]);
+  expect(requiredEnvironmentProblems(report, true)).toEqual([]);
+  expect(requiredEnvironmentProblems(windows("missing"), true).map(item => item.id)).toEqual(["windowsRuntime"]);
 });

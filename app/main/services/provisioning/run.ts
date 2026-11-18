@@ -24,28 +24,10 @@ import {
 import { cleanEnv, prependPathDirs, probeEnvironment, probePathDirs } from "./probe";
 import { packagedSrtVersion, srtWinSpawn } from "../sandbox/srt-win";
 import type { EnvReport } from "./types";
+import type { InstallEvent, InstallResult } from "../../../shared/environment";
+export type { InstallEvent, InstallResult } from "../../../shared/environment";
 import { logProvisioning } from "./log";
 import { ensureWindowsRuntime } from "../windows-runtime";
-
-export type InstallPhase = "preparing" | "installing" | "verifying" | "done" | "failed";
-
-export interface InstallEvent {
-  phase: InstallPhase;
-  /** 进度（1-based；preparing 为 0） */
-  index: number;
-  total: number;
-  message?: string;
-}
-
-export interface InstallResult {
-  ok: boolean;
-  /** 失败时的自助指引（可复制到终端）；undefined = 连指引都拿不到 */
-  manualCommand?: string;
-  /** 面向用户的原因 */
-  reason?: string;
-  report?: EnvReport;
-  exitCode?: number | null;
-}
 
 type Plan =
   | { strategy: "pkg"; argv: string[] | null; manualCommand?: string }
