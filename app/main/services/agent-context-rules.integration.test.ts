@@ -1,9 +1,11 @@
+import {getCurrentSystemPrompt} from "@earendil-works/pi-ai";
+import {markProjectRuleChanged} from "./project-rule-files";
 import { getPromptDefaults } from "./system-prompt-manager";
 const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
 const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
 const EVALUATOR_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-evaluator")!.prompt;
 const DESIGNER_AGENT_PROMPT = getPromptDefaults().legacyDesigner;
-const THINKING_LANGUAGE_PROMPT = getPromptDefaults().main.rules.match(/<thinking_language>[\s\S]*?<\/thinking_language>/)![0];
+const THINKING_LANGUAGE_PROMPT = "<thinking_language>USER_CUSTOM_LANGUAGE_HINT</thinking_language>";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -66,7 +68,7 @@ describe("delivery rules in production sessions", () => {
   });
 
   it.each([
-    [{ "AGENTS.md": "" , "CLAUDE.md": "TEAM_RULE" }, ["TEAM_RULE"]],
+    [{ "AGENTS.md": "" , "CLAUDE.md": "TEAM_RULE" }, []],
     [{ "AGENTS.md": "USE_PNPM" }, ["USE_PNPM"]],
     [{ "CLAUDE.md": "CLAUDE_ONLY" }, ["CLAUDE_ONLY"]],
     [{ "AGENTS.override.md": "OVERRIDE", "AGENTS.md": "IGNORED", "CLAUDE.md": "IGNORED" }, ["OVERRIDE"]],
@@ -100,20 +102,19 @@ describe("delivery rules in production sessions", () => {
       expect(prompt.split(JSON.stringify(getAgentDeliveryRules(mode)).slice(1, -1))).toHaveLength(2);
       expect(prompt).toContain("CUSTOM_ROLE");
       expect(prompt).toContain("USE_PNPM");
-      expect(prompt).toContain("TEAM_RULE");
+      expect(prompt).not.toContain("TEAM_RULE");
     }
   });
 
   it.each([[undefined, "conversation"], ["CUSTOM_ROLE", "conversation"], [undefined, "task"], ["CUSTOM_ROLE", "task"]] as const)("keeps the session usable with base %s and %s responsibilities", async (base, mode) => {
-    const env = await setup({ "AGENTS.md": "PRIMARY_RULE", "CLAUDE.md": "UNREADABLE_RULE" });
+    const env = await setup({ "AGENTS.md": "UNREADABLE_RULE" });
     const read = fs.readFileSync;
     vi.spyOn(fs, "readFileSync").mockImplementation((...args: Parameters<typeof fs.readFileSync>) => {
-      if (String(args[0]).toLowerCase() === path.join(env.cwd, "CLAUDE.md").toLowerCase()) throw Object.assign(new Error("fixture denied"), { code: "EACCES" });
+      if (String(args[0]).toLowerCase() === path.join(fs.realpathSync(env.cwd), "AGENTS.md").toLowerCase()) throw Object.assign(new Error("fixture denied"), { code: "EACCES" });
       return read(...args);
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const session = await env.create(base, mode);
-    expect(session.systemPrompt).toContain("PRIMARY_RULE");
     expect(session.systemPrompt).not.toContain("UNREADABLE_RULE");
     expect(session.systemPrompt).toContain("EACCES");
     expect(session.systemPrompt).toContain("不得声称已读这些文件");
@@ -121,4 +122,15 @@ describe("delivery rules in production sessions", () => {
     expect(session.systemPrompt.split(getAgentDeliveryRules(mode))).toHaveLength(2);
     expect(warn).toHaveBeenCalledOnce();
   });
+  it("refreshes controlled rule edits and explicit reloads without reloading the SDK session",async()=>{
+    const env=await setup({"AGENTS.md":"ORIGINAL_RULE"}),requests:string[]=[];
+    env.faux.setResponses(Array.from({length:4},()=>ctx=>{requests.push(getCurrentSystemPrompt(ctx.messages));return fauxAssistantMessage("DONE");}));
+    const session=await env.create("ROLE");const reload=vi.spyOn(session,"reload");
+    await session.prompt("first");
+    fs.writeFileSync(path.join(env.cwd,"AGENTS.md"),"CONTROLLED_RULE");markProjectRuleChanged(path.join(env.cwd,"AGENTS.md"));await session.prompt("second");
+    fs.writeFileSync(path.join(env.cwd,"AGENTS.override.md"),"NEW_OVERRIDE");await session.prompt("重新读取项目规则");
+    fs.unlinkSync(path.join(env.cwd,"AGENTS.override.md"));fs.writeFileSync(path.join(env.cwd,"AGENTS.md"),"");markProjectRuleChanged(path.join(env.cwd,"AGENTS.md"));await session.prompt("last");
+    expect(requests[0]).toContain("ORIGINAL_RULE");expect(requests[1]).toContain("CONTROLLED_RULE");expect(requests[2]).toContain("NEW_OVERRIDE");expect(requests[2]).not.toContain("CONTROLLED_RULE");expect(requests[3]).not.toContain("NEW_OVERRIDE");expect(reload).not.toHaveBeenCalled();
+  });
+
 });

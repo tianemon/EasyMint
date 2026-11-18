@@ -1,7 +1,6 @@
 import { describe,it,expect } from "vitest";
 import { evidenceMessages,conclusionSnapshot } from "./source";
-import { conclusionParts,selectUserEvidence } from "./batch";
-import { memoryAllowance,memoryVisibility,estimateMemoryTokens } from "./context";
+import { memoryAllowance,memoryVisibility } from "./context";
 
 const user=(id:string,parentId:string|null,text:string)=>({type:"message",id,parentId,timestamp:"2026-11-15T00:00:00+08:00",message:{role:"user",content:text,timestamp:100}});
 const assistant=(id:string,parentId:string,text:string,stopReason="stop")=>({type:"message",id,parentId,timestamp:"2026-11-15T00:01:00+08:00",message:{role:"assistant",content:[{type:"text",text}],stopReason,timestamp:200}});
@@ -30,22 +29,6 @@ describe("conclusion provenance with the installed SDK",()=>{
   });
 });
 describe("bounded retrieval and lossless conclusion partitioning",()=>{
-  it("partitions long text without silently dropping any content",()=>{
-    const text=Array.from({length:40},(_,i)=>`段落${i}：保留条件，不得将讨论当完成。${"细节。".repeat(100)}\n\n`).join("");
-    const parts=conclusionParts(text,500);
-    expect(parts.length).toBeGreaterThan(1);
-    expect(parts.map(p=>p.text).join("")).toBe(text);
-    expect(parts.every(p=>estimateMemoryTokens(p.text)<=500)).toBe(true);
-    const huge="连续正文".repeat(3000),split=conclusionParts(huge,500);
-    expect(split.map(p=>p.text).join("")).toBe(huge);
-    expect(split.every(p=>p.fragmented)).toBe(true);
-  });
-  it("marks selected user evidence partial and never labels it the whole conversation",()=>{
-    const text=`${"无关背景。".repeat(1000)}\n\n项目约定：所有复选框使用现有自绘组件。\n\n${"其他事情。".repeat(1000)}`;
-    const evidence=selectUserEvidence(text,"复选框使用自绘组件",100);
-    expect(evidence.partial).toBe(true);expect(evidence.text).toContain("自绘组件");
-    expect(estimateMemoryTokens(evidence.text)).toBeLessThanOrEqual(105);
-  });
   it("counts only model-visible host deliveries and respects remaining context",()=>{
     const delivery={memoryDelivery:{items:[{key:"global/a",revision:2}],tokens:1500}};
     const hidden={sourceEntry:{type:"custom_message",details:delivery},messages:[]};
@@ -55,7 +38,7 @@ describe("bounded retrieval and lossless conclusion partitioning",()=>{
     const visible=memoryVisibility([actual,tool]);expect(visible.used).toBe(3000);
     expect(visible.delivered.get("global/a")).toBe(2);
     expect(memoryAllowance(visible,{tokens:99_000,contextWindow:100_000})).toBe(0);
-    expect(memoryAllowance({...visible,used:4000})).toBe(0);
+    expect(memoryAllowance({...visible,used:4000},{tokens:1000,contextWindow:100000})).toBe(1500);
   });
 });
 

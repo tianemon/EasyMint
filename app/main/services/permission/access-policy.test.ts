@@ -130,6 +130,7 @@ describe("统一资源策略", () => {
     expect(controls).toContain(path.join(emHome(), "agent", "mcp.json"));
     expect(controls).toContain(path.join(emHome(), "mcp.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "system-prompts.json"));
+    expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "system-prompts-v2.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-devices.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-mobile-devices.json"));
     expect(controls).toContain(path.join(emHome(), "agent", "skills"));

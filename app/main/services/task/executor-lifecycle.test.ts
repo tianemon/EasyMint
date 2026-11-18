@@ -60,6 +60,34 @@ describe("subagent lifecycle integration", () => {
     } finally { fs.rmSync(root,{recursive:true,force:true}); }
   });
 
+  it.each([undefined,{}])("wires scoped knowledge tools to the actual child before prompting, schema=%s",async(outputSchema)=>{
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),"em-child-knowledge-"));
+    try{
+      let getContext!:()=>import("../memory/service").MemorySessionContext;
+      const execute=vi.fn(async()=>({content:[{type:"text",text:"READ"}],details:{}}));
+      const knowledge={name:"experience",description:"fixture",parameters:{type:"object",properties:{}},execute};
+      const session={sessionId:"actual-child",model:{id:"fixture",contextWindow:10000},getContextUsage:()=>({tokens:300,contextWindow:10000}),sessionManager:{getSessionFile:()=>"/fixture/child.jsonl",getEntries:()=>["CHILD_ONLY"],buildSessionProjection:()=>({entries:[]})},subscribe:()=>()=>{},abort:vi.fn(async()=>{}),prompt:vi.fn(async()=>{
+        const context=getContext();expect(context.sessionId).toBe("actual-child");expect(context.entries).toEqual(["CHILD_ONLY"]);expect(context.limited).toBe(true);expect(context.readOnly).toBe(true);expect(context.delegationId).toBe(record.delegationId);expect(context.taskIndex).toBe(0);expect(context.usage?.tokens).toBe(300);
+      })};
+      mocks.create.mockResolvedValueOnce(session);
+      const factory=vi.fn(async(get:typeof getContext)=>{getContext=get;return [knowledge as never];});
+      const record=createDelegation("parent",[{task:"scoped task",readOnly:true,outputSchema}]);
+      await runSubagents(record,{cwd:root,agentDir:root,store:{} as Store,createKnowledgeTools:factory,canUseTool:async()=>({behavior:"allow" as const})});
+      expect(factory).toHaveBeenCalledTimes(1);expect(session.prompt).toHaveBeenCalledTimes(1);expect(mocks.create.mock.lastCall?.[0].extraTools.some((tool:{name:string})=>tool.name==="experience")).toBe(true);
+    }finally{fs.rmSync(root,{recursive:true,force:true});}
+  });
+
+  it.each([undefined,{}])("captures the actual child round before disposal for hourly supplementation, schema=%s",async(outputSchema)=>{
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),"em-child-capture-"));
+    try{
+      const capture=vi.fn(async(context:import("../memory/service").MemorySessionContext)=>{expect(mocks.dispose).not.toHaveBeenCalled();expect(context.sessionId).toBe("captured-child");expect(context.limited).toBe(true);expect(context.entries).toEqual(["ACTUAL_CHILD_ENTRIES"]);});
+      const session={sessionId:"captured-child",model:{id:"fixture",provider:"fixture",contextWindow:10000},getContextUsage:()=>({tokens:300,contextWindow:10000}),sessionManager:{getSessionFile:()=>"/fixture/child.jsonl",getEntries:()=>["ACTUAL_CHILD_ENTRIES"],buildSessionProjection:()=>({entries:[]})},subscribe:()=>()=>{},abort:vi.fn(async()=>{}),prompt:vi.fn(async()=>{})};
+      mocks.create.mockResolvedValueOnce(session);const record=createDelegation("parent",[{task:"verify a condition",outputSchema}]);
+      await runSubagents(record,{cwd:root,agentDir:root,store:{} as Store,captureKnowledge:capture,canUseTool:async()=>({behavior:"allow" as const})});
+      expect(capture).toHaveBeenCalledTimes(1);expect(mocks.dispose).toHaveBeenCalledTimes(1);
+    }finally{fs.rmSync(root,{recursive:true,force:true});}
+  });
+
   it("never prompts a child cancelled during session preparation", async () => {
     let prepared!: (session: object) => void;
     mocks.create.mockImplementationOnce(() => new Promise(resolve => { prepared = resolve; }));

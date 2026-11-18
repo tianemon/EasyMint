@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../ui/DialogCloseButton";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { Modal } from "../ui/Modal";
@@ -55,6 +56,6 @@ export function StylePicker({layout,targets,value,onChange,appearance,onAppearan
     </section></div>
     <div className="creation-style-bottom"><button type="button" className="creation-text-button" onClick={()=>onChange("custom")}>{uiText("ui.StepComponents.describeACustomStyle")}</button></div>
     {custom&&<textarea className="em-input px-3 py-2 min-h-[80px] resize-y" aria-label={uiText("ui.StepComponents.describeACustomStyle")} value={value==="custom"?"":value} onChange={event=>onChange(event.target.value||"custom")} placeholder={uiText("ui.StepComponents.eGAMixOfCyberpunkAnd")}/>}
-    {expanded&&<Modal onClose={()=>setExpanded(false)} overlayClassName="creation-preview-overlay"><div className="creation-preview-dialog creation-preview-dialog-rich" role="dialog" aria-modal="true" aria-labelledby="style-preview-title"><div className="creation-preview-workspace creation-scene-workspace"><div className="creation-preview-header creation-scene-dialog-header"><PreviewStyleSelect titleId="style-preview-title" preset={base} onChange={onChange}/><button type="button" className="creation-icon-button" aria-label={uiText("common.close")} onClick={()=>setExpanded(false)}>✕</button></div><div className="creation-preview-tools creation-scene-toolbar">{tools()}</div>{preview(true)}</div></div></Modal>}
+    {expanded&&<Modal onClose={()=>setExpanded(false)} overlayClassName="creation-preview-overlay"><div className="creation-preview-dialog creation-preview-dialog-rich" role="dialog" aria-modal="true" aria-labelledby="style-preview-title"><div className="creation-preview-workspace creation-scene-workspace"><div className="creation-preview-header creation-scene-dialog-header"><PreviewStyleSelect titleId="style-preview-title" preset={base} onChange={onChange}/><DialogCloseButton onClick={()=>setExpanded(false)} /></div><div className="creation-preview-tools creation-scene-toolbar">{tools()}</div>{preview(true)}</div></div></Modal>}
   </div>;
 }

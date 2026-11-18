@@ -242,33 +242,36 @@ export function ModelManager({
       <label className="text-xs text-text-secondary block">{uiText("ui.ModelManager.customModels")}</label>
 
       {/* 添加：唯一入口，一次一个，追加到列表（也出现在默认模型下拉里） */}
-      <div className="flex items-center gap-2">
-        <input
-          className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-          placeholder={uiText("ui.ModelManager.modelIdEGDeepseekV4Flash")}
-          value={newId}
-          onChange={(e) => setNewId(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
-        />
-        <input
-          className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-          placeholder={uiText("ui.ModelManager.displayNameEGDeepseekV4")}
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
-        />
+      <div className="flex items-end gap-2">
+        <label className="flex-1 min-w-0">
+          <span className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">{uiText("ui.ModelManager.modelId")}</span>
+          <input
+            className="em-input em-input-compact w-full h-8 px-2.5 text-xs text-text-primary"
+            placeholder={uiText("ui.ModelManager.eGDeepseekV4Flash")}
+            value={newId}
+            onChange={(e) => setNewId(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
+          />
+        </label>
+        <label className="flex-1 min-w-0">
+          <span className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">{uiText("ui.ModelManager.modelName")}</span>
+          <input
+            className="em-input em-input-compact w-full h-8 px-2.5 text-xs text-text-primary"
+            placeholder={uiText("ui.ModelManager.eGDeepseekV4")}
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
+          />
+        </label>
         <button
           type="button"
-          className="shrink-0 h-8 px-3 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors"
+          className="settings-action"
           onClick={addModel}
         >{uiText("ui.TodoButton.add")}</button>
       </div>
 
       {/* 编辑模型选择:下拉列出全部自添加模型,选中即在下方展示参数;与默认模型选择互不联动 */}
-      {rows.length === 0 ? (
-        <p className="text-[length:var(--text-2xs)] text-text-muted">
-          {uiText("ui.ModelManager.noCustomModelsEnterAnIdAnd")}</p>
-      ) : (
+      {rows.length > 0 && (
         <Select
           block
           className="[&>button]:h-8 [&>button]:text-xs"
@@ -306,7 +309,6 @@ export function ModelManager({
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
-              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">{uiText("ui.ModelManager.displayNameInTheInterface")}</p>
             </div>
           </div>
 
@@ -325,7 +327,7 @@ export function ModelManager({
                 {draft.ctx === "custom" && (
                   <input
                     className="em-input em-input-compact flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
-                    placeholder={uiText("ui.ModelManager.eG512000")}
+                    placeholder={uiText("ui.ModelManager.contextWindowExample")}
                     value={draft.ctxCustom}
                     onChange={(e) => setDraft({ ...draft, ctxCustom: e.target.value })}
                   />
@@ -345,7 +347,7 @@ export function ModelManager({
                 {draft.maxOut === "custom" && (
                   <input
                     className="em-input em-input-compact flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
-                    placeholder={uiText("ui.ModelManager.eG384000")}
+                    placeholder={uiText("ui.ModelManager.outputLimitExample")}
                     value={draft.maxOutCustom}
                     onChange={(e) => setDraft({ ...draft, maxOutCustom: e.target.value })}
                   />
@@ -413,18 +415,18 @@ export function ModelManager({
           <div className="flex items-center justify-between">
             <button
               type="button"
-              className="h-7 px-3 rounded-[var(--radius-lg)] text-danger text-xs hover:bg-danger-soft transition-colors"
+              className="settings-action" data-tone="danger"
               onClick={deleteModel}
             >{uiText("ui.AgentTemplateSettings.delete")}</button>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="h-7 px-3 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors"
+                className="settings-action" data-tone="quiet"
                 onClick={closeEdit}
               >{uiText("common.cancel")}</button>
               <button
                 type="button"
-                className="h-7 px-3 rounded-[var(--radius-lg)] btn-accent text-xs font-medium"
+                className="settings-action btn-accent"
                 onClick={saveDraft}
               >{uiText("ui.AgentTemplateSettings.save")}</button>
             </div>

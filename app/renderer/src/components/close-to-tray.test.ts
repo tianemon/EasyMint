@@ -9,12 +9,27 @@ let host:HTMLDivElement,root:Root,notify:(request:TrayCloseRequest)=>void;
 const respond=vi.fn<(response:TrayCloseResponse)=>Promise<void>>(),ready=vi.fn(),off=vi.fn();
 beforeEach(async()=>{
  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);await uiI18n.changeLanguage("zh-CN");respond.mockReset().mockResolvedValue(undefined);ready.mockReset().mockResolvedValue(undefined);off.mockReset();
- Object.assign(window,{electronAPI:{win:{onTrayPrompt:(cb:typeof notify)=>{notify=cb;return off;},trayReady:ready,respondToTray:respond}}});
+ Object.assign(window,{electronAPI:{platform:"win32",win:{onTrayPrompt:(cb:typeof notify)=>{notify=cb;return off;},trayReady:ready,respondToTray:respond}}});
  host=document.createElement("div");document.body.append(host);root=createRoot(host);await act(async()=>root.render(createElement(CloseToTrayPrompt)));
 });
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();});
 const open=()=>act(async()=>notify({id:"4c0f3f3c-b1cd-4527-b3ed-2cc7d501e588"}));
 const click=(name:string)=>act(async()=>{const button=[...document.querySelectorAll("button")].find(node=>node.textContent===name);expect(button).toBeDefined();button!.click();});
+it.each([
+ ["darwin", "zh-CN", "隐藏窗口", "程序坞", "⌘Q"],
+ ["darwin", "en", "Hide window", "Dock", "⌘Q"],
+ ["win32", "zh-CN", "最小化到托盘", "任务栏右下角", "退出 EasyMint"],
+ ["win32", "en", "Minimize to tray", "right of the taskbar", "Quit EasyMint"],
+])("shows platform-specific recovery and exit instructions on %s (%s)",async(platform,locale,action,restore,quit)=>{
+ window.electronAPI.platform=platform;
+ await act(async()=>{await uiI18n.changeLanguage(locale);});
+ await open();
+ const help=document.querySelector('[role="dialog"] p')?.textContent;
+ expect(help).toContain(restore);
+ expect(help).toContain(quit);
+ await click(action);
+ expect(respond).toHaveBeenCalledWith(expect.objectContaining({hide:true}));
+});
 it("registers a window-scoped prompt and sends the explicit checkbox choice only when hiding",async()=>{
  expect(ready).toHaveBeenCalledWith(true);expect(document.querySelector('[role="dialog"]')).toBeNull();await open();
  expect(document.querySelector('select,input[type="checkbox"]')).toBeNull();

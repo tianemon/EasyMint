@@ -14,12 +14,33 @@ const oneLine = (value: unknown): string => typeof value === "string" ? value.re
 const basename = (path: string) => path.split(/[\\/]/).filter(Boolean).at(-1) || path;
 export const toolArguments = (input: unknown): Record<string, unknown> => input !== null && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
 
+/** Retired names still describe historical calls; both current families share action semantics. */
+export function knowledgeToolLabel(name: string, input: unknown): string | null {
+  const family = name.toLowerCase();
+  if (!["memory", "experience", "learn", "search_experiences"].includes(family)) return null;
+  const experience = family !== "memory";
+  const action = family === "learn" ? "save" : family === "search_experiences" ? "search" : String(toolArguments(input).action ?? "");
+  const keys: Record<string, string> = experience
+    ? { save: "experience.save", search: "experience.search", read: "experience.read", update: "experience.update", forget: "experience.forget", archive: "experience.invalidate", invalidate: "experience.invalidate", restore: "experience.restore" }
+    : { save: "memory.add", search: "memory.search", read: "ui.ChatBlocks.view", update: "memory.edit", forget: "memory.forget", edit: "memory.edit", archive: "memory.archive", restore: "memory.restore", accept: "memory.accept", reject: "memory.reject", merge: "memory.merge", cancel: "memory.cancelScheduled", read_summary: "memory.readSummary", write_summary: "memory.writeSummary" };
+  return uiText(keys[action] ?? (experience ? "experience.title" : "memory.title"));
+}
+
 /** Shared wording for the live status and completed process, without dropping search terms. */
 export function toolActivity(name: string, input: unknown, state: ActivityState = "running") {
   if (name === "offer_domain_guidance") {
     const label = uiText("collaboration.offer");
     const text = ["failed", "cancelled", "unfinished"].includes(state) ? uiText(`ui.ToolActivity.${state}`, { action: label }) : label;
     return { text, fullText: text, icon: "ask_user", action: "ask" as const, label };
+  }
+  const knowledge = knowledgeToolLabel(name, input);
+  if (knowledge) {
+    const verb = ["failed", "cancelled", "unfinished"].includes(state)
+      ? uiText(`ui.ToolActivity.${state}`, { action: knowledge })
+      : uiText(`ui.ToolActivity.knowledge.${state === "running" ? "running" : "done"}`, { action: knowledge });
+    const query = rawText(toolArguments(input).query);
+    const text = oneLine([verb, query].filter(Boolean).join(" "));
+    return { text, fullText: text, icon: name.toLowerCase() === "memory" ? "memory" : "experience", action: "external" as const, label: knowledge };
   }
   const args = toolArguments(input);
   const action = aliases[name.toLowerCase()] ?? "external";

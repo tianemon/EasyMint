@@ -194,7 +194,8 @@ export class NativeConfigStorage {
       const dir = path.join(this.dataDir, "config-backups");
       const keepName = path.basename(justCreated);
       const older = fs.readdirSync(dir, { withFileTypes: true })
-        .filter(e => e.isDirectory() && e.name !== keepName)
+        .filter(e => e.isDirectory() && e.name !== keepName &&
+          !/^(?:prompts-v2|roles)-[a-f0-9]{16}$/u.test(e.name))
         .map(e => ({ name: e.name, mtime: fs.statSync(path.join(dir, e.name)).mtimeMs }))
         .sort((a, b) => b.mtime - a.mtime);   // 新的在前
       for (const old of older.slice(KEEP_BACKUPS - 1)) fs.rmSync(path.join(dir, old.name), { recursive: true, force: true });

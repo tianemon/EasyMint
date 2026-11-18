@@ -11,7 +11,6 @@ export type ManageAction = "edit" | "archive" | "restore" | "cancel";
 export type ManagePatch = Partial<MemoryWrite> &
   Partial<Pick<MemoryRecord, "lifecycle">> & {
     cancelPending?: boolean;
-    unmerge?: boolean;
     reason?: string;
     summary?: string;
     expiresAt?: number | null;
@@ -25,10 +24,12 @@ export function managePatch(action: ManageAction, prior: MemoryRecord, input?: M
     return input;
   }
   if (action === "archive") return { lifecycle: "archived", reason: "用户收进历史", summary: "" };
-  // restore：解除合并、恢复生命周期，并把"已过期／未到生效"的调度清掉
+  // restore：正文不复制留史，需要回查来源后带入凝练正文。
+  if(!prior.text && !input?.text)throw new Error("请先回查来源，再提供恢复正文");
+  if(input && input.kind!==prior.kind)throw new Error("恢复须保留原记忆类型");
   return {
-    unmerge: true,
-    lifecycle: prior.kind === "activity" ? "archived" : "active",
+    ...input,
+    lifecycle: "active",
     reason: "用户明确恢复",
     ...(prior.expiresAt !== undefined && prior.expiresAt <= now ? { expiresAt: null } : {}),
     ...(prior.effectiveAt !== undefined && prior.effectiveAt > now ? { effectiveAt: null } : {}),

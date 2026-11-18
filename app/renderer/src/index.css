@@ -656,8 +656,6 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   backdrop-filter: blur(10px);
 }
 .creation-dialog { width: min(560px, calc(100vw - 32px)); height: min(660px, calc(100dvh - 48px)); background: var(--modal-fill); border: 0; border-radius: var(--radius-lg); box-shadow: var(--shadow-menu); overflow: hidden; }
-.creation-icon-button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; color: var(--color-text-secondary); border-radius: var(--radius-lg); font-size: var(--text-sm); }
-.creation-icon-button:hover { background: var(--color-surface-hover); }
 .creation-progress { display: flex; gap: var(--s3); padding: var(--s4) var(--s6) var(--s6); flex-shrink: 0; }
 .creation-progress-step { flex: 1; min-width: 0; color: var(--color-text-muted); }
 .creation-progress-line { display: block; height: 2px; border-radius: var(--radius-full); background: var(--color-border); margin-bottom: var(--s2); transition: background 180ms var(--ease-smooth); }
@@ -791,7 +789,8 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   transition: all 120ms var(--ease-smooth);
 }
 /* hover 统一中性色(与 SessionBar 归档/新建一致,非绿) */
-.sb-menu-btn:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
+.sb-menu-btn:hover,
+.sb-menu-btn.chat-input-menu-symbol { color: var(--color-text-primary); background: var(--color-surface-hover); }
 .sb-dropdown {
   position: absolute; top: 100%; left: 0; margin-top: var(--s1);
   /* 宽度贴合菜单文字（原固定 min-width:160px，最长一项「重命名项目」实际只需约 113px，
@@ -1062,13 +1061,21 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   display: block;
 }
 .input-top { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s4) 0; }
+.chat-input-field { display: flex; position: relative; min-width: 0; }
 .chat-input {
-  flex: 1; border: none; background: transparent;
+  flex: 1; min-width: 0; border: none; background: transparent;
   font-size: var(--text-base); color: var(--color-text-primary);
   resize: none; outline: none; min-height: 22px; max-height: 150px;
   line-height: var(--leading-normal);
 }
-.chat-input::placeholder { color: var(--color-text-muted); }
+.chat-input-field > .chat-input::placeholder { opacity: 0; }
+.chat-input-placeholder {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  color: var(--color-text-muted); font-size: var(--text-base); line-height: var(--leading-normal);
+}
+.chat-input-menu-symbol {
+  display: inline-flex; width: 1.5em; height: 1.5em; vertical-align: middle;
+}
 .input-bar {
   display: flex; align-items: center; gap: var(--s2);
   padding: var(--s1) var(--s4) var(--s2); flex-wrap: wrap;
@@ -1079,7 +1086,94 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   color: var(--color-text-muted); transition: all 120ms var(--ease-smooth);
 }
 .inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
+.inp-icon-btn[aria-expanded="true"] { color: var(--color-text-primary); background: var(--color-surface-hover); }
+.composer-popover {
+  position: fixed;
+  max-width: calc(100vw - 16px);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-elevated);
+  box-shadow: 0 7px 24px rgb(0 0 0 / 15%);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+[data-theme="dark"] .composer-popover {
+  background: var(--color-surface-alt);
+  box-shadow: 0 7px 24px rgb(0 0 0 / 28%);
+}
+.composer-popover .composer-option:focus-visible {
+  background: var(--color-surface-hover);
+  box-shadow: none;
+}
 .inp-lbl { font-size: var(--text-xs); color: var(--color-text-muted); }
+.settings-footer:has(.agent-role-actions:not(:empty)) .settings-footer-close {
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+}
+.settings-footer:has(.agent-role-actions:not(:empty)) .settings-footer-close:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+/* Explicit action buttons in settings lists and dialogs. Keep status badges and tabs separate. */
+.settings-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+.settings-action--compact {
+  min-height: 30px;
+  padding: 3px 9px;
+  font-size: var(--text-xs);
+}
+.settings-action:not(.btn-accent) {
+  color: var(--color-text-primary);
+  background: color-mix(in oklab, var(--color-text-primary) 7%, transparent);
+}
+.settings-action[data-tone="quiet"], .settings-action[data-tone="danger"] {
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+.settings-action[data-tone="accent"] { background: var(--color-accent-soft); }
+.settings-action[data-tone="warning"] { background: var(--color-warning-soft); }
+.settings-action:not(.btn-accent):hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: color-mix(in oklab, var(--color-text-primary) 13%, transparent);
+}
+.settings-action:not(.btn-accent):focus-visible:not(:disabled) {
+  color: var(--color-text-primary);
+  background: color-mix(in oklab, var(--color-text-primary) 19%, transparent);
+}
+.settings-action:focus-visible {
+  outline: 2px solid var(--color-text-secondary);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+.settings-action[data-tone="accent"]:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
+}
+.settings-action[data-tone="accent"]:focus-visible:not(:disabled) {
+  background: color-mix(in oklab, var(--color-accent) 24%, transparent);
+}
+.settings-action[data-tone="warning"]:is(:hover, :focus-visible):not(:disabled) {
+  background: color-mix(in oklab, var(--color-warning) 22%, transparent);
+}
+.settings-action[data-tone="danger"]:is(:hover, :focus-visible):not(:disabled) {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+.settings-action:disabled { opacity: .45; cursor: not-allowed; }
 
 /* 模型图标动效（ModelGlyph 组件，输入卡片与状态栏共用）：三个节点聚拢（缩到 45%）再散开，循环往复。
    节点用位移、连线用 scale——整体 scale 会把圆点一起缩小，所以拆开做；
@@ -1120,6 +1214,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .inp-sel:focus { box-shadow: none; /* 与输入框一致:聚焦无 accent 光环 */ }
 .inp-sel:hover:not(:disabled) { background: var(--color-surface-hover); }
+.composer-mode-trigger[aria-expanded="true"] { background: var(--color-surface-hover); }
 .permission-mode-trigger {
   display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
   min-height: 26px; padding: 4px 7px 4px 6px; border: none;
@@ -1231,13 +1326,16 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--color-danger);
 }
-.settings-close {
-  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+.dialog-close-button {
+  width: 32px; height: 32px; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center;
   border-radius: var(--radius-lg); border: none; background: transparent;
-  color: var(--color-text-muted); cursor: pointer; font-size: var(--text-base);
-  transition: all 120ms var(--ease-smooth);
+  color: var(--color-text-secondary); cursor: pointer;
+  transition: background-color 120ms var(--ease-smooth), color 120ms var(--ease-smooth);
 }
-.settings-close:hover { background: var(--color-sidebar-hover); color: var(--color-text-primary); }
+.dialog-close-button:is(:hover, :focus-visible):not(:disabled) {
+  background: var(--color-surface-hover); color: var(--color-text-primary);
+}
+.dialog-close-button:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ── 无边框拼色（2026-09-09 用户：主界面无边框、设置页改成同语言）──────
    用「色差分层」替代线条边框：分组块靠深浅底区分（TSX 删 border 类），
@@ -1440,6 +1538,9 @@ button, a, select {
 }
 /* 紧凑输入框(约 32px 高):圆角与默认档一致(全站单档),类名保留供组件标注尺寸语义 */
 .em-input.em-input-compact { border-radius: var(--radius-lg); }
+
+/* 长正文随阅读字号缩放，以同层更具体的规则覆盖通用输入框的UI字号。 */
+.em-input.em-content-input { font-size: var(--text-body); line-height: 1.5; }
 
 .em-input::placeholder {
   color: var(--color-text-secondary);

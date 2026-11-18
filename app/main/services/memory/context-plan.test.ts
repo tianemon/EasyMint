@@ -33,7 +33,7 @@ it("条目被移除时给一条统一的作废提示，不沿用旧内容", () =
   const delivered = new Map(planDelivery([rules, progress, machine]).items.map((item) => [item.key, item.revision]));
   const plan = planDelivery([rules, machine], { delivered });
   expect(plan.reason).toBe("delta");
-  expect(plan.block).toContain("已移除");
+  expect(plan.block).toContain("已失效");
   expect(plan.items).toContainEqual({ key: "project.progress", revision: -1 });
 });
 
@@ -55,4 +55,13 @@ it("token 估算按 UTF-8 保守口径，且输出与入参顺序无关", () => 
   const a = planDelivery([rules, progress, machine]).block;
   const b = planDelivery([machine, rules, progress]).block;
   expect(a).toBe(b);
+});
+
+it("budgets the final serialized block including separators and uniquely identifies withdrawals",()=>{
+ const notes=Array.from({length:100},(_,i)=>({key:`memory:${i}`,revision:1,text:"记忆：中"}));
+ const first=planDelivery(notes,{header:"",allowance:100});expect(first.tokens).toBeLessThanOrEqual(100);
+ const delivered=new Map([["memory:A",1],["memory:B",1]]);
+ const a=planDelivery([],{delivered,removedKeys:["memory:A"]}),b=planDelivery([],{delivered,removedKeys:["memory:B"]});
+ expect(a.block).toContain("memory:A");expect(a.block).not.toBe(b.block);
+ expect(planDelivery([],{delivered:new Map(a.items.map(item=>[item.key,item.revision])),removedKeys:["memory:A"]}).block).toBe("");
 });

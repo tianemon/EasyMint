@@ -18,7 +18,9 @@ export class MemoryClient implements MemoryPort {
   private ready:Promise<void>;
   get unavailable():boolean {return this.closing || Boolean(this.failure);}
   constructor(file:string,workerFile=path.join(__dirname,"memory-worker.cjs")) {
-    this.worker=new Worker(workerFile.replace(/\.asar([\\/])/u,".asar.unpacked$1"),{workerData:{file}});
+    // 从宿主启动记忆服务时起接收新回合；若等worker加载完才划线，会遗漏期间的首轮消息。
+    // Preserve the archive's resolution root for the worker's package dependencies.
+    this.worker=new Worker(workerFile,{workerData:{file,recordingStartedAt:Date.now()}});
     this.ready=new Promise<void>((resolve,reject) => {
       const fail=(error:Error) => {
         this.failure=error;

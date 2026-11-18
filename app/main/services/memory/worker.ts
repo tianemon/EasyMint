@@ -1,17 +1,24 @@
 import { readConclusionEntries } from "./source-reader";
 import { parentPort, workerData } from "node:worker_threads";
-import path from "node:path";
 import { MemoryDatabase } from "./database";
-import {writeSummary,readSummary,readSummaryDocument,saveSummaryDocument,type SummaryProject} from "./summary";
+import type {MemoryConclusion} from "../../../shared/memory";
+import path from "node:path";
 
-const db = new MemoryDatabase((workerData as {file:string}).file);
+const startup=workerData as {file:string;recordingStartedAt?:number};
+const db = new MemoryDatabase(startup.file,startup.recordingStartedAt);
 const methods = {
-  readSource: readConclusionEntries,
-  readDocument:(projects:SummaryProject[])=>readSummaryDocument(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects),
-  saveDocument:(projects:SummaryProject[],content:string,hash:string,reviewHash?:string)=>saveSummaryDocument(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects,content,hash,reviewHash),
-  writeSummary:(projects:SummaryProject[],force=false)=>writeSummary(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects,force),
-  readSummary:(projects:SummaryProject[],projectId?:string)=>readSummary(db,path.join(path.dirname((workerData as {file:string}).file),"MEMORY.md"),projects,projectId),
-  resolve:db.resolve.bind(db),merge:db.merge.bind(db),activateDue:db.activateDue.bind(db),
+  cancelCapture:db.cancelCapture.bind(db),
+  sourceEntryIds:db.sourceEntryIds.bind(db),
+  cleanupLegacyProjects:db.cleanupLegacyProjects.bind(db),
+  ensureRoutine:db.ensureRoutine.bind(db),finishRoutine:db.finishRoutine.bind(db),submissionsForRound:db.submissionsForRound.bind(db),
+  checkCapacity:db.checkCapacity.bind(db),compact:db.compact.bind(db),
+  readSource: (request:MemoryConclusion & {sourceRoot:string},history=false)=>{
+    if(typeof request.sourceRoot!=="string"||!path.isAbsolute(request.sourceRoot))throw new Error("来源会话缺少权威目录");
+    return readConclusionEntries(request,history);
+  },
+  scopeDocument:db.scopeDocument.bind(db),
+  editDocument:db.editDocument.bind(db),lookupReferences:db.lookupReferences.bind(db),nextRunAt:db.nextRunAt.bind(db),
+  activateDue:db.activateDue.bind(db),
   save: db.save.bind(db), get: db.get.bind(db), query: db.query.bind(db), update: db.update.bind(db),
   revisions: db.revisions.bind(db), getRevision: db.getRevision.bind(db), forget: db.forget.bind(db), evaluate: db.evaluate.bind(db),
   enqueue: db.enqueue.bind(db), claim: db.claim.bind(db), finishJob: db.finishJob.bind(db), finishBatch: db.finishBatch.bind(db), failJob: db.failJob.bind(db), releaseJob: db.releaseJob.bind(db), skipJob: db.skipJob.bind(db), retryFailed: db.retryFailed.bind(db), reviveFailed: db.reviveFailed.bind(db),

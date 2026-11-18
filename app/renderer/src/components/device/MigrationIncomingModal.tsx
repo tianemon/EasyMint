@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../ui/DialogCloseButton";
 import { appText } from "../../lib/i18n";
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
@@ -122,7 +123,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card overflow-hidden flex flex-col" style={{ width: 460 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0 bg-[var(--color-surface-alt)]">
           <h2 className="text-base font-semibold text-text-primary">{uiText("ui.MigrationIncomingModal.receiveProjectTransfer")}</h2>
-          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => void onReject(incoming.transferId)}>✕</button>
+          <DialogCloseButton onClick={() => void onReject(incoming.transferId)} />
         </div>
 
         <div className="px-6 py-3 space-y-3">

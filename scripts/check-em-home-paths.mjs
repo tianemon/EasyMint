@@ -70,7 +70,8 @@ const DECLARED = [
   { entry: "mcp-instructions.json", klass: "persistence", why: "已停用的历史服务器自述旧位置；保留写保护" },
   { entry: "agent/settings.json", klass: "persistence", why: "agent 运行期设置" },
   { entry: "agent/models.json", klass: "persistence", why: "模型清单，可把请求转发到别的端点" },
-  { entry: "system-prompts.json", klass: "persistence", why: "下次会话的系统提示词内容" },
+  { entry: "system-prompts.json", klass: "persistence", why: "旧格式提示词，保留以便回退和导入" },
+  { entry: "system-prompts-v2.json", klass: "persistence", why: "现行角色、执行模板和协作模式配置" },
 
   // ── state：标准 / 只读档保护，完全访问放开 ──
   { entry: "session-cache", klass: "state", why: "会话状态（权限模式、思考等级）" },
@@ -97,8 +98,8 @@ const DECLARED = [
   { entry: "runtime-tools", klass: "persistence", why: "内置可执行运行时，改写会影响后续命令执行" },
   { entry: "managed-skills", klass: "persistence", why: "同上（AI 写入的技能区）" },
   { entry: "skill-registry.json", klass: "none", why: "只是登记表；注入内容来自技能文件本身，它只决定可见性" },
-  { entry: "experiences", klass: "persistence", why: "buildExperienceInjection 在会话构建时注入，每轮随行" },
-  { entry: "learn-state.json", klass: "none", why: "历史自动沉淀节流状态，已停止读写；旧文件可保留" },
+  { entry: "experiences", klass: "credential", also:"persistence", why: "经验正文仅通过带作用域的结构化工具读写，不常驻注入" },
+  { entry: "learn-state.json", klass: "none", why: "历史自动沉淀节流状态，首次上线时仅清理，不再导入或读写" },
   { entry: "agent-templates.json", klass: "persistence", why: "id + 名称 + 描述拼进 task 工具描述" },
   { entry: "session-types.json", klass: "none", why: "只切换提示词档位（mint/designer），不能注入文本" },
   { entry: "session-pins.json", klass: "none", why: "会话置顶（UI 状态）" },

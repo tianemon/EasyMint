@@ -2,19 +2,20 @@ import { TOOL_DISPLAY_DESCRIPTION } from "../../../shared/tool-intent";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false } }));
+vi.mock("../sandbox/manager", async importOriginal => ({
+  ...await importOriginal<typeof import("../sandbox/manager")>(),
+  wrapForSandbox: async () => ({
+    kind: "argv",
+    argv: [process.execPath, "-e", "console.log('hello-em-live')"],
+    env: process.env,
+  }),
+}));
 
 import { createEnhancedBashTool } from "./tool";
-import { sandboxGitBashPath } from "./registry";
 import { EXECUTION_POLICY } from "../permission/wrap-tool";
 import { createExecutionContext } from "../permission/execution-context";
 
 describe("前台 bash 增量输出", () => {
-  it("Windows 受保护调用使用探测到的 Git Bash", () => {
-    expect(sandboxGitBashPath("win32", () => "C:\\Program Files\\Git\\bin\\bash.exe"))
-      .toBe("C:\\Program Files\\Git\\bin\\bash.exe");
-    expect(sandboxGitBashPath("darwin", () => "unused")).toBeUndefined();
-  });
-
   it("uses the user-language caption requirement in both tool and parameter descriptions", async () => {
     const tool = await createEnhancedBashTool(process.cwd());
     expect(tool.description).toContain(TOOL_DISPLAY_DESCRIPTION);
@@ -29,8 +30,7 @@ describe("前台 bash 增量输出", () => {
     const onUpdate = (partial: { content: Array<{ type: string; text: string }> }): void => {
       updates.push(partial.content.map((c) => c.text).join(""));
     };
-    // 显式用完全访问上下文：本用例测的是**增量输出通道**，不该依赖真实 OS 沙盒——
-    // 标准档现在默认套沙盒，而收紧型 sandbox-exec 在嵌套沙盒内必被拒（见 skill §4）。
+    // 测试真实子进程的增量输出，不依赖当前机器的 Bash 或沙盒装配状态。
     const context = createExecutionContext(process.cwd(), "full");
     const res = await (tool as unknown as {
       execute: (id: string, p: Record<string, unknown>, s: undefined, u: typeof onUpdate, ctx: unknown) => Promise<{ content: Array<{ text: string }> }>;

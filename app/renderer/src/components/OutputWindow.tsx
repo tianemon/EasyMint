@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "reac
 import { ansiToHtml } from "../lib/ansi-colors";
 import type { LogLine } from "../stores/process-store";
 import { Modal } from "./ui/Modal";
+import { DialogCloseButton } from "./ui/DialogCloseButton";
 
 /**
  * 单行日志 — memo + 稳定 key：store 追加只改数组引用、已存行对象不变，
@@ -167,13 +168,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
               className="shrink-0 px-2.5 py-1 rounded-[var(--radius-lg)] bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors whitespace-nowrap"
             >{uiText("ui.OutputWindow.stopProcess")}</button>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 w-6 h-6 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:bg-danger-soft hover:text-danger transition-colors"
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* 输出区(可选中复制;ANSI 转彩色渲染;自动换行) */}

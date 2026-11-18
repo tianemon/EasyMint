@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { ProjectEvidence } from "./project-evidence";
-import { buildDeliverables, KEY_MACHINE, KEY_PROGRESS, KEY_RULES } from "./deliverables";
+import { buildDeliverables, KEY_MACHINE, KEY_PROGRESS } from "./deliverables";
 import { planDelivery } from "./context-plan";
 
 const MEMORY = `# MEMORY
@@ -35,14 +35,14 @@ it("三类信息各生成一个条目，优先级为 约定 > 项目 > 本机", 
     developLog: DEVELOP,
     machine: { fingerprint: "fp1", section: "- Apple M2 · 8 核 · 8GB" },
   });
-  expect(items.map((item) => item.key)).toEqual([KEY_RULES, KEY_PROGRESS, KEY_MACHINE]);
-  expect(items.map((item) => item.priority)).toEqual([1, 2, 3]);
+  expect(items.map((item) => item.key)).toEqual(["memory:aaa111", "memory:bbb222", KEY_PROGRESS, KEY_MACHINE]);
+  expect(items.map((item) => item.priority)).toEqual([1, 1, 2, 3]);
   expect(items[0]!.text).toContain("别先给方案再问要不要做");
 });
 
 it("人设不进记忆条目：避免与协作设置两份互相覆盖", () => {
-  const items = buildDeliverables({ memory: MEMORY });
-  expect(items.map((item) => item.key)).toEqual([KEY_RULES]);
+  const items = buildDeliverables({ memory: MEMORY+"\n## 人设\n昵称：Mint，性格稳重\n\n## 规则\n禁止修改文件\n" });
+  expect(items.map((item) => item.key)).toEqual(["memory:aaa111", "memory:bbb222"]);
   expect(JSON.stringify(items)).not.toMatch(/昵称|人设|性格/u);
 });
 

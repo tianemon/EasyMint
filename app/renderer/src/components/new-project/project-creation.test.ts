@@ -7,7 +7,7 @@ const { parseProjectDraft } = await import("./project-draft");
 const project: Project = { id: "created", name: "小账本", path: "/projects/budget-book", createdAt: "", lastOpenedAt: "", status: "setup", description: "" };
 const pending = { projectId: project.id, projectPath: project.path, name: project.name, baseDir: "/projects", directoryName: "budget-book" };
 const input = { ...DEFAULT_DATA, name: project.name, dir: "/projects" };
-const api = () => ({ get: vi.fn(async () => ({ ...project, exists: true })), create: vi.fn(async () => project) });
+const api = () => ({ get: vi.fn(async () => ({ ...project, exists: true, canResumeCreation: true })), create: vi.fn(async () => project) });
 
 describe("project creation identity and recovery", () => {
   it("creates with separate display and directory names", async () => {
@@ -45,6 +45,8 @@ describe("project creation identity and recovery", () => {
     undefined, { ...project, exists: false }, { ...project, exists: true, path: "/moved" },
     { ...project, exists: true, name: "Renamed" }, { ...project, exists: true, status: "development" as const },
     { ...project, exists: true, id: "another-project" },
+    { ...project, exists: true, canResumeCreation: false },
+    { ...project, exists: true },
   ])("rejects stale or mismatched recovery hints without creating over an existing directory", async registered => {
     const service = { get: vi.fn(async () => registered), create: vi.fn(async () => project) };
     const result = await prepareCreationProject(input, pending, service, async () => "budget-book");

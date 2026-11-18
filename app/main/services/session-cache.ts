@@ -24,7 +24,7 @@ export interface SessionCache {
   /** 本会话用户选过的思考等级——持久化后重开会话不再被全局设置覆盖 */
   thinkingLevel?: string;
   collaborationModeIds?: string[];
-  guidanceDeclined?: boolean;
+  collaborationModesLocked?: boolean;
   memoryMode?: import("../../shared/memory").MemoryMode;
   contextUsage: number | null;
   updatedAt: number;
@@ -37,6 +37,12 @@ function cachePath(sessionId: string): string {
 
 function ensureDir(): void {
   if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
+}
+
+function validCollaborationModeIds(value: unknown): value is string[] {
+  if (!Array.isArray(value)) return false;
+  for (const id of value) if (typeof id !== "string") return false;
+  return true;
 }
 
 export function readCache(sessionId: string): SessionCache | null {
@@ -56,12 +62,27 @@ export function readCache(sessionId: string): SessionCache | null {
     console.warn(`[session-cache] Invalid cache object: ${p}`);
     return null;
   }
-  return value as SessionCache;
+  const cache = value as SessionCache;
+  if (cache.collaborationModeIds !== undefined && !validCollaborationModeIds(cache.collaborationModeIds)) {
+    console.warn(`[session-cache] Invalid collaborationModeIds; ignoring the field: ${p}`);
+    delete cache.collaborationModeIds;
+  }
+  return cache;
 }
 
 export function writeCache(sessionId: string, data: Partial<SessionCache>): void {
+  if (data?.collaborationModeIds !== undefined && !validCollaborationModeIds(data.collaborationModeIds)) {
+    throw new Error("协作模式选择必须是字符串数组，原会话设置未修改");
+  }
   ensureDir();
   const existing = readCache(sessionId);
+  if(existing?.collaborationModesLocked){
+    if(Object.prototype.hasOwnProperty.call(data,"collaborationModesLocked")&&data.collaborationModesLocked!==true)throw new Error("协作模式仅可在创建会话前选择");
+    if(Object.prototype.hasOwnProperty.call(data,"collaborationModeIds")){
+      const saved=new Set(existing.collaborationModeIds ?? []),next=new Set(data.collaborationModeIds);
+      if(data.collaborationModeIds===undefined||saved.size!==next.size||[...next].some(id=>!saved.has(id)))throw new Error("协作模式仅可在创建会话前选择");
+    }
+  }
   const merged: SessionCache = {
     permissionMode: "standard",
     contextUsage: 0,
@@ -70,6 +91,12 @@ export function writeCache(sessionId: string, data: Partial<SessionCache>): void
     updatedAt: Date.now(),
   };
   atomicWrite(cachePath(sessionId), JSON.stringify(merged, null, 2));
+}
+
+/** 客户端只可编辑待创建会话的模式；真实会话由创建/恢复流程确定，不接受外部覆盖。 */
+export function writeClientCache(sessionId:string,data:Partial<SessionCache>):void {
+  if(data&&(Object.prototype.hasOwnProperty.call(data,"collaborationModesLocked")||Object.prototype.hasOwnProperty.call(data,"collaborationModeIds")&&(!sessionId.startsWith("__new_")||readCache(sessionId)?.collaborationModesLocked)))throw new Error("协作模式仅可在创建会话前选择");
+  writeCache(sessionId,data);
 }
 
 export function deleteCache(sessionId: string): void {

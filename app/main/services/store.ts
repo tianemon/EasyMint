@@ -1,4 +1,5 @@
 import { parseMemorySettings, type MemorySettings } from "../../shared/memory";
+import type {ProjectRuleOwnership} from "./project-rule-files";
 import { parseNativeAiSettings, type NativeAiSettings } from "../../shared/native-ai";
 import fs from "fs";
 import { normalizeUiLanguage, type UiLanguage } from "../../shared/i18n/locale";
@@ -35,6 +36,7 @@ interface Project {
   description: string;
   /** 新空项目创建时的自动记录选择；导入已有目录不自动接管旧记录。 */
   autoMemoryRecords?: boolean;
+  creationRules?:ProjectRuleOwnership;
 }
 
 export interface Settings {
@@ -49,7 +51,7 @@ export interface Settings {
   apiKeys?: Record<string, string>;
   /** 允许 AI 在会话中写 managed skill 区（manage_skill 工具注册开关，D8 默认关闭） */
   manageSkillEnabled?: boolean;
-  /** 旧经验开关，仅作统一记忆首次启用的兼容读取；不授权后台模型分析。 */
+  /** 记忆总开关、后台整理开关与最近一次开启的捕获边界。 */
   memory?: MemorySettings;
   /** 发现外部生态 skill 目录（~/.claude/skills、<p>/.github/skills 等，只读发现，默认开启） */
   importExternalSkills?: boolean;

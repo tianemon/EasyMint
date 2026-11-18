@@ -40,3 +40,12 @@ it("appends a section that does not exist yet", () => {
   const next = writeSection("# MEMORY\n", "规则", "- 先验证");
   expect(next).toBe("# MEMORY\n\n## 规则\n\n- 先验证\n");
 });
+
+
+it("preserves nested role Markdown and fences without leaking bullets into memory",async()=>{
+ const {encodeRoleBody,roleLineIndexes}=await import("./memory-doc");
+ const role="## 身份\n- 我叫Mint\n\n````md\n## 规则\n```\n````\n\n## 做事方式\n- 先核实";
+ const text=writeSection("# MEMORY\n\n## 关于用户\n- 用户偏好中文\n","人设",encodeRoleBody(role));
+ expect(sectionText(text,"人设")).toBe(role);expect(sectionText(text,"关于用户")).toContain("用户偏好中文");
+ const protectedLines=roleLineIndexes(text);expect(text.split("\n").filter((_,i)=>protectedLines.has(i)).join("\n")).toContain("- 先核实");
+});

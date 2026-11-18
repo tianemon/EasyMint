@@ -30,8 +30,8 @@
  *   - 真去 spawn → **ENOTDIR**（`app.asar` 是文件、不是目录）→ `spawn_failed` → 调用方的 catch 吞掉
  *     → 界面恒报"未安装/检测失败"，用户装多少次都一样。
  * 实测：`__srt-win.test.ts` 里在 Electron 运行时 spawn 一个 asar 路径下的已 unpack 脚本 → ENOTDIR，
- * 同一条路径 `execFileSync` 正常。本仓库同因先例：`windows-execution-manager.ts` 的
- * `workerEntrypoint()` 正是为此才 `.replace(/\.asar([\\/])/, ".asar.unpacked$1")`。
+ * 同一条路径 `execFileSync` 正常。Electron fork 启动的 Node 脚本仍使用逻辑归档路径，
+ * 这样脚本能够解析归档中的模块依赖。
  * 结论：**凡是交给 spawn 的 srt-win 路径都必须先过 `srtWinPath()` / `unpackedAsarPath()`**——
  * 环境检测（probe）、一键安装（run）、沙盒初始化与 worker（config 形态）四处都不能漏。
  */
@@ -42,7 +42,7 @@ import type { SrtWinSpawn, WindowsSandboxStatus } from "@anthropic-ai/sandbox-ru
 type SrtModule = typeof import("@anthropic-ai/sandbox-runtime");
 
 /**
- * `app.asar` 里的路径 → asar 外的真实路径。**打包后 spawn / fork 只认后者**（原因见文件头）。
+ * `app.asar` 里的原生可执行文件路径 → spawn 可访问的物理路径。
  * 只改第一处 `.asar` 且要求紧跟分隔符——目录名本身含 `.asar` 的（如 `x.asar.old`）不受影响。
  */
 export function unpackedAsarPath(p: string): string {

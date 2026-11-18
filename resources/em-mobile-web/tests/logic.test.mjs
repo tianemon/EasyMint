@@ -8,7 +8,7 @@ import { resolveThinkingLevel, THINKING_ORDER } from '../src/core/thinking.ts';
 import { object, contentText, prependMessage, upsertMessage, markToolDone, formatTokenCount, truncateToolOutput, snapshotMessages } from '../src/core/messages.ts';
 import { groupByExecution, turnMode, formatTurnDuration, buildRows } from '../src/core/turns.ts';
 import { streamingHint, resolveStatusHint, COMPACTING_HINT } from '../src/core/status-hints.ts';
-import { toolLabel, toolStatus, isCommandTool, toolActivityIcon, describeProcessItem } from '../src/core/tools.ts';
+import { toolLabel, toolStatus, isCommandTool, toolActivity, toolDisplay, toolActivityIcon, describeProcessItem } from '../src/core/tools.ts';
 import { diffStats, visibleDiffRange, numberLines } from '../src/core/diff.ts';
 import { parseAnsi } from '../src/core/ansi.ts';
 import { statusTone, RESULT_KINDS } from '../src/core/system-status.ts';
@@ -19,6 +19,17 @@ import { beginCompacting, endCompacting, isCompacting } from '../src/core/compac
 import { splitMarkdownParts, languageLabel, safeHref } from '../src/core/markdown/parse.ts';
 
 const now = new Date(2026, 10, 5, 16, 30).getTime();
+
+test('knowledge actions preserve current families, summaries, guidance and historical aliases', () => {
+  assert.equal(toolLabel('memory'), '记忆');assert.equal(toolLabel('experience'), '经验');
+  assert.equal(toolActivity('memory', {action:'write_summary'}, 'done').text, '已整理记忆摘要');
+  assert.equal(toolActivity('experience', {action:'invalidate'}, 'failed').text, '标记经验失效失败');
+  assert.equal(toolActivity('learn', {}, 'done').text, '已保存经验');
+  assert.equal(toolActivity('search_experiences', {query:'controlled'}, 'running').text, '正在搜索经验 controlled');
+  assert.equal(toolDisplay({name:'experience',input:{action:'search',query:'controlled'}}), '经验 · 搜索经验 · controlled');
+  assert.equal(toolActivityIcon('memory'), 'memory');assert.equal(toolActivityIcon('experience'), 'experience');
+  assert.equal(toolStatus('offer_domain_guidance'), '建议领域引导');assert.equal(toolActivityIcon('offer_domain_guidance'), 'ask_user');
+});
 
 test('session-time：今天给时分 / 昨天 / 更早按日历（与手机 App 同用例）', () => {
   assert.equal(formatSessionTime(new Date(2026, 10, 5, 9, 5).getTime(), now), '09:05');

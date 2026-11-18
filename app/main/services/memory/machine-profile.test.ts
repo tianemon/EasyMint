@@ -46,6 +46,22 @@ it("命令缺失不抛错，只留空字段", () => {
   expect(profile.fingerprint).toHaveLength(16);
 });
 
+it("Windows 只启动一次硬件探测，并保留本地化的系统名称", () => {
+  let hardwareProbes = 0;
+  const profile = collectMachineProfile({
+    platform: "win32",
+    arch: "x64",
+    env: { NUMBER_OF_PROCESSORS: "16" },
+    run: command => {
+      if (!command.startsWith("powershell.exe ")) return null;
+      hardwareProbes++;
+      return JSON.stringify({ cpu: "AMD Ryzen", os: "Microsoft Windows 11 专业版", memory: 32 * 1024 ** 3 });
+    },
+  });
+  expect(hardwareProbes).toBe(1);
+  expect(profile).toMatchObject({ cpu: "AMD Ryzen", os: "Microsoft Windows 11 专业版", memoryGb: 32, cores: 16 });
+});
+
 it("指纹只随慢变项变化：工具升级算变，运行态不算", () => {
   const base = collectMachineProfile(darwinProbe());
   const same = collectMachineProfile(darwinProbe());

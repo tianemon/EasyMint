@@ -4,6 +4,7 @@ import type { ProcessItem } from './turns';
 /** 流式期间的进度文案（工具名 → 中文动作词） */
 export function toolStatus(name: string): string {
   const normalized = name.toLowerCase();
+  if (knowledgeToolLabel(name) || normalized === 'offer_domain_guidance') return toolActivity(name, {}, 'running').text;
   if (normalized === 'read' || normalized === 'glob') return '正在读取文件';
   if (normalized === 'write') return '正在写入文件';
   if (normalized === 'edit') return '正在编辑文件';
@@ -29,6 +30,7 @@ export function toolStatus(name: string): string {
  * 手机端只补 PC 表里还没有、但实际会话会出现的那几个——两边用词不一致时以 PC 为准。
  */
 const TOOL_LABELS: Record<string, string> = {
+  memory: '记忆', experience: '经验', learn: '沉淀经验', search_experiences: '搜索经验', offer_domain_guidance: '建议领域引导',
   bash: '命令', edit: '编辑', read: '查看', write: '编写', grep: '搜索文件',
   find: '查找文件', ls: '列出目录', powershell: 'PowerShell',
   task: '派遣 Agent', create_agent_template: '创建模板', list_agents: '查看 Agent',
@@ -53,6 +55,8 @@ const TOOL_LABELS: Record<string, string> = {
 export function toolDisplay(tool: DisplayToolBlock): string {
   const label = toolLabel(tool.name);
   const input = tool.input ?? {};
+  const knowledge = knowledgeToolLabel(tool.name, input);
+  if (knowledge) return [label, ['memory', 'experience'].includes(tool.name.toLowerCase()) && knowledge !== label ? knowledge : '', typeof input.query === 'string' ? input.query : ''].filter(Boolean).join(' · ');
   if (tool.name === 'call_mcp_tool') {
     // 与桌面端 app/renderer/src/components/ChatBlocks.tsx:912 同款：filter(Boolean) 去掉空段，
     // 否则 name 里连续 __ 会拼出「srv /  / tool」
@@ -83,6 +87,18 @@ export function toolDisplay(tool: DisplayToolBlock): string {
 export function toolLabel(name: string): string {
   const normalized = name.toLowerCase();
   return TOOL_LABELS[normalized] ?? (normalized.startsWith('mcp__') ? 'MCP' : '工具');
+}
+
+/** Preserve the meaning of current actions and retired names in historical sessions. */
+export function knowledgeToolLabel(name: string, input: Record<string, unknown> = {}): string | null {
+  const family = name.toLowerCase();
+  if (!['memory', 'experience', 'learn', 'search_experiences'].includes(family)) return null;
+  const experience = family !== 'memory';
+  const action = family === 'learn' ? 'save' : family === 'search_experiences' ? 'search' : String(input.action ?? '');
+  const labels: Record<string, string> = experience
+    ? { save: '保存经验', search: '搜索经验', read: '查看经验', update: '更正经验', forget: '忘记经验', archive: '标记经验失效', invalidate: '标记经验失效', restore: '恢复经验' }
+    : { save: '添加记忆', search: '搜索记忆', read: '查看', update: '编辑记忆', forget: '忘记', edit: '编辑记忆', archive: '收进历史', restore: '恢复当前', accept: '接受', reject: '拒绝', merge: '合并记忆', cancel: '取消计划更正', read_summary: '查看记忆摘要', write_summary: '整理记忆摘要' };
+  return labels[action] ?? (experience ? '经验' : '记忆');
 }
 
 /** 命令类工具（bash / powershell 等）：这些工具在 PC 上走「命令块 + 输出」的展开区，不把命令塞进标题 */
@@ -177,6 +193,15 @@ export function toolActivity(name: string, input: Record<string, unknown> | unde
   text: string; fullText: string; action: ToolAction; label: string; icon: string;
 } {
   const args = input ?? {};
+  const knowledge = knowledgeToolLabel(name, args);
+  if (knowledge || name.toLowerCase() === 'offer_domain_guidance') {
+    const label = knowledge ?? '建议领域引导';
+    const verb = state === 'failed' ? `${label}失败` : state === 'cancelled' ? `已取消${label}` : state === 'unfinished' ? `未完成${label}`
+      : knowledge ? `${state === 'running' ? '正在' : '已'}${label}` : label;
+    const target = knowledge ? oneLine(args.query) : '';
+    const description = [verb, target].filter(Boolean).join(' ');
+    return { text: description, fullText: description, action: knowledge ? 'external' : 'ask', label, icon: knowledge ? (name.toLowerCase() === 'memory' ? 'memory' : 'experience') : 'ask_user' };
+  }
   const action = toolAction(name);
   const path = text(args.path ?? args.file_path ?? args.directory);
   const query = text(args.pattern ?? args.query ?? args.search_pattern);
@@ -211,6 +236,8 @@ export function toolActivity(name: string, input: Record<string, unknown> | unde
  * 桌面端 StatusBar 在工具进行中把 Mint 图标换成工具图标（StatusBar.tsx:163-166），手机端同款。
  */
 export function toolActivityIcon(name: string): string {
+  if (knowledgeToolLabel(name)) return name.toLowerCase() === 'memory' ? 'memory' : 'experience';
+  if (name.toLowerCase() === 'offer_domain_guidance') return 'ask_user';
   return ACTION_ICONS[toolAction(name)];
 }
 

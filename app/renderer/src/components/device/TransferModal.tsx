@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../ui/DialogCloseButton";
 import { appMessage } from "../../lib/i18n";
 import { appText } from "../../lib/i18n";
 import { uiText, useUiLocale } from "../../lib/i18n";
@@ -177,7 +178,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card overflow-hidden flex flex-col" style={{ width: 520 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0 bg-[var(--color-surface-alt)]">
           <h2 className="text-base font-semibold text-text-primary">{uiText("ui.TransferModal.transferTo")}{deviceName}</h2>
-          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>
+          <DialogCloseButton onClick={onClose} disabled={transferring} />
         </div>
 
         <div className="px-6 py-3 space-y-3 flex-1 overflow-y-auto">

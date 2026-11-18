@@ -5,9 +5,8 @@
  * 覆盖 192/238 次提交，且当天写、一天可覆盖多次提交。因此它是**可用主源**，
  * 直接解析即可，不必再让模型总结一遍 git。
  *
- * 结构约定（两个二级标题固定）：
- *   ## 当前进度快照   → `**YYYY-MM-DD 标题**：正文`
- *   ## 开发记录索引   → `- [YYYY-MM-DD](相对路径)：摘要`
+ * 兼容现有导航页与 dev-docs 技能：快照使用日期粗体条目（可带详见括注），
+ * 索引使用日期链接列表或两列表格；旧导航页可直接用「### 最近工作」。
  *
  * 解析失败或文件缺失时返回空结构，由调用方降级到 git 证据，不抛错、不猜。
  */
@@ -32,16 +31,18 @@ export interface DevelopLog {
 export const EMPTY_DEVELOP_LOG: DevelopLog = { snapshot: [], index: [] };
 
 const SNAPSHOT_HEADING = /^##[ \t]*当前进度快照[ \t]*$/mu;
-const INDEX_HEADING = /^##[ \t]*开发记录索引.*$/mu;
-const NEXT_H2 = /^##[ \t]/mu;
-const SNAPSHOT_ENTRY = /^\*\*(\d{4}-\d{2}-\d{2})[ \t]+([^*]+?)\*\*[：:][ \t]*([\s\S]*?)(?=\n\*\*\d{4}-\d{2}-\d{2}|\n##[ \t]|(?![\s\S]))/gmu;
+const RECENT_HEADING = /^###[ \t]+最近工作[ \t]*$/mu;
+const INDEX_HEADING = /^#{2,3}[ \t]*开发记录索引.*$/mu;
+const SNAPSHOT_ENTRY = /^\*\*(\d{4}-\d{2}-\d{2})[ \t]+([^*]+?)\*\*(?:[ \t]*[（(][^\n]*?[）)])?[ \t]*[：:][ \t]*([\s\S]*?)(?=\n\*\*\d{4}-\d{2}-\d{2}|\n#{1,6}[ \t]|(?![\s\S]))/gmu;
 const INDEX_ENTRY = /^-[ \t]*\[(\d{4}-\d{2}-\d{2})\]\(([^)]+)\)[ \t]*[：:—–-]?[ \t]*(.*)$/gmu;
+const INDEX_ROW = /^\|[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*\|[ \t]*(.+?)[ \t]*\|[ \t]*$/gmu;
 
 function blockAt(text: string, heading: RegExp): string {
   const match = heading.exec(text);
   if (!match) return "";
   const rest = text.slice(match.index + match[0].length);
-  const next = NEXT_H2.exec(rest);
+  const level = /^#+/u.exec(match[0])![0].length;
+  const next = new RegExp(`^#{1,${level}}[ \\t]`, "mu").exec(rest);
   return next ? rest.slice(0, next.index) : rest;
 }
 
@@ -49,11 +50,18 @@ function squeeze(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
+function validDate(value:string):boolean {
+  const time=Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value;
+}
+
 export function parseDevelopLog(text: string): DevelopLog {
   if (!text) return EMPTY_DEVELOP_LOG;
   const source = text.replace(/\r\n?/gu, "\n");
   const snapshot: SnapshotEntry[] = [];
-  for (const match of blockAt(source, SNAPSHOT_HEADING).matchAll(SNAPSHOT_ENTRY)) {
+  const snapshotBlock=blockAt(source,SNAPSHOT_HEADING.test(source)?SNAPSHOT_HEADING:RECENT_HEADING);
+  for (const match of snapshotBlock.matchAll(SNAPSHOT_ENTRY)) {
+    if(!validDate(match[1]!))continue;
     snapshot.push({
       date: match[1]!,
       title: squeeze(match[2]!),
@@ -61,8 +69,15 @@ export function parseDevelopLog(text: string): DevelopLog {
     });
   }
   const index: IndexEntry[] = [];
-  for (const match of blockAt(source, INDEX_HEADING).matchAll(INDEX_ENTRY)) {
+  const indexBlock=blockAt(source,INDEX_HEADING);
+  for (const match of indexBlock.matchAll(INDEX_ENTRY)) {
+    if(!validDate(match[1]!))continue;
     index.push({ date: match[1]!, path: match[2]!, summary: squeeze(match[3]!) });
+  }
+  for(const match of indexBlock.matchAll(INDEX_ROW)){
+    if(!validDate(match[1]!))continue;
+    const label=match[2]!,link=/\[([^\]]+)\]\(([^)]+)\)/u.exec(label);
+    index.push({date:match[1]!,path:link?.[2] ?? "",summary:squeeze(label.replace(/\[([^\]]+)\]\([^)]+\)/gu,"$1"))});
   }
   return { snapshot, index };
 }

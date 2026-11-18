@@ -5,7 +5,6 @@ import { ProtectedMcpTransport } from "./mcp-transport";
 const mocks = vi.hoisted(() => ({ wrap: vi.fn(), release: vi.fn(async () => {}), start: vi.fn(async () => {}), close: vi.fn(async () => {}), initialize: vi.fn(async () => ({ ok: true })), send: vi.fn(async (_message: unknown, _options?: { signal?: AbortSignal }) => {}) }));
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
 vi.mock("./permission/execution-context", () => ({ bindExecutionOwner: (value: unknown) => value, createExecutionContext: (_cwd: string, _mode: string, env: Record<string, string> = {}) => ({ environment: { TMPDIR: "/tmp/em-runtime", ...env, SAFE: "yes", PATH: "D:\\managed\\bin;C:\\Windows\\System32", LOCALAPPDATA: "D:\\sandbox\\Local" } }) }));
-vi.mock("./background-shell/registry", () => ({ findBashOnWindows: () => "C:\\Git\\bin\\bash.exe" }));
 vi.mock("./sandbox/manager", () => ({ ensureSandbox: mocks.initialize, isSandboxBypassedForMode: (mode: string) => mode === "full", wrapForSandbox: mocks.wrap }));
 vi.mock("@earendil-works/pi-mcp", () => ({
   StreamableHttpTransport: class {
@@ -91,7 +90,7 @@ describe("MCP async transport boundary", () => {
       expect(mocks.wrap).toHaveBeenCalledWith(`'${bundle}\\node.exe' '${bundle}\\lib\\dist\\bin\\codegraph.js' 'serve' '--mcp'`, expect.objectContaining({
         context: expect.objectContaining({ environment: expect.objectContaining({
           PATH: expect.stringContaining("D:\\managed\\bin;C:\\Windows\\System32"), LOCALAPPDATA: "D:\\sandbox\\Local",
-        }) }), gitBashPath: "C:\\Git\\bin\\bash.exe",
+        }) }), signal: expect.any(AbortSignal),
       }));
       await transport.close();
       expect(mocks.release).toHaveBeenCalledTimes(1);
@@ -109,6 +108,21 @@ describe("MCP async transport boundary", () => {
     await expect(started).rejects.toThrow("撤销");
     await closed; await transport.close();
     expect(mocks.start).not.toHaveBeenCalled(); expect(mocks.release).toHaveBeenCalledTimes(1);
+  });
+  it("cancels the runtime wait when the transport closes", async () => {
+    mocks.wrap.mockImplementationOnce((_command, { signal }: { signal: AbortSignal }) =>
+      new Promise((_, reject) => {
+        signal.throwIfAborted();
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }));
+    const transport = new ProtectedMcpTransport({ entry, cwd: "/tmp", owner: "session", mode: () => "full" });
+    const started = transport.start();
+    const rejected = expect(started).rejects.toThrow("撤销");
+    await vi.waitFor(() => expect(mocks.wrap).toHaveBeenCalled());
+    await transport.close();
+    await rejected;
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.initialize).not.toHaveBeenCalled();
   });
   it("rechecks mode after async preparation and releases when spawn fails", async () => {
     let mode: "standard" | "readonly" = "standard";

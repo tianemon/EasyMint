@@ -14,11 +14,23 @@ export interface MemorySource {
   entryId?: string;
   hash?: string;
   anchorRef?: string;
+  anchorRefs?:string[];
+  evidenceEntryId?:string;
+  sessionFile?:string;
+  messageEntryIds?:string[];
+  userEntryIds?:string[];
   timezone?: string;
   quote?: string;
   role?: "user" | "assistant";
   deleted?: boolean;
   projectId?: string;
+  submissionId?:string;
+  ownerSessionId?:string;
+  ownerEntryId?:string;
+  ownerHash?:string;
+  delegationId?:string;
+  taskIndex?:number;
+  evidence?:Array<{entryId:string;hash:string}>;
 }
 export interface MemoryRecord {
   key: string;
@@ -35,6 +47,7 @@ export interface MemoryRecord {
   createdAt: number;
   updatedAt: number;
   occurredAt: number;
+  memoryDate?:string;
   timeBasis?: "occurred" | "recorded";
   substantiveAt: number;
   expiresAt?: number;
@@ -45,11 +58,10 @@ export interface MemoryRecord {
   reason?: string;
   invalidatedAt?: number;
   summary?: string;
-  mergedInto?: string;
   effectiveAt?: number;
-  pending?: {at:number;patch:Partial<MemoryWrite> & {confidence?:MemoryConfidence;lifecycle?:MemoryLifecycle;sources?:MemorySource[];reason?:string};evidenceAt:number};
+  pending?: {at:number;bodyFile?:string;bodyKey?:string;patch:Partial<MemoryWrite> & {confidence?:MemoryConfidence;lifecycle?:MemoryLifecycle;sources?:MemorySource[];reason?:string};evidenceAt:number};
 }
-export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "pending"> & { matchedRevision?:number; projectName?:string;pendingAt?:number; sources: Array<Pick<MemorySource, "ref" | "sessionId" | "entryId" | "hash" | "deleted" | "type">> };
+export type MemorySummary = Omit<MemoryRecord, "details" | "sources" | "pending"> & { matchedRevision?:number; projectName?:string;pendingAt?:number; sources: MemorySource[] };
 export interface MemoryWrite {
   kind: MemoryKind;
   text: string;
@@ -62,6 +74,7 @@ export interface MemoryWrite {
   effectiveAt?: number | null;
 }
 export interface MemoryQuery {
+  family?:"memory"|"experience";
   query?: string;
   projectId?: string;
   scope?: "global" | "project" | "both" | "recent";
@@ -88,17 +101,29 @@ export function parseMemorySettings(raw: unknown): MemorySettings {
   if (raw !== undefined && (raw === null || typeof raw !== "object" || Array.isArray(raw)))
     return { enabled: false, background: false };
   const r = raw && typeof raw === "object" ? raw as Partial<MemorySettings> : {};
+  if ((r.enabled !== undefined && typeof r.enabled !== "boolean") ||
+      (r.background !== undefined && typeof r.background !== "boolean") ||
+      (r.enabledAt !== undefined && (typeof r.enabledAt !== "number" || !Number.isFinite(r.enabledAt))))
+    return { enabled: false, background: false };
   // 未配置时按默认开启；只有显式写 false 才算关闭。
   const enabled = typeof r.enabled === "boolean" ? r.enabled : DEFAULT_MEMORY_SETTINGS.enabled;
-  const background = typeof r.background === "boolean" ? r.background : enabled;
+  const background = typeof r.background === "boolean" ? r.background : DEFAULT_MEMORY_SETTINGS.background;
   return { enabled,
     background,
     ...(typeof r.enabledAt === "number" && Number.isFinite(r.enabledAt) ? { enabledAt: r.enabledAt } : {}) };
 }
+export interface MemoryExecutionSource {
+  permissionSessionId:string;ownerEntryId:string;ownerHash:string;ownerMessageEntryId:string;ownerSessionFile:string;
+  delegationId?:string;taskIndex?:number;
+}
 export interface MemoryConclusion {
+  execution?:MemoryExecutionSource;
+  toolEntryIds?:string[];
   ref: string;
   sessionId: string;
   entryId: string;
+  messageEntryIds?:string[];
+  userEntryIds?:string[];
   sessionFile: string;
   projectId?: string;
   projectPath: string;
@@ -110,6 +135,8 @@ export interface MemoryConclusion {
 }
 export type MemoryInitPhase = "idle" | "opening" | "ready" | "error";
 export interface MemoryStatus {
+  /** 首次上线的持久捕获边界，不随重启或开关变化倒退。 */
+  recordingStartedAt?:number;
   failed?:number;
   lastError?:string;
   count: number;
@@ -119,22 +146,12 @@ export interface MemoryStatus {
   countKnown?:boolean;
 }
 
-export interface MemoryDigest { content:string; hash:string; items:Array<{key:string;revision:number}>; file:string; error?:string;needsReview?:boolean }
-export interface MemoryDocument {file:string;content:string;hash:string;reviewHash:string;needsReview?:boolean;changes:string;removed:string[];available:string;protectedLines:string[]}
-export interface MemoryView { settings:MemorySettings; status:MemoryStatus; projectId?:string; digest?:MemoryDigest; ready?:boolean;backupDirectory?:string }
+export interface MemoryDocument {file:string;content:string;hash:string}
+export interface MemoryView { settings:MemorySettings; status:MemoryStatus; projectId?:string; ready?:boolean; }
 export interface MemoryApi {
   onChanged(callback:(settings?:MemorySettings,session?:{sessionId:string;mode:MemoryMode})=>void):()=>void;
   state(projectPath?:string):Promise<MemoryView>;
   configure(patch:Partial<Pick<MemorySettings,"enabled"|"background">>):Promise<MemorySettings>;
-  query(query:MemoryQuery & {projectPath?:string}):Promise<MemoryPage>;
-  read(key:string,projectPath?:string):Promise<{item?:MemoryRecord;revisions:MemoryRecord[]}>;
-  save(input:MemoryWrite & {scope:"global"|"project";projectPath?:string;pinned?:boolean}):Promise<MemoryRecord & {warning?:string}>;
-  update(key:string,revision:number,patch:Partial<MemoryWrite> & Pick<Partial<MemoryRecord>,"confidence"|"lifecycle"|"pinned"> & {cancelPending?:boolean},projectPath?:string):Promise<MemoryRecord & {warning?:string}>;
-  forget(key:string,projectPath?:string):Promise<void>;
-  analyze():Promise<void>;
-  summary(refresh?:boolean):Promise<MemoryDigest>;
   readDocument():Promise<MemoryDocument>;
-  saveDocument(content:string,hash:string):Promise<MemoryDocument>;
-  openBackups():Promise<void>;
   sessionMode(sessionId:string,mode?:MemoryMode):Promise<MemoryMode>;
 }

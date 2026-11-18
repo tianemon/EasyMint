@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../ui/DialogCloseButton";
 import { ProviderUsagePreview } from "./ProviderUsagePreview";
 import { uiText, useUiLocale, appText } from "../../lib/i18n";
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
@@ -54,9 +55,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "custom");
   const preset = getPreset(presetId);
   const isCustom = presetId === "custom" || initial?.presetId === "custom";
-  const brand = BRAND_BY_PI_ID.get(presetId);
 
   const [name, setName] = useState(initial?.name || "");
+  const nameEdited = useRef(Boolean(initial?.name));
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [model, setModel] = useState(initial?.model || "");
   // 认证方式：**只显示该供应商真正支持的那一种**（判据见 lib/auth-mode.ts）。
@@ -150,9 +151,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     setPresetId(id);
     // 认证方式随供应商走：换供应商就回默认，避免把上一个供应商的选择带过去
     setAuthType("api_key");
+    if (!nameEdited.current) setName(BRAND_BY_PI_ID.get(id)?.name ?? "");
     if (id === "custom") return;  // 自定义供应商不拉官方目录
-    // 自动填名称(用户未填写时);加载模型列表
-    if (brand && !name.trim()) setName(brand.name);
     loadModels(id);
   };
 
@@ -251,11 +251,15 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       </div>
 
       {/* 名称 */}
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">{uiText("ui.AgentTemplateSettings.name")}</label>
+      <label className="block">
+        <span className="text-xs text-text-secondary block mb-1.5">{uiText("ui.AgentTemplateSettings.name")}</span>
         <input className="em-input em-input-compact w-full h-8 px-2.5 text-text-primary text-xs transition-colors"
-          placeholder={uiText("ui.ProviderSettings.eGMyDeepseek")} value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
+          placeholder={isCustom ? uiText("ui.ProviderSettings.customNameExample") : undefined}
+          value={name} onChange={(e) => {
+            nameEdited.current = Boolean(e.target.value.trim());
+            setName(e.target.value);
+          }} />
+      </label>
 
       {/* 接入信息:Base URL / API 协议 —— 单一模板。自定义=可编辑;内置=SDK 预设只读。
           测试按钮在值右端(两页一致);下方为结果区与「验证密钥」可选项 */}
@@ -282,7 +286,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             type="button"
             onClick={() => void runTest()}
             disabled={testing || (isCustom ? !baseUrl.trim() : !providerInfo?.baseUrl)}
-            className="shrink-0 h-7 px-3 rounded-[var(--radius-lg)] btn-raised text-xs font-medium disabled:opacity-40"
+            className="settings-action"
           >{testing ? uiText("ui.ProviderSettings.testing") : uiText("ui.PluginsTab.testConnection")}</button>
         </div>
         {probe?.detail && (
@@ -400,9 +404,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {!bare && (
         <div className="sticky bottom-0 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors">{uiText("ui.ProviderSettings.cancelSetup")}</button>
+            <button type="button" onClick={onCancel} className="settings-action" data-tone="quiet">{uiText("ui.ProviderSettings.cancelSetup")}</button>
           )}
-          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">
+          <button type="button" onClick={handleSave} className="settings-action btn-accent">
             {uiText("ui.ProviderSettings.saveProvider")}</button>
         </div>
       )}
@@ -457,7 +461,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
           <span className="text-sm font-medium text-text-secondary truncate flex-1 min-w-0">
             {initial ? uiText("ui.ProviderSettings.editProvider", { v0: initial.name ? ` · ${initial.name}` : "" }) : uiText("ui.ProviderSettings.addProvider")}
           </span>
-          <button className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} aria-label={uiText("common.close")}>✕</button>
+          <DialogCloseButton onClick={onClose} />
         </div>
         {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏。
             pb-4 与上方 pt-4 对称:滚到底时最后一块内容不贴底栏(间距靠内容区内边距,不靠底栏外边距) */}
@@ -467,9 +471,9 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         {/* 底部操作栏:滚动区外(flex 列结构),与头部一致不用色块分区,无分隔线 */}
         <div className="flex items-center justify-end gap-2 px-4 py-1 shrink-0">
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">{uiText("ui.ProviderSettings.cancelSetup")}</button>
+            className="settings-action" data-tone="quiet">{uiText("ui.ProviderSettings.cancelSetup")}</button>
           <button onClick={() => saveRef.current?.save()}
-            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0">{uiText("ui.ProviderSettings.saveProvider")}</button>
+            className="settings-action btn-accent">{uiText("ui.ProviderSettings.saveProvider")}</button>
         </div>
       </div>
     </div>,
@@ -573,7 +577,7 @@ export function ProvidersManager() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-secondary">{uiText("ui.ProviderSettings.apiProviders")}</h3>
         <button onClick={() => setDialog({ mode: "add" })}
-          className="px-3 py-1 rounded-[var(--radius-lg)] text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
+          className="settings-action" data-tone="accent">
           {uiText("ui.ProviderSettings.addProvider2")}</button>
       </div>
       {configs.length === 0 ? (
@@ -596,15 +600,15 @@ export function ProvidersManager() {
                 </div>
                 <ProviderUsagePreview config={cfg} />
               </div>
-              <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {!isActive && (
                   <button onClick={() => setApiProviders({ ...apiProviders!, current: cfg.id, configs: apiProviders!.configs })}
-                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-accent transition-colors">{uiText("ui.ProviderSettings.enable")}</button>
+                    className="settings-action settings-action--compact" data-tone="accent">{uiText("ui.ProviderSettings.enable")}</button>
                 )}
                 <button onClick={() => setDialog({ mode: "edit", cfg })}
-                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors">{uiText("menu.edit")}</button>
+                  className="settings-action settings-action--compact">{uiText("menu.edit")}</button>
                 <button onClick={() => handleDelete(cfg.id)}
-                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors">{uiText("ui.AgentTemplateSettings.delete")}</button>
+                  className="settings-action" data-tone="danger">{uiText("ui.AgentTemplateSettings.delete")}</button>
               </div>
             </div>
           );

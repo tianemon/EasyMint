@@ -69,7 +69,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
           <button
             type="button"
             onClick={addGroup}
-            className="px-2 py-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-secondary em-hover-control text-[length:var(--text-11)] transition-all"
+            className="settings-action"
            
           >{uiText("ui.StepComponents.add")}</button>
         )}

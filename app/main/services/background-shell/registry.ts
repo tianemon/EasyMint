@@ -94,19 +94,6 @@ function cleanupOldLogs(logDir: string): void {
   } catch { /* 目录不存在等,忽略 */ }
 }
 
-/** 只返回宿主已经验收的内置Bash，不再通过PATH猜测WSL或其它同名程序。 */
-export function findBashOnWindows(): string | null {
-  return preparedWindowsRuntime()?.bash ?? null;
-}
-
-/** 统一生成受保护 bash 的平台参数，避免 Windows 调用方忘记传入已探测的 Git Bash。 */
-export function sandboxGitBashPath(
-  platform: NodeJS.Platform = process.platform,
-  finder: () => string | null = findBashOnWindows,
-): string | undefined {
-  return platform === "win32" ? finder() ?? undefined : undefined;
-}
-
 /** 后台命令的 spawn 配置:Windows 用 Git Bash -c(对齐 Pi 工具,支持 cd /c/... 和管道 tail);
  *  Windows 无 Git Bash → 报错(错误信息进入工具结果,Mint 读到后自行调整策略);
  *  Unix 保持 shell:true(行为不变)。
@@ -116,7 +103,7 @@ export function resolveSpawn(command: string, cwd: string, environment?: NodeJS.
   const prepared = process.platform === "win32" ? preparedWindowsRuntime() : undefined;
   const env = prepared ? windowsRuntimeEnvironment(inherited, prepared) : inherited;
   if (process.platform === "win32") {
-    const bash = findBashOnWindows();
+    const bash = prepared?.bash;
     if (bash) {
       return {
         file: bash,

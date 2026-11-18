@@ -67,7 +67,7 @@ describe("完全访问权限契约", () => {
     // 会自动执行代码的配置：改一次就等于把整个判定层绕过（下次会话 / 开机即生效）
     expect((await write(path.join(os.homedir(), "Library", "LaunchAgents", "x.plist"))).behavior).toBe("deny");
     expect((await write(path.join(os.homedir(), ".easymint", "agent", "settings.json"))).behavior).toBe("deny");
-    for (const file of ["paired-devices.json", "paired-mobile-devices.json", "system-prompts.json"]) {
+    for (const file of ["paired-devices.json", "paired-mobile-devices.json", "system-prompts.json", "system-prompts-v2.json"]) {
       expect((await write(path.join(os.homedir(), ".easymint", file))).behavior, file).toBe("deny");
     }
     // 关闭安全机制 / 系统级变更：命令预检

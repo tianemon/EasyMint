@@ -4,41 +4,29 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { MainChatProfile, CollaborationMode, ConversationConfig } from "../../shared/collaboration";
-import { UI_DESIGN_MODE_ID, DOMAIN_GUIDANCE_MODE_ID } from "../../shared/collaboration";
+import { UI_DESIGN_MODE_ID, DOMAIN_GUIDANCE_MODE_ID, CONVERSATION_SETTINGS_MESSAGE_TYPE, CONVERSATION_CONFIG_FILE } from "../../shared/collaboration";
 import { DESIGNER_TEMPLATE_DIR, designerTemplateTable } from "../../shared/designer-templates";
 import type { AgentTemplate } from "./agent-templates";
+import type { SessionManager } from "./pi-sdk";
 import { emHome, getResourcesDir } from "../utils/paths";
-import { sectionText, writeSection } from "../../shared/memory-doc";
+import { sectionText, sectionRange, writeSection } from "../../shared/memory-doc";
+import {documentTransaction,readDocument} from "./memory/document-store";
 import { atomicWrite, encode, lockConfigDirectory, readText } from "./native-config-storage";
 
-const mainSchema = z.object({
-  nickname: z.string().trim().min(1).max(40),
-  avatar: z.string().max(1024 * 1024).refine(value => !value || /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)),
-  personality: z.string(), rules: z.string(),
-});
-const modeFields = z.object({ name: z.string().trim().min(1).max(40), scenario: z.string().max(200),
-  prompt: z.string().refine(value => !!value.trim()), defaultEnabled: z.boolean() });
-const templateFields = z.object({ name: z.string().min(1), description: z.string(),
-  prompt: z.string().refine(value => !!value.trim()), agentType: z.string().optional() });
-const id = z.string().min(1);
-const templateOverride = templateFields.partial().extend({ id });
-const modeOverride = modeFields.partial().extend({ id });
-const storeSchema = z.object({ version: z.literal(2), main: mainSchema.partial(),
-  templates: z.array(templateOverride), modes: z.array(modeOverride),
-  legacyPrompts: z.array(z.unknown()).optional(), legacyTemplates: z.array(z.unknown()).optional(),
-  migration: z.object({ backup: z.string().regex(/^prompts-v2-[a-f0-9]{16}$/), templateHash: z.string().regex(/^[a-f0-9]{64}$/).optional() }).optional(),
-}).strict();
-type PromptStore = z.infer<typeof storeSchema>;
+import { assertPromptStoreEntries, builtinTemplateTypes, legacyTemplateSchema, mainSchema, modeFields, modeOverride, retiredIds, storeSchema, templateFields, type PromptStore } from "./prompt-config-schema";
+
 interface Defaults { main: MainChatProfile; templates: AgentTemplate[]; modes: CollaborationMode[]; legacyDesigner: string; legacyHashes: Record<string, string> }
-interface Snapshot { config: PromptStore; raw: string | null; templatesRaw: string | null; legacy: boolean; warning?: string }
+/** Explicit legacy choices survive hash matching until the one-time upgrade is committed. */
+interface LegacyIntent { rules?: string; templateIds: string[]; skippedTemplates?: number }
+interface Snapshot { config: PromptStore; raw: string | null; legacy?: { prompts: string | null; templates: string | null }; legacyIntent?: LegacyIntent; warning?: string }
 const hash = (value: unknown): string => createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
-const configPath = () => path.join(emHome(), "system-prompts.json");
+const configPath = () => path.join(emHome(), CONVERSATION_CONFIG_FILE);
+const legacyConfigPath = () => path.join(emHome(), "system-prompts.json");
 const templatesPath = () => path.join(emHome(), "agent-templates.json");
 let defaultsCache: { file: string; value: Defaults } | undefined;
 const lastValid = new Map<string, Snapshot>();
 const initializationWarnings = new Map<string, string>();
-const builtinTemplateIds = new Set(["default-builder", "default-evaluator"]);
-const retiredIds = new Set(["mint", "mint-designer", "default-orchestrator"]);
+const mainKeys = ["nickname", "userAddress", "avatar", "personality", "rules"] as const;
 
 function parseJson(raw: string, file: string): unknown {
   try { return JSON.parse(raw.replace(/^\uFEFF/, "")); }
@@ -55,9 +43,9 @@ export function getPromptDefaults(): Defaults {
   try { raw = parseJson(fs.readFileSync(file, "utf8"), file); }
   catch { throw new Error(`无法加载应用默认提示词：${file}`); }
   const nonempty = z.string().refine(value => !!value.trim());
-  const parsed = z.object({ version: z.literal(1), main: mainSchema.extend({ personality: nonempty, rules: nonempty }),
-    templates: z.array(templateFields.extend({ id })),
-    modes: z.array(modeFields.omit({ prompt: true }).extend({ id })),
+  const parsed = z.object({ version: z.literal(1), main: mainSchema.extend({ personality: nonempty }),
+    templates: z.array(legacyTemplateSchema),
+    modes: z.array(modeFields.omit({ prompt: true }).extend({ id: z.string().min(1) })),
     design: z.object({ guidelines: nonempty, mainPrefix: nonempty, mainSuffix: nonempty, legacyPrefix: nonempty, legacySuffix: nonempty }),
     legacyHashes: z.record(z.string(), z.string()),
   }).safeParse(raw);
@@ -83,28 +71,22 @@ function emptyStore(): PromptStore { return { version: 2, main: {}, templates: [
 function validated(config: unknown): PromptStore {
   const parsed = storeSchema.safeParse(config);
   if (!parsed.success) throw new Error(`提示词配置字段无效：${configPath()}（原文件已保留）`);
-  unique(parsed.data.templates, "执行模板"); unique(parsed.data.modes, "协作模式");
-  // 自定义对象不能缺字段；内置对象才允许只存覆盖项。
-  for (const template of parsed.data.templates) {
-    if (retiredIds.has(template.id)) throw new Error("主对话和旧角色不能注册为执行模板");
-    if (!builtinTemplateIds.has(template.id)) templateFields.parse(template);
-    else if (template.agentType !== undefined && template.agentType !== getPromptDefaults().templates.find(item => item.id === template.id)?.agentType) throw new Error("内置模板不可修改执行类型");
-  }
-  const builtinModes = new Set(getPromptDefaults().modes.map(mode => mode.id));
-  for (const mode of parsed.data.modes) if (!builtinModes.has(mode.id)) modeFields.parse(mode);
+  assertPromptStoreEntries(parsed.data);
   return parsed.data;
 }
 
-function convertLegacy(raw: string | null, templatesRaw: string | null): PromptStore {
+function convertLegacy(raw: string | null, templatesRaw: string | null): Pick<Snapshot,"config"|"legacyIntent"> {
   const config = emptyStore();
-  const legacy = raw === null ? {} : parseJson(raw, configPath());
+  const legacyIntent:LegacyIntent={templateIds:[]};
+  const legacy = raw === null ? {} : parseJson(raw, legacyConfigPath());
   if (!legacy || typeof legacy !== "object" || Array.isArray(legacy)) throw new Error("旧提示词配置必须是对象");
   const data = legacy as { prompts?: Array<Record<string, unknown>>; defaultPromptId?: string;
     conversation?: { useBuiltinRules?: boolean; main?: Partial<MainChatProfile>; modes?: Array<Record<string, unknown>> } };
   if (data.prompts !== undefined && !Array.isArray(data.prompts)) throw new Error("旧提示词列表格式无效");
   const selected = data.prompts?.find(item => item.id === data.defaultPromptId && item.id !== "builtin-default");
-  if (!data.conversation?.useBuiltinRules && selected && typeof selected.content === "string") config.main.rules = selected.content;
+  if (!data.conversation?.useBuiltinRules && selected && typeof selected.content === "string") {config.main.rules = selected.content;legacyIntent.rules=selected.content;}
   Object.assign(config.main, data.conversation?.main ?? {});
+  if(config.main.rules!==legacyIntent.rules)delete legacyIntent.rules;
   config.modes = (data.conversation?.modes ?? []).map(mode => {
     const saved = modeOverride.parse(mode);
     const baseline = getPromptDefaults().modes.find(item => item.id === saved.id);
@@ -115,7 +97,12 @@ function convertLegacy(raw: string | null, templatesRaw: string | null): PromptS
   // 未选中的自定义提示词也保留；不会参与新版运行时优先级。
   if (data.prompts?.length) config.legacyPrompts = structuredClone(data.prompts);
   if (templatesRaw !== null) {
-    const templates = z.array(templateFields.extend({ id, customized: z.boolean().optional() })).parse(parseJson(templatesRaw, templatesPath()));
+    const archived = z.array(z.unknown()).parse(parseJson(templatesRaw, templatesPath()));
+    const templates = archived.flatMap(row => {
+      const decoded = legacyTemplateSchema.safeParse(row);
+      return decoded.success ? [decoded.data] : [];
+    });
+    if (archived.length !== templates.length) legacyIntent.skippedTemplates = archived.length - templates.length;
     unique(templates, "旧执行模板");
     const defaults = getPromptDefaults();
     for (const template of templates) {
@@ -123,39 +110,45 @@ function convertLegacy(raw: string | null, templatesRaw: string | null): PromptS
       const baseline = defaults.templates.find(item => item.id === template.id);
       if (!baseline) config.templates.push({ id: template.id, ...templateFields.parse(template), agentType: template.agentType ?? "custom" });
       else {
-        const saved: z.infer<typeof templateOverride> = { id: template.id };
+        const saved: PromptStore["templates"][number] = { id: template.id };
+        if(template.customized)legacyIntent.templateIds.push(template.id);
         for (const key of ["name", "description"] as const) if (template[key] !== baseline[key]) saved[key] = template[key];
         const oldHash = defaults.legacyHashes[template.id === "default-builder" ? "BUILDER_AGENT_PROMPT" : "EVALUATOR_AGENT_PROMPT"];
         if (template.customized || hash(template.prompt) !== oldHash) saved.prompt = template.prompt;
         if (Object.keys(saved).length > 1) config.templates.push(saved);
       }
     }
-    config.legacyTemplates = JSON.parse(templatesRaw);
+    config.legacyTemplates = archived;
   }
-  return validated(config);
+  return {config:validated(config),legacyIntent};
 }
 
 function strictSnapshot(): Snapshot {
   const raw = readText(configPath());
   const cached = lastValid.get(configPath());
   if (raw !== null && cached && !cached.legacy && cached.raw === raw) return structuredClone(cached);
-  const parsed = raw === null ? undefined : parseJson(raw, configPath());
+  if (raw !== null) return { config: validated(parseJson(raw, configPath())), raw };
+  const prompts = readText(legacyConfigPath());
+  const parsed = prompts === null ? undefined : parseJson(prompts, legacyConfigPath());
+  // Some development builds wrote v2 under the unversioned filename.
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "version" in parsed) {
-    return { config: validated(parsed), raw, templatesRaw: null, legacy: false };
+    return { config: validated(parsed), raw, legacy: { prompts, templates: readText(templatesPath()) } };
   }
-  const templatesRaw = readText(templatesPath());
-  return { config: convertLegacy(raw, templatesRaw), raw, templatesRaw, legacy: raw !== null || templatesRaw !== null };
+  const templates = readText(templatesPath());
+  return { ...convertLegacy(prompts, templates), raw, ...(prompts !== null || templates !== null ? { legacy: { prompts, templates } } : {}) };
 }
 function readSnapshot(): Snapshot {
   getPromptDefaults(); // 默认资源损坏不能被当作用户配置错误而静默兜底。
   try {
     const snapshot = strictSnapshot();
     lastValid.set(configPath(), structuredClone(snapshot));
-    return { ...snapshot, warning: initializationWarnings.get(configPath()) };
+    const skipped = snapshot.config.migration?.skippedTemplates ?? snapshot.legacyIntent?.skippedTemplates;
+    return { ...snapshot, warning: initializationWarnings.get(configPath()) ??
+      (skipped ? `有 ${skipped} 个旧执行模板的字段无效，原记录已保留，可在设置中重新创建。` : undefined) };
   } catch (error) {
     const previous = lastValid.get(configPath());
     const warning = `${error instanceof Error ? error.message : "提示词配置读取失败"}。${previous ? "当前沿用上一份有效配置" : "当前使用应用默认配置"}，未应用本次文件修改。`;
-    return { ...(previous ? structuredClone(previous) : { config: emptyStore(), raw: null, templatesRaw: null, legacy: false }), warning };
+    return { ...(previous ? structuredClone(previous) : { config: emptyStore(), raw: null }), warning };
   }
 }
 function resolvedModes(config: PromptStore): CollaborationMode[] {
@@ -167,57 +160,102 @@ function resolvedModes(config: PromptStore): CollaborationMode[] {
   }), ...config.modes.filter(mode => !baselineIds.has(mode.id)).map(mode => ({ ...modeFields.parse(mode), id: mode.id, builtin: false }))]
     .map(mode => ({ ...mode, revision: hash(mode) }));
 }
-function resolvedTemplates(config: PromptStore): AgentTemplate[] {
+function upgradedTemplateOverrides(config: PromptStore,intent?:LegacyIntent): PromptStore["templates"] {
+  if (config.defaultUpgrade === 1) return config.templates;
   const defaults = getPromptDefaults();
+  return config.templates.map(template=>{
+    if(intent?.templateIds.includes(template.id))return template;
+    const previous=template.id==="default-builder"?[defaults.legacyHashes.BUILDER_BEFORE_RULE_SPLIT,defaults.legacyHashes.BUILDER_BEFORE_PROMPT_FOCUS]:template.id==="default-evaluator"?[defaults.legacyHashes.EVALUATOR_BEFORE_PROMPT_FOCUS]:[];
+    if(template.prompt!==undefined&&previous.includes(hash(template.prompt))){const {prompt:_prompt,...rest}=template;return rest;}
+    return template;
+  });
+}
+function resolvedTemplates(config: PromptStore,intent?:LegacyIntent): AgentTemplate[] {
+  const defaults = getPromptDefaults();
+  config={...config,templates:upgradedTemplateOverrides(config,intent)};
   return [...defaults.templates.map(template => ({ ...template, ...config.templates.find(item => item.id === template.id), agentType: template.agentType })),
-    ...config.templates.filter(template => !builtinTemplateIds.has(template.id)).map(template => ({ ...templateFields.parse(template), id: template.id, agentType: template.agentType ?? "custom" }))]
+    ...config.templates.filter(template => !builtinTemplateTypes.has(template.id)).map(template => ({ ...templateFields.parse(template), id: template.id, agentType: template.agentType ?? "custom" }))]
     .map(template => ({ ...template, customized: config.templates.some(item => item.id === template.id && item.prompt !== undefined), revision: hash(template) }));
 }
 function checkRevision(actual: string | undefined, expected?: string): void {
   if (expected !== undefined && actual !== expected) throw new Error("此项提示词已被其他窗口或程序修改，请重新打开后保存（当前编辑未覆盖磁盘）");
 }
 
-/** 先保存两份原始字节，再原子切换唯一真源；中断时旧文件或完整新版至少有一份可读。 */
+/** Commit the new format separately. Downgrades still see the original legacy files. */
 function commit(snapshot: Snapshot, config: PromptStore): void {
   config = validated(config);
-  if (snapshot.legacy) {
-    const backup = `prompts-v2-${hash([snapshot.raw, snapshot.templatesRaw]).slice(0, 16)}`;
+  if (snapshot.legacy && !config.migration) {
+    const { prompts, templates } = snapshot.legacy;
+    const backup = `prompts-v2-${hash([prompts, templates]).slice(0, 16)}`;
     const dir = path.join(emHome(), "config-backups", backup);
-    if (snapshot.raw !== null) atomicWrite(path.join(dir, "system-prompts.json"), snapshot.raw);
-    if (snapshot.templatesRaw !== null) atomicWrite(path.join(dir, "agent-templates.json"), snapshot.templatesRaw);
-    config.migration = { backup, ...(snapshot.templatesRaw !== null ? { templateHash: hash(snapshot.templatesRaw) } : {}) };
+    if (prompts !== null) atomicWrite(path.join(dir, "system-prompts.json"), prompts);
+    if (templates !== null) atomicWrite(path.join(dir, "agent-templates.json"), templates);
+    const skippedTemplates = snapshot.legacyIntent?.skippedTemplates;
+    config.migration = { backup, ...(skippedTemplates ? { skippedTemplates } : {}) };
   }
-  if (readText(configPath()) !== snapshot.raw || (snapshot.legacy && readText(templatesPath()) !== snapshot.templatesRaw)) throw new Error("提示词配置已更新，请重新加载后保存");
+  if (readText(configPath()) !== snapshot.raw || (snapshot.legacy &&
+    (readText(legacyConfigPath()) !== snapshot.legacy.prompts || readText(templatesPath()) !== snapshot.legacy.templates))) {
+    throw new Error("提示词配置已更新，请重新加载后保存");
+  }
   atomicWrite(configPath(), encode(config));
-  lastValid.set(configPath(), { config, raw: encode(config), templatesRaw: null, legacy: false });
-  archiveLegacyTemplates(config);
+  lastValid.set(configPath(), { config, raw: encode(config) });
   initializationWarnings.delete(configPath());
-}
-function archiveLegacyTemplates(config: PromptStore): void {
-  if (!config.migration?.templateHash) return;
-  const raw = readText(templatesPath());
-  if (raw === null || hash(raw) !== config.migration.templateHash) return;
-  const backup = path.join(emHome(), "config-backups", config.migration.backup, "agent-templates.json");
-  if (readText(backup) !== raw) throw new Error("旧模板备份不匹配，保留旧文件后停止清理");
-  fs.unlinkSync(templatesPath());
 }
 function mutate(edit: (config: PromptStore) => void): void {
   const release = lockConfigDirectory(emHome());
   try {
-    const snapshot = strictSnapshot();
+    let snapshot = strictSnapshot();
+    // Any edit may convert the old format; persist its explicit choices before losing that context.
+    initializeSnapshot(snapshot);
+    snapshot = strictSnapshot();
     const config = structuredClone(snapshot.config);
     edit(config);
     commit(snapshot, config);
   } finally { release(); }
 }
+function resolvedMain(config:PromptStore,document?:string|null,intent?:LegacyIntent):MainChatProfile {
+  const defaults=getPromptDefaults(),main={...defaults.main,...config.main};
+  if(!config.rolesInJson){
+    const content=document===undefined?readDocument(path.join(emHome(),"memory","MEMORY.md")):document;
+    for(const [key,title] of [["rules","规则"],["personality","人设"]] as const)if(content!==null && sectionRange(content,title))main[key]=sectionText(content,title) ?? "";
+  }
+  if(config.defaultUpgrade!==1){
+    if(main.rules!==intent?.rules&&hash(main.rules)===defaults.legacyHashes.MAIN_RULES_BEFORE_CORE)main.rules="";
+    if(hash(main.personality)===defaults.legacyHashes.MAIN_PERSONALITY_BEFORE_FOCUS)main.personality=defaults.main.personality;
+  }
+  return main;
+}
+/** 默认正文只升级一次，之后显式保存可以有意复用与历史默认完全相同的文本。 */
+function upgradeDefaultOverrides(config:PromptStore,main:MainChatProfile,intent?:LegacyIntent):void {
+  const defaults=getPromptDefaults().main;
+  config.main={};for(const key of mainKeys)if(main[key]!==defaults[key])config.main[key]=main[key];
+  config.templates=upgradedTemplateOverrides(config,intent);
+  config.defaultUpgrade=1;
+}
+function initializeSnapshot(snapshot:Snapshot):void {
+  if(snapshot.config.rolesInJson){
+    if(snapshot.config.defaultUpgrade!==1){const config=structuredClone(snapshot.config);upgradeDefaultOverrides(config,resolvedMain(config,undefined,snapshot.legacyIntent),snapshot.legacyIntent);commit(snapshot,config);}
+    else if(snapshot.legacy)commit(snapshot,snapshot.config);
+    return;
+  }
+  const file=path.join(emHome(),"memory","MEMORY.md");
+  documentTransaction(file,(before)=>{
+    const main=resolvedMain(snapshot.config,before,snapshot.legacyIntent),config=structuredClone(snapshot.config);
+    upgradeDefaultOverrides(config,main,snapshot.legacyIntent);
+    config.rolesInJson=true;
+    const next=writeSection(writeSection(before ?? "","规则",""),"人设","");
+    if(before!==null && before!==next)atomicWrite(path.join(emHome(),"config-backups",`roles-${hash(before).slice(0,16)}`,"MEMORY.md"),before);
+    // Commit the complete role values before removing their old location. A failed
+    // cleanup cannot make an older MD override the now-authoritative JSON.
+    commit(snapshot,config);
+    // The memory worker removes old role sections through its recoverable
+    // file transaction after this JSON becomes authoritative.
+  });
+  initializationWarnings.delete(configPath());
+}
 export function initializePromptConfiguration(): void {
-  const release = lockConfigDirectory(emHome());
-  try {
-    const snapshot = strictSnapshot();
-    if (snapshot.legacy) commit(snapshot, snapshot.config);
-    else archiveLegacyTemplates(snapshot.config);
-    initializationWarnings.delete(configPath());
-  } finally { release(); }
+  const release=lockConfigDirectory(emHome());
+  try {initializeSnapshot(strictSnapshot());}finally{release();}
 }
 
 /** 初始化失败保留设置入口；读接口仍独立报告坏配置，默认资源损坏仍阻止相关会话创建。 */
@@ -232,19 +270,17 @@ export function initializePromptConfigurationForStartup(): string | undefined {
 }
 
 export function getConversationConfig(): ConversationConfig {
-  const { config, warning } = readSnapshot();
-  const main = { ...getPromptDefaults().main, ...config.main };
-  // 界面显示的值要与生效值一致：文件里的角色节优先于 JSON
-  const fromFile = { rules: mainRules({ main } as ConversationConfig), personality: mainPersonality({ main } as ConversationConfig) };
-  const effective = { ...main, rules: fromFile.rules, personality: fromFile.personality };
-  return { main: effective, mainRevision: hash(effective), modes: resolvedModes(config), ...(warning ? { warning } : {}) };
+  const { config, warning, legacyIntent } = readSnapshot();
+  let main:MainChatProfile;
+  try{main=resolvedMain(config,undefined,legacyIntent);}catch(error){main={...getPromptDefaults().main,...config.main};return {main,mainRevision:hash(main),modes:resolvedModes(config),warning:`角色旧位置未读取：${(error as Error).message}`};}
+  return {main,mainRevision:hash(main),modes:resolvedModes(config),...(warning?{warning}:{})};
 }
-export function getConfiguredTemplates(): AgentTemplate[] { return resolvedTemplates(readSnapshot().config); }
+export function getConfiguredTemplates(): AgentTemplate[] { const snapshot=readSnapshot();return resolvedTemplates(snapshot.config,snapshot.legacyIntent); }
 export function saveConfiguredTemplate(id: string, input: Partial<AgentTemplate>, expectedRevision?: string): AgentTemplate {
   mutate(config => {
     const before = resolvedTemplates(config).find(template => template.id === id);
     checkRevision(before?.revision, expectedRevision);
-    if (builtinTemplateIds.has(id)) {
+    if (builtinTemplateTypes.has(id)) {
       if (Object.keys(input).some(key => key !== "prompt")) throw new Error("内置执行模板仅支持修改提示词");
       templateFields.shape.prompt.parse(input.prompt);
       const saved = config.templates.find(item => item.id === id) ?? { id };
@@ -265,44 +301,27 @@ export function removeConfiguredTemplate(id: string, restore: boolean, expectedR
     if (!before) throw new Error("模板不存在");
     checkRevision(before.revision, expectedRevision);
     if (restore) {
-      if (!builtinTemplateIds.has(id)) throw new Error("该模板不支持恢复");
+      if (!builtinTemplateTypes.has(id)) throw new Error("该模板不支持恢复");
       const saved = config.templates.find(item => item.id === id);
       if (saved) { delete saved.prompt; if (Object.keys(saved).length === 1) config.templates = config.templates.filter(item => item.id !== id); }
     } else {
-      if (builtinTemplateIds.has(id)) throw new Error("系统内置模板不可删除");
+      if (builtinTemplateTypes.has(id)) throw new Error("系统内置模板不可删除");
       config.templates = config.templates.filter(item => item.id !== id);
     }
   });
   return getConfiguredTemplates().find(template => template.id === id);
 }
-export function saveMainChat(input: MainChatProfile, expectedRevision?: string): ConversationConfig {
-  const value = mainSchema.parse(input);
-  mutate(config => {
-    checkRevision(hash({ ...getPromptDefaults().main, ...config.main }), expectedRevision);
-    const defaults = getPromptDefaults().main;
-    config.main = {};
-    for (const key of ["nickname", "avatar", "personality", "rules"] as const) if (value[key] !== defaults[key]) config.main[key] = value[key];
-  });
-  // 角色节的真源是 MEMORY.md；JSON 里那两份只作为回落。恢复默认时移除该节。
-  try {
-    const file = path.join(emHome(), "memory", "MEMORY.md");
-    const defaults = getPromptDefaults().main;
-    let current = readText(file) ?? "# MEMORY\n\n";
-    current = writeSection(current, "规则", value.rules === defaults.rules ? "" : value.rules);
-    current = writeSection(current, "人设", value.personality === defaults.personality ? "" : value.personality);
-    atomicWrite(file, current);
-  } catch { /* 写文件失败不影响保存结果，读取侧仍可用 JSON 回落 */ }
-  return getConversationConfig();
+export function saveMainChat(input:MainChatProfile,expectedRevision?:string):ConversationConfig {
+  const value=mainSchema.parse(input);
+  mutate(config=>{
+    checkRevision(hash(resolvedMain(config)),expectedRevision);
+    const defaults=getPromptDefaults().main;config.main={};
+    for(const key of mainKeys)if(value[key]!==defaults[key])config.main[key]=value[key];
+    config.rolesInJson=true;
+  });return getConversationConfig();
 }
 export function restoreMainChat(expectedRevision?: string): ConversationConfig {
-  mutate(config => { checkRevision(hash({ ...getPromptDefaults().main, ...config.main }), expectedRevision); config.main = {}; });
-  // 恢复默认要连文件里的角色节一起清掉，否则读取侧仍会用文件里的旧文本
-  try {
-    const file = path.join(emHome(), "memory", "MEMORY.md");
-    const current = readText(file);
-    if (current) atomicWrite(file, writeSection(writeSection(current, "规则", ""), "人设", ""));
-  } catch { /* 文件不可写时保持原状，界面仍可用 JSON 值 */ }
-  return getConversationConfig();
+  return saveMainChat(getPromptDefaults().main,expectedRevision);
 }
 export function saveCollaborationMode(input: Omit<CollaborationMode, "id" | "builtin"> & { id?: string }): ConversationConfig {
   const value = modeFields.parse(input);
@@ -339,36 +358,36 @@ export function restoreCollaborationMode(id: string, expectedRevision?: string):
   return getConversationConfig();
 }
 
-/** 角色层规则：`MEMORY.md` 的 `## 规则` 优先，缺失时回落系统提示配置里的 rules。 */
-function mainRules(config: ConversationConfig): string {
-  try {
-    const file = path.join(emHome(), "memory", "MEMORY.md");
-    const content = readText(file);
-    const fromFile = content ? sectionText(content, "规则") : null;
-    if (fromFile) return fromFile;
-  } catch { /* 读不到就回落，不影响启动 */ }
-  return config.main.rules;
-}
-
-/** 角色层人设：`MEMORY.md` 的 `## 人设` 优先，缺失时回落系统提示配置里的 personality。 */
-function mainPersonality(config: ConversationConfig): string {
-  try {
-    const file = path.join(emHome(), "memory", "MEMORY.md");
-    const content = readText(file);
-    const fromFile = content ? sectionText(content, "人设") : null;
-    if (fromFile) return fromFile;
-  } catch { /* 读不到就回落，不影响启动 */ }
-  return config.main.personality;
-}
-
-/** 仅返回可变段正文；宿主使用 SDK section 键替换，不解析用户输入中的同名标签。 */
-export function conversationPromptSection(modeIds: string[], config = getConversationConfig()): string {
+export function conversationPromptBlocks(modeIds: string[], config = getConversationConfig()): Record<string, string> {
   const enabled = config.modes.filter(mode => modeIds.includes(mode.id));
-  return [config.warning ? `配置加载诊断：${config.warning}。不得声称已应用未加载内容。` : "",
-    `当前主对话身份以本段为准。你的昵称是 ${JSON.stringify(config.main.nickname)}。`,
-    `<personality>\n${mainPersonality(config)}\n</personality>`, `<user_rules>\n${mainRules(config)}\n</user_rules>`,
-    `当前启用的协作模式：${enabled.map(mode => mode.name).join("、") || "标准"}。仅按当前模式工作，历史选择以本段为准。`,
-    "模式补充当前工作方式，不改变权限或新增工具；兼容要求叠加，真正冲突按当前用户目标处理。",
-    ...enabled.map(mode => `<collaboration_mode name=${JSON.stringify(mode.name)}>\n${mode.id === DOMAIN_GUIDANCE_MODE_ID ? "用户已启用领域引导，沿用这个选择，不再次邀请。\n" : ""}${mode.prompt}\n</collaboration_mode>`),
-  ].filter(Boolean).join("\n\n");
+  return {
+    助手昵称: config.main.nickname,
+    用户称呼: config.main.userAddress || "",
+    人格: config.main.personality,
+    用户规则: config.main.rules,
+    协作模式: enabled.length ? enabled.map(mode => `## ${mode.name}\n${mode.id === DOMAIN_GUIDANCE_MODE_ID ? "用户已启用领域引导，沿用这个选择，不再次邀请。\n" : ""}${mode.prompt}`).join("\n\n") : "标准",
+    配置诊断: config.warning ?? "",
+  };
+}
+
+/** Compare only settings updates still present in the SDK's active branch and context window. */
+export function conversationSettingsUpdate(blocks: Record<string, string>, entries: ReturnType<SessionManager["buildSessionProjection"]>["entries"]) {
+  const previous = new Map<string, string>();
+  for (const { sourceEntry, messages } of entries) {
+    if (sourceEntry.type !== "custom_message" || sourceEntry.customType !== CONVERSATION_SETTINGS_MESSAGE_TYPE) continue;
+    if (!messages.some(message => message.role === "custom" && message.content === sourceEntry.content)) continue;
+    const details = sourceEntry.details;
+    const revisions = details && typeof details === "object" && "settingsRevisions" in details ? details.settingsRevisions : undefined;
+    if (!revisions || typeof revisions !== "object") continue;
+    for (const [key, revision] of Object.entries(revisions)) if (typeof revision === "string") previous.set(key, revision);
+  }
+  const changed = Object.entries(blocks).map(([key, value]) => ({ key, value, revision: hash(value) }))
+    .filter(({ key, revision }) => previous.get(key) !== revision);
+  if (!changed.length) return;
+  return {
+    customType: CONVERSATION_SETTINGS_MESSAGE_TYPE,
+    display: false,
+    content: `EasyMint 主对话设置更新（以下各项替换同名设置）：\n${JSON.stringify(Object.fromEntries(changed.map(({ key, value }) => [key, value])), null, 2)}`,
+    details: { settingsRevisions: Object.fromEntries(changed.map(({ key, revision }) => [key, revision])) },
+  };
 }

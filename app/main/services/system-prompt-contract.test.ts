@@ -1,7 +1,8 @@
 import { getPromptDefaults } from "./system-prompt-manager";
 import { vi } from "vitest";
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
-const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
+import {AGENT_CORE} from "./agent-core";
+const MINT_SYSTEM_PROMPT = AGENT_CORE;
 const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
 const EVALUATOR_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-evaluator")!.prompt;
 /**
@@ -36,32 +37,25 @@ describe("Mint 系统提示词 override 契约（纯替换架构）", () => {
     expect(MINT_SYSTEM_PROMPT).not.toContain("模板决定了子 Agent 的 system prompt 与思考级别");
 
     for (const prompt of [BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT]) {
-      expect(prompt).toContain("不要求创建 task.json");
-      expect(prompt).toContain("CodeGraph 可用时");
-      expect(prompt).toContain("searchTools");
-      expect(prompt).toContain("不可用时");
-      expect(prompt).toContain("不为验收引入构建工具");
+      expect(prompt).toContain("不为此创建task.json");
+      expect(prompt).not.toContain("describe_image");
+      expect(prompt).not.toContain("docs/需求文档.md");
+      expect(prompt).not.toContain("package.json");
     }
-    expect(BUILDER_AGENT_PROMPT).toContain("只暂存本任务的变更");
+    expect(BUILDER_AGENT_PROMPT).toContain("提交本任务变更");
     expect(PERMISSION_RULES_PROMPT).toContain("系统许可不等于用户授权");
   });
   it("Mint 身份在、Pi 默认身份句不在", () => {
-    expect(getPromptDefaults().main.personality).toContain("项目经理 + 架构师");
+    expect(getPromptDefaults().main.personality).toContain("主对话助手");
     expect(MINT_SYSTEM_PROMPT).not.toContain("项目经理 + 架构师");
     expect(MINT_SYSTEM_PROMPT).not.toContain("You are an expert coding assistant operating inside pi");
   });
-  it("结构关键段存在（防结构漂移）", () => {
-    // 规则去编号后锚标题（标题语义锚比数字锚稳定——插入新规则不重排）
-    for (const seg of ["**需求理解**", "**任务执行**", "**排查问题**", "**思考语言偏好**"]) {
-      expect(MINT_SYSTEM_PROMPT).toContain(seg);
-    }
-  });
-  it("Mint 专属规则段齐全（需求理解与排查基调）", () => {
-    expect(MINT_SYSTEM_PROMPT).toContain("**需求理解**");
-    expect(MINT_SYSTEM_PROMPT).toContain("表象描述先映射术语再对齐");
-    // 排查通用条目已下沉 AGENTS.md 模板——Mint 侧保留对话基调（实测真相），模板侧锚通用引用行
-    expect(MINT_SYSTEM_PROMPT).toContain("**用户实测即真相**");
-    expect(MINT_SYSTEM_PROMPT).toContain("AGENTS.md");
+  it("内置核心独立于可编辑补充及项目默认文件",()=>{
+    expect(getPromptDefaults().main.rules).toBe("");
+    for(const responsibility of ["理解当前目标","主对话默认亲自处理","用户实测反馈","## 记忆与经验","实际权限"])expect(AGENT_CORE).toContain(responsibility);
+    expect(AGENT_CORE).toContain("不依赖项目是否采用EM的AGENTS.md");
+    expect(AGENT_CORE).not.toContain("package.json");
+    expect(AGENT_CORE).not.toContain("<thinking_language>");
   });
 });
 

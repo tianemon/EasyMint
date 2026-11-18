@@ -5,8 +5,7 @@
  * 不能在主进程的共享 SandboxManager 上动态修改。一个 worker 只服务一个
  * owner + workspace + mode，上层在权限降级时销毁对应 worker。
  */
-import { SandboxManager, VENDORED_SRT_WIN_EXE, type WindowsBinShell } from "@anthropic-ai/sandbox-runtime";
-import { buildExecutionPolicy } from "../permission/access-policy";
+import { SandboxManager, VENDORED_SRT_WIN_EXE, type SandboxRuntimeConfig, type WindowsBinShell } from "@anthropic-ai/sandbox-runtime";
 import { unpackedAsarPath } from "./srt-win";
 import type { ExecutionContext } from "../permission/execution-context";
 import type { WindowsSandboxWorkerRequest, WindowsSandboxWorkerResponse } from "./windows-worker-protocol";
@@ -25,9 +24,8 @@ function shellFor(shell: "bash" | "powershell", gitBashPath?: string): string | 
   throw new Error("Windows 受保护命令需要 Git Bash。请安装 Git for Windows 后重试。");
 }
 
-async function initialize(context: ExecutionContext): Promise<void> {
+async function initialize(context: ExecutionContext, policy: SandboxRuntimeConfig): Promise<void> {
   if (activeContext) return;
-  const policy = buildExecutionPolicy(context);
   await SandboxManager.initialize({
     ...policy,
     // 打包后 VENDORED_SRT_WIN_EXE 落在 app.asar 内，而 srt 是 spawn 它 —— 必须先改写到
@@ -41,7 +39,7 @@ process.on("message", (raw: WindowsSandboxWorkerRequest) => {
   void (async () => {
     try {
       if (raw.type === "initialize") {
-        await initialize(raw.context);
+        await initialize(raw.context, raw.policy);
         send({ type: "ready", requestId: raw.requestId });
         return;
       }

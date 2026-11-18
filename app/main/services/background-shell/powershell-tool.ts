@@ -2,20 +2,21 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getCreateExtraBuiltinTools } from "../pi-sdk";
 import { executeForeground } from "./tool";
-import { defineTool } from "../tools/result";
+import { getDefineToolFn } from "../pi-sdk";
 import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "../sandbox/manager";
-import { EXECUTION_POLICY } from "../permission/wrap-tool";
+import { EXECUTION_POLICY, EXECUTION_START_CHECK } from "../permission/wrap-tool";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
 
 export async function createEnhancedPowerShellTool(cwd: string): Promise<ToolDefinition> {
   const { createPowerShellToolDefinition } = await getCreateExtraBuiltinTools();
   const native = createPowerShellToolDefinition(cwd);
+  const defineTool = await getDefineToolFn();
   return defineTool({
     ...native,
-    async execute(_toolCallId: string, params: Record<PropertyKey, unknown>, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
+    async execute(...[_toolCallId, params, signal, onUpdate, ctx]: Parameters<typeof native.execute>) {
       const command = String(params.command ?? "");
       if (!command.trim()) return { content: [{ type: "text" as const, text: "请提供 command" }], details: {} };
-      const context = params[EXECUTION_POLICY] as ExecutionContext | undefined
+      const context = Reflect.get(params, EXECUTION_POLICY) as ExecutionContext | undefined
         ?? createExecutionContext(cwd, "standard");
       // 关沙盒只换执行后端：wrapForSandbox 两条分支都返回带 env 的规格，一律由它产出执行目标。
       const sandboxed = !isSandboxBypassedForMode(context.mode);
@@ -27,16 +28,16 @@ export async function createEnhancedPowerShellTool(cwd: string): Promise<ToolDef
         const wrapped = await wrapForSandbox(command, { context, windowsShell: "powershell", signal });
         if (wrapped.kind !== "argv") throw new Error("PowerShell 只在 Windows 受保护执行环境中可用");
         const result = await executeForeground(
-          { argv: wrapped.argv, env: wrapped.env, release: wrapped.release, violationKey: wrapped.violationKey, exemptReason: wrapped.exemptReason },
+          { argv: wrapped.argv, env: wrapped.env, release: wrapped.release, violationKey: wrapped.violationKey, exemptReason: wrapped.exemptReason, assertCanStart: Reflect.get(params, EXECUTION_START_CHECK) as (() => void) | undefined },
           context.workspaceRealPath,
           signal,
           typeof params.timeout === "number" ? params.timeout : undefined,
           ctx,
-          onUpdate,
+          onUpdate ? partial => onUpdate({ ...partial, details: undefined }) : undefined,
         );
         return { ...result, details: {} };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: `PowerShell 执行失败：${(error as Error).message}` }], details: {} };
+        return { content: [{ type: "text" as const, text: `PowerShell 执行失败：${(error as Error).message}` }], details: {}, isError: true };
       }
     },
   });

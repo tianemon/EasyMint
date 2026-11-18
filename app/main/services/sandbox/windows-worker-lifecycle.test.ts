@@ -27,7 +27,10 @@ describe("Windows worker instance ownership during failure and replacement",()=>
  it("retains the replacement after an old timeout/exit and still revokes it after leases release",async()=>{
   mocks.fork.mockImplementationOnce(()=>{const worker=new FakeWorker();worker.automatic=false;children.push(worker);return worker as unknown as ChildProcess;});
   const first=wrapWithWindowsWorker("first",context);const rejected=expect(first).rejects.toThrow("初始化超时");
-  expect(children[0]!.sent[0]?.type).toBe("initialize");await vi.advanceTimersByTimeAsync(60_000);await rejected;
+  expect(children[0]!.sent[0]).toMatchObject({
+   type:"initialize", policy:{filesystem:{allowWrite:expect.arrayContaining([context.workspaceRealPath,context.runtimeRoot])}},
+  });
+  await vi.advanceTimersByTimeAsync(60_000);await rejected;
   const second=await wrapWithWindowsWorker("second",context);const replacement=children[1]!;
   children[0]!.emit("exit",null,"SIGTERM");children[0]!.emit("error",new Error("late error"));
   const third=await wrapWithWindowsWorker("third",context);expect(children).toHaveLength(2);expect(replacement.kill).not.toHaveBeenCalled();

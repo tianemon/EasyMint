@@ -181,7 +181,7 @@ export function PiImportSection(): JSX.Element {
           <div className="flex gap-1.5 shrink-0">
             <button
               type="button"
-              className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
+              className="settings-action"
               disabled={busy}
               onClick={() => void run(true)}
             >

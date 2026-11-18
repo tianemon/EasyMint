@@ -26,7 +26,9 @@ export function watchProjectWindow(win: BrowserWindow): void {
     publishIfChanged(before);
   };
   win.webContents.on("did-navigate", (_event, url) => sync(url));
-  win.webContents.on("did-navigate-in-page", (_event, url) => sync(url));
+  win.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+    if (isMainFrame) sync(url);
+  });
   win.on("closed", () => {
     const before = listOpenProjectIds();
     projectWindows.delete(win.id);
@@ -37,6 +39,10 @@ export function watchProjectWindow(win: BrowserWindow): void {
 
 export function listOpenProjectIds(): string[] {
   return [...new Set(projectWindows.values())].sort();
+}
+
+export function getWindowProjectId(windowId: number): string | undefined {
+  return projectWindows.get(windowId);
 }
 
 /** 等窗口把 projectId 登记进 projectWindows（loadURL 是异步的，靠 did-navigate 触发 sync）。

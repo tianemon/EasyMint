@@ -1,5 +1,6 @@
 export interface MainChatProfile {
   nickname: string;
+  userAddress: string;
   avatar: string;
   personality: string;
   rules: string;
@@ -23,8 +24,10 @@ export interface ConversationConfig {
   warning?: string;
 }
 
+export const CONVERSATION_CONFIG_FILE = "system-prompts-v2.json";
 export const UI_DESIGN_MODE_ID = "ui-design";
 export const DOMAIN_GUIDANCE_MODE_ID = "domain-guidance";
+export const CONVERSATION_SETTINGS_MESSAGE_TYPE = "easymint_conversation_settings";
 
 export const BUILTIN_MODE_KEYS: Record<string, { name: string; scenario: string }> = {
   [UI_DESIGN_MODE_ID]: { name: "collaboration.uiDesign", scenario: "collaboration.uiDesignScenario" },

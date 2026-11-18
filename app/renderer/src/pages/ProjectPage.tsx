@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "../components/ui/DialogCloseButton";
 import { appText,uiText, useUiLocale } from "../lib/i18n";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -315,6 +316,7 @@ export function ProjectPage(): JSX.Element {
     const dir = await window.electronAPI.dialog.openDirectory();
     if (!dir) return;
     const imported = await window.electronAPI.project.import(dir);
+    if(imported.warning)toast(appText(imported.warning));
     setShowOpenProject(false);
     // 与列表点击一致：当前已打开项目时提示窗口选择
     if (projectId && projectId !== imported.id) {
@@ -376,6 +378,7 @@ export function ProjectPage(): JSX.Element {
             return (
               <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
                 <ChatPanel
+                  active={isActive}
                   projectPath={projectPath}
                   sessionId={tab.sessionId}
                   tabId={tab.id}
@@ -479,7 +482,7 @@ export function ProjectPage(): JSX.Element {
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h2 className="text-base font-semibold text-text-primary">{uiText("nav.renameProject")}</h2>
               {renamePhase === "input" && (
-                <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
+                <DialogCloseButton onClick={() => setShowRenameDialog(false)} />
               )}
             </div>
 
@@ -541,7 +544,7 @@ export function ProjectPage(): JSX.Element {
           <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-text-primary">{uiText("nav.openProject")}</h2>
-              <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
+              <DialogCloseButton onClick={() => setShowOpenProject(false)} />
             </div>
             <p className="px-5 pb-2 text-xs text-text-secondary">{uiText("ui.ProjectPage.chooseAProjectToOpenInThis")}</p>
             <div className="overflow-y-auto flex-1 px-3 pb-3">

@@ -10,9 +10,9 @@ it("archive 进历史并清空摘要", () => {
   expect(managePatch("archive", base)).toEqual({ lifecycle: "archived", reason: "用户收进历史", summary: "" });
 });
 
-it("restore 解除合并并恢复生命周期", () => {
-  expect(managePatch("restore", base)).toMatchObject({ unmerge: true, lifecycle: "active" });
-  expect(managePatch("restore", { ...base, kind: "activity" } as MemoryRecord).lifecycle).toBe("archived");
+it("restore 恢复生命周期", () => {
+  expect(managePatch("restore", base)).toMatchObject({ lifecycle: "active" });
+  expect(managePatch("restore", { ...base, kind: "activity" } as MemoryRecord).lifecycle).toBe("active");
 });
 
 it("restore 清掉已过期与未到生效的调度", () => {
@@ -30,4 +30,9 @@ it("edit 必须带上新结论，且原样透传", () => {
   expect(() => managePatch("edit", base)).toThrow();
   const input = { kind: "preference", text: "回答更简洁" } as never;
   expect(managePatch("edit", base, input)).toBe(input);
+});
+
+it("requires recovered prose when restoring an index-only historical entry",()=>{
+ const archived={...base,text:"",lifecycle:"archived" as const};expect(()=>managePatch("restore",archived)).toThrow("回查来源");
+ expect(managePatch("restore",archived,{kind:"preference",text:"从原来源恢复的偏好"})).toMatchObject({text:"从原来源恢复的偏好",lifecycle:"active"});
 });

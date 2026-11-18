@@ -351,7 +351,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
           />
           {step.promptType === "manual_code" && (
             <button type="button" onClick={() => void fillFromClipboard()}
-              className="shrink-0 h-8 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors"
+              className="settings-action"
             >{uiText("ui.OAuthLoginDialog.readClipboard")}</button>
           )}
           <button type="button" onClick={() => submit(input, step.promptType)} className="shrink-0 h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">{uiText("common.done")}</button>
@@ -384,9 +384,9 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
               <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">{uiText("ui.OAuthLoginDialog.selectReopenOrCopyTheLinkIf")}</p>
               <div className="flex gap-2 mt-2">
                 <button type="button" onClick={() => openUrl(phase.url)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.reopen")}</button>
+                  className="settings-action">{uiText("ui.OAuthLoginDialog.reopen")}</button>
                 <button type="button" onClick={() => copyUrl(phase.url)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.copyLink")}</button>
+                  className="settings-action">{uiText("ui.OAuthLoginDialog.copyLink")}</button>
               </div>
             </div>
           )}
@@ -397,9 +397,9 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
               <div className="mt-2 font-mono text-lg tracking-[0.2em] text-text-primary select-all">{phase.userCode}</div>
               <div className="flex items-center gap-2 mt-2">
                 <button type="button" onClick={() => openUrl(phase.verificationUri)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.openAuthorizationPage")}</button>
+                  className="settings-action">{uiText("ui.OAuthLoginDialog.openAuthorizationPage")}</button>
                 <button type="button" onClick={() => copyUrl(phase.userCode)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.copyDeviceCode")}</button>
+                  className="settings-action">{uiText("ui.OAuthLoginDialog.copyDeviceCode")}</button>
               </div>
               {phase.expiresInSeconds !== undefined && (
                 <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{uiText("ui.OAuthLoginDialog.deviceCode")}{Math.max(1, Math.round(phase.expiresInSeconds / 60))} {uiText("ui.OAuthLoginDialog.minutesRemaining")}</p>
@@ -437,7 +437,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
             phase.retryable ? (
               <>
                 <button type="button" onClick={dismiss}
-                  className="h-8 px-4 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors">{uiText("common.cancel")}</button>
+                  className="settings-action" data-tone="quiet">{uiText("common.cancel")}</button>
                 <button type="button" onClick={() => setRequestId(newRequestId())}
                   className="h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">{uiText("ui.ChatPanel.retry")}</button>
               </>
@@ -448,7 +448,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
             )
           ) : (
             <button type="button" onClick={dismiss} disabled={phase.kind === "success"}
-              className="h-8 px-4 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors disabled:opacity-40">{uiText("common.cancel")}</button>
+              className="settings-action" data-tone="quiet">{uiText("common.cancel")}</button>
           )}
         </div>
       </div>

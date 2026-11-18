@@ -1,8 +1,6 @@
 import type { MemoryMode } from "@shared/memory";
 import { useProcessDisclosure } from "./chat-process-disclosure";
 import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runningTurnPosition, executionLabel } from "./chat-turn-presentation";
-import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
-import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
 import { formatTokenCount } from "../lib/token-format";
 import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
@@ -17,7 +15,6 @@ import { sessionOverrides } from "@shared/session-resume-policy";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
 import { useChatStore, type FlowErrorCard } from "../stores/chat-store";
-import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 import { MARKDOWN_PROSE_CLASS, renderMarkdownToHtml } from "../lib/markdown";
 
 import { useStatusStore } from "../stores/status-store";
@@ -44,7 +41,6 @@ import { MintAvatar } from "./MintAvatar";
 import { CollaborationModePicker } from "./CollaborationModePicker";
 import { useConversationConfig, useConversationStore } from "../stores/conversation-store";
 import { useCollaborationModes } from "../hooks/useCollaborationModes";
-import { DOMAIN_GUIDANCE_MODE_ID } from "@shared/collaboration";
 import { ExecutionTimer } from "./ExecutionTimer";
 import type { StreamEntry } from "./StreamPanel";
 import { AssistantContent } from "./AssistantContent";
@@ -60,6 +56,7 @@ import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE, encodeAttachedImages, pe
 
 interface ChatPanelProps {
   projectPath: string;
+  active?: boolean;
   sessionId?: string;
   /** 设计会话标记(tab 直传,避免多新 tab 反查错配导致用错 Mint-D/Mint 模板) */
   isDesigner?: boolean;
@@ -187,7 +184,7 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
 /** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
 const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，使用用户所用的语言。";
 
-export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, active = true, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const locale = useUiLocale();
   const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -319,42 +316,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 手动切换时所在的会话 id:null = 会话创建前的选择(属"即将创建的新会话",不被新会话重置覆盖)
   const manualThinkingSidRef = useRef<string | null>(null);
   const conversationConfig = useConversationConfig();
-  const collaboration = useCollaborationModes(sid, isDesigner);
-  const [guidanceOffer, setGuidanceOffer] = useState<{ sessionId: string; reason: string } | null>(null);
-  useEffect(() => {
-    if (!window.electronAPI.agent.onGuidanceOffer) return;
-    return window.electronAPI.agent.onGuidanceOffer(offer => {
-      if (offer.sessionId === sidRef.current) setGuidanceOffer(offer);
-    });
-  }, [sid]);
-  useEffect(() => {
-    if (collaboration.ids.includes(DOMAIN_GUIDANCE_MODE_ID)) setGuidanceOffer(null);
-  }, [collaboration.ids]);
+  const collaboration = useCollaborationModes(sid, isDesigner, {created:Boolean(existingSid)||!sid.startsWith("__new_"),blocked:pendingFirstTurnRef.current});
   const [leavingStartCard, setLeavingStartCard] = useState(false);
   // 首条消息发送:输入卡片从居中平滑下移到底部(FLIP + WAAPI)。
-  // 目标位置可预测:卡片贴 ChatPanel 底部(input-card margin-bottom 16px),
-  // 无需等 virtualizer 占位——useLayoutEffect 绘制前设反位移(防首帧闪烁)
-  const flipDyRef = useRef<number | null>(null);
+  // Measure the input card itself: the draft-only mode row disappears in this layout change.
+  const beforeInputTop = useRef<number | null>(null);
   const startCardLeave = useCallback(() => {
-    const wrap = inputWrapRef.current;
-    if (!wrap) return;
-    const rect = wrap.getBoundingClientRect();
-    // 底部间距取卡片实际 margin-bottom（原硬编码 16px 与 CSS 耦合，改间距时容易漏改导致动画落点偏移）
-    const card = wrap.querySelector<HTMLElement>(".input-card");
-    const bottomGap = card ? parseFloat(getComputedStyle(card).marginBottom) || 0 : 0;
-    const targetTop = window.innerHeight - rect.height - bottomGap;
-    flipDyRef.current = rect.top - targetTop;
+    const card = inputWrapRef.current?.querySelector<HTMLElement>(".input-card");
+    if (card) beforeInputTop.current = card.getBoundingClientRect().top;
     setLeavingStartCard(false); // 布局切换:容器回底部(shrink-0),消息列表出现
   }, []);
 
   // FLIP 反位移在 useLayoutEffect 设置(DOM 更新后、浏览器绘制前同步执行):
   // 轮询/rAF 晚 1 帧——新位置已绘制,首帧闪回起点造成"抖动一下"
   useLayoutEffect(() => {
-    if (flipDyRef.current === null) return;
-    const dy = flipDyRef.current;
-    flipDyRef.current = null;
+    if (beforeInputTop.current === null) return;
+    const firstTop = beforeInputTop.current;
+    beforeInputTop.current = null;
     const el = inputWrapRef.current;
-    if (!el || Math.abs(dy) < 1) return;
+    const card = el?.querySelector<HTMLElement>(".input-card");
+    if (!el || !card || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const dy = firstTop - card.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
     // 绘制前设反位移(FLIP 起点),下一帧动画滑到 0
     el.style.willChange = "transform";
     el.style.transform = `translateY(${dy}px)`;
@@ -2227,7 +2210,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // local read so a very fast first send cannot race hydration and discard an explicit choice.
       await sessionHydrationRef.current;
       await memoryHydration.current;
-      const collaborationModeIds = await collaboration.getIds();
+      const collaborationModeIds = sendSessionId ? undefined : await collaboration.getIds();
       const overrides = sessionOverrides({
         existingSession: !!sendSessionId,
         modelOwned: sessionModelOwnedRef.current,
@@ -2260,6 +2243,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       pendingSend.resolveReady();
       if (pendingSendRef.current === pendingSend) pendingSendRef.current = null;
       abortedRunPendingRef.current = false;
+      collaboration.cancelCreation();
       pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null;
       const errText = uiText("ui.ChatPanel.sendFailedCheckYourConnectionAndTry");
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
@@ -2268,7 +2252,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 不说这一句的话用户只看到「发送失败」，不知道上下文已经被截断了
       if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: uiText("ui.ChatPanel.thisMessageHasLeftTheContextSelect"), afterRewind: true } : {}) });
     }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, collaboration.getIds, tabId, applyStopRewind]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, collaboration.getIds, collaboration.cancelCreation, tabId, applyStopRewind]);
 
   // ── 消息流错误卡片操作(3.5) ──────────────────────────
   const handleDismissError = useCallback((card: FlowErrorCard) => {
@@ -2360,29 +2344,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, [projectPath]);
 
   const hasMessages = messages.length > 0;
-
-  // Tool-call driven UI actions — Mint calls show_* tools, frontend detects tool_use entries
-  // 工具广播直连:Mint 调 show_confirm_dev 时立即显示(不受 busy 影响);
-  // 点击按钮消费后从消息中移除 show_* 条目,推断分支不再命中(打断/回合结束不会复活)。
-  // 成功工具结果保留作历史恢复兜底，覆盖后续AI说明气泡。
-  const [confirmDevRequest, setConfirmDevRequest] = useState<ConfirmDevelopmentRequest | null>(null);
-  useEffect(() => {
-    const off1 = window.electronAPI.agent.onConfirmDev(request => {
-      if (matchesConfirmDevelopment(request, projectPath, sidRef.current)) setConfirmDevRequest(request);
-    });
-    return () => { off1(); };
-  }, [projectPath]);
-  // 点击消费：清请求并移除当前回合的确认开发调用，防止历史推断复活。
-  const consumeShowTools = () => {
-    const store = useChatStore.getState();
-    const msgs: ChatMessage[] = store.messagesBySession[sidRef.current] || [];
-    const start = confirmationStart(msgs);
-    for (const message of msgs.slice(start)) {
-      if (message.role !== "ai" || !message.entries?.some(entry => entry.kind === "tool_use" && entry.name === "show_confirm_dev")) continue;
-      store.replaceAiEntriesById(sidRef.current, message.id, message.entries.filter(entry => !(entry.kind === "tool_use" && entry.name === "show_confirm_dev")));
-    }
-  };
-  const showConfirmDev = matchesConfirmDevelopment(confirmDevRequest, projectPath, sidRef.current) || (!busy && hasConfirmDevelopment(confirmationEntries(messages)));
 
   // ── 用户消息编辑重发(任意一条 user 气泡 → 级联撤回后重发) ──────────────
   // 铅笔常驻在每条 user 气泡下(用户已确认);可用性判据见 chat-utils.editUnavailableReason
@@ -2644,20 +2605,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const inputWrapRef = useRef<HTMLDivElement>(null);
   const renderChatInput = (
     <div ref={inputWrapRef}>
-      {guidanceOffer?.sessionId === sid && !collaboration.ids.includes(DOMAIN_GUIDANCE_MODE_ID) && <div className="mx-[var(--chat-content-inset)] mb-2 text-xs text-text-secondary flex items-center flex-wrap gap-3">
-        <span>{guidanceOffer.reason}</span>
-        <button type="button" disabled={!collaboration.ready} className="text-accent" onClick={() => {
-          void collaboration.change([...collaboration.ids, DOMAIN_GUIDANCE_MODE_ID]);
-        }}>{uiText("collaboration.enableGuidance")}</button>
-        <button type="button" className="text-text-muted" onClick={() => {
-          setGuidanceOffer(null);
-          void window.electronAPI.sessionCache.write(sid, { guidanceDeclined: true }).catch(error => toast(uiText("collaboration.failed", { detail: appMessage(String(error)) })));
-        }}>{uiText("collaboration.notNow")}</button>
-      </div>}
-      <div className="mx-[var(--chat-content-inset)] mb-2 flex items-center gap-2">
+      {collaboration.showPicker && <div className="mx-[var(--chat-content-inset)] mb-2 flex items-center gap-2">
         <CollaborationModePicker modes={conversationConfig?.modes ?? []} selected={collaboration.ids}
-          disabled={!conversationConfig || !collaboration.ready} onChange={ids => { void collaboration.change(ids); }} />
-      </div>
+          active={active}
+          disabled={!conversationConfig || !collaboration.ready || !collaboration.editable} onChange={ids => { void collaboration.change(ids); }} />
+      </div>}
       {/* 执行步骤条（Mint 执行追踪，用户只读）——todo_write 广播实时更新 */}
       <TodoStrip sessionId={sidRef.current} />
       {/* 打断丢弃插话的提示——紧贴输入卡：「我刚发出去那条到底发没发出去」与输入动作同一视线区域 */}
@@ -2679,6 +2631,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         </div>
       )}
       <ChatInput
+        active={active}
         projectPath={projectPath}
         busy={busy}
         attaches={attaches}
@@ -2898,16 +2851,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 );
               })}
             </div>
-            {showConfirmDev && (
-              <div className="flex justify-center pb-3">
-                <button
-                  onClick={() => { setConfirmDevRequest(null); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
-                  className="px-6 py-2.5 rounded-[var(--radius-lg)] btn-accent text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:-translate-y-px active:translate-y-0"
-                >
-                  {uiText("ui.ChatBlocks.confirmDevelopment")}</button>
-              </div>
-            )}
-
           </div>
         )}
         {/* Mint 提问卡片：独立于消息列表（空态也显示），渲染在滚动区尾部；宽度与输入卡片一致。

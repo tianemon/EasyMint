@@ -13,8 +13,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 export interface EvidenceProbe {
-  /** 执行只读命令，返回去空白 stdout，失败返回 null。 */
-  run(command: string): string | null;
+  /** 直接用参数执行只读 Git 命令，失败返回 null。 */
+  runGit(args: string[]): string | null;
   /** 走目录树，返回最新修改时间与文件数（可按实现限制深度与数量）。 */
   walk?(root: string): { latestMtime: number; count: number; topDirs: Array<{ dir: string; count: number }> } | null;
   now?(): number;
@@ -100,15 +100,16 @@ function lines(value: string | null): string[] {
 }
 
 function readGit(probe: EvidenceProbe): GitEvidence | undefined {
-  const head = probe.run("git rev-parse --short HEAD");
-  const count = probe.run("git rev-list --count HEAD");
-  if (!head || !count || !/^[0-9a-f]{4,}$/iu.test(head) || !/^\d+$/u.test(count)) return undefined;
-  const recent = lines(probe.run("git log -5 --pretty=%ad|%s --date=short")).flatMap((line) => {
+  const head = probe.runGit(["rev-parse", "--short", "HEAD"]);
+  if (!head || !/^[0-9a-f]{4,}$/iu.test(head)) return undefined;
+  const count = probe.runGit(["rev-list", "--count", "HEAD"]);
+  if (!count || !/^\d+$/u.test(count)) return undefined;
+  const recent = lines(probe.runGit(["log", "-5", "--pretty=%ad|%s", "--date=short"])).flatMap((line) => {
     const index = line.indexOf("|");
     return index > 0 ? [{ date: line.slice(0, index), subject: line.slice(index + 1) }] : [];
   });
-  const dirty = lines(probe.run("git status --porcelain")).length;
-  const seconds = Number(probe.run("git log -1 --format=%ct") ?? "");
+  const dirty = lines(probe.runGit(["status", "--porcelain"])).length;
+  const seconds = Number(probe.runGit(["log", "-1", "--format=%ct"]) ?? "");
   return {
     head,
     commits: Number(count),
@@ -120,7 +121,7 @@ function readGit(probe: EvidenceProbe): GitEvidence | undefined {
 
 /** 用 git 跟踪的文件清单统计改动集中目录：自动排除被 ignore 的临时目录与依赖。 */
 function trackedFiles(probe: EvidenceProbe, git: GitEvidence): FileEvidence | undefined {
-  const list = lines(probe.run("git ls-files"));
+  const list = lines(probe.runGit(["-c", "core.quotePath=false", "ls-files"]));
   if (!list.length) return undefined;
   const byTop = new Map<string, number>();
   for (const file of list) {

@@ -23,7 +23,7 @@ export function matchesCreationInput(record: PendingCreation | undefined, data: 
 }
 
 export function isRecoverableProject(record: PendingCreation, project: (Project & { exists?: boolean }) | undefined): project is Project & { exists: true } {
-  return !!project && project.exists === true && project.id === record.projectId
+  return !!project && project.exists === true && project.canResumeCreation === true && project.id === record.projectId
     && project.path === record.projectPath && project.name === record.name && project.status === "setup"
     && project.path.split(/[\\/]/).at(-1) === record.directoryName;
 }

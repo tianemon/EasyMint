@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {afterEach,expect,it} from "vitest";
+import {afterEach,expect,it,vi} from "vitest";
 import {readConclusionEntries} from "./source-reader";
 import {evidenceMessages,conclusionSnapshot} from "./source";
 const dirs:string[]=[];
@@ -27,4 +27,26 @@ it("preserves native edit semantics and rejects an abandoned branch",async()=>{
   expect(conclusionSnapshot(await evidenceMessages(await readConclusionEntries(changed.job)),"a")?.user?.text).toBe("用户已经更正");
   const abandoned=fixture([{type:"custom",id:"rewind",parentId:"u",timestamp:new Date().toISOString(),customType:"rewind-pin"}]);
   expect(await readConclusionEntries(abandoned.job)).toEqual([]);
+});
+
+it("loads complete steering/choice evidence with identical active and offline hashes, then reads only appended bytes",async()=>{
+ const f=fixture(),originalSize=fs.statSync(f.file).size;
+ await readConclusionEntries(f.job);
+ const answers=[{question:"选择",answer:"保留理由"}];
+ const rows=[
+ {type:"message",id:"u2",parentId:"a",timestamp:new Date().toISOString(),message:{role:"user",content:"请记住：我习惯中文",timestamp:4}},
+ {type:"message",id:"progress",parentId:"u2",timestamp:new Date().toISOString(),message:{role:"assistant",content:[{type:"text",text:"中间解释"}],stopReason:"toolUse",timestamp:5}},
+ {type:"message",id:"steering",parentId:"progress",timestamp:new Date().toISOString(),message:{role:"user",content:"还有，简短一些",timestamp:6}},
+ {type:"message",id:"choice",parentId:"steering",timestamp:new Date().toISOString(),message:{role:"toolResult",toolName:"ask_user",toolCallId:"choice",content:[{type:"text",text:"选择：保留理由"}],details:{memoryUserEvidence:"选择：保留理由",memoryUserAnswers:answers},timestamp:7}},
+ {type:"message",id:"a2",parentId:"choice",timestamp:new Date().toISOString(),message:{role:"assistant",content:[{type:"text",text:"完整结论"}],stopReason:"stop",timestamp:8}}];
+ fs.appendFileSync(f.file,rows.map(row=>JSON.stringify(row)).join("\n")+"\n");
+ const {bindConclusion}=await import("./source");const snapshot=conclusionSnapshot(await evidenceMessages([...f.entries,...rows]),"a2")!;
+ const job=bindConclusion(snapshot,{sessionId:"s",sessionFile:f.file,projectPath:path.dirname(f.file),version:3});
+ const fsp=(await import("node:fs/promises")).default,open=fsp.open,reads:Array<{length:number;position:number}>=[];
+ const spy=vi.spyOn(fsp,"open").mockImplementation((async(...args:Parameters<typeof open>)=>{const handle=await open(...args),read=handle.read.bind(handle);handle.read=((buffer:Buffer,offset:number,length:number,position:number)=>{reads.push({length,position});return read(buffer,offset,length,position);}) as typeof handle.read;return handle;}) as typeof open);
+ try{const offlineEntries=await readConclusionEntries(job);expect((offlineEntries.find((entry:any)=>entry.id==="choice") as any).message.details.memoryUserAnswers).toEqual(answers);
+ const offline=conclusionSnapshot(await evidenceMessages(offlineEntries),"a2")!;
+ expect(offline.hash).toBe(snapshot.hash);expect(offline.user?.text).toContain("简短一些");expect(offline.user?.text).toContain("选择：保留理由");
+ expect(reads.reduce((sum,read)=>sum+read.length,0)).toBeLessThan(32768);expect(reads.every(read=>read.position>=originalSize-4096)).toBe(true);
+ }finally{spy.mockRestore();}
 });

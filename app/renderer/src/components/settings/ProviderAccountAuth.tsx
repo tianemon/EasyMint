@@ -96,13 +96,13 @@ export function ProviderAccountAuth({ providerId, providerLabel, hint, status, o
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-text-primary">{uiText("ui.ProviderAccountAuth.loggedIn")}</span>
           <button type="button" onClick={() => void logout()} disabled={loggingOut}
-            className="h-7 px-3 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:text-danger transition-colors disabled:opacity-40">
+            className="settings-action" data-tone="danger">
             {loggingOut ? uiText("ui.ProviderAccountAuth.loggingOut") : uiText("ui.PluginsTab.logOut")}
           </button>
         </div>
       ) : (
         <button type="button" onClick={() => setLoginOpen(true)}
-          className="h-8 px-4 rounded-[var(--radius-lg)] btn-raised text-xs font-medium">{uiText("ui.OAuthLoginDialog.logIn")}{providerLabel}</button>
+          className="settings-action" data-tone="accent">{uiText("ui.OAuthLoginDialog.logIn")}{providerLabel}</button>
       )}
       {hint && <p className="text-[length:var(--text-2xs)] text-text-secondary mt-2">{appText(hint)}</p>}
       {loginOpen && (

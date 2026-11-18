@@ -155,7 +155,7 @@ function UsagePreview({ config }: { config: ProviderConfig }): JSX.Element {
       {error && <div role="status" className="text-text-secondary">{uiText(`ui.AccountUsage.error.${error}`)}</div>}
       <div className="flex items-center justify-between gap-3 pt-1 text-text-muted">
         <span>{snapshot ? uiText("ui.AccountUsage.updatedAt", {time:formatDate(snapshot.updatedAt, {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}) : uiText("ui.AccountUsage.noSnapshot")}</span>
-        <button type="button" disabled={loading} className="shrink-0 text-accent disabled:opacity-40" onClick={() => setAttempt(value => value + 1)}>{uiText(loading ? "ui.AccountUsage.refreshing" : "ui.AccountUsage.refresh")}</button>
+        <button type="button" disabled={loading} className="settings-action" onClick={() => setAttempt(value => value + 1)}>{uiText(loading ? "ui.AccountUsage.refreshing" : "ui.AccountUsage.refresh")}</button>
       </div>
     </div>, document.body)}
   </div>;

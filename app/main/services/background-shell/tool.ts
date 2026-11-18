@@ -15,7 +15,7 @@ import { spawn } from "node:child_process";
 import { createCodingAwareDecoder, createAnsiStripper, stripAnsi } from "./encoding";
 import { HumanActionDetector, type HumanAction } from "./human-action";
 import { ensureSandbox, wrapForSandbox, annotateSandboxFailures, isSandboxBypassedForMode } from "../sandbox/manager";
-import { EXECUTION_POLICY } from "../permission/wrap-tool";
+import { EXECUTION_POLICY, EXECUTION_START_CHECK } from "../permission/wrap-tool";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
 import { maskSecrets } from "../../utils/secret-mask";
 import { getOwnedSessionIds } from "../task/registry";
@@ -29,9 +29,23 @@ import { trackChild, untrackChild } from "../process-registry";
  * （HOME / TMPDIR / 包缓存重定向）在该路径上整体失效——而**关沙盒只换执行后端，不该跳过环境处理**。
  * 所以所有执行入口一律用 `wrapForSandbox` 产出的规格（它两条分支都带 env）。
  */
-export type ExecutionTarget =
-  | { argv: string[]; env: NodeJS.ProcessEnv; release?: () => Promise<void>; violationKey?: string; exemptReason?: string }
-  | { command: string; env: NodeJS.ProcessEnv; release?: () => Promise<void>; violationKey?: string; exemptReason?: string };
+export type ExecutionTarget = ({ argv: string[] } | { command: string }) & {
+  env: NodeJS.ProcessEnv;
+  release?: () => Promise<void>;
+  violationKey?: string;
+  exemptReason?: string;
+  assertCanStart?: () => void;
+};
+
+function assertExecutionCanStart(target: ExecutionTarget, signal?: AbortSignal): void {
+  try {
+    signal?.throwIfAborted();
+    target.assertCanStart?.();
+  } catch (error) {
+    void target.release?.();
+    throw error;
+  }
+}
 
 /**
  * 组合实际 spawn 用的环境：基准**只能**是已编译的执行环境，`PI_*` 是唯一允许追加的来源。
@@ -42,7 +56,7 @@ export type ExecutionTarget =
  */
 export function composeExecutionEnvironment(
   baseEnv: NodeJS.ProcessEnv | undefined,
-  ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string } },
+  ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string | undefined } },
 ): Record<string, string> {
   const env: Record<string, string> = { ...(baseEnv as Record<string, string> | undefined) };
   if (!ctx) return env;
@@ -69,7 +83,7 @@ export function composeExecutionEnvironment(
  * 到那时谁也说不清"这条命令到底受不受管"（这正是 Codex 把 `excludedCommands` 写进文档的原因）。
  */
 type TextItem = { type: "text"; text: string };
-type ToolResult = { content: TextItem[]; details: unknown };
+type ToolResult = { content: TextItem[]; details: unknown; isError?: boolean };
 
 /** 工具结果统一构造：SDK 的 AgentToolResult 要求 details 必填、content 的 type 为字面量。 */
 const ok = (text: string, details: unknown = undefined): ToolResult => ({ content: [{ type: "text", text }], details });
@@ -77,7 +91,7 @@ const ok = (text: string, details: unknown = undefined): ToolResult => ({ conten
 function appendExemptNote(result: ToolResult, reason: string): ToolResult {
   const last = result.content[result.content.length - 1];
   if (!last) return result;
-  return { content: [...result.content.slice(0, -1), { type: "text", text: `${last.text}\n[沙盒豁免] ${reason}` }], details: result.details };
+  return { ...result, content: [...result.content.slice(0, -1), { type: "text", text: `${last.text}\n[沙盒豁免] ${reason}` }] };
 }
 
 /** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示 + PI_* 环境注入)
@@ -88,7 +102,7 @@ export async function executeForeground(
   cwd: string,
   signal: AbortSignal | undefined,
   timeoutSec?: number,
-  ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string } },
+  ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string | undefined } },
   /** SDK 增量回调:执行中把输出片段推给 UI(无则跳过,后台/无 UI 场景不受影响) */
   onUpdate?: (partial: ToolResult) => void,
   /** 输出里出现「需要人操作」信号时的回调(前台阻塞时同样要能交接,否则 npm login 只能挂到超时) */
@@ -109,6 +123,7 @@ export async function executeForeground(
     if (ctx) {
       (opts as { env?: Record<string, string> }).env = composeExecutionEnvironment(opts.env, ctx);
     }
+    assertExecutionCanStart(command, signal);
     const child = spawn(file, args, opts);
     // 登记进退出清场：退出瞬间这条命令若还在跑（长命令/dev server），随 EM 一起收掉。
     // detached 取自 spawn 规格（Unix 下 resolveSpawn 给 shell:true + detached → 可整组杀）
@@ -126,9 +141,11 @@ export async function executeForeground(
         }, timeoutSec * 1000)
       : null;
     const killTree = () => {
+      if (finished) return;
       try {
         if (process.platform === "win32" && child.pid) {
-          spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
+          spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
+            .once("error", () => { if (!finished) child.kill(); });
         } else if (child.pid) {
           process.kill(-child.pid, "SIGKILL");
         }
@@ -164,23 +181,23 @@ export async function executeForeground(
     };
     child.stdout?.on("data", (c: Buffer) => { if (finished) return; const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); scanHuman(s); });
     child.stderr?.on("data", (c: Buffer) => { if (finished) return; const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); scanHuman(s); });
-    child.on("error", (err) => {
-      if (finished) return;
+    const settle = () => {
       finished = true;
+      signal?.removeEventListener("abort", killTree);
       untrackChild(child);
       if (timer) clearTimeout(timer);
       flushDelta();
-      if (typeof command !== "string") void command.release?.();
+      void command.release?.();
+    };
+    child.on("error", (err) => {
+      if (finished) return;
+      settle();
       reject(new Error(`命令启动失败 (${file}): ${err.message}`));
     });
     // exit can precede drained stdio: https://nodejs.org/api/child_process.html#event-close
-    child.on("close", (code) => {
+    child.on("close", (code, exitSignal) => {
       if (finished) return;
-      finished = true;
-      untrackChild(child);
-      if (timer) clearTimeout(timer);
-      flushDelta();
-      if (typeof command !== "string") void command.release?.();
+      settle();
       output += outAnsi.feed(outDec.finish()) + outAnsi.finish();
       errOutput += errAnsi.feed(errDec.finish()) + errAnsi.finish();
       // 沙盒违规注解：seatbelt / 代理产生的拦截在此转成可读说明。
@@ -189,17 +206,13 @@ export async function executeForeground(
       if (command.violationKey) errOutput = annotateSandboxFailures(command.violationKey, errOutput);
       // 凭据脱敏：agent 若违规内联密码/连接串，明文不进模型可见的输出
       const text = maskSecrets([output, errOutput].filter(Boolean).join("\n") || "(无输出)");
-      if (timedOut) {
-        resolve(ok(`${text}\n\n(命令超时,已中止)`));
-        return;
-      }
-      // 输出截断提示(对齐 Pi:超过 8KB 仅显示尾部)
-      if (Buffer.byteLength(text, "utf-8") > 8192) {
-        const tail = text.slice(-6000);
-        resolve(ok(`${tail}\n\n[输出过长,仅显示尾部。完整输出见日志]`));
-        return;
-      }
-      resolve(ok(code === 0 ? text : `${text}\n\n(退出码: ${code})`));
+      const outputText = Buffer.byteLength(text, "utf-8") > 8192
+        ? `${text.slice(-6000)}\n\n[输出过长，仅显示尾部]` : text;
+      const status = timedOut ? "命令超时，已中止" : signal?.aborted ? "命令已中止"
+        : code === null ? `命令已终止${exitSignal ? `（${exitSignal}）` : ""}` : "";
+      const exitCode = typeof code === "number" && code !== 0 ? `退出码: ${code}` : "";
+      const failure = [status, exitCode].filter(Boolean).join("；");
+      resolve(failure ? { ...ok(`${outputText}\n\n(${failure})`), isError: true } : ok(outputText));
     });
     if (signal) {
       if (signal.aborted) killTree();
@@ -341,6 +354,7 @@ export async function createEnhancedBashTool(
         execTarget = spec.kind === "argv"
           ? { argv: spec.argv, env: spec.env, release: spec.release, violationKey: spec.violationKey, exemptReason: spec.exemptReason }
           : { command: spec.command, env: spec.env, release: spec.release, violationKey: spec.violationKey, exemptReason: spec.exemptReason };
+        execTarget.assertCanStart = Reflect.get(params, EXECUTION_START_CHECK) as ExecutionTarget["assertCanStart"];
       } catch (e) {
         return {
           content: [{
@@ -363,7 +377,7 @@ export async function createEnhancedBashTool(
           onUpdate,
           options?.onHumanAction ? (action) => options.onHumanAction!(command, action) : undefined,
         );
-        const wrapped: ToolResult = { content: result.content, details: undefined };
+        const wrapped: ToolResult = { ...result, details: undefined };
         return execTarget.exemptReason ? appendExemptNote(wrapped, execTarget.exemptReason) : wrapped;
       }
 
@@ -374,6 +388,7 @@ export async function createEnhancedBashTool(
       try { shellSessionId = ctx?.sessionManager?.getSessionId?.(); } catch { /* 会话信息不可用 */ }
       // displayCommand 只在"命令被沙盒包装过"时才需要覆盖（否则面板会显示包装串）；
       // violationKey 是"确实走过沙盒路径"的可靠标志（豁免与原生执行都没有）。
+      assertExecutionCanStart(execTarget, signal);
       const { id, logPath } = backgroundShellRegistry.start(
         execTarget,
         context.workspaceRealPath,

@@ -21,6 +21,7 @@ export interface UpdateStatusState {
 /** 关于:版本号 + 更新检测 + 开源链接 */
 export function AboutTab(): JSX.Element {
   const { t } = useTranslation();
+  const downloadManually = window.electronAPI?.platform === "linux";
   const isDark = useThemeStore((s) => s.effective) === "dark";
   const [appVersion, setAppVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatusState>({ status: "idle" });
@@ -80,7 +81,8 @@ export function AboutTab(): JSX.Element {
           <button
             type="button"
             className="w-5 h-5 flex items-center justify-center text-text-secondary hover:text-accent transition-colors"
-            aria-label={t("about.checkUpdates")}
+            aria-label={t(downloadManually ? "about.releaseDownloads" : "about.checkUpdates")}
+            title={downloadManually ? t("about.releaseDownloads") : undefined}
             onClick={handleCheckUpdate}
             disabled={checking}
            
@@ -187,7 +189,7 @@ export function AboutTab(): JSX.Element {
 
       <button
         type="button"
-        className="em-hover-control px-4 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary transition-all"
+        className="settings-action"
         onClick={handleRerunOnboarding}
       >
         {t("about.rerunOnboarding")}

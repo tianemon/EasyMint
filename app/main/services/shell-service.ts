@@ -5,7 +5,6 @@ import { createCodingAwareDecoder } from "./background-shell/encoding";
 import { isSystemMutationCommand } from "./permission/agent-permission-service";
 import { ensureSandbox, wrapForSandbox, annotateSandboxFailures } from "./sandbox/manager";
 import { createExecutionContext } from "./permission/execution-context";
-import { sandboxGitBashPath } from "./background-shell/registry";
 
 /** 看门狗阈值：10 分钟没有任何输出、或总时长超过 60 分钟，就停掉并说明原因。
  *  两者都刻意给得宽——宁可晚一点收，也不要误杀正常的长时间构建。 */
@@ -51,10 +50,9 @@ export async function execShell(
   try {
     spec = await wrapForSandbox(command, {
       context: createExecutionContext(cwd, "standard"),
-      gitBashPath: sandboxGitBashPath(),
     });
   } catch (e) {
-    return { code: -1, stdout: "", stderr: `安全执行包装失败：${(e as Error).message}` };
+    return { code: -1, stdout: "", stderr: `命令执行准备失败：${(e as Error).message}` };
   }
   return new Promise((resolve) => {
     // Unix 下 detached：与前台 bash / 后台 shell 同策略，让命令自成进程组，

@@ -1,7 +1,7 @@
 import { registerMemoryIpc } from "./services/memory/ipc";
 import { FORM_ASSIST_KINDS } from "../shared/form-assist";
 import { FormAssistService } from "./services/form-assist-service";
-import { saveProjectDesign } from "./services/project-design";
+import { saveCreationProjectAssets } from "./services/project-design";
 import { parseNativeAiSettings } from "../shared/native-ai";
 import { saveUiLanguage, getUiLanguageState, t } from "./services/ui-language";
 import { isUiLanguage } from "../shared/i18n/locale";
@@ -11,7 +11,7 @@ import fs from "fs";
 import { createProviderUsageService } from "./services/provider-usage";
 import os from "os";
 import { randomUUID } from "node:crypto";
-import { ProjectService } from "./services/project-service";
+import { ProjectService,creationSessionReady } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService, getDesignSessionIds, respondAsk } from "./services/agent-service";
 import { Store } from "./services/store";
@@ -89,7 +89,7 @@ import {
   unarchiveSession,
   setLiveSessionLookup,
 } from "./services/session-service";
-import { readCache, writeCache, deleteCache } from "./services/session-cache";
+import { readCache, writeCache, writeClientCache, deleteCache } from "./services/session-cache";
 import { listIssues, addIssue, setStatus, updateIssue, deleteIssue } from "./services/issue-service";
 import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
@@ -240,7 +240,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // project:*
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
-  ipcMain.handle("project:check-dir", (_e, { dir, name }: { dir: string; name: string }) => projectService.checkTargetDir(dir, name));
+  ipcMain.handle("project:check-dir", (_e, { dir, name, projectName }: { dir: string; name: string; projectName?: string }) => projectService.checkTargetDir(dir, name, projectName));
   // 所有窗口当前打开的项目 id（hash 路由 #/project/{id}）——正被任何窗口打开的项目禁止删除
   ipcMain.handle("project:opened-in-windows", () => {
     return listOpenProjectIds();
@@ -284,10 +284,18 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     // 项目根可能为 null（路径不属于任何已登记项目）：不抛错也不返回空串，交给 FileService 出原因码，
     // 渲染层据此提示（原先把「越界」与「不存在」都压成 ""，界面是一片空白）
     fileService.readContent(projectRootContaining(data.filePath), data.filePath)));
-  ipcMain.handle("file:writeContent", guard(z.object({ filePath: pathString, content: z.string() }).loose(), (data) =>
-    fileService.writeContent(projectRootContaining(data.filePath) ?? "", data.filePath, data.content)));
-  ipcMain.handle("file:createFile", guard(z.object({ filePath: pathString, content: z.string().optional() }).loose(), (data) =>
-    fileService.createFile(projectRootContaining(data.filePath) ?? "", data.filePath, data.content ?? "")));
+  ipcMain.handle("file:writeContent", guard(z.object({ filePath: pathString, content: z.string(), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) }).loose(), (data) => {
+    const baseDir = projectRootContaining(data.filePath) ?? "";
+    return fileService.writeContent(baseDir, data.filePath, data.content, data.expectedHash, () => {
+      if (!baseDir || projectRootContaining(data.filePath) !== baseDir) throw new Error("项目目录已变更或不可用，请重新打开项目后重试");
+    });
+  }));
+  ipcMain.handle("file:createFile", guard(z.object({ filePath: pathString, content: z.string().optional() }).loose(), (data) => {
+    const baseDir = projectRootContaining(data.filePath) ?? "";
+    return fileService.createFile(baseDir, data.filePath, data.content ?? "", () => {
+      if (!baseDir || projectRootContaining(data.filePath) !== baseDir) throw new Error("项目目录已变更或不可用，请重新打开项目后重试");
+    });
+  }));
   ipcMain.handle("file:createFolder", guard(z.object({ dirPath: pathString }).loose(), (data) =>
     fileService.createFolder(projectRootContaining(data.dirPath) ?? "", data.dirPath)));
 
@@ -370,7 +378,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds, memoryMode }) => {
     bindPiExtensionWindow(projectPath, event.sender.id);
     try {
-      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds), memoryMode === undefined ? undefined : z.enum(["record", "use", "off"]).parse(memoryMode));
+      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds), memoryMode === undefined ? undefined : z.enum(["record", "use", "off"]).parse(memoryMode),creationSessionReady(projectService,projectPath,sessionId,systemPayload));
       broadcast("agent:stream", {
         type: "user_message",
         sessionId: result.sessionId,
@@ -481,11 +489,17 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent-template:delete", (_e, { id, revision }) => { deleteTemplate(id, revision); });
   ipcMain.handle("agent-template:restore", (_e, { id, revision }) => restoreTemplate(id, revision));
   ipcMain.handle("conversation:config", () => getConversationConfig());
-  ipcMain.handle("conversation:modes", (_e, { sessionId, legacyDesigner }) => {
+  ipcMain.handle("conversation:modes", (_e, { sessionId, legacyDesigner, created }) => {
     const saved = readCache(sessionId)?.collaborationModeIds;
-    if (saved !== undefined) return saved;
-    if (legacyDesigner || getDesignSessionIds().includes(sessionId)) return [UI_DESIGN_MODE_ID];
-    return sessionId.startsWith("__new_") ? getConversationConfig().modes.filter(mode => mode.defaultEnabled).map(mode => mode.id) : [];
+    if (saved !== undefined) {
+      if((created||!sessionId.startsWith("__new_"))&&!readCache(sessionId)?.collaborationModesLocked)writeCache(sessionId,{collaborationModesLocked:true});
+      return saved;
+    }
+    const draft=!created&&sessionId.startsWith("__new_");
+    const modes=legacyDesigner || getDesignSessionIds().includes(sessionId) ? [UI_DESIGN_MODE_ID]
+      : draft ? getConversationConfig().modes.filter(mode => mode.defaultEnabled).map(mode => mode.id) : [];
+    if(!draft)writeCache(sessionId,{collaborationModeIds:modes,collaborationModesLocked:true});
+    return modes;
   });
   const conversationChanged = (config: ReturnType<typeof getConversationConfig>) => {
     broadcast("conversation:changed", config);
@@ -678,7 +692,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     if (data && typeof data === "object" && !Array.isArray(data) && (data as { permissionMode?: unknown }).permissionMode !== undefined) {
       await withSessionCreationLock(async () => {
         const previous = readCache(sessionId)?.permissionMode;
-        writeCache(sessionId, data);
+        writeClientCache(sessionId, data);
         // 任何权限收紧（full → standard/readonly、standard → readonly）都要撤销旧执行上下文；
         // 只写其它字段（不发 permissionMode）时不动。
         const next = (data as { permissionMode?: unknown }).permissionMode as string | undefined;
@@ -696,7 +710,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       });
       return;
     }
-    writeCache(sessionId, data);
+    writeClientCache(sessionId, data);
   });
   ipcMain.handle("session-cache:delete", (_e, { sessionId }) => { deleteCache(sessionId); });
 
@@ -849,6 +863,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       store.saveSettings(settings);
     }
     // 原生配置已完成保存和重载，更新已开会话所引用的模型参数。
+    if (key === "apiProviders" || key === "nativeAi" || key === "model") agentService.memory.frontActivity();
     if (key === "apiProviders" || key === "nativeAi") {
       // 已开会话的模型对象在创建时绑定,配置改动默认不生效 → 重建(输出中的会话跳过)
       try {
@@ -878,6 +893,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     forgetAccountUsage(data.providerId);
     const result = await loginProvider(store, data.providerId, data.requestId);
     if (result.ok) {
+      agentService.memory.frontActivity();
       forgetAccountUsage(data.providerId);
       broadcast("provider:authEvent", {providerId:data.providerId,requestId:data.requestId,event:{kind:"credentials_changed"}});
     }
@@ -896,6 +912,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     forgetAccountUsage(data.providerId);
     const result = await logoutProvider(store, data.providerId);
     if (result.ok) {
+      agentService.memory.frontActivity();
       forgetAccountUsage(data.providerId);
       broadcast("provider:authEvent", {providerId:data.providerId,requestId:"logout",event:{kind:"credentials_changed"}});
     }
@@ -942,22 +959,17 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
 
   // project:saveProfile — 持久化项目产品类型规范(NewProjectDialog 创建时写入,
-  // 主进程 buildSystemPrompt 读取注入 Mint 提示词)
+  // 初始化/重试仅同步仍由宿主拥有的规则形态段，不作为系统开发规范注入)
   ipcMain.handle("project:saveProfile", (_e, { projectPath, platformSpec, visualSelection }) => {
     try {
       if (!projectPath || (typeof platformSpec !== "string")) return { ok: false, error: "缺少参数" };
-      if (visualSelection) {
-        const registeredRoot = projectRootContaining(projectPath);
-        if (!registeredRoot || p.resolve(registeredRoot) !== p.resolve(projectPath)) throw new Error("Unknown project directory");
-        saveProjectDesign(projectPath, { ...visualSelection, locale: getUiLanguageState(store).locale }, platformSpec);
-        return { ok: true };
-      }
+      const registeredRoot = projectRootContaining(projectPath);
+      if (!registeredRoot || p.resolve(registeredRoot) !== p.resolve(projectPath)) throw new Error("Unknown project directory");
       if (!platformSpec) return { ok: false, error: "缺少参数" };
-      const dir = p.join(projectPath, ".easymint");
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(p.join(dir, "project-profile.json"),
-        JSON.stringify({ ...(fs.existsSync(p.join(dir, "project-profile.json")) ? JSON.parse(fs.readFileSync(p.join(dir, "project-profile.json"), "utf-8")) : {}), platformSpec, savedAt: Date.now() }, null, 2), "utf-8");
-      return { ok: true };
+      const result = projectService.saveCreationProfile(projectPath, platformSpec, () => saveCreationProjectAssets(
+        projectPath, platformSpec, visualSelection ? { ...visualSelection, locale: getUiLanguageState(store).locale } : undefined,
+      ));
+      return {ok:true,...result};
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }

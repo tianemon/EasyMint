@@ -11,6 +11,14 @@ afterEach(() => {
   sent.events.length = 0;
 });
 describe("user question cancellation", () => {
+  it.each(["不要", "是"])("keeps actual question and answer separate from the display text: %s", async answer => {
+    const tool=await createAskUserTool("quality-ask"),question="要忘记这条记忆吗？";
+    const work=tool.execute("call",{questions:[{id:"q",question}]},new AbortController().signal,undefined,{} as never);
+    const pending=getPendingAskSnapshots("quality-ask");expect(pending).toHaveLength(1);
+    respondAsk(pending[0]!.requestId,[{questionId:"q",values:[answer]}]);
+    const result=await work,text=result.content.find(part=>part.type==="text");expect(text?.type==="text"?text.text:undefined).toBe(`${question}\n${answer}`);
+    expect(result.details).toMatchObject({memoryUserEvidence:`${question}\n${answer}`,memoryUserAnswers:[{question,answer}]});
+  });
   it("does not open a pending question when the tool already has an aborted signal", async () => {
     const tool = await createAskUserTool("quality-ask");
     const controller = new AbortController(); controller.abort();

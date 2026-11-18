@@ -10,6 +10,7 @@ import { conf as mdConf, language as mdLanguage } from "../lib/markdown-monarch"
 import { dirOf, isMarkdownPath } from "../lib/markdown-path";
 import { MarkdownView } from "./MarkdownView";
 import { FILE_READ_HINTS } from "@shared/file-read";
+import { toast } from "./ui/Toast";
 
 // Load Monaco from local bundle, not CDN.
 // Worker loading handled by @dvaji/vite-plugin-monaco-editor
@@ -113,6 +114,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   const [saved, setSaved] = useState(false);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dirtyRef = useRef(false);
+  const fileVersion = useRef<{ path: string; hash: string } | null>(null);
+  const loadRequest = useRef(0);
+  const savePending = useRef(false);
 
   // 主题是全局的（monaco.setTheme），多个文件 tab 的 EditorPanel 实例共存时
   // 会互相覆盖——只有当前激活的实例才设置主题（切 tab 激活变化触发）。
@@ -164,40 +168,57 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   // Load file content：失败给一句可读的提示（原因码 → 文案），不留一片空白编辑器
   // （口径见 @shared/file-read：空文件与读失败必须区分得开）
   const load = useCallback(async (): Promise<void> => {
+    const request = ++loadRequest.current;
+    fileVersion.current = null;
     if (!filePath) { setContent(""); setError(null); dirtyRef.current = false; return; }
     setLoading(true);
     setError(null);
     dirtyRef.current = false;
     try {
       const res = await window.electronAPI.file.readContent(filePath);
-      if (res.ok) setContent(res.content);
+      if (request !== loadRequest.current) return;
+      if (res.ok) { setContent(res.content); fileVersion.current = { path: filePath, hash: res.hash }; }
       else { setContent(""); setError(FILE_READ_HINTS[res.reason]); }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : uiText("ui.EditorPanel.couldNotLoadFile"));
+      if (request === loadRequest.current) setError(e instanceof Error ? e.message : uiText("ui.EditorPanel.couldNotLoadFile"));
     } finally {
-      setLoading(false);
+      if (request === loadRequest.current) setLoading(false);
     }
   }, [filePath]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadRequest.current++; fileVersion.current = null; }; }, [load]);
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
     editor.addCommand(2097 /* KeyMod.CtrlCmd | KeyCode.KeyS */, () => {
-      if (!filePath) return;
+      if (!filePath || savePending.current) return;
+      const version = fileVersion.current;
+      if (!version || version.path !== filePath) { toast(uiText("ui.EditorPanel.fileVersionUnavailable")); return; }
       const text = editor.getValue();
-      window.electronAPI.file.writeContent(filePath, text).then(() => {
+      savePending.current = true;
+      window.electronAPI.file.writeContent(filePath, text, version.hash).then(result => {
+        if (fileVersion.current?.path !== filePath) return;
+        fileVersion.current = { path: filePath, hash: result.hash };
+        // A save acknowledges its submitted snapshot, never edits typed while it was pending.
+        if (editorRef.current !== editor || editor.getValue() !== text) return;
         const tabs = useTabStore.getState().tabs;
         const tab = tabs.find((t) => t.filePath === filePath);
         if (tab) useTabStore.getState().setDirty(tab.id, false);
         dirtyRef.current = false;
         setSaved(true);
         setTimeout(() => setSaved(false), 1500);
-      });
+      }).catch(cause => {
+        toast(appText(cause instanceof Error ? cause.message : String(cause)));
+        if (fileVersion.current?.path !== filePath) return;
+        dirtyRef.current = true;
+        const tab = useTabStore.getState().tabs.find(value => value.filePath === filePath);
+        if (tab) useTabStore.getState().setDirty(tab.id, true);
+      }).finally(() => { savePending.current = false; });
     });
   };
 
   const handleChange = () => {
+    setSaved(false);
     if (fileName && !dirtyRef.current) {
       dirtyRef.current = true;
       const tabs = useTabStore.getState().tabs;

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage, mapSessionMessages, followDecision, USER_INPUT_WINDOW_MS } from "./chat-utils";
 import { useDelegationStore } from "../stores/delegation-store";
 import { Modal } from "./ui/Modal";
+import { DialogCloseButton } from "./ui/DialogCloseButton";
 import { SubagentTranscript } from "./SubagentTranscript";
 import { applySubagentEvent, mergeSubagentHistory, updateSubagentActivity, type SubagentActivity } from "./subagent-transcript";
 
@@ -150,13 +151,7 @@ export function SubagentProcessView({
             {running && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
             {running ? uiText("ui.OutputWindow.running") : uiText("ui.OutputWindow.finished")}
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 w-6 h-6 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         {/* 消息区：复用主会话的分段、实时状态与完成折叠 */}

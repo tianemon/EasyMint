@@ -4,6 +4,7 @@ import { appText } from "../lib/i18n";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useMemo, useEffect, useRef, memo } from "react";
 import { ThinkingIcon } from "./ThinkingIcon";
+import { knowledgeToolLabel } from "./tool-activity";
 import { useFoldBody } from "./ui/useFoldBody";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
@@ -28,6 +29,8 @@ function baseName(p: string): string {
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
   get memory() { return uiText("memory.title"); },
+  get experience() { return uiText("experience.title"); },
+  get search_experiences() { return uiText("experience.search"); },
   get generate_image() { return uiText("pi.generateImage"); },
   get bash() { return uiText("ui.ChatBlocks.command"); }, get edit() { return uiText("menu.edit"); }, get read() { return uiText("ui.ChatBlocks.view"); }, get write() { return uiText("ui.ChatBlocks.write"); }, get grep() { return uiText("ui.ChatBlocks.searchFiles"); },
   get find() { return uiText("ui.ChatBlocks.findFiles"); }, get ls() { return uiText("ui.ChatBlocks.listDirectory"); }, powershell: "PowerShell",
@@ -35,6 +38,7 @@ const TOOL_LABELS: Record<string, string> = {
   get read_agent_log() { return uiText("ui.ChatBlocks.readLogs"); }, get stop_agent() { return uiText("ui.ChatBlocks.stopAgent"); },
   get use_skill() { return uiText("ui.ChatBlocks.loadSkill"); }, get manage_skill() { return uiText("ui.ChatBlocks.manageSkills"); }, get learn() { return uiText("ui.ChatBlocks.saveExperience"); },
   get import_skill() { return uiText("ui.ChatBlocks.import"); }, get import_mcp_server() { return uiText("ui.ChatBlocks.import"); },
+  // Retired tool calls remain readable in existing chat history.
   get show_confirm_dev() { return uiText("ui.ChatBlocks.confirmDevelopment"); }, get refresh_tasks() { return uiText("ui.ChatBlocks.refreshTasks"); },
   get set_task_status() { return uiText("ui.ChatBlocks.updateTask"); }, get show_prototype() { return uiText("ui.ChatBlocks.previewPrototype"); },
   get list_issues() { return uiText("ui.ChatBlocks.viewIssues"); }, get set_issue_status() { return uiText("ui.ChatBlocks.updateIssue"); },
@@ -68,7 +72,7 @@ function toolIconPaths(name: string): JSX.Element | null {
     case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
       return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
     // 知识/技能(wrench)
-    case "memory": case "use_skill": case "manage_skill":
+    case "memory": case "experience": case "learn": case "search_experiences": case "use_skill": case "manage_skill":
     case "import_skill": case "import_mcp_server":
       return (<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>);
     // MCP 工具调用(plug 插头)
@@ -925,11 +929,8 @@ function toolDetailLabel(item: ToolItem): string | null {
     if (action) return uiText("ui.ChatBlocks.skillManagement", { v0: action });
     return uiText("ui.ChatBlocks.skillManagement2");
   }
-  if (n === "memory") {
-    const action=String(inp.action ?? "");
-    const labels:Record<string,string>={save:uiText("memory.add"),search:uiText("memory.search"),read:uiText("ui.ChatBlocks.view"),update:uiText("memory.edit"),forget:uiText("memory.forget"),edit:uiText("memory.edit"),archive:uiText("memory.archive"),restore:uiText("memory.restore"),accept:uiText("memory.accept"),reject:uiText("memory.reject"),merge:uiText("memory.merge"),cancel:uiText("memory.cancelScheduled")};
-    return labels[action] ?? uiText("memory.title");
-  }
+  const knowledge = knowledgeToolLabel(n, inp);
+  if (knowledge) return knowledge;
   return null;
 }
 
@@ -963,7 +964,8 @@ function SingleToolCard({ item, streaming, initiallyExpanded = false }: { item: 
   // 漏掉它 → isMcp=false → titleDetail=null,那段就成了算出来却永不显示的死代码
   const isMcp = item.name.toLowerCase().startsWith("mcp__")
     || item.name === "call_mcp_tool" || item.name === "search_mcp_tools";
-  const titleDetail = isMcp ? detailLabel : null;
+  const knowledgeDetail = ["memory", "experience"].includes(item.name.toLowerCase()) ? knowledgeToolLabel(item.name, item.input) : null;
+  const titleDetail = isMcp ? detailLabel : knowledgeDetail !== label ? knowledgeDetail : null;
   // _intent 由模型填(仅 MCP——schema 是我们拼给模型看的那份,执行前已剥掉);
   // 取不到时回退到参数摘要,让老会话/漏填时也能看出做了什么。
   // web_search / web_fetch 同样填(它们的 _intent 是我们自己的内置工具加的,与 MCP 同一套机制);

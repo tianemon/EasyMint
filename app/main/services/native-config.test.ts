@@ -35,6 +35,19 @@ const custom = {
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
 
 describe("pi-native configuration", () => {
+  it("keeps the model route fingerprint stable across OAuth token refreshes", async () => {
+    const { store, file } = fixture();
+    const config = await NativeConfig.create(store);
+    const credentials = (access: string) => ({ "openai-codex": { type: "oauth", access, refresh: "fixture" } });
+    atomicWrite(file("auth"), encode(credentials("initial")));
+    const before = config.modelConfigRevision();
+    const routing = config.modelConfigRevision(false);
+    atomicWrite(file("auth"), encode(credentials("rotated")));
+    expect(config.modelConfigRevision()).not.toBe(before);
+    expect(config.modelConfigRevision(false)).toBe(routing);
+    atomicWrite(file("settings"), encode({ defaultProvider: "other", defaultModel: "other" }));
+    expect(config.modelConfigRevision(false)).not.toBe(routing);
+  });
   it("switches the real SDK default provider and endpoint even when model ids are identical", async () => {
     const provider = (id: string, port: number) => ({ ...custom, id, name:id, model:"shared",models:["shared"],baseUrl:`http://127.0.0.1:${port}/v1`,extraModels:[{...custom.extraModels[0],id:"shared"}] });
     const one=provider("custom-switch-a",11111),two=provider("custom-switch-b",22222);

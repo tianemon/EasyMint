@@ -294,6 +294,8 @@ export function ColorPickerPanel({ value, onChange, onClose, anchorRect, anchorE
       {/* hex 输入行 + 当前色预览 */}
       <div className="flex items-center gap-2">
         <input
+          aria-label={uiText("ui.ColorPicker.hexValue")}
+          placeholder="#1a2b3c"
           value={hexText}
           onChange={(e) => setHexText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") commitHex(true); }}

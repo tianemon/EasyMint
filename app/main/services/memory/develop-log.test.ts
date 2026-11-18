@@ -1,4 +1,7 @@
 import { expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import {buildDeliverables,KEY_PROGRESS} from "./deliverables";
 import {
   EMPTY_DEVELOP_LOG,
   latestRecordDate,
@@ -66,4 +69,38 @@ it("latestRecordDate 取快照、索引与 git 提交日的最大值", () => {
   expect(latestRecordDate(log)).toBe("2026-11-15");
   expect(latestRecordDate(log, "2026-11-16")).toBe("2026-11-16");
   expect(latestRecordDate(EMPTY_DEVELOP_LOG)).toBeUndefined();
+});
+
+it("直接解析 dev-docs 技能的导航样例，保留进展并排除下一步安排",()=>{
+  const skill=fs.readFileSync(path.join(__dirname,"../../../../resources/skills/dev-docs/SKILL.md"),"utf8");
+  const sample=(heading:string)=>{
+    const section=skill.slice(skill.indexOf(heading)+heading.length);
+    const block=/```[^\n]*\n([\s\S]*?)\n```/u.exec(section);
+    expect(block).not.toBeNull();return block![1]!;
+  };
+  const document=["# 开发记录",sample("### 头部「当前进度快照」"),sample("### 开发记录索引")].join("\n\n")
+    .replaceAll("YYYY-MM-DD","2026-11-17").replaceAll("vX.Y.Z","v1.0.0");
+  const log=parseDevelopLog(document);
+  expect(log.snapshot).toEqual([{date:"2026-11-17",title:"变更主题",body:"- 本次变更要点（2-4 条，可追溯明细）"}]);
+  expect(log.index).toEqual([{date:"2026-08-19",path:"开发记录/2026-08-19.md",summary:"27. 移除请求超时 & 会话卡死修复（v0.10.2）"}]);
+  const progress=buildDeliverables({developLog:document,projectName:"Fixture",evidence:{hasContent:true,signal:"fixture",git:{head:"abcdef",commits:1,dirty:0,lastCommitAt:0,recent:[]}}}).find(item=>item.key===KEY_PROGRESS)!;
+  expect(progress.text).toContain("来源：项目开发记录");expect(progress.text).toContain("变更主题");expect(progress.text).not.toContain("HEAD abcdef");
+});
+
+it("兼容旧技能未包裹快照标题的最近工作与纯文字表格，不臆造明细路径",()=>{
+  const document=`# 开发记录\n\n### 最近工作\n**2026-11-17 登录修复**（详见 docs/开发记录/2026-11-17.md）：\n- 已修复过期提示\n\n### 接下来安排\n1. 继续验证异常\n\n### 开发记录索引\n| 日期 | 记录 |\n|---|---|\n| 2026-11-17 | 登录修复（v1.0.0） |\n`;
+  expect(parseDevelopLog(document)).toEqual({snapshot:[{date:"2026-11-17",title:"登录修复",body:"- 已修复过期提示"}],index:[{date:"2026-11-17",path:"",summary:"登录修复（v1.0.0）"}]});
+});
+
+it("空模板、无效日期及无关章节继续走仓库证据降级",()=>{
+  const documents=[
+    "## 当前进度快照\n\n### 最近工作\n**YYYY-MM-DD 标题**：待填\n## 开发记录索引\n| 日期 | 记录 |\n|---|---|\n",
+    "## 当前进度快照\n**2026-02-30 无效日期**：不能成为进展\n## 开发记录索引\n| 2026-13-01 | 不能成为索引 |\n",
+    "## 会议笔记\n**2026-11-17 仅讨论格式**：不应自动当作项目进展\n"
+  ];
+  for(const document of documents){
+    expect(parseDevelopLog(document)).toEqual(EMPTY_DEVELOP_LOG);
+    const progress=buildDeliverables({developLog:document,evidence:{hasContent:true,signal:"fixture",git:{head:"abcdef",commits:1,dirty:0,lastCommitAt:0,recent:[]}}}).find(item=>item.key===KEY_PROGRESS)!;
+    expect(progress.text).toContain("该目录无开发记录");expect(progress.text).toContain("HEAD abcdef");
+  }
 });

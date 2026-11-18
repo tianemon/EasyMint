@@ -5,7 +5,8 @@ import { uiText, useUiLocale } from "../lib/i18n";
  * 自包含：按钮 + 弹出面板（列表/勾选完成/删除/展开详情/添加）。
  * 与 Mint 执行追踪（session-todos TodoStrip）是两套清单——本组件管理用户待办。
  */
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useRef, useState } from "react";
+import { ComposerPopover } from "./ui/ComposerPopover";
 
 interface UserTodo {
   id: number;
@@ -16,13 +17,15 @@ interface UserTodo {
   doneAt: number | null;
 }
 
-export const TodoButton = memo(function TodoButton({ projectPath }: { projectPath: string }): JSX.Element {
-  return <ProjectTodoButton key={projectPath} projectPath={projectPath} />;
+export const TodoButton = memo(function TodoButton({ projectPath, active = true }: { projectPath: string; active?: boolean }): JSX.Element {
+  return <ProjectTodoButton key={projectPath} projectPath={projectPath} active={active} />;
 });
 
-const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { projectPath: string }): JSX.Element {
+const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath, active }: { projectPath: string; active: boolean }): JSX.Element {
   useUiLocale();
-  const [open, setOpen] = useState(false);
+  const [expanded, setOpen] = useState(false);
+  const open = active && expanded;
+  useEffect(() => { if (!active) setOpen(false); }, [active]);
   const [todos, setTodos] = useState<UserTodo[] | null>(null);
   const [migratedNote, setMigratedNote] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -33,7 +36,9 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
   const [err, setErr] = useState<string | null>(null);
   const projectRef = useRef(projectPath);
   projectRef.current = projectPath;
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const panelId = useId();
 
   const load = useCallback(async () => {
     const r = await window.electronAPI.todos.list(projectPath);
@@ -64,16 +69,8 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
     return unsub;
   }, [projectPath, load]);
 
-  // 点击外部 / Esc 关闭
   useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setOpen(false); };
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+    if (open && trigger.current?.matches(":focus-visible")) panel.current?.querySelector<HTMLElement>("button, input")?.focus();
   }, [open]);
 
   const add = useCallback(async () => {
@@ -116,27 +113,33 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
   const openCount = todos?.filter((t) => t.status === "open").length ?? 0;
 
   return (
-    <div className="relative shrink-0" ref={wrapRef}>
+    <div className="relative shrink-0">
       <button
+        ref={trigger}
         type="button"
         className="inp-icon-btn relative"
-        style={{ transform: "translateY(1px)" }}
+        disabled={!active}
+        aria-label={uiText("ui.ChatBlocks.userToDos")}
+        aria-haspopup="dialog"
+        aria-controls={open ? panelId : undefined}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
         {/* 用户待办图标(lucide list-todo):方框勾选清单 */}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>
         {openCount > 0 && (
-          <span className="absolute top-0 -right-[4px] min-w-[11px] h-[11px] px-0.5 rounded-full bg-accent text-text-inverse text-[8px] font-semibold leading-[11px] text-center pointer-events-none ring-2 ring-[var(--color-input-field)]">
+          <span className="absolute top-0 -right-[3px] min-w-[11px] h-[11px] px-0.5 rounded-full bg-accent text-text-inverse text-[8px] font-semibold leading-[11px] text-center pointer-events-none">
             {openCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 w-[360px] max-w-[85vw] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl z-dropdown overflow-hidden">
+        <ComposerPopover anchor={trigger} panel={panel} id={panelId} aria-label={uiText("ui.ChatBlocks.userToDos")}
+          onDismiss={reason => { setOpen(false); if (reason === "escape") trigger.current?.focus(); }}
+          className="em-flat-fields flex w-[360px] flex-col">
           {/* 头部 */}
-          <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex shrink-0 items-center justify-between px-3 pt-2.5 pb-2">
             <span className="text-xs font-medium text-text-primary">{uiText("ui.ChatBlocks.userToDos")}</span>
             <span className="text-[length:var(--text-3xs)] text-text-muted">{todos === null ? "…" : uiText("ui.TodoButton.remainingItems", { v0: todos.filter((t) => t.status === "open").length, v1: todos.length })}</span>
           </div>
@@ -146,20 +149,20 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
           )}
           {err && <div className="px-3 py-1.5 text-[length:var(--text-3xs)] text-danger">{appText(err)}</div>}
 
-          {/* 列表（容器无 padding——行 hover 面积 = 行面积，不留缝） */}
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-64 min-h-0 overflow-y-auto px-1.5">
             {todos !== null && todos.length === 0 && (
               <div className="px-3 py-3 text-xs text-text-muted text-center">{uiText("ui.TodoButton.noToDosAddAnIdeaOr")}</div>
             )}
             {(todos ?? []).map((t) => (
               <div key={t.id} className="group">
-                <div className="flex items-start gap-2 px-3 py-1.5 hover:bg-surface-hover transition-colors">
+                <div className="flex items-start gap-2 rounded-[var(--radius-md)] px-1.5 py-1.5 hover:bg-surface-hover focus-within:bg-surface-hover transition-colors">
                   <button
                     type="button"
-                    className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                    role="checkbox" aria-checked={t.status === "done"} aria-label={t.title}
+                    className={`mt-0.5 size-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
                       t.status === "done"
-                        ? "bg-accent border-accent text-white"
-                        : "border-border hover:border-accent text-transparent"
+                        ? "bg-accent-subtle text-accent"
+                        : "bg-[var(--field-idle)] text-transparent hover:bg-accent-subtle hover:text-accent"
                     }`}
                     
                     disabled={saving}
@@ -195,7 +198,8 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
                   </button>
                   <button
                     type="button"
-                    className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-danger transition-all shrink-0 mt-0.5"
+                    aria-label={uiText("ui.AgentTemplateSettings.delete")}
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-text-muted hover:text-danger transition-opacity shrink-0 mt-0.5"
                    
                     disabled={saving}
                     onClick={() => { if (editing?.id === t.id) setEditing(null); remove(t.id); }}
@@ -211,7 +215,7 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
           </div>
 
           {/* 添加 */}
-          <div className="flex items-center gap-1.5 px-3 py-2">
+          <div className="flex shrink-0 items-center gap-1.5 px-3 py-2.5">
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -221,7 +225,7 @@ const ProjectTodoButton = memo(function ProjectTodoButton({ projectPath }: { pro
             />
             <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-[var(--radius-lg)] text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">{uiText("ui.TodoButton.add")}</button>
           </div>
-        </div>
+        </ComposerPopover>
       )}
     </div>
   );

@@ -83,13 +83,13 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
 
   return (
     <div
-      className={`px-3 py-2 transition-shadow cursor-default ${s.enabled && !s.shadowed ? "em-hover-row" : "opacity-60"}`}
+      className={`px-3 py-2 transition-shadow cursor-default ${s.enabled && !s.shadowed ? "em-hover-row" : ""}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <span className="text-xs text-text-primary truncate">{s.name}</span>
+        <div className={`flex flex-wrap items-center gap-1.5 min-w-0 flex-1 ${s.enabled && !s.shadowed ? "" : "opacity-60"}`}>
+          <span className="max-w-full min-w-0 text-xs text-text-primary truncate">{s.name}</span>
           <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${sourceCls}`}>{sourceLabel}</span>
           {s.level === "project" && (
             <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">{uiText("ui.PluginsTab.project")}</span>
@@ -118,13 +118,13 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
           )}
           <button
             onClick={toggleBody}
-            className="text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary transition-colors px-1"
+            className="settings-action"
           >
             {uiText("ui.PluginsTab.body")}</button>
           {onDelete && (
             <button
               onClick={onDelete}
-              className="text-[length:var(--text-3xs)] text-text-secondary hover:text-danger transition-colors px-1"
+              className="settings-action" data-tone="danger"
             >
               {uiText("ui.AgentTemplateSettings.delete")}</button>
           )}
@@ -358,7 +358,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           </div>
           {!skillImportOpen && (
             <button type="button" onClick={() => setSkillImportOpen(true)}
-              className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
+              className="settings-action">
               {uiText("ui.ChatBlocks.import")}</button>
           )}
         </div>
@@ -373,10 +373,10 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             {skillImportMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{appText(skillImportMsg)}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setSkillImportOpen(false); setSkillSource(""); setSkillImportMsg(""); }}
-                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="settings-action">
                 {uiText("common.close")}</button>
               <button type="button" disabled={!skillSource.trim() || skillImporting} onClick={handleSkillImport}
-                className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
+                className="settings-action btn-accent">
                 {skillImporting ? uiText("ui.PiImport.importing") : uiText("ui.ChatBlocks.import")}
               </button>
             </div>
@@ -441,13 +441,13 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
               <div className="flex items-center gap-2 pt-1">
                 <button
                   disabled={!canSubmit}
-                  className={`px-3 py-1 text-xs rounded-[var(--radius-lg)] transition-colors ${canSubmit ? "btn-accent" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
+                  className="settings-action btn-accent"
                   onClick={submit}
                 >
                   {submitting ? uiText("ui.PluginsTab.creating") : uiText("ui.PluginsTab.create")}
                 </button>
                 <button
-                  className="px-3 py-1 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors"
+                  className="settings-action" data-tone="quiet"
                   onClick={() => { setShowForm(false); setFormError(""); }}
                 >
                   {uiText("common.cancel")}</button>
@@ -455,7 +455,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             </div>
           ) : (
             <button
-              className="px-3 py-1 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+              className="settings-action" data-tone="accent"
               onClick={() => setShowForm(true)}
             >
               {uiText("ui.PluginsTab.newSkill")}</button>
@@ -582,7 +582,7 @@ function McpServerForm({
   };
 
   const validate = (): string | null => {
-    if (!MCP_NAME_RE.test(name)) return uiText("ui.PluginsTab.useLowercaseLettersDigitsAndHyphensE");
+    if (!MCP_NAME_RE.test(name)) return uiText("ui.PluginsTab.serverNameValidation");
     if (type === "sse") return uiText("ui.PluginsTab.switchToHttpAndEnterTheServer");
     if (type === "stdio" && !command.trim()) return uiText("ui.PluginsTab.localProcessesRequireACommandEG");
     if (type !== "stdio") {
@@ -629,14 +629,17 @@ function McpServerForm({
 
   return (
     <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2.5">
-      <div className="flex items-center gap-2">
-        <input
-          className="em-input flex-1 px-2.5 py-1.5 text-xs font-mono"
-          placeholder={uiText("ui.PluginsTab.serverNameLowercaseLettersDigitsHyphens")}
-          value={name}
-          disabled={!!initial}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <div className="flex items-end gap-2">
+        <label className="flex-1 min-w-0">
+          <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">{uiText("ui.PluginsTab.serverName")}</span>
+          <input
+            className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+            placeholder="my_server"
+            value={name}
+            disabled={!!initial}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
         <div className="flex rounded-[var(--radius-lg)] overflow-hidden shrink-0">
           {(["stdio", "http"] as const).map((t) => (
             <button
@@ -653,49 +656,60 @@ function McpServerForm({
         </div>
       </div>
 
-      <input
-        className="em-input w-full px-2.5 py-1.5 text-xs"
-        placeholder={uiText("ui.PluginsTab.purposeOptionalEGBrowserControlMint")}
-        value={desc}
-        onChange={(e) => setDesc(e.target.value)}
-      />
+      <label className="block">
+        <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">{uiText("ui.PluginsTab.serverPurpose")}</span>
+        <input
+          className="em-input w-full px-2.5 py-1.5 text-xs"
+          placeholder={uiText("ui.PluginsTab.serverPurposeExample")}
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+        />
+      </label>
 
       {type === "stdio" ? (
         <>
-          <input
-            className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
-            placeholder={uiText("ui.PluginsTab.commandEGNpx")}
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-          />
-          <input
-            className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
-            placeholder={uiText("ui.PluginsTab.spaceSeparatedArgumentsEGYModelcontextprotocol")}
-            value={argsText}
-            onChange={(e) => setArgsText(e.target.value)}
-          />
+          <label className="block">
+            <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">{uiText("ui.PluginsTab.launchCommand")}</span>
+            <input
+              className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+              placeholder="npx"
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">{uiText("ui.PluginsTab.launchArguments")}</span>
+            <input
+              className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+              placeholder="-y @modelcontextprotocol/server-filesystem ."
+              value={argsText}
+              onChange={(e) => setArgsText(e.target.value)}
+            />
+          </label>
         </>
       ) : (
-        <input
-          className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
-          placeholder="https://example.com/mcp"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
+        <label className="block">
+          <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">{uiText("ui.PluginsTab.serverUrl")}</span>
+          <input
+            className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+            placeholder="https://example.com/mcp"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+        </label>
       )}
 
       {type !== "stdio" && (
         <>
-          <div>
-            <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
-              {uiText("ui.PluginsTab.headersOnePerLineKeyValueE")}</label>
+          <label className="block">
+            <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">{uiText("ui.PluginsTab.headerFormat")}</span>
             <textarea
               className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-12"
-              placeholder={"Authorization: Bearer github_pat_xxx"}
+              placeholder="Authorization: Bearer <token>"
               value={headersText}
               onChange={(e) => setHeadersText(e.target.value)}
             />
-          </div>
+          </label>
           <div className="flex items-center justify-between gap-3 bg-surface rounded-[var(--radius-lg)] px-2.5 py-2">
             <div className="min-w-0">
               <p className="text-[length:var(--text-11)] text-text-primary">{uiText("ui.PluginsTab.thisServerRequiresOauthLogin")}</p>
@@ -706,30 +720,30 @@ function McpServerForm({
           </div>
         </>
       )}
-      <div>
-        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
-          {uiText("ui.PluginsTab.environmentVariablesOneKeyValuePerLine")}{"${VAR}"} {uiText("ui.PluginsTab.and")}{uiText("ui.PluginsTab.varDefault")}）
-        </label>
+      <label className="block">
+        <span className="text-[length:var(--text-11)] text-text-secondary block mb-1">
+          {uiText("ui.PluginsTab.environmentFormat", { reference: "${VAR}", fallback: "${VAR:-default}" })}
+        </span>
         <textarea
           className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-12"
           placeholder={"API_KEY=xxx\nBASE_URL=${API_BASE:-https://api.example.com}"}
           value={envText}
           onChange={(e) => setEnvText(e.target.value)}
         />
-      </div>
+      </label>
 
       {err && <p className="text-danger text-[length:var(--text-11)]">{appText(err)}</p>}
       {testResult && <p className="text-text-secondary text-[length:var(--text-11)]">{appText(testResult)}</p>}
 
       <div className="flex justify-end gap-2">
         <button type="button" onClick={test} disabled={busy}
-          className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+          className="settings-action">
           {uiText("ui.PluginsTab.testConnection")}</button>
         <button type="button" onClick={onCancel}
-          className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+          className="settings-action">
           {uiText("common.cancel")}</button>
         <button type="button" onClick={save} disabled={busy}
-          className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+          className="settings-action btn-accent">
           {uiText("ui.AgentTemplateSettings.save")}</button>
       </div>
     </div>
@@ -917,10 +931,10 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
           {!adding && !editing && !pasteMode && (
             <div className="flex gap-2">
               <button type="button" onClick={() => setPasteMode(true)}
-                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="settings-action">
                 {uiText("ui.PluginsTab.pasteConfiguration")}</button>
               <button type="button" onClick={() => setAdding(true)}
-                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+                className="settings-action" data-tone="accent">
                 {uiText("ui.PluginsTab.addServer")}</button>
             </div>
           )}
@@ -944,7 +958,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
             {pasteMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{pasteMsg}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setPasteMode(false); setPasteText(""); setPasteMsg(""); }}
-                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="settings-action">
                 {uiText("common.close")}</button>
               <button type="button" disabled={!pasteText.trim() || pasting}
                 onClick={async () => {
@@ -961,7 +975,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                   } catch (e2) { setPasteMsg("❌ " + String(e2)); }
                   finally { setPasting(false); }
                 }}
-                className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
+                className="settings-action btn-accent">
                 {uiText("ui.PluginsTab.parseAndImport")}</button>
             </div>
           </div>
@@ -986,8 +1000,8 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
               return (
                 <div key={s.name} className="px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <span className="text-xs text-text-primary truncate">{s.name}</span>
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                      <span className="max-w-full min-w-0 text-xs text-text-primary truncate">{s.name}</span>
                       <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${badge.cls}`}>{badge.text}</span>
                       <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">{typeLabel(s.type)}</span>
                       <span
@@ -1000,29 +1014,29 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                     <div className="flex items-center gap-1 shrink-0">
                       {s.pendingApproval && (
                         <button type="button" onClick={() => handleApprove(s.name)}
-                          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning hover:text-text-inverse transition-colors">
+                          className="settings-action" data-tone="warning">
                           {uiText("ui.PluginsTab.approvalRequired")}</button>
                       )}
                       {["failed", "disconnected", "idle", "closed"].includes(statuses[s.name]?.state ?? "") && s.enabled && !s.pendingApproval && (
                         <button type="button" onClick={() => handleRetry(s.name)}
-                          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                          className="settings-action">
                           {uiText("ui.ChatPanel.retry")}</button>
                       )}
                       {s.enabled && !s.pendingApproval && s.type === "http" && <button type="button" onClick={async () => {
                         const result = await window.electronAPI.mcp.login(s.name, projectPath);
                         setActionErr(result.ok ? "" : result.error || uiText("ui.OAuthLoginDialog.loginFailed"));
                         void load();
-                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">{uiText("ui.OAuthLoginDialog.logIn")}</button>}
+                      }} className="settings-action">{uiText("ui.OAuthLoginDialog.logIn")}</button>}
                       {s.enabled && !s.pendingApproval && s.type === "http" && <button type="button" onClick={async () => {
                         const result = await window.electronAPI.mcp.logout(s.name, projectPath);
                         setActionErr(result.ok ? "" : result.error || uiText("ui.PluginsTab.couldNotLogOut"));
                         void load();
-                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">{uiText("ui.PluginsTab.logOut")}</button>}
+                      }} className="settings-action">{uiText("ui.PluginsTab.logOut")}</button>}
                       <button type="button" onClick={() => handleEdit(s.name, s.scope)}
-                        className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                        className="settings-action">
                         {uiText("menu.edit")}</button>
                       <button type="button" onClick={() => handleDelete(s.name, s.scope)}
-                        className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
+                        className="settings-action" data-tone="danger">
                         {uiText("ui.AgentTemplateSettings.delete")}</button>
                       <Toggle checked={s.enabled} onChange={(v) => handleToggle(s.name, v)} />
                     </div>
@@ -1082,7 +1096,7 @@ function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           <h3 className="text-sm font-medium text-text-primary">{uiText("ui.PluginsTab.piExtensions")}</h3>
           <p className="text-xs text-text-secondary mt-1">{uiText("ui.PluginsTab.discoverNativePiAndEasymintExtensionsApproval")}</p>
         </div>
-        <button type="button" className="text-xs text-accent hover:underline" disabled={busy} onClick={() => void refresh()}>{uiText("ui.PluginsTab.refresh")}</button>
+        <button type="button" className="settings-action" disabled={busy} onClick={() => void refresh()}>{uiText("ui.PluginsTab.refresh")}</button>
       </div>
       {error && <p className="text-xs text-danger">{appText(error)}</p>}
       {!busy && items.length === 0 && <p className="text-xs text-text-muted py-4">{uiText("ui.PluginsTab.noPiOrEasymintExtensionsFound")}</p>}
@@ -1100,7 +1114,7 @@ function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             {item.error && <p className="text-[length:var(--text-3xs)] text-danger mt-1">{appText(item.error)}</p>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {item.fingerprint && <button type="button" className="text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary" onClick={() => void window.electronAPI.piExtension.reveal(item.id, projectPath).catch((e: unknown) => setError(String(e)))}>{uiText("ui.PluginsTab.reveal")}</button>}
+            {item.fingerprint && <button type="button" className="settings-action" onClick={() => void window.electronAPI.piExtension.reveal(item.id, projectPath).catch((e: unknown) => setError(String(e)))}>{uiText("ui.PluginsTab.reveal")}</button>}
             {!!item.fingerprint && item.enabledInPi && <Toggle checked={item.approved} disabled={busy} onChange={() => void toggle(item)} />}
           </div>
         </div>

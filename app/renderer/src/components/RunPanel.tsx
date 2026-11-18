@@ -12,6 +12,7 @@ interface RunPanelProps {
 }
 
 interface PortStatus {
+  port: number;
   free: boolean;
   pid?: number;
   name?: string;
@@ -171,6 +172,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
   const loadStatus = useProcessStore((s) => s.loadStatus);
   const [detectSpinning, setDetectSpinning] = useState(false);
   const [portStatuses, setPortStatuses] = useState<Record<string, PortStatus>>({});
+  const portChecks = useRef(new Map<string, symbol>());
   const [customPorts, setCustomPorts] = useState<Record<string, string>>({});
   const [showDetail, setShowDetail] = useState<Record<string, boolean>>({});
   // 编辑弹窗目标 + 删除确认（内联）
@@ -182,14 +184,13 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
   const checkPortStatus = useCallback(async (commandId: string, url?: string) => {
     const port = extractPort(url);
     if (!port) return;
+    const request = Symbol();
+    portChecks.current.set(commandId, request);
     try {
       const st = await window.electronAPI.process.checkPort(port);
-      setPortStatuses(function(prev) {
-        const next: Record<string, PortStatus> = {};
-        for (const k in prev) next[k] = prev[k]!;
-        next[commandId] = st!;
-        return next;
-      });
+      if (st && portChecks.current.get(commandId) === request) {
+        setPortStatuses(prev => ({ ...prev, [commandId]: { ...st, port } }));
+      }
     } catch { /* */ }
   }, []);
 
@@ -290,8 +291,10 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
           <div className="space-y-1.5">
             {runnables.map((r) => {
               const st = cmdStates[r.id] || { running: false };
-              const ps = portStatuses[r.id];
               const port = extractPort(r.url);
+              const effectivePort = Number(customPorts[r.id]) || port;
+              const status = portStatuses[r.id];
+              const ps = status?.port === effectivePort ? status : undefined;
               const portBusy = ps && !ps.free;
               const canStart = !st.running && !portBusy;
               return (
@@ -322,21 +325,25 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                   {/* 端口状态 */}
                   {port && (
                     <div className="relative mt-1 flex items-center gap-1.5 text-[length:var(--text-2xs)] flex-wrap">
-                      <input
-                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-[var(--field-idle)] focus:bg-[var(--field-focus)] text-text-primary font-mono text-center outline-none"
-                        value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
-                        onChange={function(e) {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setCustomPorts(function(prev) {
-                            const next: Record<string, string> = {};
-                            for (const k in prev) next[k] = prev[k]!;
-                            next[r.id] = val;
-                            return next;
-                          });
-                          const newPort = parseInt(val);
-                          if (newPort && newPort > 0) checkPortStatus(r.id, "http://localhost:" + newPort);
-                        }}
-                      />
+                      <label className="inline-flex items-center gap-1.5 text-text-secondary">
+                        {uiText("ui.RunPanel.port")}
+                        <input
+                          className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-[var(--field-idle)] focus:bg-[var(--field-focus)] text-text-primary font-mono text-center outline-none"
+                          placeholder={String(port)}
+                          value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
+                          onChange={function(e) {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setCustomPorts(function(prev) {
+                              const next: Record<string, string> = {};
+                              for (const k in prev) next[k] = prev[k]!;
+                              next[r.id] = val;
+                              return next;
+                            });
+                            if (!val) void checkPortStatus(r.id, r.url);
+                            else if (Number(val) > 0) void checkPortStatus(r.id, "http://localhost:" + val);
+                          }}
+                        />
+                      </label>
                       <span className="text-text-muted">·</span>
                       {ps ? (ps.free
                         ? <span className="text-success">{uiText("ui.RunPanel.idle")}</span>

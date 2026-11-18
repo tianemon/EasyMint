@@ -30,7 +30,7 @@ describe("unified execution templates", () => {
   it("resolves builtins without materializing a second user file", async () => {
     const templates = await import("./agent-templates"); templates.seedDefaults();
     for (const id of ["default-builder", "default-evaluator"]) {
-      const template = templates.getTemplate(id)!; expect(template.prompt).toContain("CodeGraph 可用时");
+      const template = templates.getTemplate(id)!; expect(template.prompt).not.toContain("describe_image");expect(template.prompt).toContain("任务");
       expect(template).not.toHaveProperty("model"); expect(template).not.toHaveProperty("thinkingLevel");
     }
     expect(fs.existsSync(path.join(root, "agent-templates.json"))).toBe(false);
@@ -48,7 +48,7 @@ describe("unified execution templates", () => {
     expect(templates.getTemplate("custom")).not.toHaveProperty("thinkingLevel");
     expect(templates.listTemplates().some(item => item.id === "mint-designer")).toBe(false);
     expect(templates.getTemplate("mint-designer")?.prompt).toContain("showcase");
-    const stored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts.json"), "utf8"));
+    const stored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts-v2.json"), "utf8"));
     expect(stored.legacyTemplates.find((item: { id: string }) => item.id === "mint-designer").prompt).toBe("OLD_DESIGNER");
     templates.restoreTemplate("default-builder");
     expect(templates.getTemplate("default-builder")).toMatchObject({ name: "历史构建者", description: "保留说明" });

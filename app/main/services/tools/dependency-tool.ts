@@ -2,10 +2,9 @@ import path from "node:path";
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { ensureSandbox, wrapForSandbox, isSandboxBypassedForMode, type SandboxSpawnSpec } from "../sandbox/manager";
-import { executeForeground } from "../background-shell/tool";
-import { EXECUTION_POLICY } from "../permission/wrap-tool";
+import { executeForeground, type ExecutionTarget } from "../background-shell/tool";
+import { EXECUTION_POLICY, EXECUTION_START_CHECK } from "../permission/wrap-tool";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
-import { sandboxGitBashPath } from "../background-shell/registry";
 
 type Manager = "npm" | "pnpm" | "yarn" | "bun" | "pip" | "uv" | "cargo" | "go" | "dart" | "flutter" | "mise";
 
@@ -45,7 +44,7 @@ function installCommand(manager: Manager, packages: string[], scope: "project" |
   }
 }
 
-function executionTarget(wrapped: SandboxSpawnSpec) {
+function executionTarget(wrapped: SandboxSpawnSpec): ExecutionTarget {
   return wrapped.kind === "argv"
     ? { argv: wrapped.argv, env: wrapped.env, release: wrapped.release, violationKey: wrapped.violationKey, exemptReason: wrapped.exemptReason }
     : { command: wrapped.command, env: wrapped.env, release: wrapped.release, violationKey: wrapped.violationKey, exemptReason: wrapped.exemptReason };
@@ -87,9 +86,9 @@ export async function createDependencyTool(cwd: string): Promise<ToolDefinition>
       }
       const wrapped = await wrapForSandbox(command, {
         context, signal,
-        gitBashPath: sandboxGitBashPath(),
       });
       const target = executionTarget(wrapped);
+      target.assertCanStart = Reflect.get(params, EXECUTION_START_CHECK) as ExecutionTarget["assertCanStart"];
       return executeForeground(target, context.workspaceRealPath, signal, undefined, undefined, onUpdate);
     },
   });

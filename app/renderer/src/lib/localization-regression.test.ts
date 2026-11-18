@@ -32,7 +32,7 @@ describe("localization regression", () => {
     expect(appText(FILE_READ_HINTS.missing)).toBe("File changed or deleted");
     const english = uiText("ui.AgentTemplateSettings.deleteThisTemplate");
     await uiI18n.changeLanguage("zh-CN");
-    expect(appText(english)).toBe("删除此模板？");
+    expect(appText(english)).toBe("删除此角色？");
   });
 
   it("retranslates explicitly marked nested errors and leaves identical user names alone", async () => {

@@ -1,10 +1,10 @@
 import { getPromptDefaults } from "./system-prompt-manager";
-const MINT_SYSTEM_PROMPT = getPromptDefaults().main.rules;
+import {AGENT_CORE} from "./agent-core";
+const MINT_SYSTEM_PROMPT = AGENT_CORE;
 const BUILDER_AGENT_PROMPT = getPromptDefaults().templates.find(item => item.id === "default-builder")!.prompt;
 import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { CONFIRM_DEVELOPMENT_PROMPT } from "../../shared/prompts";
 import { createTaskTool } from "./task/tool";
 import { createTodoWriteTool } from "./tools/todo-tool";
 import type { Store } from "./store";
@@ -15,26 +15,27 @@ vi.mock("./pi-sdk",async importOriginal=>({...await importOriginal<typeof import
 const read=(file:string)=>fs.readFileSync(path.resolve(process.cwd(),file),"utf8");
 
 describe("delegation and progress policy consistency",()=>{
- it("uses context isolation as the main purpose and does not turn file counts or project tiers into automatic delegation",()=>{
-  const policy=MINT_SYSTEM_PROMPT.slice(MINT_SYSTEM_PROMPT.indexOf("**任务执行**"),MINT_SYSTEM_PROMPT.indexOf("**Task 委派分工总则：**"));
-  expect(policy).toContain("默认亲自执行");
-  expect(policy).toContain("长任务的上下文隔离（主要用途）");
-  expect(policy).toContain("独立方向的异步并行");
-  expect(policy).toContain("按需独立复核");
-  expect(policy).toContain("主会话责任与交接成本");
-  expect(policy).toContain("不要重复派遣相同任务");
-  expect(policy).toContain("文件、需要测试或提交、项目档位较高，本身都不构成委派理由");
+ it("continues authorized creation work without the removed confirmation gate",()=>{
+  const creation=read("resources/skills/creation-flow-techspec/SKILL.md");
+  expect(creation).not.toContain("show_confirm_dev");
+  expect(creation).toContain("沿用已有开发授权");
+  expect(creation).toContain("尚缺正式开发授权");
+  expect(creation).toContain("不重复要求同一有效批准");
  });
- it("keeps one progress threshold and separates formal work from this run's stages",()=>{
-  expect(MINT_SYSTEM_PROMPT).toContain("超过 3 个有实际意义的执行阶段");
-  expect(MINT_SYSTEM_PROMPT).toContain("用户明确安排或要求展示多步骤任务");
-  expect(MINT_SYSTEM_PROMPT).toContain("不能把读文件、编辑、跑测试、提交机械算作四步");
-  expect(MINT_SYSTEM_PROMPT).toContain("不再复制同名任务清单");
-  expect(MINT_SYSTEM_PROMPT).toContain("不代替 set_task_status 或委派结果自动回写");
-  expect(MINT_SYSTEM_PROMPT).toContain("阶段内每次读文件、工具调用或命令输出不触发更新");
+ it("uses context isolation as the main purpose and does not turn file counts or project tiers into automatic delegation",()=>{
+  expect(AGENT_CORE).toContain("主对话默认亲自处理有边界的工作");
+  expect(AGENT_CORE).toContain("大量中间上下文");
+  expect(AGENT_CORE).toContain("独立方向并行");
+
+ });
+ it("uses meaningful tracking needs rather than a numeric stage threshold",()=>{
+  expect(AGENT_CORE).toContain("需要持续跟踪或用户要求时维护进度");
+  expect(AGENT_CORE).toContain("沿用已有任务和已完成工作");
+  expect(AGENT_CORE).toContain("不为简单工作凑阶段或重复建单");
+  expect(AGENT_CORE).not.toContain("三个以上");
  });
  it("removes contradictory legacy obligations from all active decision surfaces",()=>{
-  const sources=[MINT_SYSTEM_PROMPT,BUILDER_AGENT_PROMPT,CONFIRM_DEVELOPMENT_PROMPT,read("resources/skills/creation-guide/SKILL.md"),read("resources/skills/ui-sync/SKILL.md")];
+  const sources=[MINT_SYSTEM_PROMPT,BUILDER_AGENT_PROMPT,read("resources/skills/creation-flow-techspec/SKILL.md"),read("resources/skills/creation-guide/SKILL.md"),read("resources/skills/ui-sync/SKILL.md")];
   for(const source of sources){
    expect(source).not.toMatch(/中等及以上(?:项目)?委派 Builder/);
    expect(source).not.toContain("必须委派（上下文保护");
@@ -51,7 +52,7 @@ describe("delegation and progress policy consistency",()=>{
 
 
   expect(BUILDER_AGENT_PROMPT).not.toContain("Evaluator 会用浏览器/截图验收渲染，你无需");
-  expect(BUILDER_AGENT_PROMPT).toContain("未明确此安排时，不预设之后一定有 Evaluator");
+  expect(BUILDER_AGENT_PROMPT).toContain("不能把自验责任推给可能不存在的后续Evaluator");
  });
  it("does not require exhaustive rereads, line-count task creation or redundant approval",()=>{
   expect(MINT_SYSTEM_PROMPT).not.toContain("把所有相关文件完整读一遍");
@@ -67,20 +68,22 @@ describe("delegation and progress policy consistency",()=>{
   expect(docs).toContain("已获同一对象与范围授权的文档更新直接执行");
  });
  it("preserves terminal status ownership when independent review follows a finished delegation",()=>{
-  expect(MINT_SYSTEM_PROMPT).toContain("references/task-execution.md");
+  expect(MINT_SYSTEM_PROMPT).not.toContain("references/task-execution.md");
   expect(read("resources/skills/ui-sync/SKILL.md")).toContain("references/task-execution.md");
   expect(read("resources/skills/ui-sync/references/task-execution.md")).toContain("委派结果已自动进入终态时，做临时独立复核");
   const sync=read("resources/skills/ui-sync/SKILL.md");
   expect(sync).toContain("已完成任务的临时复核不回退原状态");
   expect(sync).toContain("不按「做个」「加个」「新增」等词自动触发");
   expect(sync).not.toContain("用户提出新需求、新建功能时使用");
-  expect(MINT_SYSTEM_PROMPT).toContain("深度 = 1");
+
  });
  it("exposes the intended purposes and asynchronous result contract in actual task metadata",async()=>{
   const task=await createTaskTool({cwd:"/fixture",agentDir:"/fixture",store:{} as Store,parentSessionId:"policy-test"});
   expect(task.description).toContain("主要用途是**长任务的上下文隔离**");
   expect(task.description).toContain("异步并行");
   expect(task.description).toContain("独立复核");
+  expect(task.description).toContain("不倒退原任务终态");
+  expect(task.description).toContain("references/task-execution.md");
   expect(task.description).toContain("立即返回启动信息");
   expect(task.description).toContain("完成结果异步送回主会话");
   const schema=task.parameters as unknown as {properties:Record<string,unknown>;required:string[]};

@@ -23,8 +23,8 @@ export function projectProfile(data: ProjectFormData) {
   const dimensions: ProjectDimensions = {
     product: detectProfile(data.targets).id as ProjectDimensions["product"],
     deploy: portable && deploy === "hybrid" ? "client-hybrid" : deploy,
-    ai: data.aiIntegration, storage: deploy === "cloud" ? "postgres" : (deploy === "local" || deploy === "hybrid") && !portable ? "sqlite" : "none",
-    productUsesAI: data.aiIntegration !== "none", needsAuth: data.deployPlatform === "云端", needsPayment: false,
+    ai: data.aiIntegration, storage: "none",
+    productUsesAI: data.aiIntegration !== "none", needsAuth: false, needsPayment: false,
   };
   const profile = composeProfilesForTargets(data.targets, dimensions);
   if (data.targets.includes("harmony-mobile")) {

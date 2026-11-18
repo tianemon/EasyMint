@@ -34,7 +34,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   project: {
     list: () => ipcRenderer.invoke("project:list"),
     create: (opts: { name: string; path: string; directoryName?: string }) => ipcRenderer.invoke("project:create", opts),
-    checkDir: (dir: string, name: string) => ipcRenderer.invoke("project:check-dir", { dir, name }) as Promise<{ conflict: boolean }>,
+    checkDir: (dir: string, name: string, projectName?: string) => ipcRenderer.invoke("project:check-dir", { dir, name, projectName }) as Promise<{
+      conflict: boolean; resumeProject?: { id: string; path: string; directoryName: string };
+    }>,
     openedInWindows: () => ipcRenderer.invoke("project:opened-in-windows") as Promise<string[]>,
     delete: (id: string) => ipcRenderer.invoke("project:delete", { id }),
     get: (id: string) => ipcRenderer.invoke("project:get", { id }),
@@ -46,8 +48,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   file: {
     readTree: (dirPath: string) => ipcRenderer.invoke("file:readTree", { dirPath }),
     readContent: (filePath: string) => ipcRenderer.invoke("file:readContent", { filePath }),
-    writeContent: (filePath: string, content: string) =>
-      ipcRenderer.invoke("file:writeContent", { filePath, content }),
+    writeContent: (filePath: string, content: string, expectedHash: string) =>
+      ipcRenderer.invoke("file:writeContent", { filePath, content, expectedHash }),
     createFile: (filePath: string, content?: string) =>
       ipcRenderer.invoke("file:createFile", { filePath, content: content ?? "" }),
     createFolder: (dirPath: string) =>
@@ -100,18 +102,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   memory: {
     readDocument:()=>ipcRenderer.invoke("memory:read-document"),
-    saveDocument:(content:string,hash:string)=>ipcRenderer.invoke("memory:save-document",{content,hash}),
     onChanged: (callback: (settings?: import("../shared/memory").MemorySettings, session?: { sessionId: string; mode: import("../shared/memory").MemoryMode }) => void) => { const handler = (_event: Electron.IpcRendererEvent, payload: { settings?: import("../shared/memory").MemorySettings; session?: { sessionId: string; mode: import("../shared/memory").MemoryMode } }) => callback(payload?.settings,payload?.session); ipcRenderer.on("memory:changed", handler); return () => ipcRenderer.removeListener("memory:changed", handler); },
     state: (projectPath?: string) => ipcRenderer.invoke("memory:state", { projectPath }),
     configure: (patch: Parameters<import("../shared/memory").MemoryApi["configure"]>[0]) => ipcRenderer.invoke("memory:configure", patch),
-    query: (query: Parameters<import("../shared/memory").MemoryApi["query"]>[0]) => ipcRenderer.invoke("memory:query", query),
-    read: (key: string, projectPath?: string) => ipcRenderer.invoke("memory:read", { key, projectPath }),
-    save: (input: Parameters<import("../shared/memory").MemoryApi["save"]>[0]) => ipcRenderer.invoke("memory:save", input),
-    update: (key: string, revision: number, patch: Parameters<import("../shared/memory").MemoryApi["update"]>[2], projectPath?: string) => ipcRenderer.invoke("memory:update", { key, revision, patch, projectPath }),
-    forget: (key: string, projectPath?: string) => ipcRenderer.invoke("memory:forget", { key, projectPath }),
-    analyze: () => ipcRenderer.invoke("memory:analyze"),
-    openBackups: () => ipcRenderer.invoke("memory:open-backups"),
-    summary: (refresh?:boolean) => ipcRenderer.invoke("memory:summary",{refresh}),
     sessionMode: (sessionId: string, mode?: import("../shared/memory").MemoryMode) => ipcRenderer.invoke("memory:session-mode", { sessionId, mode }),
   } satisfies import("../shared/memory").MemoryApi,
   conv: {
@@ -216,7 +209,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   conversation: {
     get: (): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:config"),
-    getModes: (sessionId: string, legacyDesigner?: boolean): Promise<string[]> => ipcRenderer.invoke("conversation:modes", { sessionId, legacyDesigner }),
+    getModes: (sessionId: string, legacyDesigner?: boolean, created?:boolean): Promise<string[]> => ipcRenderer.invoke("conversation:modes", { sessionId, legacyDesigner, created }),
     saveMain: (input: MainChatProfile, revision?: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-main", { input, revision }),
     restoreMain: (revision?: string): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:restore-main", { revision }),
     saveMode: (input: Omit<CollaborationMode, "id" | "builtin"> & { id?: string }): Promise<ConversationConfig> => ipcRenderer.invoke("conversation:save-mode", { input }),
@@ -459,16 +452,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stderr", handler);
       return () => ipcRenderer.removeListener("agent:stderr", handler);
-    },
-    onGuidanceOffer: (callback: (data: { sessionId: string; reason: string }) => void) => {
-      const handler = (_event: unknown, data: { sessionId: string; reason: string }) => callback(data);
-      ipcRenderer.on("agent:guidance-offer", handler);
-      return () => ipcRenderer.removeListener("agent:guidance-offer", handler);
-    },
-    onConfirmDev: (callback: (data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => callback(data);
-      ipcRenderer.on("agent:confirm-dev", handler);
-      return () => ipcRenderer.removeListener("agent:confirm-dev", handler);
     },
     onExit: (callback: (data: { runId: string; code: number }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { runId: string; code: number }) =>

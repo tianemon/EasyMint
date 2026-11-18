@@ -48,49 +48,49 @@ interface ProjectProfile {
 const BASE_PROFILES: Record<ProductType, ProjectProfile> = {
   web: {
     id: "web", label: "Web 应用",
-    initSteps: `项目为 Web 应用。\n- docs/技术架构.md 需包含前端架构说明`,
-    platformSpec: `## Web 开发规范\n- 优先使用语义化 HTML，SEO 友好\n- 响应式设计：移动端、平板、桌面端均需适配\n- 交互反馈：按钮 hover/active 态、加载状态、空状态、错误提示\n- 表单验证：必填校验、格式校验、提交前防重复\n- 错误边界：关键 UI 区块需有 ErrorBoundary 兜底\n- 可访问性：合理的 color contrast、focus 样式、aria 标签`,
+    initSteps: `项目为 Web 应用。\n- 需要架构文档时说明实际前端结构，沿项目文档约定，不为极简项目补建架构文档`,
+    platformSpec: `## Web 开发规范\n- 优先使用语义化 HTML，SEO 友好\n- 响应式设计：移动端、平板、桌面端均需适配\n- 交互反馈：按钮 hover/active 态、加载状态、空状态、错误提示\n- 表单验证：必填校验、格式校验、提交前防重复\n- 错误隔离：按实际框架处理关键 UI 错误与恢复；框架支持时使用错误边界，不为静态页面引入组件框架\n- 可访问性：合理的 color contrast、focus 样式、aria 标签`,
     evaluatorHint: `Web 项目：静态 HTML 直接用 Playwright 打开 index.html 验证；有构建工具的先启动 dev server 再截图验证`,
     suggestedStack: ["React", "Vite", "Tailwind CSS"],
   },
   desktop: {
     id: "desktop", label: "桌面应用",
-    initSteps: `项目为桌面应用。\n- docs/技术架构.md 关注进程架构、IPC 通信、窗口管理`,
+    initSteps: `项目为桌面应用。\n- 需要架构说明时按实际框架记录进程、通信与窗口管理，不预设文档路径`,
     platformSpec: `## 桌面应用开发规范\n- 主进程与渲染进程分离\n- IPC 通信使用结构化 channel 名\n- 窗口状态持久化\n- 自动更新机制`,
     evaluatorHint: `桌面应用：启动应用 → Playwright 截图 → 验证窗口行为和 IPC 通信`,
     suggestedStack: ["Electron", "React", "Vite"],
   },
   mobile: {
     id: "mobile", label: "移动端应用",
-    initSteps: `项目为移动端应用。\n- docs/技术架构.md 关注组件树、状态管理、路由设计`,
+    initSteps: `项目为移动端应用。\n- 需要架构说明时记录组件、状态与路由，沿用项目文档约定`,
     platformSpec: `## 移动端开发规范\n- 组件化：页面 = 多个独立可复用 widget/component 组合\n- 状态管理：选用项目约定的方案\n- 响应式布局：适配不同屏幕尺寸\n- 交互反馈：按钮 pressed 态、加载指示器、空状态\n- 错误处理：网络请求失败、数据为空的兜底展示\n- 性能：列表懒加载、图片缓存`,
     evaluatorHint: `移动端项目：代码审查为主，读代码对照需求文档逐项检查，验证 build 通过`,
     suggestedStack: ["Flutter", "Dart"],
   },
   cli: {
     id: "cli", label: "CLI 命令行工具",
-    initSteps: `项目为命令行工具，无 UI 界面。\n- docs/需求文档.md 重点描述命令行参数、输入/输出格式、退出码\n- docs/技术架构.md 无需前端章节，关注模块划分和命令结构`,
+    initSteps: `项目为命令行工具，无 UI 界面。\n- 需求需要落盘时说明命令参数、输入/输出和退出码，极简项目不为流程补文档\n- 需要架构说明时聚焦模块和命令结构，沿用既有路径，不添加无关前端章节`,
     platformSpec: `## CLI 工具开发规范\n- --help 输出必须包含：用途、参数列表、使用示例\n- 错误信息输出到 stderr，正常输出到 stdout\n- 退出码：0=成功，1=参数错误，2=运行时错误\n- 支持 --version 输出版本号\n- 管道兼容：非 TTY 时不输出进度条和彩色控制字符`,
     evaluatorHint: `CLI 项目：直接执行命令验证输出和退出码，检查 --help 和 --version，测试边界输入`,
     suggestedStack: ["Python", "Typer"],
   },
   backend: {
     id: "backend", label: "后端服务",
-    initSteps: `项目为后端 API 服务。\n- docs/需求文档.md 重点描述 API 端点、请求/响应格式、数据模型\n- docs/技术架构.md 关注服务架构、中间件、数据库设计`,
+    initSteps: `项目为后端 API 服务。\n- 需求需要落盘时说明API端点、请求/响应和实际数据需求\n- 需要架构说明时记录实际服务和必要中间件，仅有持久化需求时设计数据库`,
     platformSpec: `## API 后端开发规范\n- RESTful 命名：名词复数、层级不超过 2 层\n- 统一响应格式：{ code, data, message }\n- 输入校验：必填/类型/长度/格式\n- 错误处理：所有异步路径有 try-catch\n- 敏感信息不在响应中暴露\n- 幂等性：PUT/DELETE 需幂等\n- 分页：列表接口默认支持分页（page/pageSize，返回 total）\n- 限流：关键接口需有基本频率限制`,
     evaluatorHint: `API 项目：用 curl 或测试框架验证所有端点，检查请求/响应格式、错误码、边界情况`,
     suggestedStack: ["FastAPI", "Python", "PostgreSQL"],
   },
   library: {
     id: "library", label: "库/SDK",
-    initSteps: `项目为可复用的库或 SDK。\n- docs/需求文档.md 重点描述 API 接口、使用示例、参数说明\n- docs/技术架构.md 关注模块划分、导出接口、依赖关系\n- README 必须包含安装方式、快速开始示例、API 文档`,
+    initSteps: `项目为可复用的库或 SDK。\n- 需求需要落盘时说明公开API、使用示例和参数，沿用项目约定\n- 需要架构说明时记录模块、导出接口和依赖，不强制固定文档路径\n- README 必须包含安装方式、快速开始示例、API 文档`,
     platformSpec: `## 库/SDK 开发规范\n- API 设计：简洁直观，命名一致\n- 向后兼容：不随意 breaking change\n- 类型安全：导出类型定义\n- 错误处理：抛出有意义的错误信息\n- 文档：每个公开 API 有 JSDoc/docstring\n- 测试：核心 API 需有单元测试覆盖`,
     evaluatorHint: `库/SDK 项目：运行测试，读代码对照需求文档，验证导出接口和 README 示例`,
     suggestedStack: ["TypeScript"],
   },
   miniprogram: {
     id: "miniprogram", label: "微信小程序",
-    initSteps: `项目为微信小程序。\n- docs/技术架构.md 关注页面栈、组件通信，并根据实际需要说明后端配置\n- 注意分包加载限制（主包 ≤ 2MB，总包 ≤ 20MB）\n- 每个页面需在 app.json 中注册`,
+    initSteps: `项目为微信小程序。\n- 需要架构说明时记录页面栈与组件通信，仅按真实功能需要说明后端配置\n- 注意分包加载限制（主包 ≤ 2MB，总包 ≤ 20MB）\n- 每个页面需在 app.json 中注册`,
     platformSpec: `## 微信小程序开发规范\n- 页面生命周期：onLoad → onShow → onReady → onHide → onUnload\n- 组件通信：父传子 properties，子传父 triggerEvent，跨组件用 globalData 或 eventBus\n- WXML 模板语法：wx:if 条件渲染、wx:for 列表渲染、{{}} 数据绑定\n- 样式：rpx 响应式单位（1rpx = 屏幕宽度/750），推荐 flex 布局\n- API 调用：wx.request 发网络请求，wx.setStorage/getStorage 本地存储\n- 用户授权：wx.getUserProfile / wx.authorize，首次调用需弹窗\n- 审核规范：不得包含隐藏功能、诱导分享、强制登录后才能浏览核心功能`,
     evaluatorHint: `小程序项目：用微信开发者工具打开编译检查，代码审查对照需求文档逐项验证，检查 app.json 注册和分包配置`,
     suggestedStack: ["微信开发者工具", "JavaScript/TypeScript"],
@@ -120,29 +120,29 @@ const DEPLOY_OVERRIDES: Record<DeployMode, ProfileOverride> = {
     initSteps: `- 使用微信云开发承载服务端能力，存储按云开发能力选择，不预设 SQLite 或 PostgreSQL。区分小程序客户端发布和云端服务部署；其他客户端如需共享服务，先确认接入方案。`,
   },
   local: {
-    initSteps: `项目为本地运行，无需云端部署。\n- 数据存储使用 SQLite 等本地方案\n- docs/技术架构.md 中无需云端部署、CI/CD 章节`,
+    initSteps: `项目为本地运行，无需云端部署。\n- 有持久化需求时评估文件、平台存储或SQLite等本地方案；无数据需求不添加数据库\n- 文档按项目实际需要准备，不添加无关云部署或CI/CD章节`,
   },
   cloud: {
-    initSteps: `项目需云端部署。\n- docs/技术架构.md 需包含部署方案、环境变量管理、CI/CD 配置\n- 数据库使用云数据库（PostgreSQL 等）\n- 需配置环境变量（API keys、数据库连接串等）`,
+    initSteps: `项目需在线访问或云端部署。\n- 先判断静态托管、现有服务或自建后端，部署标签不代表需要数据库、登录认证或CI/CD\n- 仅实际功能需要时配置持久化服务、认证和环境变量，查证费用与平台限制\n- 需要部署说明时沿项目文档约定记录实际方案`,
   },
   hybrid: {
-    initSteps: `项目为混合模式——本机运行，按需连接云端服务和同步数据。\n- 本地部分：SQLite + 本地文件\n- 云端部分：API 服务 + 数据库 + 认证`,
+    initSteps: `项目为混合模式——本机运行，按需连接云端服务和同步数据。\n- 有本地持久化需求时选合适存储，不默认添加SQLite\n- 在线部分可复用现有服务；仅真实功能需要时增加API、数据库或认证，不因混合部署一并创建`,
   },
 };
 
 const AI_OVERRIDES: Record<AIIntegration, ProfileOverride> = {
   none: {},
   assistant: {
-    initSteps: `产品包含 AI 辅助功能。\n- 需集成 LLM API（优先推荐 DeepSeek、MiniMax、智谱 GLM 等国产模型，成本低、中文能力强）\n- docs/技术架构.md 需包含 AI 调用流程、prompt 管理、fallback 策略`,
+    initSteps: `产品包含 AI 辅助功能。\n- 按真实功能、平台和预算选择在线模型或设备端能力；使用在线API时核对实际供应商能力、费用与安全边界\n- 需要架构文档时说明实际AI调用、提示词管理与回退策略`,
     platformSpec: `\n## AI 集成规范\n- API Key 使用环境变量，不提交到 git\n- AI 调用需有超时和重试机制\n- AI 输出需有兜底展示（加载中、失败重试、空结果）\n- 考虑 API 调用成本，合理使用缓存`,
   },
   agent: {
-    initSteps: `产品包含 Agent 能力（自主决策、工具调用）。\n- 需集成 LLM API（优先推荐 DeepSeek、MiniMax 等国产模型）\n- 可能需要向量数据库做 RAG\n- docs/技术架构.md 需包含 Agent 架构、工具定义、记忆管理`,
+    initSteps: `产品包含 Agent 能力（自主决策、工具调用）。\n- 按任务和平台核实模型、工具调用与执行边界，不默认固定供应商\n- 仅有实际检索需求时评估RAG与向量存储，不因Agent标签增加数据库\n- 需要架构文档时说明实际Agent职责、工具及必要记忆能力`,
     platformSpec: `\n## Agent 开发规范\n- Agent 行为边界需明确定义\n- 工具调用需有超时和错误处理\n- 多步推理需有中间状态记录\n- API Key 使用环境变量`,
     suggestedStack: ["DeepSeek", "MiniMax"],
   },
   "multi-agent": {
-    initSteps: `产品包含多 Agent 协作能力。\n- 需定义 Agent 角色分工和执行顺序\n- 可能需要消息队列协调 Agent 间通信\n- docs/技术架构.md 需包含多 Agent 架构、通信协议、冲突处理`,
+    initSteps: `产品包含多 Agent 协作能力。\n- 需定义 Agent 角色分工和执行顺序\n- 按实际并发和交接需求选择协调方式，不默认引入消息队列\n- 需要架构文档时说明实际多Agent交接、通信与冲突处理`,
     platformSpec: `\n## 多 Agent 开发规范\n- 每个 Agent 职责单一、边界清晰\n- Agent 间通过结构化消息通信\n- 需有全局异常处理和回滚机制\n- 考虑并发和死锁场景`,
     suggestedStack: ["CrewAI", "LangGraph"],
   },
@@ -151,14 +151,14 @@ const AI_OVERRIDES: Record<AIIntegration, ProfileOverride> = {
 const STORAGE_OVERRIDES: Record<StorageType, ProfileOverride> = {
   none: {},
   sqlite: {
-    initSteps: `使用 SQLite 本地数据库。\n- 无需额外数据库服务\n- docs/技术架构.md 包含数据模型设计`,
+    initSteps: `使用 SQLite 本地数据库。\n- 无需额外数据库服务\n- 需要数据设计文档时沿项目约定记录模型，不为选型补建固定目录`,
   },
   postgres: {
-    initSteps: `使用 PostgreSQL 数据库。\n- 需配置数据库连接\n- docs/技术架构.md 包含数据库 schema 和迁移方案`,
+    initSteps: `使用 PostgreSQL 数据库。\n- 需配置数据库连接\n- 需要设计文档时说明schema和迁移，沿用项目已有路径`,
     suggestedStack: ["PostgreSQL"],
   },
   vector: {
-    initSteps: `需要向量数据库支持 AI/搜索功能。\n- 选项：Qdrant / Milvus / Chroma\n- docs/技术架构.md 包含向量库选型和 embedding 方案`,
+    initSteps: `需要向量数据库支持 AI/搜索功能。\n- 选项：Qdrant / Milvus / Chroma\n- 需要设计文档时说明向量库选型与embedding方案，沿用项目已有路径`,
     suggestedStack: ["Chroma", "Qdrant"],
   },
 };
@@ -225,7 +225,7 @@ function inferDimensions(targets: string[]): ProjectDimensions {
     product,
     deploy: set.has("cloud") ? "cloud" : "local",
     ai: "none",
-    storage: "sqlite",
+    storage: "none",
     productUsesAI: false,
     needsAuth: false,
     needsPayment: false,
@@ -238,10 +238,9 @@ export function detectProfile(targets: string[]): ProjectProfile {
 
 
 export function buildInitInstruction(profile: ProjectProfile): string {
-  const sceneDiffs = profile.initSteps
-    .split("\n")
-    .filter((l) => l.trim().startsWith("-") || l.trim().startsWith("项目"))
-    .join("\n");
+  // Selection headers (for example an explicitly chosen database) are part
+  // of the contract too; filtering by bullet/prefix silently dropped them.
+  const sceneDiffs = profile.initSteps.trim();
   return sceneDiffs
     ? `\n初始化时注意以下场景差异：\n${sceneDiffs}`
     : "";
@@ -268,10 +267,6 @@ ${instruction}
 ${CREATION_COLLABORATION}
 流程提示：加载 creation-guide 按实际内容判档，只读当前阶段；已有授权与 Gate 按该技能处理。`;
 }
-// ── 确认开发 ──────────────────────────────────────────
-
-export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每条按「任务执行」判断亲自实现还是委派，不由项目档位自动决定。实现后自验，仅按实际需要做独立复核，不为每条任务自动委派 Evaluator；你亲自实现的在适用验证通过后标记 done，委派任务的 done/failed 由系统自动回写，不手动重复标记。沿用 task.json 的正式任务状态，不复制同名会话进度清单。每完成一条按项目约定更新开发记录。全程在已授权范围内推进，直到全部完成、遇到真实阻塞或用户打断；阻塞时如实汇报，按项目约定记录。遵循项目 TDD 设定。`;
-
 // ── 系统消息结构化(对齐 Pi sendCustomMessage)──────
 
 /** 系统消息细分类型:JSONL/事件/前端按此识别渲染 */

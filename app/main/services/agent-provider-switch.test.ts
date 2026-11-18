@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Store } from "./store";
 import { AgentService } from "./agent-service";
+import { MemoryService } from "./memory/service";
 
 /**
  * 供应商与模型的归属规则（用户 2026-10-29 定）：
@@ -34,6 +35,7 @@ const DEEPSEEK = { provider: "deepseek", id: "deepseek-chat", contextWindow: 640
 const CODEX = { provider: "openai-codex", id: "gpt", contextWindow: 200000 };
 
 const store = (current: string): Store => ({
+  getProjects: () => [],
   getSettings: () => ({
     apiProviders: {
       current,
@@ -57,6 +59,7 @@ function chatOf(provider: string, currentModel: string) {
       // 会话实际绑定的模型对象——rebindToCurrentProvider 按它判断是否跨供应商
       get model() { return boundModel; },
       setModel: vi.fn(async (model: typeof boundModel) => { boundModel = model; }),
+      setThinkingLevel: vi.fn(),
       thinkingLevel: "off",
       getAvailableThinkingLevels: () => ["off"],
       getContextUsage: () => ({ contextWindow: 1000, percent: 0, tokens: 0 }),
@@ -71,10 +74,12 @@ function serviceWith(current: string, chat: ReturnType<typeof chatOf>) {
 }
 
 beforeEach(() => {
+  vi.spyOn(MemoryService.prototype, "initialize").mockResolvedValue(undefined);
   mocks.models.clear();
   mocks.broadcast.mockClear();
   mocks.writeCache.mockClear();
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe("provider switch and per-session model", () => {
   it("re-binds an active chat to the new provider's default model on provider switch", async () => {

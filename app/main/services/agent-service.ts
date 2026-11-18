@@ -1,3 +1,4 @@
+import os from "node:os";
 import { AUTO_MODEL_ID } from "../../shared/native-ai";
 import { createImageGenerationTool } from "./tools/image-generation-tool";
 /**
@@ -15,11 +16,11 @@ import { BrowserWindow } from "electron";
 import { resolveHome, emHome } from "../utils/paths";
 import { broadcast, broadcastEvent } from "./ipc-broadcast";
 import { Store } from "./store";
+import {creationSessionReady,finishCreationOwnership,releaseCreationOwnership} from "./project-service";
 import { canRewindDetachedUser, isStaleSdkBusyRefusal } from "./rewind-policy";
 import { waitForAbortSettlement, settleSessionIdle } from "./abort-settlement";
-import { getConversationConfig, conversationPromptSection } from "./system-prompt-manager";
+import { getConversationConfig, conversationPromptBlocks } from "./system-prompt-manager";
 import { UI_DESIGN_MODE_ID } from "../../shared/collaboration";
-import { createGuidanceTool } from "./tools/guidance-tool";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
 import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
@@ -31,6 +32,8 @@ import { isSessionOpenElsewhere } from "./session-visibility";
 import { sumUsage, type UsageEntry } from "./usage-totals";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createMemoryTool } from "./tools/memory-tool";
+import {evidenceMessages,type MemoryUserAnswer} from "./memory/source";
+import {discoverSessions} from "./memory/tool-sessions";
 import { createOtherSessionsTool } from "./tools/other-sessions-tool";
 import { MemoryService, type MemorySessionContext } from "./memory/service";
 import { estimateMemoryTokens } from "./memory/context";
@@ -58,12 +61,12 @@ import {
 } from "./event-bridge";
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn, getSessionManagerClass } from "./pi-sdk";
-import { readCache, writeCache } from "./session-cache";
+import { readCache, writeCache, deleteCache } from "./session-cache";
 import { readSessionImageStats, type SessionImageStatsCache } from "./session-image-stats";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
-import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile, PERMISSION_RULES_PROMPT } from "./prompt-sections";
+import { buildProjectEnvSection, PERMISSION_RULES_PROMPT } from "./prompt-sections";
 import { resolveThinkingLevel } from "../../shared/thinking-levels";
 import { isPermissionModeTightening, normalizePermissionMode } from "./permission/execution-context";
 
@@ -91,6 +94,8 @@ interface ActiveRun {
   runId: string;
   session: AgentSession | null;
   abortController: AbortController;
+  completion?: Promise<void>;
+  abortDone?: Promise<void>;
 }
 
 type ImageMutationResult =
@@ -426,7 +431,7 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
 
 /** 挂起的 ask_user 请求：工具 execute 等待用户回答（回合暂停） */
 interface PendingAsk {
-  resolve: (text: string) => void;
+  resolve: (text: string, answers?: MemoryUserAnswer[]) => void;
   sessionId: string;
   questions: Array<{ id: string; question: string; options?: Array<{ value: string; label: string }> }>;
   allowCustom: boolean;
@@ -465,6 +470,7 @@ export function respondAsk(requestId: string, answers: Array<{ questionId: strin
     // 格式化:每题「问题行 + 回答行」上下排列、无标题——展开区/结果简洁可读;
     // 回答把机器 value 映射回人看 label(此前只显示机器 value 且压成一行)
     const byQ = new Map(pending.questions.map((q) => [q.id, q]));
+    const userAnswers:MemoryUserAnswer[]=[];
     const blocks = answers.map((a) => {
       const q = byQ.get(a.questionId);
       const qText = q?.question ?? a.questionId;
@@ -472,9 +478,10 @@ export function respondAsk(requestId: string, answers: Array<{ questionId: strin
         const opt = q?.options?.find((o) => o.value === v);
         return opt ? `${opt.label}(${v})` : v;
       }).join("、");
+      userAnswers.push({question:qText,answer:chosen});
       return `${qText}\n${chosen}`;
     });
-    pending.resolve(blocks.join("\n\n"));
+    pending.resolve(blocks.join("\n\n"),userAnswers);
   }
   broadcast("agent:ask-closed", { requestId });
   return pending.sessionId;
@@ -586,6 +593,7 @@ export async function createAskUserTool(sessionId: string): Promise<ToolDefiniti
       // 与快照（getPendingAskSnapshots）同一个创建时间：广播与快照两条路径字段必须一致，
       // 手机端把事件体直接当 PendingAsk 用，缺该字段会拿到 undefined。
       const createdAt = Date.now();
+      let userAnswers:MemoryUserAnswer[]|undefined;
       const answer = await new Promise<string>((resolve) => {
         if (signal?.aborted) { resolve("（提问已取消）"); return; }
         const onAbort = () => {
@@ -595,9 +603,9 @@ export async function createAskUserTool(sessionId: string): Promise<ToolDefiniti
           broadcast("agent:ask-closed", { requestId });
         };
         // 正常响应路径解除 abort 监听——长会话多次提问不累积监听器
-        const wrappedResolve = (text: string) => {
+        const wrappedResolve = (text: string, answers?:MemoryUserAnswer[]) => {
           signal?.removeEventListener("abort", onAbort);
-          resolve(text);
+          userAnswers=answers;resolve(text);
         };
         pendingAsks.set(requestId, {
           sessionId: realSid,
@@ -627,7 +635,7 @@ export async function createAskUserTool(sessionId: string): Promise<ToolDefiniti
           createdAt,
         });
       });
-      return { content: [{ type: "text" as const, text: answer }], details: !answer.startsWith("（") ? { memoryUserEvidence: answer } : undefined };
+      return { content: [{ type: "text" as const, text: answer }], details: !answer.startsWith("（") ? { memoryUserEvidence: answer, memoryUserAnswers:userAnswers } : undefined };
     },
   });
 }
@@ -637,11 +645,26 @@ export class AgentService {
   constructor(private store: Store) {
     this.memory = new MemoryService(store, {
       changed: settings => broadcast("memory:changed", { settings }),
-      getBackend: async () => { const config = await getNativeConfig(store); const runtime = await config.getRuntime(); return { runtime, model: config.getDefaultModel() }; },
-      busy: () => this.activePromptSessions.size > 0 || this.activeRuns.size > 0 || [...this.activeChats.values()].some(chat => getRunningDelegations(chat.sessionId).length > 0 || backgroundShellRegistry.list().some(shell => shell.sessionId === chat.sessionId && shell.status === "running")),
+      discoverSessions:projectPath=>discoverSessions(os.homedir(),projectPath),
+      getBackend: async sessionId => {
+        const id = resolveParentSessionId(sessionId);
+        const config = await getNativeConfig(store);
+        const selection = () => this.findActiveChat(id)?.session?.model?.id ?? readCache(id)?.model;
+        const preferred = selection();
+        const revision = config.modelConfigRevision();
+        const routeRevision = config.modelConfigRevision(false);
+        const runtime = await config.getRuntime();
+        return {
+          runtime, model: await this.getModel(store, preferred),
+          isCurrent: (beforeRequest: boolean) =>
+            config.modelConfigRevision(beforeRequest) === (beforeRequest ? revision : routeRevision) && selection() === preferred,
+        };
+      },
+      // Task children may outlive their parent's active chat entry.
+      busy: () => this.activePromptSessions.size > 0 || this.activeRuns.size > 0 || getRunningSummary().count > 0,
       getSession: id => { const chat = this.findActiveChat(id); return chat?.session ? { entries: chat.session.sessionManager.getEntries(), file:chat.session.sessionManager.getSessionFile() } : undefined; },
     });
-    void this.memory.initialize().catch(error => console.warn("[memory] 初始化未完成，旧资料保留:", (error as Error).message));
+    void this.memory.initialize().catch(error => console.warn("[memory] 初始化未完成:", (error as Error).message));
   }
   memoryContext(id: string, projectPath?: string): MemorySessionContext {
     const sessionId = resolveParentSessionId(id), chat = this.findActiveChat(sessionId);
@@ -663,6 +686,9 @@ export class AgentService {
   /** 会话树修改与新回合启动互斥；并发操作保守拒绝，避免两窗口同时改写同一 JSONL 分支。 */
   private mutatingSessions = new Set<string>();
   private startingSessions = new Set<string>();
+  private pendingSends = new Set<Promise<void>>();
+  private shuttingDown = false;
+  private shutdownPromise: Promise<void> | undefined;
   /** EM 侧正在进行的回合（promptAndBridge 进行中）——steer 区分真运行 vs isStreaming 残留 */
   private activePromptSessions: Set<string> = new Set();
   private runCounter = 0;
@@ -719,6 +745,11 @@ export class AgentService {
       resolveParentSessionId,
     );
 
+    const childKnowledgeContext=async(getChildContext:()=>MemorySessionContext,ownerToolCallId:string)=>{
+      const ownerFile=this.findActiveChat(sessionId)?.session?.sessionManager.getSessionFile();
+      const parent=this.memoryContext(sessionId,projectPath),owner=(await evidenceMessages(parent.entries,true)).find(entry=>entry.entryId===`toolcall:${ownerToolCallId}`);
+      const getContext=():MemorySessionContext=>({...getChildContext(),current:getContext,permissionSessionId:resolveParentSessionId(sessionId),ownerEntryId:owner?.entryId,ownerHash:owner?.hash,ownerMessageEntryId:owner?.messageEntryId,ownerSessionFile:ownerFile});return getContext;
+    };
     try {
       const taskTool = await createTaskTool({
         cwd: projectPath,
@@ -726,6 +757,13 @@ export class AgentService {
         store: this.store,
         parentSessionId: sessionId,
         chatId,
+        createKnowledgeTools:async(getChildContext,ownerToolCallId)=>{
+          const getContext=await childKnowledgeContext(getChildContext,ownerToolCallId);
+          return [await createMemoryTool(this.memory,getContext),await createMemoryTool(this.memory,getContext,"experience")];
+        },
+        captureKnowledge:async(context,ownerToolCallId)=>{
+          const getContext=await childKnowledgeContext(()=>context,ownerToolCallId);const child=getContext();if(child.sessionFile)await this.memory.capture(child,child.sessionFile);
+        },
         // 思考等级懒取：委派发生时读主会话当前生效值——这是子 Agent 等级的**唯一来源**
         // （模板与委派参数都不再能配等级，见 task/model-resolution.ts）。
         // 以会话真值 session.thinkingLevel 为准（与 broadcastThinkingLevel 同源），
@@ -756,7 +794,7 @@ export class AgentService {
         // 单任务提前完成 → 立即注入完成通知,Mint 输出判断继续等待(对齐 cc)
         onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
-      const productTools = await createProductTools(projectPath, () => resolveParentSessionId(sessionId));
+      const productTools = await createProductTools(projectPath);
       const agentTemplateTool = await createAgentTemplateTool();
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
@@ -775,7 +813,6 @@ export class AgentService {
         allTools.push(await createDependencyTool(projectPath));
         allTools.push(await createEnvironmentTool(projectPath));
         allTools.push(await createAskUserTool(sessionId));
-        allTools.push(await createGuidanceTool(sessionId));
         // 待办（todo_write）：进度条在 ChatPanel，worker 无 UI 不装
         const { createTodoWriteTool } = await import("./tools/todo-tool");
         allTools.push(await createTodoWriteTool(projectPath, sessionId));
@@ -793,7 +830,8 @@ export class AgentService {
       const memoryInstalled = !opts?.worker;
       if (memoryInstalled) {
         allTools.push(await createMemoryTool(this.memory, () => this.memoryContext(sessionId, projectPath)));
-        allTools.push(await createOtherSessionsTool(projectPath));
+        allTools.push(await createMemoryTool(this.memory, () => this.memoryContext(sessionId, projectPath),"experience"));
+        allTools.push(await createOtherSessionsTool(projectPath,async target=>{const project=this.memory.project(target);if(!project)throw new Error("项目未登记");await this.memory.selectedProject(this.memoryContext(sessionId,projectPath),project.id);}));
       }
 
       return { tools: allTools, canUseTool, memoryInstalled };
@@ -814,8 +852,6 @@ export class AgentService {
     // 动态 section(借鉴 cc section 组装):项目环境 + 项目类型规范
     const env = buildProjectEnvSection(projectPath);
     if (env) parts.push(env);
-    const profile = buildProjectProfileSection(readProjectProfile(projectPath));
-    if (profile) parts.push(profile);
 
     // 权限边界（三档 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，
     // 减少无谓的越界尝试；工具被拒时错误消息会带统一策略的规则、目标和阶段
@@ -960,7 +996,7 @@ export class AgentService {
           // 此时 session.abort() 看到 idle 会立即返回，而 SDK 随后仍会启动请求。
           // preflightResult 紧邻 _runAgentPrompt；微任务里补 abort，确保刚进入运行态就停。
           preflightResult: (accepted) => {
-            if (accepted && promptAbortSignal?.aborted) {
+            if (accepted && (this.shuttingDown || promptAbortSignal?.aborted)) {
               queueMicrotask(() => { void session.abort().catch((e) => console.warn("[agent] 预处理后补打断失败:", e)); });
             }
           },
@@ -1052,7 +1088,7 @@ export class AgentService {
     } finally {
       unsub();
       if (chat) chat.waitingForUser = false;
-      this.activePromptSessions.delete(sessionId);
+      this.activePromptSessions.delete(sessionId);this.memory.frontIdle();
       // 输出中跳过了模型重绑(避免打断回合)的会话:回合结束(空闲)补一次刷新——
       // 这样改窗口/参数在会话空闲后自动生效,不用等下次保存/重启
       if (this._deferredRefreshNeeded) {
@@ -1075,6 +1111,7 @@ export class AgentService {
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     systemPayload?: SystemMessagePayload,
   ): void {
+    this.assertAcceptingWork();
     // 记本轮起点：打断时若本轮无产出，就退回到这里（消息退出上下文，见 abort 的 rewind）
     if (chat) {
       chat.leafBeforePrompt = session.sessionManager?.getLeafId?.() ?? null;
@@ -1083,7 +1120,7 @@ export class AgentService {
     const promptDone = this.promptAndBridge(session, sessionId, chatId, text, chat, images, systemPayload).catch((err: unknown) => {
       const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
       console.error(`[agent] 回合启动失败(未预期) chatId=${chatId} sessionId=${sessionId}:`, raw);
-      this.activePromptSessions.delete(sessionId);
+      this.activePromptSessions.delete(sessionId);this.memory.frontIdle();
       const failureEvents: PiChatEvent[] = [
         { type: "error", sessionId, chatId, message: "请求未能成功启动，请重试", canRetry: true },
         { type: "turn_end", sessionId, chatId, outcome: chat?.abortController.signal.aborted ? "cancelled" : "failed" },
@@ -1107,23 +1144,26 @@ export class AgentService {
     prompt: string,
     _mainWindow: BrowserWindow,
   ): Promise<{ runId: string }> {
+    this.assertAcceptingWork();
     const runId = `run-${++this.runCounter}`;
     const abortController = new AbortController();
     const run: ActiveRun = { runId, session: null, abortController };
     this.activeRuns.set(runId, run);
 
-    (async () => {
+    run.completion = (async () => {
       try {
         const resolvedPath = path.resolve(resolveHome(projectPath));
         const model = await this.getModel(this.store);
+        this.assertAcceptingWork();
         if (!model) {
           broadcast("agent:stderr", { runId, data: "未配置 AI 模型，请在设置中配置 API", timestamp: Date.now() });
           broadcast("agent:exit", { runId, code: -1 });
-          this.activeRuns.delete(runId);
+          this.activeRuns.delete(runId);this.memory.frontIdle();
           return;
         }
 
         const { tools: extraTools, canUseTool } = await this.buildExtraTools(resolvedPath, runId, undefined, { worker: true });
+        this.assertAcceptingWork();
         const session = await createPiSession({
           cwd: resolvedPath,
           agentDir: this.getAgentDir(),
@@ -1139,6 +1179,7 @@ export class AgentService {
           onExtensionError: (error) => broadcast("pi-extension:error", error),
         });
         run.session = session;
+        if(this.shuttingDown || abortController.signal.aborted){await session.abort();return;}
 
         await this.promptAndBridge(session, "", runId, prompt); // worker 无 chat
 
@@ -1149,8 +1190,9 @@ export class AgentService {
         broadcast("agent:stderr", { runId, data: msg, timestamp: Date.now() });
         broadcast("agent:exit", { runId, code: -1 });
       } finally {
+        if (run.abortDone) await run.abortDone;
         if (run.session) await disposePiSession(run.session);
-        this.activeRuns.delete(runId);
+        this.activeRuns.delete(runId);this.memory.frontIdle();
       }
     })().catch((e) => {
       console.error("[agent] runWorker 未预期错误:", (e as Error).message);
@@ -1168,7 +1210,7 @@ export class AgentService {
     if (run) {
       run.abortController.abort();
       run.session?.abort().catch(() => {});
-      this.activeRuns.delete(runId);
+      this.activeRuns.delete(runId);this.memory.frontIdle();
     }
     // chat 会话：打断按钮只停主会话回合,子 Agent 继续后台执行(用户通过 ProcessBar 单独停止)
     // runId 可能是 chatId（前端打断按钮）或 sessionId（steer/其他）——先按 sessionId 查，再按 chatId 兜底
@@ -1818,24 +1860,38 @@ export class AgentService {
     tabId?: string,
     collaborationModeIds?: string[],
     memoryMode?: import("../../shared/memory").MemoryMode,
+    /** Host-only durable creation handoff, before publishing identity or starting a turn. */
+    onSessionReady?:()=>void,
   ): Promise<{ chatId: string; sessionId: string }> {
+    this.assertAcceptingWork();
     if (resumeSessionId) {
       if (this.startingSessions.has(resumeSessionId) || this.mutatingSessions.has(resumeSessionId)) {
         throw new Error("会话正在处理另一项操作，请稍后重试");
       }
       this.startingSessions.add(resumeSessionId);
     }
+    let finishSend!: () => void;
+    const sending = new Promise<void>(resolve => { finishSend = resolve; });
+    this.pendingSends.add(sending);
     try {
       const resolvedPath = path.resolve(resolveHome(projectPath));
+      const ready=onSessionReady ?? creationSessionReady({finishCreation:(...args)=>finishCreationOwnership(this.store,...args)},resolvedPath,resumeSessionId,systemPayload);
+      const handoff=()=>{if(ready)ready();else releaseCreationOwnership(this.store,resolvedPath);};
       const availableModes = getConversationConfig().modes;
-      const requestedModes = collaborationModeIds?.filter(id => availableModes.some(mode => mode.id === id));
-      if (resumeSessionId && requestedModes !== undefined) writeCache(resumeSessionId, { collaborationModeIds: requestedModes });
+      const fixedModes = resumeSessionId ? readCache(resumeSessionId)?.collaborationModeIds ?? (isDesigner || sessionAgentTypes.get(resumeSessionId) === "designer" ? [UI_DESIGN_MODE_ID] : []) : undefined;
+      if(resumeSessionId && collaborationModeIds !== undefined){
+        const requested=new Set(collaborationModeIds),saved=new Set(fixedModes);
+        if(requested.size!==saved.size || [...requested].some(id=>!saved.has(id)))throw new Error("协作模式仅可在创建会话前选择");
+      }
+      if(resumeSessionId && readCache(resumeSessionId)?.collaborationModeIds===undefined)writeCache(resumeSessionId,{collaborationModeIds:fixedModes,collaborationModesLocked:true});
+      const requestedModes = resumeSessionId ? undefined : collaborationModeIds?.filter(id => availableModes.some(mode => mode.id === id));
       // 无项目时 cwd 是 workspace 兜底目录——确保存在(不存在则 Pi 会话创建失败)
       if (!fs.existsSync(resolvedPath)) fs.mkdirSync(resolvedPath, { recursive: true });
 
       // 已有活跃会话 → 直接用
       if (resumeSessionId) {
         await this.activationPromises.get(resumeSessionId)?.catch(() => null);
+        this.assertAcceptingWork();
         const inFlight = this.findActiveChat(resumeSessionId);
         if (inFlight?.promptDone && this.activePromptSessions.has(resumeSessionId)) {
           // sendMessage 是新回合入口；运行中的插话走单独的 steer IPC。
@@ -1873,6 +1929,7 @@ export class AgentService {
           // 供应商统一到全局 current（2026-10-29）：复用的会话若还绑着旧供应商（切供应商时它正在输出、
           // 或当时新供应商没有可回退的模型），发消息前必须纠正——否则请求会静默打到旧供应商
           await this.rebindToCurrentProvider(existing);
+          this.assertAcceptingWork();
           // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
           // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
           if (thinkingLevel) {
@@ -1886,7 +1943,9 @@ export class AgentService {
               throw new Error("会话尚未停止，请稍后重试或关闭会话后重新打开");
             }
           }
-          if (requestedModes?.includes(UI_DESIGN_MODE_ID) && normalizePermissionMode(readCache(resumeSessionId)?.permissionMode ?? permissionMode) !== "readonly") ensureDesignerTemplates(resolvedPath);
+          this.assertAcceptingWork();
+          if (fixedModes?.includes(UI_DESIGN_MODE_ID) && normalizePermissionMode(readCache(resumeSessionId)?.permissionMode ?? permissionMode) !== "readonly") ensureDesignerTemplates(resolvedPath);
+          handoff();
           this.launchPrompt(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
           return { chatId: existing.chatId, sessionId: existing.sessionId };
         }
@@ -1897,7 +1956,9 @@ export class AgentService {
       // 恢复旧会话时优先用它自己记过的模型名（cache），在当前供应商下解析；
       // 没有记录就用当前供应商的默认模型——供应商始终跟随全局，见 getModel 注释
       const cachedModel = resumeSessionId ? readCache(resumeSessionId)?.model : undefined;
+      this.assertAcceptingWork();
       const piModel = await this.getModel(this.store, model ?? cachedModel);
+      this.assertAcceptingWork();
       // 恢复旧会话也一样要解析到模型：解析不到就不能拿 JSONL 里的旧模型顶上——
       // 那是旧供应商的模型，会把请求发回去（供应商已统一为全局 current）
       if (!piModel) {
@@ -1905,20 +1966,20 @@ export class AgentService {
       }
 
       // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
-      const designer = isDesigner || sessionAgentTypes.get(resumeSessionId ?? "") === "designer";
+      const designer = resumeSessionId ? sessionAgentTypes.get(resumeSessionId) === "designer" : Boolean(isDesigner);
       const modeIds = requestedModes ?? (resumeSessionId
-        ? readCache(resumeSessionId)?.collaborationModeIds ?? (designer ? [UI_DESIGN_MODE_ID] : [])
+        ? fixedModes!
         : [...new Set([...availableModes.filter(mode => mode.defaultEnabled).map(mode => mode.id), ...(isDesigner ? [UI_DESIGN_MODE_ID] : [])])]);
 
       // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
       const newSessionId = randomUUID();
-      writeCache(resumeSessionId ?? newSessionId, { collaborationModeIds: modeIds });
+      writeCache(resumeSessionId ?? newSessionId, { collaborationModeIds: modeIds, ...(resumeSessionId?{collaborationModesLocked:true}:{}) });
       let lastPromptWarning: string | undefined;
-      const getConversationPrompt = () => {
+      const getConversationSettings = () => {
         const config = getConversationConfig();
         if (config.warning && config.warning !== lastPromptWarning) broadcast("conversation:changed", config);
         lastPromptWarning = config.warning;
-        return conversationPromptSection(readCache(resolveParentSessionId(resumeSessionId ?? newSessionId))?.collaborationModeIds ?? modeIds, config);
+        return conversationPromptBlocks(readCache(resolveParentSessionId(resumeSessionId ?? newSessionId))?.collaborationModeIds ?? modeIds, config);
       };
 
       // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
@@ -1934,6 +1995,13 @@ export class AgentService {
       }
 
       if (memoryMode && !resumeSessionId) writeCache(newSessionId, { memoryMode });
+      // 创建期间的维护可能清掉尚无SDK日志的临时缓存，保留已接受的初始选择用于真实身份落盘。
+      let creationCache = resumeSessionId ? null : readCache(newSessionId);
+      const readCreationCache = () => {
+        const current = readCache(resumeSessionId ?? newSessionId);
+        if(!resumeSessionId && current)creationCache=current;
+        return current ?? creationCache;
+      };
 
       // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
       const { tools: extraTools, canUseTool, memoryInstalled } = await this.buildExtraTools(
@@ -1968,9 +2036,12 @@ export class AgentService {
       // 不再出现「提交落在 reload 中途、既无法撤销已执行的工厂、关闭安排又落空」的窗口。
       // buildSession 内的实时门禁与下方 createWithPermissionGate 是锁失效时的纵深防御。
       const chat = await withSessionCreationLock(async (): Promise<ActiveChat> => {
+        this.assertAcceptingWork();
         const createSessionWithMode = async (modeForCreation: string | undefined): Promise<AgentSession> => {
+          this.assertAcceptingWork();
           if (resumeSessionId) {
             const sessions = await listPiSessions(resolvedPath);
+            this.assertAcceptingWork();
             const info = sessions.find((s) => s.id === resumeSessionId);
             if (info) {
               return resumePiSession({
@@ -1982,7 +2053,7 @@ export class AgentService {
                 store: this.store,
                 resumeSessionFile: info.path,
                 systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { memoryInstalled, collaborationModeIds: modeIds }),
-                getConversationPrompt,
+                getConversationSettings,
                 getMemoryReference: prompt => this.memory.reference(this.memoryContext(resumeSessionId, resolvedPath), prompt),
                 deliveryMode: "conversation",
                 extraTools,
@@ -2004,7 +2075,7 @@ export class AgentService {
             model: piModel ?? undefined,
             store: this.store,
             systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { memoryInstalled, collaborationModeIds: modeIds }),
-            getConversationPrompt,
+            getConversationSettings,
             getMemoryReference: prompt => this.memory.reference(this.memoryContext(newSessionId, resolvedPath), prompt),
             deliveryMode: "conversation",
             extraTools,
@@ -2021,27 +2092,25 @@ export class AgentService {
         // 创建期间权限收紧的纵深防御（正常时序下提交已被锁推迟到登记之后）：
         // 若锁外路径（或未来回归）让 standard 在创建中生效，登记前复核并按收紧后的模式重建。
         const session: AgentSession = await createWithPermissionGate<AgentSession>({
-          initialMode: permissionMode ?? readCache(resumeSessionId ?? newSessionId)?.permissionMode,
-          readLiveMode: () => readCache(resumeSessionId ?? newSessionId)?.permissionMode,
+          initialMode: readCreationCache()?.permissionMode ?? permissionMode,
+          readLiveMode: () => readCreationCache()?.permissionMode,
           create: createSessionWithMode,
           dispose: (stale) => disposePiSession(stale),
           onStale: () => console.warn(`[agent] 会话创建期间权限从完全访问收紧，弃用已建会话重建 ${resumeSessionId ?? newSessionId}`),
         });
+        if(this.shuttingDown){await session.abort();await disposePiSession(session);this.assertAcceptingWork();}
 
         // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
         if (!resumeSessionId) {
           registerSessionIdMapping(newSessionId, session.sessionId);
           // 会话缓存迁移：首条消息前 sendMessage 把权限模式/思考等级落盘在临时 key（newSessionId），
           // 而 canUseTool 解析到真实 sid 后、前端补写前读的是真实 key——这里同步迁移，消除竞态窗口
-          const tmp = readCache(newSessionId);
-          if (tmp) {
-            const migrate: Record<string, unknown> = {};
-            if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
-            if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
-            if (tmp.collaborationModeIds !== undefined) migrate.collaborationModeIds = tmp.collaborationModeIds;
-            if (tmp.memoryMode !== undefined) migrate.memoryMode = tmp.memoryMode;
-            if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
-          }
+          const tmp = readCreationCache();
+          const migrate: Record<string, unknown> = {collaborationModeIds:modeIds,collaborationModesLocked:true};
+          if (tmp?.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
+          if (tmp?.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
+          if (tmp?.memoryMode !== undefined) migrate.memoryMode = tmp.memoryMode;
+          writeCache(session.sessionId, migrate);
         }
 
         const created: ActiveChat = {
@@ -2076,6 +2145,13 @@ export class AgentService {
         return created;
       });
       const session = chat.session as AgentSession; // 锁内刚创建并登记，必不为空
+
+      try{this.assertAcceptingWork();handoff();}
+      catch(error){
+        try{await this.killChat(chatId);}
+        finally{if(!resumeSessionId){deleteCache(newSessionId);if(chat.sessionId!==newSessionId)deleteCache(chat.sessionId);}}
+        throw error;
+      }
 
       // 旧版会话可能没有 EM 缓存。以 SDK 从 JSONL 恢复出的真值补建缓存，之后 UI 才能
       // 显示并显式传递会话选择；首次恢复绝不能先用全局默认覆盖这两个值。
@@ -2112,6 +2188,8 @@ export class AgentService {
 
       return { chatId, sessionId: chat.sessionId };
     } finally {
+      this.pendingSends.delete(sending);
+      finishSend();
       if (resumeSessionId) this.startingSessions.delete(resumeSessionId);
     }
   }
@@ -2210,6 +2288,7 @@ export class AgentService {
   /** 会话热切模型并广播前端（手动切换与 skill model 字段共用收口——前端 chatModel 显示与 session-cache 持久化都依赖此广播） */
   private async applySessionModel(chat: ActiveChat, model: Model<any>, modelName: string): Promise<void> {
     await chat.session!.setModel(model as any);
+    this.memory.frontActivity();
     chat.currentModel = modelName;
     chat.provider = model.provider;
     writeCache(chat.sessionId, { model: modelName });
@@ -2431,7 +2510,11 @@ export class AgentService {
     if (!model) throw new Error(`模型不可用：${modelName}，请检查供应商配置`);
     const chat = this.findActiveChat(sessionId);
     // 会话未激活（应用重启后还没建立 session）：写进缓存，下一次发送/恢复时按它解析
-    if (!chat?.session) { writeCache(sessionId, { model: modelName }); return; }
+    if (!chat?.session) {
+      writeCache(sessionId, { model: modelName });
+      this.memory.frontActivity();
+      return;
+    }
     await this.applySessionModel(chat, model, modelName);
   }
 
@@ -2734,6 +2817,7 @@ export class AgentService {
    * (最后一条通知,无后续排队;委派过程通知保持 false 即时显示不打断)。
    */
   injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation", opts?: { triggerTurn?: boolean }): void {
+    if(this.shuttingDown)return;
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session || this.closingChats.has(chat.chatId)) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
@@ -2795,6 +2879,7 @@ export class AgentService {
   /** 按需恢复会话为活跃 chat（重启后未发过消息的会话不在 activeChats——压缩/撤回等操作需要）。
    *  最小恢复：只加载历史 + 模型，不注入工具/系统提示、不发起对话；返回 chatId。 */
   async activateSession(sessionId: string, projectPath: string): Promise<string | null> {
+    this.assertAcceptingWork();
     const existing = this.findActiveChat(sessionId);
     if (existing?.session) return existing.chatId;
     if (this.startingSessions.has(sessionId)) return null; // 完整会话正在启动，不能并行创建最小实例
@@ -2811,6 +2896,7 @@ export class AgentService {
 
   private async activateSessionInner(sessionId: string, projectPath: string): Promise<string | null> {
     const sessions = await listPiSessions(projectPath);
+    this.assertAcceptingWork();
     const info = sessions.find((s) => s.id === sessionId);
     if (!info) {
       console.warn(`[agent] 按需激活失败:未找到会话 ${sessionId}（${projectPath}）`);
@@ -2818,6 +2904,7 @@ export class AgentService {
     }
     const cached = readCache(sessionId);
     const piModel = await this.getModel(this.store, cached?.model);
+    this.assertAcceptingWork();
     // 历史编辑操作（撤回/移出上下文）不应因原供应商已删除而无法打开会话。
     // SDK 的 summarize:false 树导航可在无模型会话上运行；真正重发时再由 sendMessage 校验模型。
     const session = await resumePiSession({
@@ -2830,6 +2917,11 @@ export class AgentService {
       permissionMode: "standard",
       onExtensionError: (error) => broadcast("pi-extension:error", error),
     });
+    if (this.shuttingDown) {
+      try { await session.abort(); }
+      finally { await disposePiSession(session); }
+      this.assertAcceptingWork();
+    }
     const chat: ActiveChat = {
       chatId: `chat-${++this.chatCounter}`,
       sessionId,
@@ -2991,27 +3083,58 @@ export class AgentService {
     }
   }
 
-  async shutdown(): Promise<void> {
-    await this.memory?.close();
+  private assertAcceptingWork(): void {
+    if (this.shuttingDown) throw new Error("应用正在退出，无法启动新任务");
+  }
+
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise;
+    this.shuttingDown = true;
+    // 取消监听器可能同步重入shutdown，先发布同一个退出Promise。
+    let resolve!: () => void, reject!: (error: unknown) => void;
+    this.shutdownPromise = new Promise<void>((done, failed) => { resolve = done; reject = failed; });
+    void this.finishShutdown().then(resolve,reject);
+    return this.shutdownPromise;
+  }
+
+  private async finishShutdown(): Promise<void> {
     const closing: Promise<void>[] = [];
+    const parents = new Set([...this.activeChats.values()].map(chat => chat.sessionId));
+    // 父会话可能已离开activeChats，但它委派的任务仍在运行。
+    for (const task of getRunningSummary().tasks) if (task.sessionId) parents.add(task.sessionId);
+    for (const parent of parents) {
+      const records = getRunningDelegations(parent);
+      abortDelegations(parent);
+      for (const record of records) closing.push(record.completion.then(() => undefined));
+    }
     for (const [id, chat] of this.activeChats) {
       chat.abortController.abort();
-      chat.session?.abort().catch(() => {});
-      if (chat.session) closing.push(disposePiSession(chat.session));
+      if (chat.session) {
+        const session = chat.session, aborted = session.abort();
+        closing.push(Promise.all([aborted, chat.promptDone]).then(() => disposePiSession(session)));
+      }
       clearPendingAsks(chat.sessionId);
       broadcast("agent:exit", { runId: id, sessionId: chat.sessionId, code: -1 });
     }
     this.activeChats.clear();
     for (const [id, run] of this.activeRuns) {
       run.abortController.abort();
-      run.session?.abort().catch(() => {});
-      if (run.session) closing.push(disposePiSession(run.session));
+      if (run.session) {
+        const session = run.session, aborted = run.abortDone = session.abort();
+        closing.push(run.completion
+          ? Promise.all([aborted, run.completion]).then(() => undefined)
+          : aborted.then(() => disposePiSession(session)));
+      } else if (run.completion) closing.push(run.completion);
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeRuns.clear();
     this.streamBuffer.clear();
-    await Promise.all(closing);
     // 清理全部后台 shell 进程(杀进程树,防孤儿进程)
     backgroundShellRegistry.stopAll();
+    closing.push(...this.pendingSends);
+    // 激活请求自行向调用方报告失败；退出只等待其停止创建和释放迟到实例。
+    closing.push(Promise.allSettled(this.activationPromises.values()).then(() => undefined));
+    if (this.memory) closing.push(this.memory.close());
+    await Promise.all(closing);
   }
 }

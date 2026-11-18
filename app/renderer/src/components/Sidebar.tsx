@@ -16,6 +16,7 @@ import { ProjectCreationGuide, useProjectCreationGuide } from "./new-project/Pro
 import { useThemeStore } from "../stores/theme-store";
 import { readVersion, markRead } from "../lib/update-notice";
 import { SelectionIndicator } from "./ui/SelectionIndicator";
+import { ProjectMenuIcon } from "./ui/ProjectMenuIcon";
 
 export type SidebarTab = "sessions" | "files";
 type DrawerTab = "tasks" | "issues" | "runs";
@@ -196,10 +197,7 @@ export function Sidebar({
         </button>
         <div className="sb-menu-wrap" ref={menuWrapRef}>
           <button ref={menuButtonRef} type="button" className="sb-menu-btn" aria-label={t("creation.guide.menuLabel")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
-            {/* 菜单图标（lucide menu）：口径随按钮一起放大到 16px / viewBox 24 / strokeWidth 2 */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h16" />
-            </svg>
+            <ProjectMenuIcon />
           </button>
           {menuOpen && (
             <div className="sb-dropdown open">

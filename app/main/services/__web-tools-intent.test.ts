@@ -39,6 +39,10 @@ async function tools(): Promise<RawTool[]> {
   return (await createProductTools("/tmp/fake-project")) as unknown as RawTool[];
 }
 
+it("does not register the removed development-confirmation gate", async () => {
+  expect((await tools()).some(tool => tool.name === "show_confirm_dev")).toBe(false);
+});
+
 describe("web_search / web_fetch 的意图字段", () => {
   it("给模型看的 schema 里带 _intent（否则模型无从填写）", async () => {
     const all = await tools();

@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { dependencyToolInternals } from "./dependency-tool";
+import { describe, expect, it, vi } from "vitest";
+import { createDependencyTool, dependencyToolInternals } from "./dependency-tool";
+import { wrapToolWithPermission } from "../permission/wrap-tool";
+
+const mocks = vi.hoisted(() => ({ spawn: vi.fn(), wrap: vi.fn() }));
+vi.mock("node:child_process", () => ({ spawn: mocks.spawn }));
+vi.mock("electron", () => ({ app: { getPath: () => "/tmp", isPackaged: false } }));
+vi.mock("../pi-sdk", () => ({ getDefineToolFn: async () => (tool: unknown) => tool }));
+vi.mock("../project-rule-files", () => ({ markProjectRuleChanged: vi.fn() }));
+vi.mock("../background-shell/registry", () => ({ backgroundShellRegistry: {}, resolveSpawn: vi.fn() }));
+vi.mock("../sandbox/manager", () => ({
+  isSandboxBypassedForMode: () => true,
+  wrapForSandbox: mocks.wrap,
+}));
 
 describe("受管理依赖安装", () => {
   it("包名始终作为单个 shell 参数，不能注入命令", () => {
@@ -28,5 +40,32 @@ describe("受管理依赖安装", () => {
       release,
     });
     expect(target.release).toBe(release);
+  });
+
+  it("权限在安装准备期间收紧时释放租约并拒绝启动", async () => {
+    let prepared!: (target: unknown) => void;
+    let revoked = false;
+    const startCheck = vi.fn(() => {
+      if (revoked) throw new Error("mock permission revoked");
+    });
+    const release = vi.fn(async () => {});
+    mocks.wrap.mockReturnValue(new Promise(resolve => { prepared = resolve; }));
+    const tool = wrapToolWithPermission(await createDependencyTool("/fixture"), {
+      canUseTool: async (_name, input) => ({
+        behavior: "allow",
+        updatedInput: input,
+        executionPolicy: { workspaceRealPath: "/fixture", mode: "full" } as never,
+        assertExecutionCanStart: startCheck,
+      }),
+    });
+    const result = tool.execute("fixture", { manager: "npm", scope: "user", packages: ["fixture-test"] }, undefined, undefined, {} as never);
+    const rejected = expect(result).rejects.toThrow("mock permission revoked");
+    await vi.waitFor(() => expect(mocks.wrap).toHaveBeenCalledOnce());
+    revoked = true;
+    prepared({ kind: "argv", argv: ["mock-only"], env: {}, release });
+    await rejected;
+    expect(startCheck).toHaveBeenCalledOnce();
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledOnce();
   });
 });

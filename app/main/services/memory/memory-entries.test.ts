@@ -39,7 +39,7 @@ it("新条目追加到末尾，且 key 稳定可复用", () => {
 it("revision 只由正文派生：同文本同版本，改一个字就变", () => {
   expect(entryRevision("abc")).toBe(entryRevision("abc"));
   expect(entryRevision("abc")).not.toBe(entryRevision("abd"));
-  expect(entryRevision("abc")).toBeGreaterThan(0);
+  expect(entryRevision("abc")).toMatch(/^[a-f0-9]{64}$/u);
 });
 
 it("删除按 key 精确移除，不影响其它条目", () => {

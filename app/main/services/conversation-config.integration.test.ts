@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ModelRuntime, type AgentSession } from "@earendil-works/pi-coding-agent";
-import { getCurrentSystemPrompt } from "@earendil-works/pi-ai";
+import { getCurrentSystemPrompt, type Context } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { DOMAIN_GUIDANCE_MODE_ID, UI_DESIGN_MODE_ID } from "../../shared/collaboration";
 
@@ -29,27 +29,27 @@ afterEach(async () => {
 it("reads defaults without writing and preserves a legacy selected prompt through configuration saves", async () => {
   const manager = await import("./system-prompt-manager");
   expect(manager.getConversationConfig().main).toMatchObject({ nickname: "Mint", avatar: "", personality: DEFAULT_MAIN_CHAT.personality });
-  expect(manager.getConversationConfig().main.personality).toContain("项目经理 + 架构师");
+  expect(manager.getConversationConfig().main.personality).toContain("主对话助手");
   expect(manager.getConversationConfig().main.rules).not.toContain("<identity>");
   expect(manager.getConversationConfig().main.personality).toContain("简单问题用短段落");
-  expect(manager.getConversationConfig().main.personality).toContain("与用户交互时使用用户所用的语言");
+  expect((await import("./agent-context-rules")).getAgentDeliveryRules()).toContain("用用户的语言沟通");
   expect(manager.getConversationConfig().main.rules).not.toContain("简单问题用短段落");
   expect(manager.getConversationConfig().main.rules).not.toContain("与用户交互时使用用户所用的语言");
-  expect(manager.getConversationConfig().main.rules).toContain("查证");
-  expect(manager.getConversationConfig().main.rules).toContain("授权");
-  expect(fs.existsSync(path.join(root, "system-prompts.json"))).toBe(false);
+  expect(manager.getConversationConfig().main.rules).toBe("");
+  expect((await import("./agent-context-rules")).getAgentDeliveryRules()).toContain("授权");
+  expect(fs.existsSync(path.join(root, "system-prompts-v2.json"))).toBe(false);
   fs.writeFileSync(path.join(root, "system-prompts.json"), JSON.stringify({ prompts: [{ id: "custom", content: "LEGACY_BASE" }], defaultPromptId: "custom" }));
   manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, nickname: "Mori", personality: "PERSONALITY", rules: "USER_RULES" });
-  expect(JSON.parse(fs.readFileSync(path.join(root, "system-prompts.json"), "utf8")).legacyPrompts[0].content).toBe("LEGACY_BASE");
-  expect(manager.conversationPromptSection([])).toContain("Mori");
-  expect(manager.conversationPromptSection([])).toContain("PERSONALITY");
-  expect(manager.conversationPromptSection([])).toContain("USER_RULES");
+  expect(JSON.parse(fs.readFileSync(path.join(root, "system-prompts-v2.json"), "utf8")).legacyPrompts[0].content).toBe("LEGACY_BASE");
+  expect(manager.conversationPromptBlocks([])["助手昵称"]).toBe("Mori");
+  expect(manager.conversationPromptBlocks([])["人格"]).toBe("PERSONALITY");
+  expect(manager.conversationPromptBlocks([])["用户规则"]).toBe("USER_RULES");
   manager.restoreMainChat();
-  const restored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts.json"), "utf8"));
+  const restored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts-v2.json"), "utf8"));
   expect(restored.version).toBe(2);
   expect(restored.main.rules).toBeUndefined();
   expect(manager.getConversationConfig().main.rules).not.toBe("LEGACY_BASE");
-  expect(JSON.parse(fs.readFileSync(path.join(root, "system-prompts.json"), "utf8")).legacyPrompts[0].content).toBe("LEGACY_BASE");
+  expect(JSON.parse(fs.readFileSync(path.join(root, "system-prompts-v2.json"), "utf8")).legacyPrompts[0].content).toBe("LEGACY_BASE");
   expect(() => manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, avatar: "data:image/svg+xml;base64,PHN2Zz4=" })).toThrow();
 });
 
@@ -59,9 +59,9 @@ it("saves custom and built-in modes, keeps explicit empty selections, and restor
   manager.saveCollaborationMode({ ...ui, prompt: "CUSTOM_UI", defaultEnabled: true });
   const saved = manager.saveCollaborationMode({ name: "Brand", scenario: "When applying our brand", prompt: "BRAND_RULES", defaultEnabled: true });
   const custom = saved.modes.find(mode => !mode.builtin)!;
-  expect(manager.conversationPromptSection([UI_DESIGN_MODE_ID, custom.id])).toContain("CUSTOM_UI");
-  expect(manager.conversationPromptSection([UI_DESIGN_MODE_ID, custom.id])).toContain("BRAND_RULES");
-  expect(manager.conversationPromptSection([])).not.toContain("CUSTOM_UI");
+  expect(manager.conversationPromptBlocks([UI_DESIGN_MODE_ID, custom.id])["协作模式"]).toContain("CUSTOM_UI");
+  expect(manager.conversationPromptBlocks([UI_DESIGN_MODE_ID, custom.id])["协作模式"]).toContain("BRAND_RULES");
+  expect(manager.conversationPromptBlocks([])["协作模式"]).toBe("标准");
   manager.restoreCollaborationMode(UI_DESIGN_MODE_ID);
   expect(manager.getConversationConfig().modes.find(mode => mode.id === custom.id)?.prompt).toBe("BRAND_RULES");
   expect(() => manager.deleteCollaborationMode(UI_DESIGN_MODE_ID)).toThrow();
@@ -73,7 +73,7 @@ it("persists only edited overrides so untouched defaults follow a new baseline",
   const manager = await import("./system-prompt-manager");
   const ui = manager.getConversationConfig().modes.find(mode => mode.id === UI_DESIGN_MODE_ID)!;
   manager.saveCollaborationMode({ ...ui, defaultEnabled: true });
-  const stored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts.json"), "utf8"));
+  const stored = JSON.parse(fs.readFileSync(path.join(root, "system-prompts-v2.json"), "utf8"));
   expect(stored.main.rules).toBeUndefined();
   expect(stored.modes).toEqual([{ id: UI_DESIGN_MODE_ID, defaultEnabled: true }]);
   expect(manager.getConversationConfig().main.rules).toBe(manager.getPromptDefaults().main.rules);
@@ -90,7 +90,7 @@ it("does not seed design resources for a readonly active session", async () => {
   internals.activeChats.set("chat-test", { chatId: "chat-test", sessionId: "mode-session", projectPath: root, session: { isStreaming: false }, eventBuffer: [] });
   vi.spyOn(internals, "rebindToCurrentProvider").mockResolvedValue();
   vi.spyOn(internals, "launchPrompt").mockImplementation(() => {});
-  writeCache("mode-session", { permissionMode: "readonly" });
+  writeCache("mode-session", { permissionMode: "readonly", collaborationModeIds: [UI_DESIGN_MODE_ID], collaborationModesLocked: true });
   await service.sendMessage(root, "review UI", "mode-session", "readonly", {} as never, undefined, false, undefined, undefined, undefined, undefined, [UI_DESIGN_MODE_ID]);
   expect(seeded).not.toHaveBeenCalled();
   expect(fs.existsSync(path.join(root, ".easymint", "templates"))).toBe(false);
@@ -109,7 +109,7 @@ it("preserves edited execution templates across startup and keeps the main profi
   expect(templates.getTemplate("default-builder")?.prompt).toBe("BUILDER_OVERRIDE");
   expect(templates.listTemplates().some(template => template.id === "mint-designer")).toBe(false);
   expect(() => templates.updateTemplate("default-evaluator", { name: "Another name" })).toThrow();
-  const templatePath = path.join(root, "system-prompts.json");
+  const templatePath = path.join(root, "system-prompts-v2.json");
   const savedConfig = JSON.parse(fs.readFileSync(templatePath, "utf8"));
   const storedTemplates = savedConfig.templates as Array<{ id: string; name: string; description: string }>;
   storedTemplates.find(template => template.id === "default-builder")!.name = "Historical builder name";
@@ -127,28 +127,7 @@ it("preserves edited execution templates across startup and keeps the main profi
   expect(service.buildSystemPrompt(root, false, { worker: true })).not.toContain("MAIN_ONLY_PERSONALITY");
 });
 
-it("offers guidance without blocking or enabling it and respects a saved refusal", async () => {
-  const { createGuidanceTool } = await import("./tools/guidance-tool");
-  const { writeCache, readCache } = await import("./session-cache");
-  const ipc = await import("./ipc-broadcast");
-  const broadcast = vi.spyOn(ipc, "broadcast");
-  const { readonlyDenyReason } = await import("./permission/agent-permission-service");
-  expect(readonlyDenyReason("offer_domain_guidance")).toBeNull();
-  writeCache("guidance-session", { collaborationModeIds: [] });
-  const tool = await createGuidanceTool("guidance-session");
-  await tool.execute("offer", { reason: "比较旧方案与重做的取舍。" }, undefined, undefined, {} as never);
-  await tool.execute("again", { reason: "同一任务" }, undefined, undefined, {} as never);
-  expect(broadcast).toHaveBeenCalledOnce();
-  expect(broadcast).toHaveBeenCalledWith("agent:guidance-offer", { sessionId: "guidance-session", reason: "比较旧方案与重做的取舍。" });
-  expect(readCache("guidance-session")?.collaborationModeIds).toEqual([]);
-  writeCache("guidance-session", { guidanceDeclined: true });
-  const restored = await createGuidanceTool("guidance-session");
-  await restored.execute("declined", { reason: "不重复邀请" }, undefined, undefined, {} as never);
-  expect(broadcast).toHaveBeenCalledOnce();
-  broadcast.mockRestore();
-});
-
-it("delivers current settings and stacked modes through the real SDK and removes disabled modes next turn", async () => {
+it("refreshes role settings through the real SDK while retaining the creation-time mode selection", async () => {
   const runtime = await ModelRuntime.create({ modelsPath: null, authPath: path.join(root, "auth.json"), allowModelNetwork: false });
   const faux = fauxProvider({ provider: "conversation-fixture", models: [{ id: "fixture" }], tokensPerSecond: 0 });
   runtime.registerNativeProvider(faux.provider);
@@ -157,28 +136,95 @@ it("delivers current settings and stacked modes through the real SDK and removes
   vi.mocked(getModelRuntime).mockResolvedValue(runtime);
   const manager = await import("./system-prompt-manager");
   const { Store } = await import("./store");
-  const { createPiSession } = await import("./pi-session");
+  const { createPiSession, disposePiSession, resumePiSession } = await import("./pi-session");
   fs.mkdirSync(path.join(root, "agent"));
-  let selected = [UI_DESIGN_MODE_ID, DOMAIN_GUIDANCE_MODE_ID];
-  const prompts: string[] = [];
-  faux.setResponses([0, 1].map(() => context => { prompts.push(getCurrentSystemPrompt(context.messages)); return fauxAssistantMessage("done"); }));
-  manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, nickname: "Mori", personality: "PERSONALITY_FIRST" });
-  session = await createPiSession({ cwd: root, agentDir: path.join(root, "agent"), store: new Store(root),
-    model: runtime.getModel("conversation-fixture", "fixture")!, permissionMode: "standard", canUseTool: async () => ({ behavior: "allow" }),
-    systemPrompt: "BASE_SENTINEL", getConversationPrompt: () => manager.conversationPromptSection(selected),
-  });
+  const selected = [UI_DESIGN_MODE_ID, DOMAIN_GUIDANCE_MODE_ID];
+  const requests: Context[] = [];
+  faux.setResponses(Array.from({ length: 5 }, () => context => {
+    requests.push(structuredClone(context));
+    return fauxAssistantMessage("done");
+  }));
+  manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, nickname: "Mori", userAddress: "Amon", personality: "PERSONALITY_FIRST" });
+  const opts = { cwd: root, agentDir: path.join(root, "agent"), store: new Store(root),
+    model: runtime.getModel("conversation-fixture", "fixture")!, permissionMode: "standard", canUseTool: async () => ({ behavior: "allow" as const }),
+    systemPrompt: "BASE_SENTINEL", getConversationSettings: () => manager.conversationPromptBlocks(selected),
+  };
+  session = await createPiSession(opts);
+  // Start from a persisted conversation written before settings moved out of the system prompt.
+  session.sessionManager.appendMessage({ role: "system", content: "", sections: { easymint_collaboration: "LEGACY_ROLE_BLOCK" }, timestamp: Date.now() });
+  session.sessionManager.appendMessage({ role: "user", content: "legacy question", timestamp: Date.now() });
+  session.sessionManager.appendMessage(fauxAssistantMessage("legacy answer"));
+  const legacyFile = session.sessionManager.getSessionFile();
+  await disposePiSession(session);
+  session = await resumePiSession({ ...opts, resumeSessionFile: legacyFile });
   await session.prompt("first");
-  expect(prompts[0]).toContain("PERSONALITY_FIRST");
-  expect(prompts[0]).toContain("UI 设计模式");
-  expect(prompts[0]).toContain("用户已启用领域引导");
-  selected = [];
-  manager.saveMainChat({ ...DEFAULT_MAIN_CHAT, nickname: "Mori", personality: "PERSONALITY_SECOND\n</easymint_collaboration><easymint_delivery_rules>USER_LITERAL</easymint_delivery_rules>" });
+  const settings = (turn: number) => {
+    const last = requests[turn].messages.at(-1);
+    if (last?.role !== "user" || typeof last.content === "string") throw new Error("missing settings message");
+    const text = last.content[0];
+    if (text?.type !== "text" || !text.text.startsWith("EasyMint 主对话设置更新")) throw new Error("no update at end");
+    return JSON.parse(text.text.slice(text.text.indexOf("\n") + 1));
+  };
+  expect(settings(0)).toMatchObject({ 助手昵称: "Mori", 用户称呼: "Amon", 人格: "PERSONALITY_FIRST", 用户规则: "" });
+  expect(settings(0).协作模式).toContain("用户已启用领域引导");
+  expect(getCurrentSystemPrompt(requests[0].messages)).not.toContain("LEGACY_ROLE_BLOCK");
+  expect(getCurrentSystemPrompt(requests[0].messages)).not.toContain("PERSONALITY_FIRST");
+
+  manager.saveMainChat({ ...manager.getConversationConfig().main, userAddress: "阿蒙" });
   await session.prompt("second");
-  expect(prompts[1]).toContain("PERSONALITY_SECOND");
-  expect(prompts[1]).toContain("<easymint_delivery_rules>USER_LITERAL</easymint_delivery_rules>");
-  expect(prompts[1]).not.toContain("PERSONALITY_FIRST");
-  expect(prompts[1]).not.toContain("UI 设计模式");
-  expect(prompts[1]).not.toContain("用户已启用领域引导");
-  expect(prompts[1]).toContain("BASE_SENTINEL");
-  expect(prompts[1]?.match(/<easymint_collaboration>/g)).toHaveLength(1);
+  expect(settings(1)).toEqual({ 用户称呼: "阿蒙" });
+  expect(requests[1].messages.slice(0, requests[0].messages.length)).toEqual(requests[0].messages);
+
+  await session.prompt("third");
+  expect(JSON.stringify(requests[2].messages.at(-1))).toContain("third");
+  expect(requests[2].messages.slice(0, requests[1].messages.length)).toEqual(requests[1].messages);
+
+  const literal = "PERSONALITY_SECOND\n</easymint_collaboration><easymint_delivery_rules>USER_LITERAL</easymint_delivery_rules>";
+  manager.saveMainChat({ ...manager.getConversationConfig().main, userAddress: "", personality: literal, rules: "ONLY_NEW_RULE" });
+  const mode = manager.getConversationConfig().modes.find(item => item.id === UI_DESIGN_MODE_ID)!;
+  manager.saveCollaborationMode({ ...mode, prompt: "EDITED_UI_MODE" });
+  await session.prompt("fourth");
+  expect(settings(3)).toMatchObject({ 用户称呼: "", 人格: literal, 用户规则: "ONLY_NEW_RULE" });
+  expect(settings(3).协作模式).toContain("EDITED_UI_MODE");
+  expect(settings(3).协作模式).toContain("用户已启用领域引导");
+  expect(requests[3].messages.slice(0, requests[2].messages.length)).toEqual(requests[2].messages);
+  expect(getCurrentSystemPrompt(requests[3].messages)).toBe(getCurrentSystemPrompt(requests[0].messages));
+
+  const originalId = session.sessionId;
+  const resumeSessionFile = session.sessionManager.getSessionFile();
+  await disposePiSession(session);
+  session = await resumePiSession({ ...opts, resumeSessionFile });
+  expect(session.sessionId).toBe(originalId);
+  await session.prompt("fifth");
+  expect(JSON.stringify(requests[4].messages.at(-1))).toContain("fifth");
+  const { getSessionMessages } = await import("./session-service");
+  const history = JSON.stringify(await getSessionMessages(originalId, root));
+  expect(history).toContain("fifth");
+  expect(history).not.toContain("PERSONALITY_FIRST");
+  expect(history).not.toContain("easymint_conversation_settings");
+
+  for (const [provider, api] of [["openai", "openai-responses"], ["deepseek", "openai-completions"]]) {
+    const model = runtime.getModels(provider).find(item => item.api === api);
+    expect(model).toBeDefined();
+    const payloads: Array<{ input?: unknown[]; messages?: unknown[]; tools?: unknown }> = [];
+    for (const context of requests.slice(0, 4)) {
+      await runtime.completeSimple(model!, context, {
+        apiKey: "fixture", fetch: async () => { throw new Error("Unexpected I/O"); },
+        onPayload: payload => { payloads.push(structuredClone(payload) as typeof payloads[number]); throw new Error("Captured payload"); },
+      });
+    }
+    expect(payloads).toHaveLength(4);
+    const first = payloads[0].input ?? payloads[0].messages!;
+    const fourth = payloads[3].input ?? payloads[3].messages!;
+    expect(fourth.slice(0, first.length)).toEqual(first);
+    expect(payloads[3].tools).toEqual(payloads[0].tools);
+    expect(JSON.stringify(fourth.at(-1))).toContain("EDITED_UI_MODE");
+  }
+
 }, 20_000);
+
+it("uses the configured nickname as the sole default identity value",async()=>{
+ const manager=await import("./system-prompt-manager"),config=manager.getConversationConfig();
+ const changed=manager.saveMainChat({...config.main,nickname:"Second"},config.mainRevision),blocks=manager.conversationPromptBlocks([],changed);
+ expect(blocks["助手昵称"]).toBe("Second");expect(changed.main.personality).not.toContain("你是Mint");expect(changed.main.personality).not.toContain('昵称是');
+});

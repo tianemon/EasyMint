@@ -66,20 +66,26 @@ function collectLinux(probe: MachineProbe): Partial<MachineProfile> {
   };
 }
 
+// Bundle the slow Windows queries in one process and emit UTF-8 across UI locales.
+const WINDOWS_MACHINE_PROFILE = Buffer.from([
+  "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)",
+  "$ErrorActionPreference='SilentlyContinue'",
+  "[pscustomobject]@{cpu=(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name); os=(Get-CimInstance Win32_OperatingSystem).Caption; memory=(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory} | ConvertTo-Json -Compress",
+].join("; "), "utf16le").toString("base64");
+
 function collectWindows(probe: MachineProbe): Partial<MachineProfile> {
-  const info = probe.run(
-    'powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name"',
-  );
-  const version = probe.run('powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption"');
-  const memory = number(
-    probe.run('powershell -NoProfile -Command "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory"'),
-  );
-  return {
-    cpu: info ?? undefined,
-    os: version ?? undefined,
-    memoryGb: memory ? Math.round(memory / 1024 ** 3) : undefined,
-    cores: number(probe.env?.NUMBER_OF_PROCESSORS ?? null),
-  };
+  const cores = number(probe.env?.NUMBER_OF_PROCESSORS ?? null);
+  const raw = probe.run(`powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ${WINDOWS_MACHINE_PROFILE}`);
+  if (!raw) return { cores };
+  try {
+    const profile = JSON.parse(raw) as { cpu?: string; os?: string; memory?: number } | null;
+    return {
+      cpu: profile?.cpu || undefined,
+      os: profile?.os || undefined,
+      memoryGb: profile?.memory ? Math.round(profile.memory / 1024 ** 3) : undefined,
+      cores,
+    };
+  } catch { return { cores }; }
 }
 
 function collectTools(probe: MachineProbe): Record<string, string> {

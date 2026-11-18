@@ -56,6 +56,11 @@ async function getSdk() {
   return _sdk;
 }
 
+/** Share Pi's per-file queue with its native write/edit tools; no second lock domain. */
+export async function getFileMutationQueueFn(): Promise<typeof import("@earendil-works/pi-coding-agent").withFileMutationQueue> {
+  return (await getSdk()).withFileMutationQueue;
+}
+
 /**
  * SessionManager 的**轻量加载通道**——只为了拿一个默认会话目录，不必付整包入口的代价。
  *

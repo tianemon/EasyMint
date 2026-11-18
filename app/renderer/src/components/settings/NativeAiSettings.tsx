@@ -63,7 +63,7 @@ export function NativeAiSettings(): JSX.Element {
         {field(uiText("pi.planningModel"), planning, setPlanning, models.chat)}
         {field(uiText("pi.executionModel"), execution, setExecution, models.chat)}
         <p className="text-[length:var(--text-2xs)] text-text-muted">{uiText("pi.routingHint", { id: AUTO_MODEL_ID })}</p>
-        <button type="button" className="btn-primary text-xs" disabled={!loaded || saving || !!planning !== !!execution} onClick={() => { void save(); }}>{uiText(saving ? "pi.saving" : "pi.save")}</button>
+        <button type="button" className="settings-action btn-accent" disabled={!loaded || saving || !!planning !== !!execution} onClick={() => { void save(); }}>{uiText(saving ? "pi.saving" : "pi.save")}</button>
         {saved && <p role="status" className="text-xs text-success">{uiText("pi.saved")}</p>}
         {error && <p role="alert" className="text-xs text-danger">{
           error === "Wait until the automatic-model run finishes before changing routing" ? uiText("pi.routingBusy")

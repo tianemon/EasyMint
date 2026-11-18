@@ -102,3 +102,50 @@ describe("session cache persistence boundaries", () => {
     expect(cache.readCache("changed")?.model).toBe("new");
   });
 });
+
+describe("collaboration mode cache fields", () => {
+  const invalidSelections = ["ui-design", null, 1, {}, ["ui-design", null], new Array(1)].map(invalid => ({invalid}));
+  it.each(invalidSelections)("ignores an invalid nested field without rewriting the cache: $invalid", ({invalid}) => {
+    const file = path.join(isolated.root, "session-cache", "session.json");
+    fs.mkdirSync(path.dirname(file));
+    const original = JSON.stringify({model:"kept",permissionMode:"standard",contextUsage:12,collaborationModeIds:invalid});
+    fs.writeFileSync(file, original);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(cache.readCache("session")).toEqual({model:"kept",permissionMode:"standard",contextUsage:12});
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+  });
+
+  it.each(invalidSelections)("rejects invalid writes without replacing prior cache bytes: $invalid", ({invalid}) => {
+    cache.writeCache("session", {model:"kept",collaborationModeIds:["ui-design"]});
+    const file = path.join(isolated.root, "session-cache", "session.json"), before = fs.readFileSync(file,"utf8");
+    expect(() => cache.writeCache("session", {collaborationModeIds:invalid as never})).toThrow("字符串数组");
+    expect(fs.readFileSync(file,"utf8")).toBe(before);
+  });
+
+  it("roundtrips custom and empty selections while preserving unrelated fields", () => {
+    cache.writeCache("session", {model:"kept",collaborationModeIds:["custom-mode", "ui-design"]});
+    expect(cache.readCache("session")).toMatchObject({model:"kept",collaborationModeIds:["custom-mode", "ui-design"]});
+    cache.writeCache("session", {collaborationModeIds:[]});
+    expect(cache.readCache("session")).toMatchObject({model:"kept",collaborationModeIds:[]});
+  });
+});
+
+it("allows draft mode changes but refuses all client mode writes on created sessions",()=>{
+ cache.writeClientCache("__new_draft",{collaborationModeIds:["ui-design"]});
+ cache.writeClientCache("__new_draft",{collaborationModeIds:[]});
+ expect(cache.readCache("__new_draft")?.collaborationModeIds).toEqual([]);
+ cache.writeCache("created",{collaborationModeIds:["ui-design"],collaborationModesLocked:true,model:"kept"});
+ const file=path.join(isolated.root,"session-cache","created.json"),before=fs.readFileSync(file,"utf8");
+ for(const patch of [{permissionMode:"full",collaborationModeIds:[]},{collaborationModeIds:[]},{collaborationModeIds:["ui-design"]},{collaborationModeIds:undefined},{collaborationModesLocked:false}])expect(()=>cache.writeClientCache("created",patch)).toThrow("创建会话前");
+ expect(fs.readFileSync(file,"utf8")).toBe(before);
+ cache.writeClientCache("created",{thinkingLevel:"high"});expect(cache.readCache("created")).toMatchObject({model:"kept",thinkingLevel:"high",collaborationModeIds:["ui-design"]});
+});
+it("keeps a persisted mode lock across reopen, including a legacy identifier with the draft prefix",async()=>{
+ cache.writeCache("__new_imported",{collaborationModeIds:["ui-design","domain-guidance"],collaborationModesLocked:true});
+ vi.resetModules();const reopened=await import("./session-cache");
+ expect(()=>reopened.writeClientCache("__new_imported",{collaborationModeIds:[]})).toThrow("创建会话前");
+ expect(()=>reopened.writeCache("__new_imported",{collaborationModeIds:[]})).toThrow("创建会话前");
+ expect(()=>reopened.writeCache("__new_imported",{collaborationModesLocked:undefined})).toThrow("创建会话前");
+ reopened.writeCache("__new_imported",{collaborationModeIds:["domain-guidance","ui-design"]});
+ expect(reopened.readCache("__new_imported")?.collaborationModesLocked).toBe(true);
+});

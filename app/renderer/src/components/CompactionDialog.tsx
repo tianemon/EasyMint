@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "./ui/DialogCloseButton";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
@@ -81,9 +82,7 @@ export function CompactionDialog({
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] p-5 max-w-md w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-1">
           <div className="text-sm font-medium text-text-primary">{title}</div>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary shrink-0">
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 3l8 8M11 3L3 11"/></svg>
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
         <p className="text-xs text-text-secondary mb-3">{uiText("ui.CompactionDialog.compactionSummarizesTheConversationToFreeSpace")}</p>
         <div className="space-y-1">

@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "./ui/DialogCloseButton";
 import { useChatStore } from "../stores/chat-store";
 import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale } from "../lib/i18n";
@@ -70,9 +71,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-text-primary">{uiText("ui.SessionStatsPopup.sessionStatistics")}</span>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 3l8 8M11 3L3 11"/></svg>
-          </button>
+          <DialogCloseButton onClick={onClose} />
         </div>
 
         <div className="space-y-3 text-xs">

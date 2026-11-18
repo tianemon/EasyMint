@@ -1,5 +1,6 @@
 import { fork, type ChildProcess } from "node:child_process";
 import path from "node:path";
+import { buildExecutionPolicy } from "../permission/access-policy";
 import type { ExecutionContext } from "../permission/execution-context";
 import type { WindowsSandboxWorkerRequest, WindowsSandboxWorkerResponse } from "./windows-worker-protocol";
 
@@ -25,11 +26,8 @@ interface WorkerHandle {
 
 const workers = new Map<string, WorkerHandle>();
 let sequence = 0;
-type WorkerRequestWithoutId =
-  | { type: "initialize"; context: ExecutionContext }
-  | { type: "wrap"; command: string; shell: "bash" | "powershell"; gitBashPath?: string; commandId: string }
-  | { type: "release"; leaseId: string }
-  | { type: "shutdown"; force?: boolean };
+type WithoutRequestId<T> = T extends unknown ? Omit<T, "requestId"> : never;
+type WorkerRequestWithoutId = WithoutRequestId<WindowsSandboxWorkerRequest>;
 
 /** 导出为纯函数，覆盖 Windows worker 隔离维度的回归测试。 */
 export function windowsWorkerKey(context: ExecutionContext): string {
@@ -43,9 +41,8 @@ const INIT_TIMEOUT_MS = 60_000;
 function requestId(): string { return `win-srt-${process.pid}-${Date.now()}-${++sequence}`; }
 
 function workerEntrypoint(): string {
-  // worker 与 main.cjs 同目录构建；electron-builder 将此文件 asarUnpack，fork 才能执行。
-  const bundled = path.join(__dirname, "windows-sandbox-worker.cjs");
-  return bundled.replace(/\.asar([\\/])/, ".asar.unpacked$1");
+  // Electron runs the script by its logical path so Node resolves dependencies in app.asar.
+  return path.join(__dirname, "windows-sandbox-worker.cjs");
 }
 
 /** 让这个 worker 上的所有等待一起失败，并把它换掉（超时 / 退出都走这里，避免留下"半死不活"的 worker） */
@@ -100,12 +97,13 @@ function call(handle: WorkerHandle, message: WorkerRequestWithoutId): Promise<Wi
 
 async function ready(context: ExecutionContext): Promise<WorkerHandle> {
   const key = windowsWorkerKey(context);
-  const handle = workers.get(key) ?? createWorker(key);
-  if (!handle.initialized) {
-    const response = await call(handle, { type: "initialize", context });
-    if (response.type !== "ready") throw new Error("Windows 沙盒初始化返回无效响应");
-    handle.initialized = true;
-  }
+  const existing = workers.get(key);
+  if (existing?.initialized) return existing;
+  const policy = buildExecutionPolicy(context);
+  const handle = existing ?? createWorker(key);
+  const response = await call(handle, { type: "initialize", context, policy });
+  if (response.type !== "ready") throw new Error("Windows 沙盒初始化返回无效响应");
+  handle.initialized = true;
   return handle;
 }
 

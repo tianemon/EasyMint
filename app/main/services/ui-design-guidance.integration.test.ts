@@ -29,7 +29,7 @@ it("routes enhanced Mint and the seeded Mint-D through the actual SDK skill loca
   const store = new Store(root);
   void AgentService;
   const manager = await import("./system-prompt-manager");
-  const enhanced = manager.conversationPromptSection(["ui-design"]), standard = manager.conversationPromptSection([]);
+  const enhanced = manager.conversationPromptBlocks(["ui-design"])["协作模式"], standard = manager.conversationPromptBlocks([])["协作模式"];
   expect(enhanced).toContain(MINT_DESIGN_BOOST);
   expect(standard).not.toContain(MINT_DESIGN_BOOST);
   seedDefaults();

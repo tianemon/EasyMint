@@ -23,7 +23,7 @@ import {
 } from "./access-policy";
 import runtimeManifest from "../../../shared/windows-runtime.json";
 import { emHome } from "../../utils/paths";
-import { bindExecutionOwner, createExecutionContext, normalizePermissionMode, type ExecutionContext } from "./execution-context";
+import { bindExecutionOwner, createExecutionContext, isPermissionModeTightening, normalizePermissionMode, type ExecutionContext } from "./execution-context";
 
 type PermissionBehavior = "allow" | "deny";
 type PermissionUpdateDestination = "userSettings" | "projectSettings" | "localSettings" | "session" | "cliArg";
@@ -48,6 +48,7 @@ export type PermissionResult = {
   behavior: "allow";
   updatedInput?: Record<string, unknown>;
   executionPolicy?: ExecutionContext;
+  assertExecutionCanStart?: () => void;
   updatedPermissions?: PermissionUpdate[];
   toolUseID?: string;
   decisionClassification?: PermissionDecisionClassification;
@@ -87,6 +88,11 @@ export class AgentPermissionService {
         behavior: "allow",
         updatedInput: input,
         executionPolicy,
+        assertExecutionCanStart: executionPolicy && (() => {
+          const currentSid = resolveSessionId?.(sessionId) ?? sessionId;
+          const currentMode = normalizeMode(readCache(currentSid)?.permissionMode || "auto");
+          if (isPermissionModeTightening(mode, currentMode)) throw new Error("命令准备期间会话权限已收紧，未启动命令");
+        }),
       });
       const deny = (rule: string, operation: string, target: string, detail: string): PermissionResult => ({
         behavior: "deny",
@@ -244,9 +250,9 @@ function isShellTool(name: string): boolean {
 const READONLY_ALLOWED_TOOLS = new Set([
   // 这些工具只走 Node 文件系统 API。grep / find / glob 在 Pi SDK 中可能按需下载 rg / fd，
   // 不属于只读档可承诺的无写入、无联网路径。
-  "read", "ls",
+  "read", "ls", "other_sessions",
   // EasyMint 自身的纯查询工具；它们不启动进程、不写持久状态、不访问网络。
-  "list_issues", "list_agents", "read_agent_log", "ask_user", "offer_domain_guidance",
+  "list_issues", "list_agents", "read_agent_log", "ask_user",
   // 子 Agent 结构化返回工具；只在已存在的只读 worker 中出现。
   "yield",
 ]);
@@ -257,7 +263,7 @@ const READONLY_ALLOWED_TOOLS = new Set([
  */
 export function readonlyDenyReason(toolName: string, input: Record<string, unknown> = {}): { operation: string; detail: string } | null {
   const name = toolName.toLowerCase();
-  if (name === "memory") return ["search", "read", "read_summary"].includes(String(input.action)) ? null : { operation: "write", detail: "只读档仅查询记忆，不记录、修正或忘记" };
+  if (name === "memory" || name === "experience") return ["search", "read", "read_summary"].includes(String(input.action)) ? null : { operation: "write", detail: "只读档仅查询记忆，不记录、修正或忘记" };
   if (name.startsWith("mcp__")) return { operation: "execute", detail: "只读档不启用 MCP 工具（会启动进程或联网）" };
   if (READONLY_ALLOWED_TOOLS.has(name)) return null;
   if (isShellTool(name) || name === "install_dependency" || name === "task" || name === "stop_shell" || name === "stop_agent") {

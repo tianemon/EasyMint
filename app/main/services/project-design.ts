@@ -80,10 +80,16 @@ export function loadVisualAssets(resources = getResourcesDir()): VisualAssets {
 }
 export function readProjectDesign(root: string): VisualSpec | null {
     recoverProjectDesign(root);
+    const readProfile = () => {
+        const profileText = read(target(root, '.easymint/project-profile.json'));
+        return profileText === null ? undefined : JSON.parse(profileText);
+    };
+    // Only an explicit opt-out overrides an existing, independently usable spec.
+    try { if (readProfile()?.visualSpec === null) return null; }
+    catch { /* An unreadable auxiliary profile cannot invalidate the spec. */ }
     const text = read(target(root, `${DIR}/visual-spec.json`));
     if (text === null) {
-        const profile = read(target(root, '.easymint/project-profile.json'));
-        if (profile && JSON.parse(profile).visualSpec)
+        if (readProfile()?.visualSpec)
             throw new Error('Project visual specification is missing');
         return null;
     }
@@ -105,7 +111,7 @@ export function safeProjectDesignSection(root: string): string {
         return `\n<easymint_project_visual>\n项目视觉约束暂不可用：${reason} 对普通对话继续处理；如果任务涉及设计或界面，先告知用户视觉约束未生效，检查现有项目文件并保留用户改动，不要假定默认视觉方案或擅自覆盖、删除设计资源。\n</easymint_project_visual>\n`;
     }
 }
-export function saveProjectDesign(root: string, selection: VisualSelection, platformSpec?: string, resources = getResourcesDir()): VisualSpec {
+export function saveProjectDesign(root: string, selection: VisualSelection, platformSpec?: string, resources = getResourcesDir(), retainRollback?: (rollback: () => void) => void): VisualSpec {
     root = path.resolve(root);
     if (!fs.statSync(root).isDirectory())
         throw new Error('Project directory does not exist');
@@ -190,7 +196,36 @@ export function saveProjectDesign(root: string, selection: VisualSelection, plat
         recoverProjectDesign(root);
         throw error;
     }
+    retainRollback?.(() => {
+        if (read(journal) !== null || changes.some(c => read(target(root, c.relative)) !== c.after)) {
+            throw new Error('Design recovery conflicts with a changed file; original files and transaction retained');
+        }
+        atomic(journal, JSON.stringify(changes));
+        recoverProjectDesign(root);
+    });
     return spec;
+}
+
+/** Save the assets for the creation flow and return a guarded undo until rules commit. */
+export function saveCreationProjectAssets(root: string, platformSpec: string, selection?: VisualSelection, resources?: string): () => void {
+    if (selection) {
+        let rollback = () => {};
+        saveProjectDesign(root, selection, platformSpec, resources, undo => { rollback = undo; });
+        return rollback;
+    }
+    recoverProjectDesign(root);
+    const file = target(root, '.easymint/project-profile.json');
+    const entry = fs.lstatSync(file, { throwIfNoEntry: false });
+    if (entry && !entry.isFile()) throw new Error('项目配置不是普通文件，已保留原件；未应用新配置');
+    const previous = read(file);
+    const content = JSON.stringify({ ...(previous === null ? {} : JSON.parse(previous)), platformSpec, visualSpec: null, savedAt: Date.now() }, null, 2);
+    atomic(file, content);
+    return () => {
+        const current = target(root, '.easymint/project-profile.json');
+        if (read(current) !== content) throw new Error('项目配置已被其他程序修改，保留当前内容');
+        if (previous === null) fs.unlinkSync(current);
+        else atomic(current, previous);
+    };
 }
 export function ensureProjectDesign(root: string): boolean {
     const spec = readProjectDesign(root);

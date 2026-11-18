@@ -9,7 +9,8 @@
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { AgentSessionEvent } from "../pi-sdk";
+import type {MemorySessionContext} from "../memory/service";
+import type { AgentSessionEvent,AgentSession,ToolDefinition } from "../pi-sdk";
 import { createPiSession, disposePiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { createEnhancedEditTool } from "../enhanced-edit";
@@ -69,6 +70,8 @@ export interface SubagentOptions {
   signal?: AbortSignal;
   readOnly?: boolean;
   outputSchema?: unknown;
+  captureKnowledge?:(context:MemorySessionContext)=>Promise<void>;
+  createKnowledgeTools?:(getContext:()=>MemorySessionContext)=>Promise<ToolDefinition[]>;
   onProgress?: (progress: AgentProgress) => void;
   /** 任务标题(description 摘要,结果注入显示用) */
   title?: string;
@@ -160,23 +163,28 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   };
   opts.onProgress?.(progress);
 
+  const failBeforeStart = (message: string, stderr = message): SingleResult => {
+    const durationMs = Date.now() - startMs;
+    // Formal task status is written from progress, even when no SDK session was created.
+    opts.onProgress?.({ ...progress, status: "failed", durationMs });
+    return {
+      index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
+      exitCode: 1, output: "", stderr, truncated: false, durationMs, error: message, tokens: 0, requests: 0,
+    };
+  };
+
   const resolvedPath = path.resolve(resolveHome(opts.cwd));
 
   // designer 类模板：先把种子模板/品牌库播进项目。原先只有「主会话以 designer 启动」才播种，
   // 走 task 委派 mint-designer 的子 Agent 会去翻一个不存在的 .easymint/templates/（白耗回合）
-  if (opts.agent && !opts.readOnly && normalizePermissionMode(opts.permissionMode) !== "readonly" && getTemplate(opts.agent)?.agentType === "designer") {
+  const tpl = opts.agent ? getTemplate(opts.agent) : undefined;
+  if (opts.agent && !tpl) return failBeforeStart("指定执行模板不存在，请刷新模板清单后重试", `指定模板已不可用：${opts.agent}`);
+  if (!opts.readOnly && normalizePermissionMode(opts.permissionMode) !== "readonly" && tpl?.agentType === "designer") {
     ensureDesignerTemplates(resolvedPath);
   }
 
   const model = await resolveSubagentModel(opts);
-  if (!model) {
-    return {
-      index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
-      exitCode: 1, output: "", stderr: "未配置 AI 模型", truncated: false,
-      durationMs: Date.now() - startMs, error: "未配置 AI 模型",
-      tokens: 0, requests: 0,
-    };
-  }
+  if (!model) return failBeforeStart("未配置 AI 模型");
 
   if ((model as any).contextWindow) {
     progress.contextWindow = (model as any).contextWindow;
@@ -185,13 +193,6 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
 
   // 子 Agent 的思考等级 = 主会话当前等级（**唯一来源**），两个执行分支共用；
   // 再经 adaptSubagentThinkingLevel 按子 Agent 模型能力自适应（模型不支持的档会自动降）。
-  // tpl 在这里取一次：模板只提供人格 prompt，不再提供任何运行配置。
-  const tpl = opts.agent ? getTemplate(opts.agent) : undefined;
-  if (opts.agent && !tpl) return {
-    index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
-    exitCode: 1, output: "", stderr: `指定模板已不可用：${opts.agent}`, truncated: false,
-    durationMs: Date.now() - startMs, error: "指定执行模板不存在，请刷新模板清单后重试", tokens: 0, requests: 0,
-  };
   const subagentThinkingBase = subagentThinkingLevel(opts.parentThinkingLevel);
 
   const tools = opts.readOnly
@@ -204,6 +205,17 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       })();
 
   if (!opts.readOnly) tools.push(await createProjectDesignTool(resolvedPath));
+
+  let knowledgeSession:AgentSession|undefined;
+  const knowledgeContext=():MemorySessionContext=>{
+    const session=knowledgeSession;if(!session)throw new Error("执行会话尚未就绪");
+    const usage=session.getContextUsage(),window=usage?.contextWindow ?? session.model?.contextWindow ?? 0;
+    return {sessionId:session.sessionId,sessionFile:session.sessionManager.getSessionFile(),projectPath:resolvedPath,entries:session.sessionManager.getEntries(),projection:session.sessionManager.buildSessionProjection().entries,current:knowledgeContext,
+      readOnly:opts.readOnly,limited:true,signal:opts.signal,delegationId:opts.delegationId,taskIndex:opts.index,...(window?{usage:{tokens:usage?.tokens ?? 0,contextWindow:window}}:{})};
+  };
+  let knowledgeSetupWarning:string|undefined;
+  if(opts.createKnowledgeTools)try{tools.push(...await opts.createKnowledgeTools(knowledgeContext));}catch(error){knowledgeSetupWarning=`记忆/经验工具未就绪：${(error as Error).message}`;console.warn(knowledgeSetupWarning);}
+
 
   // 子 Agent 权限跟随主会话。旧调用方没有策略时全部失败关闭，不能让原生 Bash 裸跑。
   const extraTools = opts.canUseTool
@@ -256,11 +268,13 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       getPermissionMode: () => opts.readOnly || opts.signal?.aborted ? "readonly" : opts.permissionMode,
       executionOwner: getDelegation(opts.delegationId)?.parentSessionId,
     });
+    knowledgeSession=session2;
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session2.sessionFile ?? "";
     opts.childSessionIds[opts.index] = resolveAgentSessionId(session2);
     progress.sessionFile = opts.childSessionFiles[opts.index] || undefined;
     const result2 = await executeAndCollect(session2, opts.task, yieldItems, opts, progress, id, agentLabel, startMs, opts.outputSchema);
+    if(knowledgeSetupWarning)result2.warning=[result2.warning,knowledgeSetupWarning].filter(Boolean).join("\n");
     return result2;
   }
 
@@ -284,11 +298,13 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       getPermissionMode: () => opts.readOnly || opts.signal?.aborted ? "readonly" : opts.permissionMode,
       executionOwner: getDelegation(opts.delegationId)?.parentSessionId,
     });
+    knowledgeSession=session;
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session.sessionFile ?? "";
     opts.childSessionIds[opts.index] = resolveAgentSessionId(session);
     progress.sessionFile = opts.childSessionFiles[opts.index] || undefined;
     const result = await executeAndCollect(session, opts.task, yieldItems, opts, progress, id, agentLabel, startMs);
+    if(knowledgeSetupWarning)result.warning=[result.warning,knowledgeSetupWarning].filter(Boolean).join("\n");
     return result;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -468,7 +484,13 @@ async function executeAndCollect(
   } finally {
     unsub();
     opts.signal?.removeEventListener("abort", onAbort);
-    await disposePiSession(session);
+    try{
+      if(opts.captureKnowledge&&!opts.signal?.aborted&&!opts.readOnly){
+        const usage=session.getContextUsage();
+        await opts.captureKnowledge({sessionId:session.sessionId,sessionFile:session.sessionManager.getSessionFile(),projectPath:opts.cwd,entries:session.sessionManager.getEntries(),projection:session.sessionManager.buildSessionProjection().entries,limited:true,readOnly:opts.readOnly,signal:opts.signal,delegationId:opts.delegationId,taskIndex:opts.index,usage:usage?{tokens:usage.tokens ?? 0,contextWindow:usage.contextWindow}:undefined});
+      }
+    }catch(error){console.warn("[memory] 子任务结论未排队:",(error as Error).message);}
+    finally{await disposePiSession(session);}
   }
 
   const rawOutput = collector.getText();
@@ -534,6 +556,8 @@ export interface DelegationRuntime {
   parentPermissionMode?: string;
   /** 主会话权限回调（子 Agent 跟随主会话权限模式 + 绝对禁区）；缺省走旧只读包装 */
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
+  captureKnowledge?:(context:MemorySessionContext)=>Promise<void>;
+  createKnowledgeTools?:(getContext:()=>MemorySessionContext)=>Promise<ToolDefinition[]>;
   onProgress?: (progress: AgentProgress) => void;
 }
 
@@ -582,6 +606,7 @@ export async function runSubagents(
       parentProvider: runtime.parentProvider,
       permissionMode: runtime.parentPermissionMode,
       canUseTool: runtime.canUseTool,
+      createKnowledgeTools:runtime.createKnowledgeTools,captureKnowledge:runtime.captureKnowledge,
     },
   }));
 

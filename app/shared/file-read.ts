@@ -10,8 +10,10 @@
 export type FileReadFailReason = "missing" | "outside-project";
 
 export type FileReadResult =
-  | { ok: true; content: string }
+  | { ok: true; content: string; hash: string }
   | { ok: false; reason: FileReadFailReason };
+
+export interface FileWriteResult { hash: string }
 
 /** 面向用户的一句话（只说发生了什么，不写内部机制） */
 export const FILE_READ_HINTS: Record<FileReadFailReason, string> = {

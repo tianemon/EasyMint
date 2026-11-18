@@ -1,7 +1,11 @@
 import fs from "fs";
+import {createHash} from "node:crypto";
+import {markProjectRuleChanged} from "./project-rule-files";
+import {getFileMutationQueueFn} from "./pi-sdk";
 import path from "path";
-import { resolveHome } from "../utils/paths";
-import type { FileReadResult } from "../../shared/file-read";
+import { resolveHome, emHome } from "../utils/paths";
+import type { FileReadResult, FileWriteResult } from "../../shared/file-read";
+import { CONVERSATION_CONFIG_FILE } from "../../shared/collaboration";
 import { canonicalPolicyPath, isWithin, pathHitsAny, protectedCredentialPaths, protectedWriteRoots } from "./permission/access-policy";
 
 interface FileNode {
@@ -21,6 +25,7 @@ const TREE_EXCLUDE = new Set([".git", "node_modules", ".DS_Store", "dist", "temp
  * 那不是"卡一下"而是界面直接卡死。超限即停止递归并回报 truncated，由前端提示。
  */
 const TREE_NODE_LIMIT = 5000;
+const contentHash = (content: string | Buffer): string => createHash("sha256").update(content).digest("hex");
 
 /** 遍历预算：递归各层共用一个，超限即停并标记截断。 */
 interface TreeBudget {
@@ -130,36 +135,64 @@ export class FileService {
     const stat = fs.statSync(expanded, { throwIfNoEntry: false });
     if (!stat?.isFile()) return { ok: false, reason: "missing" };
     if (!this.isPathSafe(filePath, baseDir ?? undefined)) return { ok: false, reason: "outside-project" };
-    return { ok: true, content: fs.readFileSync(expanded, "utf-8") };
+    const content = fs.readFileSync(expanded);
+    return { ok: true, content: content.toString("utf8"), hash: contentHash(content) };
   }
 
-  writeContent(baseDir: string, filePath: string, content: string): void {
+  private assertContentWriteAllowed(baseDir: string, filePath: string, invalidPathMessage = "无效的文件路径"): void {
     if (!filePath || !this.isPathSafe(filePath, baseDir)) {
-      throw new Error("无效的文件路径");
+      throw new Error(invalidPathMessage);
     }
+    if (pathHitsAny(this.expand(filePath), [path.join(emHome(), CONVERSATION_CONFIG_FILE), path.join(emHome(), "system-prompts.json")], this.expand(baseDir))) {
+      throw new Error("角色、模式和执行模板请在设置中修改，普通编辑器不能覆盖提示词配置");
+    }
+  }
+
+  private assertProjectAvailable(baseDir: string, assertCurrentProject?: () => void): void {
+    assertCurrentProject?.();
+    if (!fs.statSync(this.expand(baseDir), {throwIfNoEntry:false})?.isDirectory()) {
+      throw new Error("项目目录已变更或不可用，请重新打开项目后重试");
+    }
+  }
+
+  async writeContent(baseDir: string, filePath: string, content: string, expectedHash: string, assertCurrentProject?: () => void): Promise<FileWriteResult> {
+    this.assertContentWriteAllowed(baseDir, filePath);
+    if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash)) throw new Error("缺少文件读取版本，请重新打开后保存");
     const expanded = this.expand(filePath);
-    fs.mkdirSync(path.dirname(expanded), { recursive: true });
-    fs.writeFileSync(expanded, content, "utf-8");
+    const queue = await getFileMutationQueueFn();
+    return queue(expanded, async () => {
+      this.assertProjectAvailable(baseDir, assertCurrentProject);
+      this.assertContentWriteAllowed(baseDir, filePath);
+      let current: Buffer;
+      try { current = fs.readFileSync(expanded); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("文件已变更或删除，请重新打开后保存；当前编辑内容已保留");
+        throw error;
+      }
+      if (contentHash(current) !== expectedHash) throw new Error("文件已被其他窗口或程序修改，请重新打开后核对；当前编辑内容已保留");
+      fs.writeFileSync(expanded, content, "utf-8");markProjectRuleChanged(expanded);
+      return { hash: contentHash(content) };
+    });
   }
 
   /** 新建文件（已存在时抛错，不覆盖） */
-  createFile(baseDir: string, filePath: string, content = ""): void {
-    if (!filePath || !this.isPathSafe(filePath, baseDir)) {
-      throw new Error("无效的文件路径");
-    }
+  async createFile(baseDir: string, filePath: string, content = "", assertCurrentProject?: () => void): Promise<void> {
+    this.assertContentWriteAllowed(baseDir, filePath);
     const expanded = this.expand(filePath);
-    if (fs.existsSync(expanded)) {
-      throw new Error("文件已存在");
-    }
-    fs.mkdirSync(path.dirname(expanded), { recursive: true });
-    fs.writeFileSync(expanded, content, "utf-8");
+    const queue = await getFileMutationQueueFn();
+    return queue(expanded, async () => {
+      this.assertProjectAvailable(baseDir, assertCurrentProject);
+      this.assertContentWriteAllowed(baseDir, filePath);
+      fs.mkdirSync(path.dirname(expanded), { recursive: true });
+      try { fs.writeFileSync(expanded, content, {encoding: "utf-8", flag: "wx"}); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("文件已存在"); throw error; }
+      markProjectRuleChanged(expanded);
+    });
   }
 
   /** 新建文件夹（已存在时抛错，不覆盖） */
   createFolder(baseDir: string, dirPath: string): void {
-    if (!dirPath || !this.isPathSafe(dirPath, baseDir)) {
-      throw new Error("无效的目录路径");
-    }
+    this.assertContentWriteAllowed(baseDir, dirPath, "无效的目录路径");
     const expanded = this.expand(dirPath);
     if (fs.existsSync(expanded)) {
       throw new Error("文件夹已存在");

@@ -1,3 +1,5 @@
+import path from "node:path";
+import {markProjectRuleChanged} from "../project-rule-files";
 import { permissionErrorText } from "../../../shared/tool-presentation";
 /**
  * wrapToolWithPermission — 在每个工具 execute 前做权限拦截
@@ -9,6 +11,8 @@ import type { PermissionResult } from "./agent-permission-service";
 
 /** 宿主内部执行策略。Symbol 不会出现在工具 schema，也不能由模型参数伪造。 */
 export const EXECUTION_POLICY = Symbol("easymint.executionPolicy");
+// Keep the live guard in the host. ExecutionContext itself crosses the Windows IPC boundary.
+export const EXECUTION_START_CHECK = Symbol("easymint.executionStartCheck");
 
 export interface ToolWrapOptions {
   canUseTool?: (
@@ -68,8 +72,14 @@ export function wrapToolWithPermission<T extends { name: string; label?: string;
           enumerable: false,
           configurable: false,
         });
+        Object.defineProperty(finalParams, EXECUTION_START_CHECK, { value: permission.assertExecutionCanStart });
       }
-      return originalExecute.call(definition, toolCallId, finalParams, signal, onUpdate, ctx);
+      const result=await originalExecute.call(definition,toolCallId,finalParams,signal,onUpdate,ctx);
+      if(["write","edit","read"].includes(definition.name.toLowerCase())&&!result?.isError){
+        const file=finalParams.path ?? finalParams.file_path,cwd=permission.executionPolicy?.workspaceRealPath ?? ctx?.cwd;
+        if(typeof file==="string"&&(path.isAbsolute(file)||typeof cwd==="string"))markProjectRuleChanged(path.resolve(typeof cwd==="string"?cwd:".",file));
+      }
+      return result;
     },
   };
 }

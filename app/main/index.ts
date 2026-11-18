@@ -1,3 +1,4 @@
+import {powerMonitor} from "electron";
 import { translateAppText } from "../shared/i18n/app-messages";
 import { projectWindowRoute } from "../shared/project-window";
 import { applyUiLanguage, mainUiI18n, t } from "./services/ui-language";
@@ -196,7 +197,14 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     const store = new Store();
     const projectService = new ProjectService(store);
     const fileService = new FileService();
+    // Seed default Agent templates on first launch
+    const { seedDefaults } = require("./services/agent-templates");
+    const promptWarning = seedDefaults();
+    if (promptWarning) console.warn("[prompts]", promptWarning);
     const agentService = new AgentService(store);
+    const resumeMemory=()=>{void agentService.memory.resume().catch(error=>console.warn("[memory] 恢复后调度未完成：",(error as Error).message));};
+    powerMonitor.on("resume",resumeMemory);
+    app.once("will-quit",()=>powerMonitor.removeListener("resume",resumeMemory));
     const coordinator = new SessionCoordinator(projectService, agentService);
     const commandRouter = new RemoteCommandRouter(coordinator, agentService, store, window, openProjectRemotely);
     const remoteTerminalService = new RemoteTerminalService(
@@ -221,10 +229,6 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     } else {
       remoteTerminalService.setAccessPolicy(readPolicy(store.getSettings()));
     }
-    // Seed default Agent templates on first launch
-    const { seedDefaults } = require("./services/agent-templates");
-    const promptWarning = seedDefaults();
-    if (promptWarning) console.warn("[prompts]", promptWarning);
     // Seed bundled skills (~/.easymint/skills/) — only if not already installed
     const { seedBundledSkills } = require("./services/skill-service");
     seedBundledSkills();
@@ -320,6 +324,7 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       const settings=store.getSettings();settings.closeToTrayNoticeDismissed=true;store.saveSettings(settings);
     },
     createWindow:()=>createWindow(undefined,true),
+    projectNames:()=>new Map(sharedServices!.store.getProjects().map(project=>[project.id,project.name])),
   });
   desktopTray.attach(window);
   loadApp(window, hash);
@@ -497,16 +502,17 @@ async function runQuitCleanup(): Promise<void> {
   const processPids = snapshotProcessPids();
   const trackedChildren = snapshotTrackedChildren();
 
-  // MCP 关闭可能等待远端超时；先启动它，但不能让它挡住本地进程的 TERM/KILL 两阶段清理。
+  // 远端、会话与 worker 关闭可并行等待；本地 TERM/KILL 不被它们阻塞。
   const mcpCleanup = step("MCP 客户端", () => closeAllMcpClients());
   const windowsCleanup = step("Windows 沙盒 worker", () => shutdownWindowsExecutionWorkers());
-  await step("会话与后台命令", async () => {
+  const sessionCleanup = step("会话与后台命令", async () => {
     if (!sharedServices) return;
-    await sharedServices.agentService.shutdown();   // 内部含 backgroundShellRegistry.stopAll()
+    const shutdown = sharedServices.agentService.shutdown();   // 先发全体取消与 shell TERM，再异步排空会话。
     sharedServices.remoteTerminalService.close();
+    await shutdown;
   });
-  await step("资产预览服务", () => closeAssetPreviews());
-  await step("手机网页静态服务", () => stopMobileWebService());
+  const assetCleanup = step("资产预览服务", () => closeAssetPreviews());
+  const mobileCleanup = step("手机网页静态服务", () => stopMobileWebService());
   await step("运行面板进程", () => { stopAllProcesses("SIGTERM", processPids); });
   await step("命令通道进程", () => { signalTrackedChildren("SIGTERM", trackedChildren); });
 
@@ -520,7 +526,7 @@ async function runQuitCleanup(): Promise<void> {
   // 子进程还活着时清不安全），又必须排在 MCP 关闭之前（MCP 关闭可能等远端超时，排它后面会被
   // 3s 的清场总预算截断，那就等于没修）。
   await step("沙盒监控", () => releaseSandbox());
-  await Promise.all([mcpCleanup, windowsCleanup]);
+  await Promise.all([mcpCleanup, windowsCleanup, sessionCleanup, assetCleanup, mobileCleanup]);
 }
 
 app.on("before-quit", (event) => {

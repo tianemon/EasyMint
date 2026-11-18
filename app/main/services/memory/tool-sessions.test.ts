@@ -15,13 +15,14 @@ function deps(tree: Record<string, string[]>, times: Record<string, number>): To
   return {
     listDir: (dir) =>
       tree[dir] ? tree[dir]!.map((name) => ({ name, isDir: false })) : null,
+    projectOf: () => "/p",
     mtime: (file) => (file in times ? times[file]! : null),
   };
 }
 
 it("claude 用路径编码作目录名", () => {
-  expect(claudeProjectDir("/home/me", "/Users/amon/dev/project/EasyMint")).toBe(
-    "/home/me/.claude/projects/-Users-amon-dev-project-EasyMint",
+  expect(claudeProjectDir("/home/me", "/Users/tester/projects/sample-app")).toBe(
+    "/home/me/.claude/projects/-Users-tester-projects-sample-app",
   );
 });
 
@@ -47,8 +48,9 @@ it("同时收集 claude 的项目目录，并按时间倒序取前 5 条", () =>
     { [dir]: ["s1.jsonl", "s2.jsonl"] },
     { [`${dir}/s1.jsonl`]: NOW - 2 * DAY, [`${dir}/s2.jsonl`]: NOW - 3 * 3600_000 },
   );
+  probe.projectOf=()=>"/p/x";
   const hits = listToolSessions({ home: "/h", projectPath: "/p/x", days: 1, now: NOW }, probe);
-  expect(hits.map((hit) => hit.tool)).toEqual(["claude", "claude"]);
+  expect(hits.map((hit) => hit.tool)).toEqual(["claude"]);
   expect(hits[0]!.file).toContain("s2.jsonl");
 });
 

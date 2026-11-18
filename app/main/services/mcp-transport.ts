@@ -3,7 +3,6 @@ import type { AuthProvider, JsonRpcMessage, McpTransport } from "@earendil-works
 import type { McpServerEntry } from "@earendil-works/pi-coding-agent";
 import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "./sandbox/manager";
 import { bindExecutionOwner, createExecutionContext, type PermissionMode } from "./permission/execution-context";
-import { findBashOnWindows } from "./background-shell/registry";
 import { codegraphEnvironment, codegraphInvocation } from "../utils/codegraph-command";
 import { isPlaywrightMcpInvocation, playwrightMcpArgs } from "../utils/playwright-mcp";
 
@@ -16,6 +15,7 @@ export class ProtectedMcpTransport implements McpTransport {
   private starting?: Promise<void>;
   private closing?: Promise<void>;
   private closed = false;
+  private readonly preparation = new AbortController();
   private release?: () => Promise<void>;
   private released?: Promise<void>;
   private finished?: Promise<void>;
@@ -104,9 +104,7 @@ export class ProtectedMcpTransport implements McpTransport {
           if (!initialized.ok) throw new Error(`MCP 安全执行后端不可用：${initialized.reason}`);
         }
         this.check(mode);
-        const gitBashPath = process.platform === "win32" ? findBashOnWindows() : undefined;
-        if (process.platform === "win32" && !gitBashPath) throw new Error("Windows MCP 需要 Git Bash");
-        const spec = await wrapForSandbox([invocation.shellCommand ?? invocation.command, ...(invocation.args ?? [])].map(shellQuote).join(" "), { context, gitBashPath: gitBashPath ?? undefined,
+        const spec = await wrapForSandbox([invocation.shellCommand ?? invocation.command, ...(invocation.args ?? [])].map(shellQuote).join(" "), { context, signal: this.preparation.signal,
           approvedBrowserMcp: !!this.options.validate && isPlaywrightMcpInvocation(config.command, config.args),
         });
         this.release = spec.release;
@@ -137,6 +135,7 @@ export class ProtectedMcpTransport implements McpTransport {
   }
   close(): Promise<void> {
     this.closed = true;
+    this.preparation.abort(new Error("MCP 执行权限已撤销"));
     return this.closing ??= (async () => {
       // Close an already-created transport immediately (including an initialize in progress).
       await this.inner?.close();

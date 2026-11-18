@@ -71,6 +71,15 @@ it("formats natural actions, search terms, aliases and full paths", () => {
   expect(toolActivity("mcp__github__search", {}).text).toContain("mcp__github__search");
 });
 
+it("describes both knowledge families, summary maintenance and historical aliases", () => {
+  expect(toolActivity("memory", { action: "read_summary" })).toMatchObject({ text: "正在查看记忆摘要", icon: "memory" });
+  expect(toolActivity("memory", { action: "write_summary" }, "done").text).toBe("已整理记忆摘要");
+  expect(toolActivity("experience", { action: "invalidate" }, "failed")).toMatchObject({ text: "标记经验失效失败", icon: "experience" });
+  expect(toolActivity("experience", { action: "search", query: "受控比较" }).text).toBe("正在搜索经验 受控比较");
+  expect(toolActivity("learn", {}, "done").text).toBe("已保存经验");
+  expect(toolActivity("search_experiences", {}, "cancelled").text).toBe("已取消搜索经验");
+});
+
 it("preserves nested records directly, without fabricating ordinary pending tool calls", () => {
   const nested = {id:"child",name:"bash",arguments:{command:"npm test"},status:"error" as const,durationMs:7,error:"child-specific-error"};
   const parent: StreamEntry={...call,name:"codemode",durationMs:900,imagePath:"/parent.png",nestedCalls:{complete:true,calls:[nested]}};

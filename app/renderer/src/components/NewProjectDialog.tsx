@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "./ui/DialogCloseButton";
 import { applyFeatureRecommendations } from "./new-project/feature-recommendations";
 import { CreationStepViewport } from "./new-project/CreationStepViewport";
 import { appText } from "../lib/i18n";
@@ -82,11 +83,13 @@ function buildDirectCreateContext(data: ProjectFormData): string {
   return parts.join("。");
 }
 
-async function saveProjectProfile(projectPath: string, specification: string, visual?: VisualSelection): Promise<void> {
+async function saveProjectProfile(projectPath: string, specification: string, visual?: VisualSelection): Promise<string> {
   const result: unknown = await window.electronAPI.project.saveProfile(projectPath, specification, visual);
   if (!result || typeof result !== "object" || !("ok" in result) || result.ok !== true) {
     throw new Error(result && typeof result === "object" && "error" in result && typeof result.error === "string" ? result.error : uiText("creation.profileSaveFailed"));
   }
+  if(!("creationRevision" in result)||typeof result.creationRevision!=="string"||!/^[a-f0-9]{64}$/u.test(result.creationRevision))throw new Error(uiText("creation.profileSaveFailed"));
+  return result.creationRevision;
 }
 
 // ---- Main Component ----
@@ -202,11 +205,18 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   useEffect(() => {
     if (continuingCreation || !previewDirName || !data.dir.trim()) { setDirConflict(false); return; }
     let cancelled = false;
-    window.electronAPI.project.checkDir(data.dir.trim(), previewDirName)
-      .then((r) => { if (!cancelled) setDirConflict(r.conflict); })
+    const name = data.name.trim(), baseDir = data.dir.trim();
+    window.electronAPI.project.checkDir(baseDir, previewDirName, name)
+      .then(({ conflict, resumeProject }) => {
+        if (cancelled) return;
+        setDirConflict(conflict);
+        if (resumeProject && !matchesCreationInput(pendingCreation, data)) {
+          setPendingCreation({ projectId: resumeProject.id, projectPath: resumeProject.path, directoryName: resumeProject.directoryName, name, baseDir });
+        }
+      })
       .catch(() => { if (!cancelled) setDirConflict(false); });
     return () => { cancelled = true; };
-  }, [previewDirName, data.dir, continuingCreation]);
+  }, [previewDirName, data.dir, data.name, continuingCreation, pendingCreation]);
 
   const hasUi = data.targets.some((target) => target !== "cli");
   const visibleSteps = hasUi ? ALL_STEPS : ALL_STEPS.filter((step) => step.number !== 3);
@@ -270,8 +280,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const creatingRef = useRef(false);
 
   /** Only a successful startup identity completes creation; failures retain the project and draft for retry. */
-  const launchSession = useCallback(async (project: Project, prompt: string, payload: SystemMessagePayload): Promise<void> => {
-    const identity = await startSession(prompt, payload);
+  const launchSession = useCallback(async (project: Project, prompt: string, payload: SystemMessagePayload,creationRevision:string): Promise<void> => {
+    const identity = await startSession(prompt, {...payload,details:{...payload.details,creationProjectId:project.id,creationRevision}});
     creationCompleteRef.current = true;
     sessionStorage.removeItem(PROJECT_DRAFT_KEY);
     onCreated(project, identity.sessionId);
@@ -307,10 +317,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       // 流程深度（原型/文档/编码）的判定权在 Mint（creation-guide skill），前端不参与——
       // 这里只按 产品形态 / 部署 / AI / 存储 四个维度生成技术规范 platformSpec
       const profile = projectProfile(data);
-      // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
-      await saveProjectProfile(project.path, [profile.platformSpec, profile.initSteps, ...deliveryContext(data)].join("\n"), hasUi ? visualSelection(data) : undefined);
+      // 初始化/重试时同步宿主仍拥有的项目规则，后续按项目规则的既有流程加载。
+      const creationRevision=await saveProjectProfile(project.path, [profile.platformSpec, profile.initSteps, ...deliveryContext(data)].join("\n"), hasUi ? visualSelection(data) : undefined);
       const initPrompt = buildInitTriggerPrompt(project.path, buildContext(data), buildInitInstruction(profile), data.targets, profile);
-      await launchSession(project, initPrompt, systemMessage("project-created", initPrompt));
+      await launchSession(project, initPrompt, systemMessage("project-created", initPrompt),creationRevision);
     } catch (e: unknown) {
       setCreateError(cleanIpcError(e));
       console.error("[NewProjectDialog] create failed:", e);
@@ -330,10 +340,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       const project = await prepareProject();
       setCreateError(null);
       const profile = projectProfile(data);
-      await saveProjectProfile(project.path, [profile.platformSpec, profile.initSteps, ...deliveryContext(data, true)].join("\n"), hasUi ? visualSelection(data) : undefined);
+      const creationRevision=await saveProjectProfile(project.path, [profile.platformSpec, profile.initSteps, ...deliveryContext(data, true)].join("\n"), hasUi ? visualSelection(data) : undefined);
       // 发 direct-create 系统消息（携带项目名 + 用户已填信息快照）,Mint 开回合按 creation_flow 引导
       const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
-      await launchSession(project, directPrompt, systemMessage("direct-create", directPrompt));
+      await launchSession(project, directPrompt, systemMessage("direct-create", directPrompt),creationRevision);
     } catch (e: unknown) {
       setCreateError(cleanIpcError(e));
       console.error("[NewProjectDialog] direct create failed:", e);
@@ -381,7 +391,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
               <h3 className="creation-wizard-step-title" tabIndex={-1}>{selectedStep.title}</h3>
               <p>{subtitle}</p>
             </div>
-            <button type="button" className="creation-icon-button" aria-label={uiText("common.close")} disabled={initializing} onClick={handleCancel}>×</button>
+            <DialogCloseButton disabled={initializing} onClick={handleCancel} />
           </header>
           <CreationStepViewport step={stepNumber} onTransitionChange={setStepTransitioning} pages={visibleSteps.map(info => ({ id: info.number, content: <>
             {notices}

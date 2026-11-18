@@ -1,5 +1,4 @@
-import { getPromptDefaults } from "./system-prompt-manager";
-const THINKING_LANGUAGE_PROMPT = getPromptDefaults().main.rules.match(/<thinking_language>[\s\S]*?<\/thinking_language>/)![0];
+import { AGENT_CORE } from "./agent-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentService } from "./agent-service";
 import type { Store } from "./store";
@@ -47,7 +46,8 @@ describe("final prompt assembly", () => {
     expect(prompt).not.toContain("项目经理 + 架构师");
     expect(prompt).toContain("/tmp/health-project");
     expect(prompt.split(PERMISSION_RULES_PROMPT)).toHaveLength(2);
-    expect(prompt).not.toContain(THINKING_LANGUAGE_PROMPT);
+    expect(prompt).not.toContain(AGENT_CORE);
+    expect(prompt).not.toContain("<thinking_language>");
   });
 });
 

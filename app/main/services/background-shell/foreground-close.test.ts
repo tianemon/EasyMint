@@ -1,4 +1,4 @@
-import { EventEmitter } from "node:events";
+import { EventEmitter, getEventListeners } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { executeForeground } from "./tool";
 
@@ -11,7 +11,9 @@ describe("foreground stdio settlement", () => {
     const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), kill: vi.fn() });
     mocks.spawn.mockReturnValue(child);
     const updates: string[] = [];
-    const work = executeForeground({ argv: ["fixture"], env: {} }, process.cwd(), undefined, undefined, {}, partial => updates.push(partial.content.map(block => block.text).join("")));
+    const { signal } = new AbortController();
+    const work = executeForeground({ argv: ["fixture"], env: {} }, process.cwd(), signal, undefined, {}, partial => updates.push(partial.content.map(block => block.text).join("")));
+    expect(getEventListeners(signal, "abort")).toHaveLength(1);
     child.emit("exit", 0);
     const state = await Promise.race([work.then(() => "finished"), new Promise<string>(resolve => setTimeout(() => resolve("waiting"), 0))]);
     child.stdout.emit("data", Buffer.from("late stdout"));
@@ -20,15 +22,19 @@ describe("foreground stdio settlement", () => {
     expect(state).toBe("waiting");
     expect(updates.join("")).toContain("late stdout");
     expect(result.content[0]?.text).toContain("late stdout");
+    expect(getEventListeners(signal, "abort")).toHaveLength(0);
   });
   it("releases a failed start only once when close follows error", async () => {
     const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), kill: vi.fn() });
     mocks.spawn.mockReturnValue(child);
     const release = vi.fn(async () => {});
-    const failure = executeForeground({ argv: ["fixture"], env: {}, release }, process.cwd(), undefined).catch(error => error);
+    const { signal } = new AbortController();
+    const failure = executeForeground({ argv: ["fixture"], env: {}, release }, process.cwd(), signal).catch(error => error);
+    expect(getEventListeners(signal, "abort")).toHaveLength(1);
     child.emit("error", new Error("failed start"));
     child.emit("close", 1);
     expect((await failure).message).toContain("failed start");
     expect(release).toHaveBeenCalledTimes(1);
+    expect(getEventListeners(signal, "abort")).toHaveLength(0);
   });
 });

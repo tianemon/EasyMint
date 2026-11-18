@@ -95,7 +95,7 @@ export class NativeConfig {
     this.queue = next.catch(() => {});
     return next;
   }
-  private revision(): string {
+  private revision(includeCredentials = true): string {
     // 归一化「空文件 / 空对象」与「文件不存在」为同一状态。
     // 原因：Pi SDK 首次建立模型运行时会把 auth.json / models.json 落成 `{}`。启动首屏那次
     // view() 在它之前算 revision，不归一化的话用户打开设置页第一次保存就会被误判成
@@ -115,11 +115,13 @@ export class NativeConfig {
         ? "" : value;
     };
     return createHash("sha256").update(JSON.stringify([
-      readText(this.files.models), readText(this.files.auth), readText(this.files.settings),
+      readText(this.files.models), includeCredentials ? readText(this.files.auth) : null, readText(this.files.settings),
       getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences),
       getPath(this.storage.read(this.files.em), EM_PATH.capabilityNativeAi),
     ].map(sameState))).digest("hex");
   }
+  /** An in-flight request may refresh its OAuth token without changing the model route. */
+  modelConfigRevision(includeCredentials = true): string { return this.revision(includeCredentials); }
   private originals() { return new Map(Object.values(this.files).map(file => [file, readText(file)])); }
   async refresh(): Promise<ModelRuntime> {
     this.storage.assertReady();

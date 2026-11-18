@@ -267,8 +267,7 @@ export const sandboxLeaseInternals = { createOnceLease };
 
 /**
  * 包装命令为沙盒执行规格（调用前须 ensureSandbox ok；失败抛错由调用方转报错文本）。
- * Windows 分支：wrapWithSandboxArgv + Git Bash 绝对路径（EM Windows bash 统一走 Git Bash，
- * 与 resolveSpawn 的 findBashOnWindows 一致——gitBashPath 由调用方传入避免重复探测）。
+ * Windows 的 Bash 路径和子进程环境来自同一份内置运行时。
  *
  * 两条**不进沙盒**的分支，语义不同、不要合并：
  * - 模式本就跳过（完全访问 / Linux 全局降级）→ `nativeSpawnSpec`
@@ -277,36 +276,42 @@ export const sandboxLeaseInternals = { createOnceLease };
  */
 export async function wrapForSandbox(
   command: string,
-  opts: { context: ExecutionContext; gitBashPath?: string; windowsShell?: "bash" | "powershell"; approvedBrowserMcp?: boolean; signal?: AbortSignal },
+  opts: { context: ExecutionContext; windowsShell?: "bash" | "powershell"; approvedBrowserMcp?: boolean; signal?: AbortSignal },
 ): Promise<SandboxSpawnSpec> {
   opts.signal?.throwIfAborted();
+  let gitBashPath: string | undefined;
   if (process.platform === "win32") {
     // 命令链路**只加入、不新建**准备：缺运行时立刻报错并指路，绝不在一条普通消息背后静默解压
     // 400MB（1–3 分钟）。那正是"发消息即未响应"的成因——用户取消/重发还会 abort 解压，
     // 下一条再从零开始（2026-11-15 现场：自带 Git 被搬走后完全无法使用）。
-    const tools = preparedWindowsRuntime()
-      ?? (opts.windowsShell === "powershell" ? undefined : await joinWindowsRuntime({ signal: opts.signal }));
+    const tools = opts.windowsShell === "powershell"
+      ? preparedWindowsRuntime()
+      : await joinWindowsRuntime({ signal: opts.signal });
+    opts.signal?.throwIfAborted();
     if (opts.windowsShell !== "powershell" && !tools) {
       throw new Error("运行环境还没准备好：自带的 Git / Bash 缺失或被移走了。到 设置 → 环境检测 点「准备运行环境」就好（通常 1–3 分钟），修好之后命令就能继续跑。");
     }
-    if (tools) opts = { ...opts, gitBashPath: tools.bash, context: {
-      ...opts.context, bundledRuntimeRoot: tools.root,
-      environment: windowsRuntimeEnvironment(opts.context.environment, tools),
-    } };
+    if (tools) {
+      gitBashPath = tools.bash;
+      opts = { ...opts, context: {
+        ...opts.context, bundledRuntimeRoot: tools.root,
+        environment: windowsRuntimeEnvironment(opts.context.environment, tools),
+      } };
+    }
   }
   opts.signal?.throwIfAborted();
-  if (isSandboxBypassedForMode(opts.context.mode)) return nativeSpawnSpec(command, opts);
+  if (isSandboxBypassedForMode(opts.context.mode)) return nativeSpawnSpec(command, { ...opts, gitBashPath });
   // 此标志只由已复核配置的 MCP 传输传入，不能从命令名称或模型参数取得。
   if (opts.approvedBrowserMcp || isSandboxExcludedCommand(command)) {
     return {
-      ...nativeSpawnSpec(command, opts),
+      ...nativeSpawnSpec(command, { ...opts, gitBashPath }),
       exemptReason: "该命令需要自建沙盒（浏览器 / 容器），无法在系统沙盒内运行，已在沙盒外执行",
     };
   }
   const srt = await getSrt();
   const context = opts.context;
   if (process.platform === "win32") {
-    const wrapped = await wrapWithWindowsWorker(command, context, opts.gitBashPath, opts.windowsShell);
+    const wrapped = await wrapWithWindowsWorker(command, context, gitBashPath, opts.windowsShell);
     // Windows 的 commandId 由 worker 侧的 leaseId 决定，必须用它（不能用本地另生成的 key，
     // 否则违规注解匹配不上——见 annotateSandboxFailures）。
     return { kind: "argv", ...wrapped, violationKey: wrapped.commandId, release: wrapped.release };

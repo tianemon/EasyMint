@@ -12,6 +12,7 @@ import type {
 } from "./pi-sdk";
 import type { ExtensionError, InlineExtension } from "@earendil-works/pi-coding-agent";
 import fs from "node:fs";
+import {projectRuleRevision} from "./project-rule-files";
 import path from "node:path";
 import {
   createAgentSession,
@@ -40,8 +41,9 @@ import { normalizePermissionMode } from "./permission/execution-context";
 import { createMcpSessionExtensions, disposeMcpSession } from "./mcp-runtime";
 import { safeProjectDesignSection } from "./project-design";
 import { trackRoutingSession } from "./auto-model-routing";
-import { completeProjectRuleFiles, withAgentDeliveryRules } from "./agent-context-rules";
+import { loadProjectRuleFiles, getAgentDeliveryRules, withAgentDeliveryRules } from "./agent-context-rules";
 import type { AgentDeliveryMode } from "./agent-context-rules";
+import { conversationSettingsUpdate } from "./system-prompt-manager";
 
 const routingReleases = new WeakMap<AgentSession, () => void>();
 
@@ -63,8 +65,8 @@ export interface PiSessionOptions {
   /** 会话落盘目录（缺省 getPiSessionDir(cwd)）；子 Agent 传 subagents/ 子目录避免平级出现在列表 */
   sessionDir?: string;
   systemPrompt?: string;
-  /** 主对话每轮读取当前配置，保留 SDK 添加的技能、工具与项目上下文。 */
-  getConversationPrompt?: () => string;
+  /** 主对话设置按可见版本追加到消息尾部。 */
+  getConversationSettings?: () => Record<string, string>;
   getMemoryReference?: (prompt: string) => Promise<import("@earendil-works/pi-coding-agent").BeforeAgentStartEventResult["message"] | undefined>;
   /** 对话角色默认 conversation；后台任务与委派入口显式传 task，不按模板文字猜测。 */
   deliveryMode?: AgentDeliveryMode;
@@ -125,7 +127,9 @@ async function buildSession(
   const enhancedEdit = await createEnhancedEditTool(opts.cwd);
   // read 用增强版替换(原生 + 二进制文档 pdf/docx/xlsx/pptx 抽取文本):非文档完全委托原生
   const enhancedRead = await createEnhancedReadTool(opts.cwd, codingTools);
-  const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash" && t.name !== "edit" && t.name !== "read");
+  const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash" && t.name !== "edit" && t.name !== "read").map(tool=>tool.name==="write"?{
+    ...tool,description:`${tool.description}\n写入前掌握目标文件现状；内容可能超过单次输出能力时分块写入，后续用实际编辑工具补齐，并核对最终文件，不能截断后声称完成。`,
+  }:tool);
   // grep/find/ls/powershell：SDK 内置但默认不激活（getCreateCodingTools 只含 read/bash/edit/write）。
   // 补齐后均可用——ls/find 纯 JS 立即可用；grep 依赖 rg（SDK 首次调用自动下载）；
   // powershell 只在 Windows 存在（SDK 在非 win32 下直接抛错，见其 utils/shell.js getPowerShellConfig），
@@ -202,6 +206,8 @@ async function buildSession(
   // SDK 先解析基础 prompt，再解析 append；无自定义内容时保留其原生身份、工具指南等段。
   let usesSdkDefaultPrompt = false;
   let ruleWarnings: string[] = [];
+  let ruleRevision=projectRuleRevision(opts.cwd);
+  let ruleFiles:Array<{path:string;content:string}>=[];
   const guardedLoader = new DRL({
     cwd: opts.cwd,
     agentDir: opts.agentDir,
@@ -214,24 +220,46 @@ async function buildSession(
     extensionFactories: [...mcpExtensions, permissionExtension, {
       name: "easymint-project-visual", hidden: true, factory: pi => {
         pi.on("before_agent_start", async (event) => {
+          if(ruleRevision!==projectRuleRevision(opts.cwd)||event.messageType==="user"&&/(重新|刷新|重读|reload|refresh).{0,12}(项目规则|AGENTS|CLAUDE|CODEBUDDY|project rules)/iu.test(event.prompt)){
+            ruleWarnings=[];ruleFiles=loadProjectRuleFiles(opts.cwd,ruleFiles,message=>ruleWarnings.push(message));ruleRevision=projectRuleRevision(opts.cwd);
+          }
+          event.systemPromptOptions.contextFiles=ruleFiles;
           const visual = safeProjectDesignSection(opts.cwd).trim();
           const sections = event.systemPromptOptions.sections;
+          sections.easymint_rule_loading=ruleWarnings.length?`项目规则加载诊断（不是新规则）：\n${ruleWarnings.join("\n")}\n不得声称已读取失败的文件。`:"";
           const open = "<easymint_project_visual>", close = "</easymint_project_visual>";
           // 只切掉宿主生成的外壳，不解析／替换任意用户正文中的标签。
           sections.easymint_project_visual = visual.startsWith(open) && visual.endsWith(close)
             ? visual.slice(open.length, -close.length).trim() : visual;
-          if (opts.getConversationPrompt) sections.easymint_collaboration = opts.getConversationPrompt();
           if (event.systemPromptOptions.forceSystemPrompt !== undefined) {
             // 已授权扩展可以提供opaque基底；SDK的force会跳过sections，补上当轮宿主拥有的段。
-            const current = ["easymint_project_visual", ...(opts.getConversationPrompt ? ["easymint_collaboration"] : [])]
+            const current = ["easymint_rule_loading","easymint_project_visual"]
               .filter(key => sections[key]).map(key => `<${key}>\n${sections[key]}\n</${key}>`).join("\n\n");
-            event.systemPromptOptions.forceSystemPrompt += current ? `\n\n${current}` : "";
+            const core=getAgentDeliveryRules(opts.deliveryMode);
+            const project=ruleFiles.length?`<project_context>\n${ruleFiles.map(file=>`## ${file.path}\n${file.content}`).join("\n\n")}\n</project_context>`:"";
+            const required=[core,project,current].filter(value=>value&&!event.systemPromptOptions.forceSystemPrompt!.includes(value));
+            event.systemPromptOptions.forceSystemPrompt+=required.length?`\n\n${required.join("\n\n")}`:"";
           }
           if (opts.getMemoryReference && event.messageType === "user") {
             try { const message = await opts.getMemoryReference(event.prompt); if (message) return { message }; }
             catch (error) { console.warn("[memory] 本轮参考未加载:", (error as Error).message); }
           }
         });
+        const getSettings = opts.getConversationSettings;
+        if (getSettings) {
+          let currentSettings: ReturnType<typeof getSettings> | undefined;
+          pi.on("before_agent_start", () => {
+            currentSettings = getSettings();
+            const message = conversationSettingsUpdate(currentSettings, sessionManager.buildSessionProjection().entries);
+            if (message) return { message };
+          });
+          // Overflow recovery continues this run without another before_agent_start.
+          pi.on("session_compact", async event => {
+            if (!event.willRetry || !currentSettings) return;
+            const message = conversationSettingsUpdate(currentSettings, sessionManager.buildSessionProjection().entries);
+            if (message) await pi.sendMessage(message, { deliverAs: "steer" });
+          });
+        }
       },
     }],
     systemPromptOverride: base => {
@@ -242,10 +270,8 @@ async function buildSession(
     appendSystemPromptOverride: base => usesSdkDefaultPrompt ? [...base, withAgentDeliveryRules("", ruleWarnings, opts.deliveryMode)] : base,
     agentsFilesOverride: ({ agentsFiles }) => {
       ruleWarnings = [];
-      return { agentsFiles: completeProjectRuleFiles(agentsFiles, message => {
-        ruleWarnings.push(message);
-        console.warn(message);
-      }) };
+      ruleFiles=loadProjectRuleFiles(opts.cwd,agentsFiles,message=>{ruleWarnings.push(message);console.warn(message);});ruleRevision=projectRuleRevision(opts.cwd);
+      return {agentsFiles:ruleFiles};
     },
     skillsOverride: (base) => ({
       skills: [...base.skills, ...mergeIntoPiSkills(opts.cwd, base.skills)],

@@ -4,6 +4,7 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { gt, valid } from "semver";
 
 /**
  * 自动更新 — 检测+下载（electron-updater）+ 安装（shell 脚本）
@@ -31,6 +32,7 @@ export interface UpdateStatusPayload {
 
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const INITIAL_DELAY_MS = 10 * 1000;
+const RELEASES_URL = "https://github.com/tianemon/EasyMint/releases/latest";
 
 let detectedVersion: string | null = null;      // update-available 时记录的版本号
 let downloadedVersion: string | null = null;   // 已下载完成的版本号
@@ -63,12 +65,16 @@ function clearPersistedDownload(): void {
   try { fs.rmSync(persistPath(), { force: true }); } catch { /* ignore */ }
 }
 
-// 模块加载时恢复持久化下载状态:当前运行版本 === 已下载版本 → 说明已装上新版,清除标记
-const persisted = loadPersistedDownload();
-if (persisted) {
-  if (persisted.version === app.getVersion()) {
+function restorePersistedDownload(): void {
+  const persisted = loadPersistedDownload();
+  if (!persisted) return;
+  const version = typeof persisted.version === "string" ? valid(persisted.version) : null;
+  const installed = valid(app.getVersion());
+  if (!version || !installed || !gt(version, installed) || !persisted.file || !fs.existsSync(persisted.file)) {
     clearPersistedDownload();
-  } else {
+  } else if (process.platform === "darwin") {
+    // Only macOS installs the ZIP directly. Other platforms must reattach the
+    // cached download through electron-updater before quitAndInstall can use it.
     downloadedVersion = persisted.version;
     downloadedFile = persisted.file;
   }
@@ -132,7 +138,8 @@ function setupListeners(): void {
 }
 
 export function startAutoUpdater(): void {
-  if (app.isPackaged === false) return;
+  if (app.isPackaged === false || process.platform === "linux") return;
+  restorePersistedDownload();
   setupListeners();
 
   const checkOnce = () => {
@@ -152,6 +159,12 @@ export function startAutoUpdater(): void {
 export function checkForUpdatesManually(): void {
   // 用户主动检查过 → 取消后续自动检查（自动检查不再打扰）
   manualCheckDone = true;
+  if (process.platform === "linux") {
+    void shell.openExternal(RELEASES_URL).then(() => broadcast({ status: "idle" })).catch((error: unknown) => {
+      broadcast({ status: "error", errorPhase: "check", errorMessage: error instanceof Error ? error.message : String(error) });
+    });
+    return;
+  }
   if (app.isPackaged === false) {
     broadcast({ status: "no-update" });
     return;
@@ -172,8 +185,9 @@ function shQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
-/** 安装更新（Windows 走原生 NSIS，macOS 走 shell 脚本替换） */
+/** Windows 委托 NSIS，macOS 使用 ZIP 替换，Linux 提供发行包下载入口。 */
 export function installUpdate(): void {
+  if (process.platform === "linux") { checkForUpdatesManually(); return; }
   if (!downloadedVersion) return;
 
   if (process.platform === "win32") {

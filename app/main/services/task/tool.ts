@@ -1,3 +1,4 @@
+import type {MemorySessionContext} from "../memory/service";
 /**
  * task 工具 — Mint 的子 Agent 执行引擎
  *
@@ -23,6 +24,8 @@ export interface TaskToolContext {
   parentSessionId: string;
   /** 会话 chatId（进度广播按它过滤,前端只显示当前窗口的委派） */
   chatId?: string;
+  captureKnowledge?:(context:MemorySessionContext,ownerToolCallId:string)=>Promise<void>;
+  createKnowledgeTools?:(getContext:()=>MemorySessionContext,ownerToolCallId:string)=>Promise<ToolDefinition[]>;
   /** 懒取主会话当前生效的思考等级——子 Agent 等级的**唯一来源** */
   getParentThinkingLevel?: () => string | undefined;
   /** 懒取主会话当前模型——子 Agent 模型的**唯一来源**（委派方不再能指定模型） */
@@ -105,6 +108,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       + "主要用途是**长任务的上下文隔离**：大量阅读、探索或实验的中间过程留在独立会话，返回有边界的结论与证据。"
       + "也可用 tasks 数组**异步并行**搜集不同资料或探索互不依赖的方向，或对指定范围做**独立复核**。"
       + "子 Agent 看不到主对话历史，须在任务输入里补齐必要背景；深度为1，不再委派。模型与思考级别跟随主会话，task没有model/provider覆盖参数。启动信息不是完成，完成结果由异步通知提供，不重复派遣或空转轮询。"
+      + "已有正式任务时传taskId关联；任务状态由宿主按结果回写，子Agent不直接编辑task.json。已完成委派后的临时复核不倒退原任务终态；需维护正式状态时使用实际状态入口和ui-sync技能的references/task-execution.md。"
       + agentDesc,
     promptSnippet: "委派子 Agent 执行任务（默认无模板白板，可指定 default-builder/default-evaluator 等模板）",
     // 通过显式适配将已核对指南送入工具description。
@@ -243,6 +247,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 
       // 终态通知去重:节流定时器二次触发时 progress 已是终态,防重复注入
       const notifiedTerminal = new Set<string>();
+      const broadcastCount = (): void => {
+        broadcast("agent:delegation-count", getRunningSummary());
+      };
 
       // 进度广播：executor 每 200ms 节流回调 → 前端委派进度卡片实时更新
       const broadcastProgress = (progress: AgentProgress): void => {
@@ -303,6 +310,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         parentProvider: parentModel?.provider,
         parentPermissionMode: ctx.getParentPermissionMode?.(),
         canUseTool: ctx.canUseTool,
+        captureKnowledge:ctx.captureKnowledge?context=>ctx.captureKnowledge!(context,_toolCallId):undefined,
+        createKnowledgeTools:ctx.createKnowledgeTools?getContext=>ctx.createKnowledgeTools!(getContext,_toolCallId):undefined,
         onProgress: broadcastProgress,
       }).catch(() => {});
 
@@ -318,9 +327,6 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       }).catch(() => {});
 
       // 委派计数广播(ProcessBar 显示 agent·N)——创建和结束时各广播一次
-      const broadcastCount = (): void => {
-        broadcast("agent:delegation-count", getRunningSummary());
-      };
       broadcastCount();
       record.completion.then(broadcastCount).catch(() => {});
 

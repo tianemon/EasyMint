@@ -22,6 +22,7 @@ import path from "node:path";
 import { resolveHome, emHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
 import { isSafeSessionId } from "../../shared/session-id";
+import { CONVERSATION_SETTINGS_MESSAGE_TYPE } from "../../shared/collaboration";
 import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
 import { isEmptyDirShell } from "./pi-session-dir";
 import { getSessionManagerClass, type AgentSession } from "./pi-sdk";
@@ -302,7 +303,7 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
       };
       // 历史注入的摘要卡（details.kind=summary）不再渲染：摘要卡统一从 compaction 条目生成
       // （同一份摘要只显示一张；旧会话里已注入过的那种仍旧留在文件里，但不再重复显示）
-      if (custom.details?.kind === "summary" || custom.customType === "easymint_memory") continue;
+      if (custom.details?.kind === "summary" || custom.customType === "easymint_memory" || custom.customType === CONVERSATION_SETTINGS_MESSAGE_TYPE) continue;
       messages.push({
         type: "user",
         uuid: entry.id,

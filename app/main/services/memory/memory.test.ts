@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
-import {DatabaseSync} from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 import { MemoryDatabase } from "./database";
-import { assertCondensed } from "./policy";
 
 const databases:MemoryDatabase[]=[];
 const directories:string[]=[];
@@ -42,6 +40,7 @@ describe("memory persistence and recall boundaries",()=>{
     const updated=db.update(item.key,"p",archived.revision,{text:"修正摘要"});
     expect(()=>db.update(item.key,"p",archived.revision,{text:"过期覆盖"})).toThrow("已更新");
     expect(db.revisions(item.key,"p").map(i=>i.text)).toEqual([updated.text,item.text,item.text]);
+    expect(db.revisions(item.key,"p").map(i=>i.revision)).toEqual([updated.revision,2,1]);
   });
   it("forget is complete across revisions and blocks a slow background result",()=>{
     const {db}=setup();
@@ -74,6 +73,7 @@ describe("historical integrity and recovery",()=>{
     const history=db.query({projectId:"p",query:"obsoleteunique",history:true});
     expect(history.total).toBe(1);expect(history.items[0]?.matchedRevision).toBe(1);
     expect(db.getRevision(item.key,1,"p")?.text).toBe(item.text);
+    expect(db.getRevision(item.key,1,"p")?.sources[0]?.ref).toBe(item.sources[0]?.ref);
   });
   it("forget blocks sources from every revision, including an old queued conclusion",()=>{
     const {db}=setup();

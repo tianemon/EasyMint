@@ -23,7 +23,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 it("uses the verified bundled Bash and child PATH without initializing full-mode protection", async () => {
   const signal = new AbortController().signal;
-  const spec = await wrapForSandbox("echo hi", { context: context("full"), gitBashPath: "unverified-bash.exe", signal });
+  const spec = await wrapForSandbox("echo hi", { context: context("full"), signal });
   // 命令链路只**加入**准备，绝不新建（新建会把 400MB 解压挂在每条消息上）
   expect(mocks.join).toHaveBeenCalledWith({ signal });
   expect(mocks.ensure).not.toHaveBeenCalled();
@@ -44,6 +44,12 @@ it("preserves a native PowerShell fallback without forcing Bash preparation or s
   expect(mocks.ensure).not.toHaveBeenCalled(); expect(mocks.join).not.toHaveBeenCalled(); expect(mocks.init).not.toHaveBeenCalled();
   expect(spec.kind).toBe("argv"); if (spec.kind !== "argv") throw Error("wrong spawn form");
   expect(spec.argv[0]).toBe("powershell.exe");
+});
+it("reports the missing Bash runtime even with full access and never starts a repair from a command", async () => {
+  mocks.join.mockResolvedValue(undefined);
+  await expect(wrapForSandbox("echo hi", { context: context("full") })).rejects.toThrow("环境检测");
+  expect(mocks.ensure).not.toHaveBeenCalled();
+  expect(mocks.wrap).not.toHaveBeenCalled();
 });
 it("does not proceed to a spawn target after preparation is cancelled", async () => {
   const controller = new AbortController();

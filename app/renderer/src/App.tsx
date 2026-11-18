@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "./components/ui/DialogCloseButton";
 import { appMessage } from "./lib/i18n";
 import { appText } from "./lib/i18n";
 import { uiText, useUiLocale } from "./lib/i18n";
@@ -199,7 +200,7 @@ export function App(): JSX.Element {
             <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card overflow-hidden flex flex-col" style={{ width: 520, maxHeight: "85vh" }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0 bg-[var(--color-surface-alt)]">
                 <h2 className="text-sm font-semibold text-text-primary">{uiText("ui.App.transferComplete")}</h2>
-                <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setMigrateDone(null)}>✕</button>
+                <DialogCloseButton onClick={() => setMigrateDone(null)} />
               </div>
               <div className="px-5 py-2 text-xs text-text-secondary">
                 {uiText("ui.App.projectRestored", { name: migrateDone.projectName, path: migrateDone.projectPath, sessions: migrateDone.sessionRestoredCount > 0 ? uiText("ui.App.sessionsRestored", { v0: migrateDone.sessionRestoredCount }) : "" })}</div>

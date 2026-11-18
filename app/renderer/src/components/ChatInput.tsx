@@ -1,5 +1,5 @@
 import { uiText, useUiLocale } from "../lib/i18n";
-import { memo, useRef, useState, useCallback, useMemo, useEffect } from "react";
+import { memo, useRef, useState, useCallback, useMemo, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { thinkingLevelOptions } from "../lib/thinking-options";
@@ -10,6 +10,8 @@ import { Select } from "./Select";
 import { Tooltip } from "./ui/Tooltip";
 import { PlanUsageButton } from "./PlanUsageButton";
 import { TodoButton } from "./TodoButton";
+import { ComposerPopover } from "./ui/ComposerPopover";
+import { ProjectMenuIcon } from "./ui/ProjectMenuIcon";
 import { AgentBar } from "./AgentBar";
 import { ShellBar } from "./ShellBar";
 import { OrbitGlow } from "./OrbitGlow";
@@ -23,6 +25,7 @@ interface AttachItem { name: string; path: string; dataUrl?: string; kind: "imag
 
 interface ChatInputProps {
   projectPath: string;
+  active?: boolean;
   busy: boolean;
   attaches: AttachItem[];
   setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void;
@@ -247,7 +250,7 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
         // 纵横比保持),删除按钮贴容器右上角;点击缩略图(✕ 除外)查看原图
         <div
           key={i}
-          className={`group relative shrink-0 w-16 h-16 rounded-[var(--radius-lg)] bg-surface-alt border border-border overflow-hidden ${onPreview ? "cursor-zoom-in" : ""}`}
+          className={`group relative shrink-0 w-16 h-16 rounded-[var(--radius-lg)] bg-surface-alt overflow-hidden ${onPreview ? "cursor-zoom-in" : ""}`}
           
           onClick={() => { if (onPreview && a.dataUrl) onPreview(a.dataUrl, a.name); }}
         >
@@ -260,7 +263,7 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
         </div>
       ) : (
         // 文档附件:与图片同款 64×64 容器,仅显示文档名(单行截断居中,无图标)
-        <div key={i} className="relative shrink-0 w-16 h-16 rounded-[var(--radius-lg)] bg-surface-alt border border-border overflow-hidden flex items-center justify-center px-1">
+        <div key={i} className="relative shrink-0 w-16 h-16 rounded-[var(--radius-lg)] bg-surface-alt overflow-hidden flex items-center justify-center px-1">
           <span className="truncate w-full text-center text-[length:var(--text-11)] text-text-primary leading-tight">{a.name}</span>
           <button
             type="button"
@@ -283,7 +286,7 @@ function ctxTip(pct: number | null, windowTokens: number | null): string {
 }
 
 export const ChatInput = memo(function ChatInput({
-  projectPath, busy, attaches, setAttaches, onSend, onStop, onPaste,
+  projectPath, active = true, busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange, onPreviewImage,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
   thinkingLevel, thinkingCapped: _thinkingCapped, thinkingLevels, onThinkingLevelChange,
@@ -307,17 +310,14 @@ export const ChatInput = memo(function ChatInput({
     return () => { alive = false; };
   }, [chatModel, sessionId]);
   // 附件菜单（回形针按钮弹出：图片/文档二选一）
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [attachExpanded, setAttachMenuOpen] = useState(false);
+  const attachMenuOpen = active && attachExpanded;
+  useEffect(() => { if (!active) setAttachMenuOpen(false); }, [active]);
+  const attachMenuId = useId();
+  const attachTrigger = useRef<HTMLButtonElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!attachMenuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) setAttachMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setAttachMenuOpen(false); };
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+    if (attachMenuOpen) attachMenuRef.current?.querySelector("button")?.focus();
   }, [attachMenuOpen]);
   const availableModels = useSettingsStore((s) => s.availableModels);
   // 自添加模型用名称展示(值 = 请求标识),官方模型显示目录 name
@@ -327,6 +327,7 @@ export const ChatInput = memo(function ChatInput({
   const ctxWindow = useStatusStore((s) => s.bySession[sessionId]?.ctxWindow ?? null);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = compacting;
+  const instructionPlaceholder = uiText("ui.ChatInput.instructionPlaceholder");
   // 状态指示光效配置
   const glowEffect = useSettingsStore((s) => s.glowEffect);
   const glowColorMode = useSettingsStore((s) => s.glowColorMode);
@@ -430,55 +431,81 @@ export const ChatInput = memo(function ChatInput({
       {/* 上半：输入框 */}
       <div className="input-top">
         {!busy && attaches.length > 0 && <AttachPreview attaches={attaches} setAttaches={setAttaches} onPreview={onPreviewImage} />}
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => handleInputChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={onPaste}
-          placeholder={compacting ? uiText("ui.ChatInput.compactingContextPleaseWait2") : uiText("ui.ChatInput.enterToSendShiftEnterForA")}
-          rows={4}
-          disabled={inputDisabled}
-          className="chat-input"
-        />
+        <div className="chat-input-field">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={onPaste}
+            placeholder={compacting ? undefined : instructionPlaceholder}
+            rows={4}
+            disabled={inputDisabled}
+            className="chat-input"
+          />
+          {!input && !compacting && (
+            <div className="chat-input-placeholder" aria-hidden="true">
+              {instructionPlaceholder.split(/(☰)/u).map((part, index) =>
+                part === "☰" ? <span key={index} className="sb-menu-btn chat-input-menu-symbol"><ProjectMenuIcon /></span> : part
+              )}
+            </div>
+          )}
+        </div>
       </div>
       {/* 下半：工具栏 */}
       <div className="input-bar">
         <input ref={imgInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml" multiple className="hidden" onChange={onImgChange} />
         <input ref={docInputRef} type="file" multiple className="hidden" onChange={onDocChange} accept=".pdf,.doc,.docx,.md,.txt,.csv,.xls,.xlsx,.ts,.tsx,.js,.jsx,.py,.java,.json,.yaml,.yml,.toml,.html,.css,.sh,.env,.cfg" />
-        <div className="relative" ref={attachMenuRef}>
+        <div className="shrink-0">
           <button
+            ref={attachTrigger}
+            type="button"
             className="inp-icon-btn"
+            disabled={!active}
+            aria-label={uiText("ui.ChatInput.attachments")}
+            aria-haspopup="dialog"
             aria-expanded={attachMenuOpen}
+            aria-controls={attachMenuOpen ? attachMenuId : undefined}
             onClick={() => setAttachMenuOpen((v) => !v)}
           >
             {/* 回形针 */}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
           </button>
           {attachMenuOpen && (
-            <div className="absolute bottom-full left-0 mb-1.5 rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-hidden z-dropdown w-max">
-              {/* 列表项按钮面积 = 背景面积：容器无 padding，hover 背景与按钮同矩形，不留缝 */}
+            <ComposerPopover anchor={attachTrigger} panel={attachMenuRef} id={attachMenuId} aria-label={uiText("ui.ChatInput.attachments")}
+              onDismiss={reason => { setAttachMenuOpen(false); if (reason === "escape") attachTrigger.current?.focus(); }} className="w-max min-w-28 p-1.5"
+              onKeyDown={event => {
+                if (event.key === "Tab") {
+                  attachTrigger.current?.focus();
+                  setAttachMenuOpen(false);
+                  return;
+                }
+                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                event.preventDefault();
+                const buttons = Array.from(event.currentTarget.querySelectorAll("button"));
+                buttons.find(button => button !== document.activeElement)?.focus();
+              }}>
               <button
                 type="button"
-                className="flex items-center gap-2.5 px-3 py-2 text-xs whitespace-nowrap text-text-primary hover:bg-surface-hover transition-colors"
-                onClick={() => { setAttachMenuOpen(false); imgInputRef.current?.click(); }}
+                className="composer-option flex w-full items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 py-2 text-xs whitespace-nowrap text-text-primary hover:bg-surface-hover transition-colors"
+                onClick={() => { setAttachMenuOpen(false); attachTrigger.current?.focus(); imgInputRef.current?.click(); }}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.2"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
                 <span>{uiText("ui.ChatInput.image")}</span>
               </button>
               <button
                 type="button"
-                className="flex items-center gap-2.5 px-3 py-2 text-xs whitespace-nowrap text-text-primary hover:bg-surface-hover transition-colors"
-                onClick={() => { setAttachMenuOpen(false); docInputRef.current?.click(); }}
+                className="composer-option flex w-full items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 py-2 text-xs whitespace-nowrap text-text-primary hover:bg-surface-hover transition-colors"
+                onClick={() => { setAttachMenuOpen(false); attachTrigger.current?.focus(); docInputRef.current?.click(); }}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
                 <span>{uiText("ui.ChatInput.document")}</span>
               </button>
-            </div>
+            </ComposerPopover>
           )}
         </div>
         {/* 用户待办：想法与计划清单（.easymint/todos.json）——与 Mint 执行追踪(session-todos)是两套 */}
-        <TodoButton projectPath={projectPath} />
+        <TodoButton projectPath={projectPath} active={active} />
         {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左;按会话过滤(委派是主会话发起的) */}
         {/* ml-[7px]:补偿左侧 TodoButton 角标 badge 的向右溢出(5px+ring 2px)——胶囊与角标视觉间距对齐其他按钮的 8px */}
         {/* gap-3:胶囊之间(agent/shell 并排)间距 12px,对称生效与排列顺序无关 */}

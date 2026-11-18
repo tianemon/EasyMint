@@ -1,3 +1,4 @@
+import { DialogCloseButton } from "./ui/DialogCloseButton";
 import { formatDate } from "../lib/locale-format";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect } from "react";
@@ -135,14 +136,13 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
           <div className="relative bg-[var(--modal-fill)] rounded-[var(--radius-lg)] w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-1.5 shrink-0 bg-[var(--color-surface-alt)]">
               <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? uiText("ui.IssuePanel.recordIssue") : uiText("ui.IssuePanel.editIssue")}</span>
-              <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
+              <DialogCloseButton onClick={() => setForm(null)} />
             </div>
             <div className="settings-body flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{uiText("ui.IssuePanel.featureAreaOptionalEGLogin")}</label>
                 <input
                   className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
-                  placeholder={uiText("ui.IssuePanel.featureArea")}
                   value={module}
                   onChange={(e) => setModule(e.target.value)}
                   autoFocus
@@ -152,7 +152,6 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
                 <label className="text-xs text-text-secondary block mb-1">{uiText("ui.IssuePanel.issueDescription")}</label>
                 <textarea
                   className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary resize-none"
-                  placeholder={uiText("ui.IssuePanel.issueDescription")}
                   rows={10}
                   value={symptom}
                   onChange={(e) => setSymptom(e.target.value)}

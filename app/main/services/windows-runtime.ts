@@ -368,7 +368,7 @@ export function probeWindowsRuntime(): Promise<WindowsRuntimeProbe> { return run
 export function ensureWindowsRuntime(options?: PrepareOptions): Promise<WindowsRuntimePaths> { return runtime().ensure(options); }
 /** 命令链路用：只加入正在进行的准备，不新建（见 WindowsRuntimeService.join 的说明） */
 export function joinWindowsRuntime(options?: PrepareOptions): Promise<WindowsRuntimePaths | undefined> {
-  return service ? service.join(options) : Promise.resolve(undefined);
+  return runtime().join(options);
 }
 export function resetWindowsRuntimeProbe(): void { service?.reset(); }
 export function preparedWindowsRuntime(): WindowsRuntimePaths | undefined { return service?.prepared(); }

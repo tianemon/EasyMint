@@ -158,14 +158,14 @@ function CacheManagementSection(): JSX.Element {
           {updateSize !== null && updateSize > 0 && (
             <div className="flex items-center gap-1.5 shrink-0">
               <button
-                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
+                className="settings-action"
                 onClick={handleClear}
                 disabled={clearing}
               >
                 {clearing ? t("settings.clearing") : t("settings.clearCache")}
               </button>
               <button
-                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
+                className="settings-action"
                 onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
               >
                 {t("common.folder")}
@@ -187,7 +187,7 @@ function CacheManagementSection(): JSX.Element {
           </div>
           {uploadSize !== null && uploadSize > 0 && (
             <button
-              className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
+              className="settings-action"
               onClick={() => window.electronAPI?.upload?.openDir?.()}
             >
               {t("common.openFolder")}

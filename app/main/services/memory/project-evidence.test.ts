@@ -16,7 +16,7 @@ afterEach(() => {
 
 function repo(table: Record<string, string>, files: { latestMtime: number; count: number; topDirs: Array<{ dir: string; count: number }> } | null = null): EvidenceProbe {
   return {
-    run: (command) => (command in table ? table[command]! : null),
+    runGit: args => table[`git ${args.join(" ")}`] ?? null,
     walk: () => files,
   };
 }
@@ -27,7 +27,7 @@ const GIT: Record<string, string> = {
   "git log -5 --pretty=%ad|%s --date=short": "2026-11-15|merge windows hardening\n2026-11-15|fix tray minimize",
   "git status --porcelain": " M a.ts\n M b.ts\n?? c.ts",
   "git log -1 --format=%ct": "1763200000",
-  "git ls-files": "app/main/a.ts\napp/main/b.ts\napp/renderer/c.tsx\ntemp/scratch.md\ntemp/log.txt",
+  "git -c core.quotePath=false ls-files": "应用/main/a.ts\n应用/main/b.ts\n应用/renderer/c.tsx\ntemp/scratch.md\ntemp/log.txt",
 };
 
 it("有 git 时用 HEAD + 提交数作为校验信号", () => {
@@ -51,7 +51,7 @@ it("改动集中目录取自跟踪文件清单，临时目录也会按仓库内�
     count: 5,
     latestMtime: 1_763_200_000_000,
     topDirs: [
-      { dir: "app", count: 3 },
+      { dir: "应用", count: 3 },
       { dir: "temp", count: 2 },
     ],
   });

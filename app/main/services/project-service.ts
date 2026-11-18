@@ -1,8 +1,10 @@
-import { randomUUID } from "crypto";
+import { randomUUID,randomBytes,createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import { shell } from "electron";
 import { Store } from "./store";
+import {initializeProjectRules,discoverProjectRules,initialProjectRuleOwnership,applyInitialProjectProfile,assertInitialProjectRules,finishInitialProjectProfile,initialProjectProfileContent,restoreInitialProjectRules,type ProjectRuleOwnership} from "./project-rule-files";
+import {lockConfigDirectory} from "./native-config-storage";
 import {listOpenProjectIds} from "./window-manager";
 import { resolveHome, emHome } from "../utils/paths";
 // 会话目录工具用静态导入：本模块只依赖 pi-sdk 的**类型**（运行时零负担），比 `require` 更可靠
@@ -26,6 +28,7 @@ interface Project {
   description: string;
   /** 新空项目创建时的自动记录选择；导入已有目录不自动接管旧记录。 */
   autoMemoryRecords?: boolean;
+  creationRules?:ProjectRuleOwnership;
 }
 
 function getTemplateDir(): string {
@@ -72,6 +75,48 @@ function deferSessionDirRename(oldCwd: string, newCwd: string): void {
 export function openedAt(p: { lastOpenedAt?: string }): number {
   const t = Date.parse(p.lastOpenedAt ?? "");
   return Number.isNaN(t) ? 0 : t;
+}
+
+/** The renderer can identify its creation request, but only the host seals the
+ * ownership proof after the actual new session is ready. */
+export function creationSessionReady(service:Pick<ProjectService,"finishCreation">,projectPath:string,resumeSessionId:string|null|undefined,payload?:{details?:Record<string,unknown>}):(()=>void)|undefined {
+  if(!["project-created","direct-create"].includes(String(payload?.details?.kind)))return;
+  if(resumeSessionId)throw new Error("创建首条消息不能重发到已有会话，请沿原会话继续");
+  const id=payload?.details?.creationProjectId,revision=payload?.details?.creationRevision;
+  if(typeof id!=="string"||!id||typeof revision!=="string"||!/^[a-f0-9]{64}$/u.test(revision))throw new Error("新建配置凭据缺失，请重新打开创建流程核对；未发送首条消息");
+  return ()=>service.finishCreation(projectPath,id,revision);
+}
+
+export function finishCreationOwnership(store:Store,projectPath:string,projectId:string,expectedRevision:string):void {
+  if(!store.getProjects().some(project=>project.id===projectId&&path.resolve(project.path)===path.resolve(projectPath)&&project.creationRules?.revision===expectedRevision&&!project.creationRules.preparedHash))throw new Error("新建项目配置已变化，请重新确认后再启动");
+  const metadata=fs.lstatSync(path.join(path.resolve(projectPath),".easymint"),{throwIfNoEntry:false});if(metadata&&(!metadata.isDirectory()||metadata.isSymbolicLink()))throw new Error("新建配置目录已被替换，未启动会话");
+  const release=lockCreationOwnership(store,projectPath);
+  try{
+    const projects=store.getProjects(),project=projects.find(item=>item.id===projectId&&path.resolve(item.path)===path.resolve(projectPath));
+    if(!project?.creationRules||project.creationRules.revision!==expectedRevision||project.creationRules.preparedHash)throw new Error("新建项目配置已变化，请重新确认后再启动");
+    assertInitialProjectRules(project.path,project.creationRules);delete project.creationRules;store.saveProjects(projects);finishInitialProjectProfile(project.path);
+  }finally{release();}
+}
+
+/** Serializes ownership changes across windows while keeping ordinary takeover off the project filesystem. */
+function lockCreationOwnership(store: Store, projectPath?: string): () => void {
+  const releaseRegistry = lockConfigDirectory(path.join(store.getDataDir(), ".control-tmp", "project-creation"));
+  if (!projectPath) return releaseRegistry;
+  try {
+    const releaseProject = lockConfigDirectory(path.join(path.resolve(projectPath), ".easymint"));
+    return () => { try { releaseProject(); } finally { releaseRegistry(); } };
+  } catch (error) { releaseRegistry(); throw error; }
+}
+
+/** Ordinary chat takes over the project without claiming or rewriting its rules. */
+export function releaseCreationOwnership(store:Store,projectPath:string):void {
+  const initial=store.getProjects().find(project=>path.resolve(project.path)===path.resolve(projectPath));if(!initial?.creationRules)return;
+  const release=lockCreationOwnership(store);
+  try{
+    const projects=store.getProjects(),project=projects.find(item=>item.id===initial.id&&path.resolve(item.path)===path.resolve(projectPath));if(!project?.creationRules)return;
+    if (project.creationRules.preparedHash) throw new Error("上次新建项目的配置保存未完成，请在新建项目中填写原项目名称和目录后重试");
+    delete project.creationRules;store.saveProjects(projects);finishInitialProjectProfile(project.path);
+  }finally{release();}
 }
 
 export class ProjectService {
@@ -125,10 +170,65 @@ export class ProjectService {
 
     fs.mkdirSync(targetDir, { recursive: true });
     this.copyTemplate(targetDir);
+    project.creationRules=initialProjectRuleOwnership(targetDir);
 
     projects.push(project);
     this.store.saveProjects(projects);
     return project;
+  }
+
+  /** Keep profile assets and the generated rule suffix under one project lock.
+   * The registry's ownership proof survives an app restart and is never inferred. */
+  saveCreationProfile(projectPath:string,specification:string,saveProfile:()=>void|(()=>void)):{creationRulesHash:string;creationRevision:string} {
+    if(!this.store.getProjects().some(project=>path.resolve(project.path)===path.resolve(projectPath)&&project.creationRules))throw new Error("新建规则所有权不可验证或首次会话已启动，未自动覆盖项目规则；请在项目中明确核对配置");
+    const metadata=fs.lstatSync(path.join(path.resolve(projectPath),".easymint"),{throwIfNoEntry:false});if(metadata&&(!metadata.isDirectory()||metadata.isSymbolicLink()))throw new Error("新建配置目录已被替换，已保留原件；未应用新配置");
+    const release=lockCreationOwnership(this.store,projectPath);
+    try{
+      const projects=this.store.getProjects(),project=projects.find(item=>path.resolve(item.path)===path.resolve(projectPath));
+      if(!project?.creationRules)throw new Error("新建规则所有权不可验证或首次会话已启动，未自动覆盖项目规则；请在项目中明确核对配置");
+      let proof={hash:project.creationRules.hash,baseBytes:project.creationRules.baseBytes},before:Buffer;
+      try{before=assertInitialProjectRules(project.path,proof);}
+      catch(error){if(!project.creationRules.preparedHash)throw error;proof={...proof,hash:project.creationRules.preparedHash};before=assertInitialProjectRules(project.path,proof);}
+      const nextHash=createHash("sha256").update(initialProjectProfileContent(before,proof.baseBytes,specification)).digest("hex"),revision=randomBytes(32).toString("hex");
+      // Revoke old receipts before touching any profile/design asset. The planned
+      // hash lets a retry recognize our own rule replacement after interruption.
+      project.creationRules={...proof,preparedHash:nextHash};this.store.saveProjects(projects);
+      let rollbackAssets: void | (() => void) = undefined;
+      try{
+        rollbackAssets = saveProfile();
+        const current=this.store.getProjects(),target=current.find(item=>item.id===project.id);
+        if(!target?.creationRules||target.creationRules.hash!==proof.hash||target.creationRules.preparedHash!==nextHash||target.creationRules.revision!==undefined)throw new Error("新建项目状态已变化，请重新读取后再试");
+        const owned=applyInitialProjectProfile(project.path,specification,proof)!;
+        target.creationRules={...owned,revision};this.store.saveProjects(current);return {creationRulesHash:owned.hash,creationRevision:revision};
+      }catch(error){
+        const projectsAfterFailure=this.store.getProjects();
+        const target=projectsAfterFailure.find(item=>item.id===project.id);
+        const current=target?.creationRules;
+        // A durable commit with a lost acknowledgement is already successful.
+        if(current?.revision===revision&&!current.preparedHash&&current.hash===nextHash){assertInitialProjectRules(project.path,current);return {creationRulesHash:nextHash,creationRevision:revision};}
+        let rollbackError: unknown;
+        try { rollbackAssets?.(); } catch (cause) { rollbackError = cause; }
+        if (target && current?.revision === undefined && current?.hash === proof.hash && current.preparedHash === nextHash) {
+          try {
+            try { assertInitialProjectRules(project.path, proof); }
+            catch { restoreInitialProjectRules(project.path, { ...proof, hash: nextHash }, before); }
+          } catch {
+            throw new Error(`新建配置保存失败，项目规则已变化并已保留：${(error as Error).message}`, { cause: error });
+          }
+          if (rollbackAssets && !rollbackError) {
+            // Only release the fence after both assets and rules were restored.
+            target.creationRules = proof;
+            this.store.saveProjects(projectsAfterFailure);
+          }
+        }
+        if (rollbackError) throw new Error(`新建配置保存失败，视觉配置恢复未完成：${(rollbackError as Error).message}`, { cause: error });
+        throw error;
+      }
+    }finally{release();}
+  }
+
+  finishCreation(projectPath:string,projectId:string,expectedRevision:string):void {
+    finishCreationOwnership(this.store,projectPath,projectId,expectedRevision);
   }
 
   async delete(id: string): Promise<void> {
@@ -171,10 +271,10 @@ export class ProjectService {
     this.store.saveProjects(projects);
   }
 
-  get(id: string): (Project & { exists: boolean }) | undefined {
+  get(id: string): (Project & { exists: boolean; canResumeCreation: boolean }) | undefined {
     const p = this.store.getProjects().find((p) => p.id === id);
     if (!p) return undefined;
-    return { ...p, exists: fs.existsSync(p.path) };
+    return { ...p, exists: fs.existsSync(p.path), canResumeCreation: Boolean(p.creationRules) };
   }
 
   /** 更新项目名称/路径，路径变更时自动迁移 SDK session 数据 */
@@ -219,15 +319,30 @@ export class ProjectService {
     return { ...updated, exists: fs.existsSync(updated.path) };
   }
 
-  /** 创建目标预检（Step1 即时预警用）：目录已存在且非空 = 冲突（创建会被拒，见 create） */
-  checkTargetDir(basePath: string, name: string): { conflict: boolean } {
+  /** Check directory conflicts and locate an interrupted creation even without a renderer draft. */
+  checkTargetDir(basePath: string, name: string, projectName?: string): {
+    conflict: boolean;
+    resumeProject?: { id: string; path: string; directoryName: string };
+  } {
     if (/[\\/]/.test(name)) return { conflict: true }; // 名称含路径分隔符，create 必拒
-    const targetDir = path.resolve(resolveHome(basePath), name);
+    const base = path.resolve(resolveHome(basePath));
+    const targetDir = path.resolve(base, name);
+    if (projectName) {
+      const matching = this.store.getProjects().filter(project => project.name === projectName &&
+        path.relative(base, path.dirname(project.path)) === "" && fs.existsSync(project.path));
+      const pending = matching.find(project => project.status === "setup" && project.creationRules?.preparedHash);
+      // A provisional translation cannot select among same-name projects or override an occupied path.
+      if (pending && matching.length > 1) return { conflict: true };
+      if (pending && (path.relative(targetDir, pending.path) === "" || !fs.existsSync(targetDir))) return {
+        conflict: true,
+        resumeProject: { id: pending.id, path: pending.path, directoryName: path.basename(pending.path) },
+      };
+    }
     return { conflict: fs.existsSync(targetDir) && fs.readdirSync(targetDir).length > 0 };
   }
 
   /** 导入已有目录为项目（不复制 template，目录已存在） */
-  import_(dirPath: string): (Project & { exists: boolean; isNew: boolean }) {
+  import_(dirPath: string): (Project & { exists: boolean; isNew: boolean; warning?:string }) {
     const resolved = path.resolve(dirPath);
 
     // 已有记录的：更新 lastOpenedAt 并返回
@@ -252,7 +367,11 @@ export class ProjectService {
     const projects = this.store.getProjects();
     projects.push(project);
     this.store.saveProjects(projects);
-    return { ...project, exists: true, isNew: true };
+    let warning:string|undefined;
+    try{const existing=discoverProjectRules(resolved);if(!existing.hasExisting)warning=initializeProjectRules(resolved,fs.readFileSync(path.join(this.templateDir,"AGENTS.md"),"utf8"),project.name);else warning=existing.warnings.join("\n") || undefined;}
+    catch(error){warning=`项目已登记，默认规则未创建：${(error as Error).message}`;}
+    if(warning)console.warn(warning);
+    return { ...project, exists: true, isNew: true,...(warning?{warning}:{}) };
   }
 
   /** 重命名项目：复制→更新记录→写清理任务。由调用方负责 app.relaunch/quit */
@@ -358,7 +477,9 @@ export class ProjectService {
       if (exclude.has(entry)) continue;
       const src = path.join(this.templateDir, entry);
       const dest = path.join(targetDir, entry);
-      if (fs.statSync(src).isDirectory()) {
+      if (entry === "AGENTS.md") {
+        const warning=initializeProjectRules(targetDir,fs.readFileSync(src,"utf8"),path.basename(targetDir),false);if(warning)console.warn(warning);
+      } else if (fs.statSync(src).isDirectory()) {
         fs.cpSync(src, dest, { recursive: true });
       } else {
         fs.copyFileSync(src, dest);

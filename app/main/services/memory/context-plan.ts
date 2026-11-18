@@ -8,15 +8,15 @@
  * 3. 未变化不交付；变化只发差异。首轮（无交付记录）才全量。
  *
  * revision 的来源约定（调用方负责生成）：
- * - 约定：MEMORY.md 内容哈希
+ * - 事实：调用方提供的正文指纹与记忆日期版本；物理移动或排版不制造新事实版本
  * - 项目进展：证据信号（git HEAD + 提交数，或无 git 时的文件摘要）
  * - 本机：硬件与工具链指纹
  */
 
 export interface Deliverable {
-  /** 稳定槽位，例如 global.rules / project.progress / machine */
+  /** 稳定槽位，例如 memory:global/id / project.progress / machine */
   key: string;
-  revision: number;
+  revision: number|string;
   text: string;
   /** 数值越小越优先；额度不足时先丢大数。 */
   priority?: number;
@@ -26,18 +26,19 @@ export interface DeliveryPlan {
   /** 本轮要追加的正文；空串表示不注入（缓存零扰动）。 */
   block: string;
   /** 交付后应记入会话的版本号。 */
-  items: Array<{ key: string; revision: number }>;
+  items: Array<{ key: string; revision: number|string }>;
   tokens: number;
   reason: "first" | "delta" | "none";
 }
 
 export interface PlanOptions {
   /** 已在会话历史中交付过的版本；首轮传空 Map。 */
-  delivered?: Map<string, number>;
+  delivered?: Map<string, number|string>;
   /** 本次允许的 token 上限。 */
   allowance?: number;
   /** 注入总标题，保持稳定以免影响缓存。 */
   header?: string;
+  removedKeys?:string[];
 }
 
 export const DEFAULT_HEADER =
@@ -48,7 +49,7 @@ export function estimateTokens(text: string): number {
   return Math.ceil(Buffer.byteLength(text, "utf8") / 3);
 }
 
-const REMOVED_NOTE = "此前引用过的记忆条目已移除，不再沿用旧内容。";
+const removedNote=(keys:string[])=>`以下记忆ID已失效，不再沿用其旧内容：${keys.join("、")}。`;
 
 function sortByPriority(items: Deliverable[]): Deliverable[] {
   return [...items].sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100) || a.key.localeCompare(b.key));
@@ -59,17 +60,17 @@ function sortByPriority(items: Deliverable[]): Deliverable[] {
  * 完全确定性：同样的入参永远得到同样的输出，便于测试与缓存。
  */
 export function planDelivery(items: Deliverable[], options: PlanOptions = {}): DeliveryPlan {
-  const delivered = options.delivered ?? new Map<string, number>();
+  const delivered = options.delivered ?? new Map<string, number|string>();
   const allowance = options.allowance ?? 800;
   const header = options.header ?? DEFAULT_HEADER;
   const first = delivered.size === 0;
 
   const current = new Map(items.map((item) => [item.key, item]));
-  const removed = [...delivered.keys()].filter((key) => !current.has(key));
+  const removed = (options.removedKeys ?? [...delivered.keys()].filter(key=>!current.has(key))).filter(key=>delivered.has(key)&&delivered.get(key)!==-1);
 
   const chunks: string[] = [];
-  const planned: Array<{ key: string; revision: number }> = [];
-  let tokens = estimateTokens(header);
+  const planned: Array<{ key: string; revision: number|string }> = [];
+
 
   // 首轮全量；之后只发版本变化的条目。
   const candidates = sortByPriority(items).filter(
@@ -77,18 +78,19 @@ export function planDelivery(items: Deliverable[], options: PlanOptions = {}): D
   );
 
   for (const item of candidates) {
-    const cost = estimateTokens(item.text);
-    if (tokens + cost > allowance) continue;
+    const nextTokens=estimateTokens(`${header}\n${[...chunks,item.text].join("\n\n")}`);
+    if(nextTokens>allowance)continue;
     chunks.push(item.text);
     planned.push({ key: item.key, revision: item.revision });
-    tokens += cost;
+
   }
 
   if (removed.length) {
-    const cost = estimateTokens(REMOVED_NOTE);
-    if (tokens + cost <= allowance) {
+    const REMOVED_NOTE=removedNote(removed);
+    const nextTokens=estimateTokens(`${header}\n${[...chunks,REMOVED_NOTE].join("\n\n")}`);
+    if (nextTokens <= allowance) {
       chunks.push(REMOVED_NOTE);
-      tokens += cost;
+
       for (const key of removed) planned.push({ key, revision: -1 });
     }
   }
@@ -98,4 +100,3 @@ export function planDelivery(items: Deliverable[], options: PlanOptions = {}): D
   const block = `${header}\n${chunks.join("\n\n")}`;
   return { block, items: planned, tokens: estimateTokens(block), reason: first ? "first" : "delta" };
 }
-

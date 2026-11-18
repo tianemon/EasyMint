@@ -386,7 +386,7 @@ export interface McpValidationResult {
 /** 校验 server 配置（对齐 OMP config.ts:317-343：stdio 需 command，command 与 url 互斥） */
 export function validateMcpServer(name: string, cfg: McpServerConfig): McpValidationResult {
   if (!MCP_NAME_RE.test(name)) {
-    return { ok: false, error: "名称需用小写字母/数字/连字符（如 my-server），长度 1-64" };
+    return { ok: false, error: "名称为 1–64 个字符，使用小写字母、数字、下划线或连字符，首位须为小写字母或数字" };
   }
   if (!cfg || !["stdio", "http"].includes(cfg.type)) {
     return { ok: false, error: "传输类型必须是 stdio / http；旧 HTTP+SSE 请迁移到 Streamable HTTP 端点" };

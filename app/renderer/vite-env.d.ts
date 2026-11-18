@@ -84,6 +84,7 @@ interface Project {
   status: "setup" | "development" | "completed";
   description: string;
   exists?: boolean;
+  canResumeCreation?: boolean;
 }
 
 interface FileNode {
@@ -284,19 +285,21 @@ interface ElectronAPI {
   project: {
     list: () => Promise<Project[]>;
     create: (opts: { name: string; path: string }) => Promise<Project>;
-    checkDir: (dir: string, name: string) => Promise<{ conflict: boolean }>;
+    checkDir: (dir: string, name: string, projectName?: string) => Promise<{
+      conflict: boolean; resumeProject?: { id: string; path: string; directoryName: string };
+    }>;
     openedInWindows: () => Promise<string[]>;
     delete: (id: string) => Promise<void>;
     get: (id: string) => Promise<Project | undefined>;
     update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
-    import: (dirPath: string) => Promise<Project & { isNew: boolean }>;
+    import: (dirPath: string) => Promise<Project & { isNew: boolean; warning?:string }>;
     renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
-    saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => Promise<{ ok: boolean; error?: string }>;
+    saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => Promise<{ ok: boolean; error?: string;creationRulesHash?:string;creationRevision?:string }>;
   };
   file: {
     readTree: (dirPath: string) => Promise<{ nodes: FileNode[]; truncated: boolean }>;
-    readContent: (filePath: string) => Promise<{ ok: true; content: string } | { ok: false; reason: "missing" | "outside-project" }>;
-    writeContent: (filePath: string, content: string) => Promise<void>;
+    readContent: (filePath: string) => Promise<import("../shared/file-read").FileReadResult>;
+    writeContent: (filePath: string, content: string, expectedHash: string) => Promise<import("../shared/file-read").FileWriteResult>;
     createFile: (filePath: string, content?: string) => Promise<void>;
     createFolder: (dirPath: string) => Promise<void>;
     saveUpload: (name: string, data: Uint8Array) => Promise<{ path: string; dataUrl: string }>;
@@ -369,8 +372,6 @@ interface ElectronAPI {
     onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
-    onGuidanceOffer: (callback: (data: { sessionId: string; reason: string }) => void) => () => void;
-    onConfirmDev: (callback: (data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
     onDelegationInit: (callback: (data: {
@@ -712,7 +713,7 @@ interface ElectronAPI {
     deleteMode: (id: string, revision?: string) => Promise<import("@shared/collaboration").ConversationConfig>;
     restoreMode: (id: string, revision?: string) => Promise<import("@shared/collaboration").ConversationConfig>;
     onChanged: (callback: (config: import("@shared/collaboration").ConversationConfig) => void) => () => void;
-    getModes: (sessionId: string, legacyDesigner?: boolean) => Promise<string[]>;
+    getModes: (sessionId: string, legacyDesigner?: boolean, created?:boolean) => Promise<string[]>;
   };
   app: {
     getVersion: () => Promise<string>;

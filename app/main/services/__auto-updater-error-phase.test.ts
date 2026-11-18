@@ -16,12 +16,13 @@ const mocks = vi.hoisted(() => {
     emit: (name: string, arg?: unknown): void => { for (const fn of handlers[name] ?? []) fn(arg); },
     autoDownload: false,
     autoInstallOnAppQuit: false,
+    quitAndInstall: vi.fn(),
   };
   const reset = (): void => {
     for (const key of Object.keys(handlers)) delete handlers[key];
     sent.length = 0;
   };
-  return { sent, emitter, reset };
+  return { sent, emitter, reset, openExternal: vi.fn(async () => {}) };
 });
 
 vi.mock("electron", () => ({
@@ -32,12 +33,12 @@ vi.mock("electron", () => ({
       webContents: { send: (_channel: string, payload: Record<string, unknown>) => { mocks.sent.push(payload); } },
     }],
   },
-  shell: { openPath: () => {} },
+  shell: { openPath: () => {}, openExternal: mocks.openExternal },
 }));
 
 vi.mock("electron-updater", () => ({ autoUpdater: mocks.emitter }));
 
-import { autoUpdaterInternals } from "./auto-updater";
+import { autoUpdaterInternals, installUpdate } from "./auto-updater";
 
 describe("自动更新失败的阶段归因", () => {
   beforeEach(() => { mocks.reset(); });
@@ -82,5 +83,20 @@ describe("自动更新失败的阶段归因", () => {
     mocks.emitter.emit("error", new Error("boom"));
 
     expect(mocks.sent.at(-1)).toMatchObject({ errorPhase: "check" });
+  });
+
+  it("Linux opens the release download page without starting an installer", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { ...platform, value: "linux" });
+    try {
+      autoUpdaterInternals.setupListeners();
+      mocks.emitter.emit("update-downloaded", { version: "9.9.9" });
+      installUpdate();
+      expect(mocks.openExternal).toHaveBeenCalledWith("https://github.com/tianemon/EasyMint/releases/latest");
+      expect(mocks.emitter.quitAndInstall).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(mocks.sent.at(-1)).toMatchObject({ status: "idle" }));
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
   });
 });
