@@ -24,7 +24,7 @@ import { deleteCache } from "./session-cache";
 import { isSafeSessionId } from "../../shared/session-id";
 import { CONVERSATION_SETTINGS_MESSAGE_TYPE } from "../../shared/collaboration";
 import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
-import { isEmptyDirShell } from "./pi-session-dir";
+import { ensureSessionManagerClass, isEmptyDirShell } from "./pi-session-dir";
 import { getSessionManagerClass, type AgentSession } from "./pi-sdk";
 import { droppedContextIds, imageStrippedContextIds } from "./context-edit";
 import { broadcast } from "./ipc-broadcast";
@@ -352,11 +352,19 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
  *  SM.open 只传文件路径——SDK 从文件 header 的 session 条目自动读 cwd/sessionDir,
  *  无需外部传 projectPath(子会话不在 listPiSessions 可见范围)。
  *  会话 ID 从文件名尾段提取(<时间戳>_<sessionId>.jsonl)。 */
-export async function getSubagentMessages(sessionFile: string): Promise<SessionMessage[]> {
+export async function getSubagentMessages(sessionFile: string, projectPath?: string): Promise<SessionMessage[]> {
   if (!sessionFile) return [];
   const sid = path.basename(sessionFile).replace(/\.[^.]+$/, "").split("_").pop() || sessionFile;
   try {
     const SM = await getSessionManagerClass();
+    if (projectPath && !existsSync(sessionFile) && path.basename(path.dirname(sessionFile)) === "subagents") {
+      const parentId = path.basename(path.dirname(path.dirname(sessionFile)));
+      if (isSafeSessionId(parentId) && path.extname(sessionFile) === ".jsonl") {
+        await ensureSessionManagerClass();
+        const relocated = path.join(getPiSessionDir(projectPath), parentId, "subagents", path.basename(sessionFile));
+        if (existsSync(relocated)) sessionFile = relocated;
+      }
+    }
     const mgr = SM.open(sessionFile);
     // 子 Agent 过程读取需要 toolResult 消息(工具输出)——主会话历史(getSessionMessages)不需要
     return parseEntriesToMessages(mgr, sid, true);

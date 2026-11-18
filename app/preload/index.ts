@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (id: string) => ipcRenderer.invoke("project:delete", { id }),
     get: (id: string) => ipcRenderer.invoke("project:get", { id }),
     update: (id: string, patch: { name?: string; path?: string }) => ipcRenderer.invoke("project:update", { id, patch }),
+    relocate: (id: string) => ipcRenderer.invoke("project:relocate", { id }),
     import: (dirPath: string) => ipcRenderer.invoke("project:import", { dirPath }),
     renameExec: (oldPath: string, newName: string) => ipcRenderer.invoke("project:rename-exec", { oldPath, newName }) as Promise<{ ok: boolean; error?: string }>,
     saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => ipcRenderer.invoke("project:saveProfile", { projectPath, platformSpec, visualSelection }),

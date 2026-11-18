@@ -129,6 +129,7 @@ export interface DelegationRecord {
   parentSessionId: string;
   /** 创建时的原始 ID（新建会话 = EM 临时 UUID；steer/abort 双匹配用） */
   tempParentSessionId?: string;
+  projectPath?: string;
   /** 子会话 ID 列表（批量时多个） */
   childSessionIds: string[];
   /** 子会话 jsonl 文件路径列表(按 index 对齐;前端查看 Agent 过程用) */

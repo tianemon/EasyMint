@@ -292,6 +292,7 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>;
     get: (id: string) => Promise<Project | undefined>;
     update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
+    relocate: (id: string) => Promise<Project | null>;
     import: (dirPath: string) => Promise<Project & { isNew: boolean; warning?:string }>;
     renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
     saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => Promise<{ ok: boolean; error?: string;creationRulesHash?:string;creationRevision?:string }>;

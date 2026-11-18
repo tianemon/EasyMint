@@ -22,6 +22,7 @@ export function createDelegation(
   tasks: TaskItem[],
   /** 原始 ID（新会话 = 临时 UUID;缺省同 parentSessionId）。steer/abort 按它双匹配 */
   rawParentSessionId?: string,
+  projectPath?: string,
 ): DelegationRecord {
   const abortController = new AbortController();
   let resolveCompletion!: (result: BatchResult) => void;
@@ -33,6 +34,7 @@ export function createDelegation(
     delegationId: randomUUID(),
     parentSessionId,
     tempParentSessionId: rawParentSessionId ?? parentSessionId,
+    projectPath,
     childSessionIds: [],
     childSessionFiles: [],
     status: "running",
@@ -59,6 +61,11 @@ export function createDelegation(
   delegations.set(record.delegationId, record);
   prune();
   return record;
+}
+
+export function hasRunningProjectDelegations(matches: (directory: string) => boolean): boolean {
+  return [...delegations.values()].some(record =>
+    record.status === "running" && record.projectPath !== undefined && matches(record.projectPath));
 }
 
 export function getDelegation(delegationId: string): DelegationRecord | undefined {

@@ -31,7 +31,7 @@ import { pathHitsAny, protectedCredentialPaths } from "./services/permission/acc
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { getRunningSummary } from "./services/task/registry";
 import { readShellLogTail } from "./services/shell-log";
-import { listOpenProjectIds } from "./services/window-manager";
+import { getWindowProjectId, isProjectOpenInAnotherWindow, listOpenProjectIds } from "./services/window-manager";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
 import { detectCodegraph } from "./utils/codegraph-detector";
@@ -95,7 +95,7 @@ import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
 import { isPermissionModeTightening, normalizePermissionMode } from "./services/permission/execution-context";
 import { withSessionCreationLock } from "./services/session-permission-gate";
-import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort, ensureRunJsonWatch, saveRunJson } from "./services/process-service";
+import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, hasRunningProjectProcess, checkPort, killPort, ensureRunJsonWatch, saveRunJson } from "./services/process-service";
 import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
 import { listTodos, addTodo, updateTodo, toggleTodo, removeTodo } from "./services/todo-service";
@@ -250,6 +250,34 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("project:get", (_e, { id }) => projectService.get(id));
   ipcMain.handle("project:update", (_e, { id, patch }) => projectService.update(id, patch));
+  ipcMain.handle("project:relocate", async (event, payload: unknown) => {
+    const { id } = expectPayload(z.object({ id: nonEmptyString.max(256) }), payload);
+    const project = projectService.get(id);
+    if (!project || project.exists) throw new Error(t("messages.projectRelocationChanged"));
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error(t("messages.projectRelocationChanged"));
+    const result = await dialog.showOpenDialog(window, {
+      properties: ["openDirectory"],
+      title: t("ui.ProjectPage.relocateProject"),
+      defaultPath: nearestExistingDir(p.dirname(project.path)) ?? nearestExistingDir(store.getSettings().defaultProjectDir),
+    });
+    const directory = result.filePaths[0];
+    if (result.canceled || !directory || window.isDestroyed()) return null;
+
+    agentService.memory.frontActivity();
+    try {
+      return await projectService.relocate(id, project.path, directory, (oldPath, newPath) => {
+        const matches = (candidate: string) => pathHitsAny(candidate, [oldPath, newPath], oldPath);
+        if (isProjectOpenInAnotherWindow(id, window.id)) throw new Error(t("messages.projectRelocationOpenElsewhere"));
+        if (agentService.hasProjectWork(matches) || hasRunningProjectProcess(matches)) {
+          throw new Error(t("messages.projectRelocationBusy"));
+        }
+        agentService.memory.frontActivity();
+      });
+    } finally {
+      agentService.memory.frontIdle();
+    }
+  });
   ipcMain.handle("project:import", async (_e, { dirPath }) => {
     const project=projectService.import_(dirPath);
     return project;
@@ -645,8 +673,12 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:design-sessions", () => getDesignSessionIds());
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
   // 子 Agent 会话消息(按 jsonl 路径读;前端查看 Agent 过程)
-  ipcMain.handle("task:get-subagent-messages", (_e, { sessionFile }) =>
-    getSubagentMessages(sessionFile));
+  ipcMain.handle("task:get-subagent-messages", (event, { sessionFile }) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const id = window ? getWindowProjectId(window.id) : undefined;
+    const project = id ? projectService.get(id) : undefined;
+    return getSubagentMessages(sessionFile, project?.exists ? project.path : undefined);
+  });
 
   // shell:read-log — 读取后台命令输出日志(尾部 100KB 截断,弹层展示最近输出)。
   // 日志在 <项目>/.easymint/shell-logs/ 内——路径须在项目根内(防任意文件读取)。空串/缺省按无内容处理

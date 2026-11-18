@@ -52,6 +52,9 @@ export function ProjectPage(): JSX.Element {
       .catch(() => setOpenedInWindows(new Set()));
   }, [showOpenProject]);
   const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string; exists?: boolean }>>([]);
+  const relocatingRef = useRef(false);
+  const [relocatingId, setRelocatingId] = useState<string | null>(null);
+  const [projectReload, reloadProject] = useState(0);
   const [windowChoiceTarget, setWindowChoiceTarget] = useState<{ id: string; sid?: string | null; init?: boolean } | null>(null);
   const [projectExists, setProjectExists] = useState(true);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -124,6 +127,7 @@ export function ProjectPage(): JSX.Element {
 
   useEffect(() => {
     // 切换项目时清空标签页和任务
+    let current = true;
     useTabStore.getState().clearTabs();
     // 补建空会话 tab(与打开 EM 初始态一致):切换项目后内容区不空白、新建会话按钮保持可用
     useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession" });
@@ -131,9 +135,11 @@ export function ProjectPage(): JSX.Element {
     useProjectStatusStore.getState().reset();
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
+        if (!current) return;
         if (p) {
           setProjectExists(p.exists ?? false);
           if (!p.exists) {
+            setProjectPath("");
             setProjectName(p.name);
             document.title = uiText("ui.ProjectPage.projectDeletedEasymint");
             return;
@@ -159,7 +165,8 @@ export function ProjectPage(): JSX.Element {
     } else {
       document.title = "EasyMint";
     }
-  }, [projectId]);
+    return () => { current = false; };
+  }, [projectId, projectReload]);
 
   useEffect(() => {
     if (projectId && !projectExists && projectName) document.title = uiText("ui.ProjectPage.projectDeletedEasymint");
@@ -312,19 +319,44 @@ export function ProjectPage(): JSX.Element {
     }
   }, [deleteTarget]);
 
+  const openRegisteredProject = useCallback((id: string) => {
+    setShowOpenProject(false);
+    if (projectId && projectId !== id) {
+      setWindowChoiceTarget({ id });
+    } else {
+      navigate(`/project/${id}`);
+    }
+  }, [navigate, projectId]);
+
   const handleBrowseFolder = useCallback(async () => {
     const dir = await window.electronAPI.dialog.openDirectory();
     if (!dir) return;
     const imported = await window.electronAPI.project.import(dir);
-    if(imported.warning)toast(appText(imported.warning));
-    setShowOpenProject(false);
-    // 与列表点击一致：当前已打开项目时提示窗口选择
-    if (projectId && projectId !== imported.id) {
-      setWindowChoiceTarget({ id: imported.id });
-    } else {
-      navigate(`/project/${imported.id}`);
+    if (imported.warning) toast(appText(imported.warning));
+    openRegisteredProject(imported.id);
+  }, [openRegisteredProject]);
+
+  const handleRelocate = useCallback(async (id: string) => {
+    if (relocatingRef.current) return;
+    relocatingRef.current = true;
+    setRelocatingId(id);
+    try {
+      const relocated = await window.electronAPI.project.relocate(id);
+      if (!relocated) return;
+      setOpenProjectList(projects => projects.map(project => project.id === id ? relocated : project));
+      if (id === projectId) {
+        setShowOpenProject(false);
+        reloadProject(value => value + 1);
+      } else {
+        openRegisteredProject(id);
+      }
+    } catch (error) {
+      toast(appText(error instanceof Error ? error.message : String(error)));
+    } finally {
+      relocatingRef.current = false;
+      setRelocatingId(null);
     }
-  }, [navigate, projectId]);
+  }, [openRegisteredProject, projectId]);
 
   const handleRenameProject = useCallback(() => {
     setRenameNewName(projectName);
@@ -429,6 +461,15 @@ export function ProjectPage(): JSX.Element {
       />
 
       <main className="main-area">
+        {projectId && !projectExists ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-sm text-text-secondary">
+            <p>{uiText("ui.ProjectPage.directoryDeleted2")}</p>
+            <button type="button" className="settings-action" data-tone="accent"
+              disabled={relocatingId !== null} onClick={() => void handleRelocate(projectId)}>
+              {uiText(relocatingId === projectId ? "ui.ProjectPage.relocatingProject" : "ui.ProjectPage.relocateProject")}
+            </button>
+          </div>
+        ) : <>
         <TabBar />
 
         {/* tab 内容全部保持挂载、按 activeTabId 切显隐(不卸载)：卸载会丢会话/编辑器的组件内状态(输入框草稿、滚动位置) */}
@@ -457,6 +498,7 @@ export function ProjectPage(): JSX.Element {
             </div>
           )}
         </div>
+        </>}
       </main>
 
       <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} projectPath={projectPath} />
@@ -540,11 +582,11 @@ export function ProjectPage(): JSX.Element {
 
       {/* Open Project Picker */}
       {showOpenProject && (
-        <Modal overlayClassName="bg-black/40" onClose={() => setShowOpenProject(false)}>
-          <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
+        <Modal overlayClassName="bg-black/40" onClose={() => { if (!relocatingRef.current) setShowOpenProject(false); }}>
+          <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[420px] max-w-[calc(100vw_-_2rem)] max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-text-primary">{uiText("nav.openProject")}</h2>
-              <DialogCloseButton onClick={() => setShowOpenProject(false)} />
+              <DialogCloseButton disabled={relocatingId !== null} onClick={() => setShowOpenProject(false)} />
             </div>
             <p className="px-5 pb-2 text-xs text-text-secondary">{uiText("ui.ProjectPage.chooseAProjectToOpenInThis")}</p>
             <div className="overflow-y-auto flex-1 px-3 pb-3">
@@ -559,27 +601,33 @@ export function ProjectPage(): JSX.Element {
                 </div>
               ) : (
                 openProjectList.map((p) => (
-                  <div key={p.id} className="relative group">
-                    <button
-                      className={`w-full text-left px-3 py-2.5 rounded-[var(--radius-lg)] transition-colors mb-0.5 ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
-                      onClick={() => {
-                        setShowOpenProject(false);
-                        if (projectId && projectId !== p.id) {
-                          setWindowChoiceTarget({ id: p.id });
-                        } else {
-                          navigate(`/project/${p.id}`);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-sm font-medium ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</span>
-                        {p.exists === false && <span className="text-[length:var(--text-2xs)] text-danger">{uiText("ui.ProjectPage.directoryDeleted2")}</span>}
+                  <div key={p.id} className="relative group mb-0.5">
+                    {p.exists === false ? (
+                      <div className="flex items-center gap-3 px-3 py-2.5 pr-9 rounded-[var(--radius-lg)] bg-surface-hover">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-text-primary truncate">{p.name}</span>
+                            <span className="shrink-0 text-[length:var(--text-2xs)] text-text-secondary">{uiText("ui.ProjectPage.directoryDeleted2")}</span>
+                          </div>
+                          <div className="text-[length:var(--text-11)] text-text-secondary truncate" title={p.path}>{p.path}</div>
+                        </div>
+                        <button type="button" className="settings-action settings-action--compact"
+                          disabled={relocatingId !== null} onClick={() => void handleRelocate(p.id)}>
+                          {uiText(relocatingId === p.id ? "ui.ProjectPage.relocatingProject" : "ui.ProjectPage.relocateProject")}
+                        </button>
                       </div>
-                      <div className="text-[length:var(--text-11)] text-text-secondary truncate">{p.path}</div>
-                    </button>
+                    ) : (
+                      <button type="button" disabled={relocatingId !== null}
+                        className={`w-full text-left px-3 py-2.5 pr-9 rounded-[var(--radius-lg)] transition-colors ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
+                        onClick={() => openRegisteredProject(p.id)}>
+                        <div className={`text-sm font-medium truncate ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</div>
+                        <div className="text-[length:var(--text-11)] text-text-secondary truncate" title={p.path}>{p.path}</div>
+                      </button>
+                    )}
                     {!openedInWindows.has(p.id) && (
                       <button
-                        className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100 text-[length:var(--text-11)]"
+                        className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-[length:var(--text-11)]"
+                        type="button" disabled={relocatingId !== null}
                         onClick={(e) => handleDeleteProject(e, p.id)}
                         
                       >
@@ -593,6 +641,7 @@ export function ProjectPage(): JSX.Element {
               <div className="border-t border-border mt-2 pt-2">
                 <button
                   className="w-full text-left px-3 py-2.5 rounded-[var(--radius-lg)] text-sm text-text-secondary hover:bg-surface-hover transition-colors flex items-center gap-2"
+                  type="button" disabled={relocatingId !== null}
                   onClick={handleBrowseFolder}
                 >
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">

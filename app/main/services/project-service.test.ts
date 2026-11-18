@@ -131,6 +131,87 @@ describe("会话目录就绪性 —— 同步入口的兜底与搬迁（回归�
     expect(store.getProjects().find((p) => p.id === "p-move")!.path).toBe(newCwd);
   }, SDK_IMPORT_TIMEOUT_MS);
 
+  it("重新定位外部移动的项目，重开后仍可按原 ID 读取会话与记忆来源", async () => {
+    const oldPath = path.join(tmpDir, "初始 项目");
+    const newPath = path.join(tmpDir, "移动后 的项目");
+    fs.mkdirSync(oldPath);
+    fs.writeFileSync(path.join(oldPath, "AGENTS.md"), "项目自己的规则\n");
+    const { ensureSessionManagerClass, getPiSessionDir } = await import("./pi-session-dir");
+    const { resolveSessionSource } = await import("./memory/source-reader");
+    const SM = await ensureSessionManagerClass();
+    const session = SM.create(oldPath);
+    const sessionId = session.getSessionId();
+    session.appendMessage({ role: "user", content: "移动前的消息", timestamp: Date.now() });
+    const oldHistory = getPiSessionDir(oldPath);
+    const child = SM.create(oldPath, path.join(oldHistory, sessionId, "subagents"));
+    child.appendMessage({ role: "user", content: "子任务来源", timestamp: Date.now() });
+    store.saveProjects([{ ...rec("original"), path: oldPath }] as never);
+    fs.renameSync(oldPath, newPath);
+
+    expect(svc.list()[0]).toMatchObject({ id: "original", exists: false });
+    const guard = vi.fn();
+    const canonical = fs.realpathSync(newPath);
+    await expect(svc.relocate("original", oldPath, newPath, guard)).resolves.toMatchObject({ id: "original", name: "original", path: canonical, exists: true });
+    expect(guard).toHaveBeenNthCalledWith(2, oldPath, canonical);
+    const saved = new ProjectService(new Store(tmpDir)).get("original");
+    expect(saved?.path).toBe(canonical);
+    const newHistory = getPiSessionDir(canonical);
+    const [history] = await SM.list(canonical, newHistory);
+    expect(history?.id).toBe(sessionId);
+    const resumed = SM.open(history!.path, newHistory, canonical);
+    expect(resumed.getCwd()).toBe(canonical);
+    expect(resumed.getEntries().some(entry => entry.type === "message")).toBe(true);
+    expect(await resolveSessionSource(newHistory, child.getSessionId())).toBe(path.join(newHistory, sessionId, "subagents", path.basename(child.getSessionFile()!)));
+    expect(fs.existsSync(oldHistory)).toBe(false);
+    expect(fs.readFileSync(path.join(newPath, "AGENTS.md"), "utf8")).toBe("项目自己的规则\n");
+  }, SDK_IMPORT_TIMEOUT_MS);
+
+  it("登记失败时回退会话安装，重试可成功", async () => {
+    const oldPath = path.join(tmpDir, "old");
+    const newPath = fs.realpathSync(tmpDir);
+    const { ensureSessionManagerClass, getPiSessionDir } = await import("./pi-session-dir");
+    await ensureSessionManagerClass();
+    const oldHistory = getPiSessionDir(oldPath);
+    const newHistory = getPiSessionDir(newPath);
+    fs.writeFileSync(path.join(oldHistory, "original.jsonl"), "original\n");
+    store.saveProjects([{ ...rec("original"), path: oldPath }] as never);
+    const save = vi.spyOn(store, "updateProject").mockImplementationOnce(() => { throw new Error("write failed"); });
+
+    await expect(svc.relocate("original", oldPath, newPath, () => {})).rejects.toThrow("write failed");
+    expect(store.getProjects()[0]?.path).toBe(oldPath);
+    expect(fs.readdirSync(newHistory)).toEqual([]);
+    expect(fs.readFileSync(path.join(oldHistory, "original.jsonl"), "utf8")).toBe("original\n");
+
+    save.mockRestore();
+    await svc.relocate("original", oldPath, newPath, () => {});
+    expect(fs.readdirSync(newHistory)).toEqual(["original.jsonl"]);
+  }, SDK_IMPORT_TIMEOUT_MS);
+
+  it("保留已登记目录与既有会话目录，拒绝两次选择覆盖先完成的定位", async () => {
+    const oldPath = path.join(tmpDir, "old");
+    const newPath = fs.realpathSync(fs.mkdtempSync(path.join(tmpDir, "target-")));
+    const otherPath = fs.realpathSync(fs.mkdtempSync(path.join(tmpDir, "other-")));
+    const { ensureSessionManagerClass, getPiSessionDir } = await import("./pi-session-dir");
+    await ensureSessionManagerClass();
+    store.saveProjects([{ ...rec("original"), path: oldPath }, { ...rec("other"), path: otherPath }] as never);
+    const history = path.join(getPiSessionDir(newPath), "existing.jsonl");
+    fs.writeFileSync(history, "existing\n");
+    const guard = vi.fn();
+
+    await expect(svc.relocate("original", oldPath, otherPath, guard)).rejects.toThrow();
+    await expect(svc.relocate("original", oldPath, newPath, guard)).rejects.toThrow();
+    expect(fs.readFileSync(history, "utf8")).toBe("existing\n");
+    expect(store.getProjects()[0]?.path).toBe(oldPath);
+    fs.unlinkSync(history);
+
+    const results = await Promise.allSettled([
+      svc.relocate("original", oldPath, newPath, guard),
+      svc.relocate("original", oldPath, newPath, guard),
+    ]);
+    expect(results.map(result => result.status)).toEqual(["fulfilled", "rejected"]);
+    expect(store.getProjects().map(project => project.path)).toEqual([newPath, otherPath]);
+  }, SDK_IMPORT_TIMEOUT_MS);
+
   it("删除项目：会话目录未就绪（SDK 预热中）时跳过会话侧处理，项目记录照删、不抛错", async () => {
     // 改动前 getPiSessionDir 在未预热时抛「未就绪」→ 整个删除动作连带失败
     vi.resetModules(); // 取一份未预热的新模块实例（模块级缓存是单例）

@@ -6,6 +6,9 @@ import { Store } from "./store";
 import {initializeProjectRules,discoverProjectRules,initialProjectRuleOwnership,applyInitialProjectProfile,assertInitialProjectRules,finishInitialProjectProfile,initialProjectProfileContent,restoreInitialProjectRules,type ProjectRuleOwnership} from "./project-rule-files";
 import {lockConfigDirectory} from "./native-config-storage";
 import {listOpenProjectIds} from "./window-manager";
+import { relocateProjectSessions } from "./project-session-relocation";
+import { withSessionCreationLock } from "./session-permission-gate";
+import { t } from "./ui-language";
 import { resolveHome, emHome } from "../utils/paths";
 // 会话目录工具用静态导入：本模块只依赖 pi-sdk 的**类型**（运行时零负担），比 `require` 更可靠
 // —— `update()` 是同步入口，原先用 `require("./pi-session")`，而 require 在测试环境解析不了，
@@ -77,6 +80,11 @@ export function openedAt(p: { lastOpenedAt?: string }): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+function hasProjectDirectory(directory: string): boolean {
+  try { return fs.statSync(directory, { throwIfNoEntry: false })?.isDirectory() === true; }
+  catch { return false; }
+}
+
 /** The renderer can identify its creation request, but only the host seals the
  * ownership proof after the actual new session is ready. */
 export function creationSessionReady(service:Pick<ProjectService,"finishCreation">,projectPath:string,resumeSessionId:string|null|undefined,payload?:{details?:Record<string,unknown>}):(()=>void)|undefined {
@@ -135,7 +143,7 @@ export class ProjectService {
       .filter((p) => path.resolve(p.path) !== workspaceDir)
       .map((p) => ({
         ...p,
-        exists: fs.existsSync(p.path),
+        exists: hasProjectDirectory(p.path),
       }))
       // 最近打开在前（打开项目弹窗的默认顺序）。排序放这里，UI 与其它调用方共用同一顺序。
       // sort 稳定(ES2019+)：lastOpenedAt 相同的按 projects.json 原有顺序，不会来回抖
@@ -274,7 +282,55 @@ export class ProjectService {
   get(id: string): (Project & { exists: boolean; canResumeCreation: boolean }) | undefined {
     const p = this.store.getProjects().find((p) => p.id === id);
     if (!p) return undefined;
-    return { ...p, exists: fs.existsSync(p.path), canResumeCreation: Boolean(p.creationRules) };
+    return { ...p, exists: hasProjectDirectory(p.path), canResumeCreation: Boolean(p.creationRules) };
+  }
+
+  async relocate(id: string, expectedPath: string, directory: string, assertIdle: (oldPath: string, newPath: string) => void) {
+    const readTarget = () => {
+      try {
+        const path = fs.realpathSync(directory);
+        const stat = fs.statSync(path);
+        if (stat.isDirectory()) {
+          fs.accessSync(path, fs.constants.R_OK | fs.constants.X_OK);
+          return { path, stat };
+        }
+      } catch { /* report the selected directory as unavailable */ }
+      throw new Error(t("messages.projectRelocationInvalidDirectory"));
+    };
+    const initial = readTarget();
+    const target = initial.path;
+    const check = (): void => {
+      const projects = this.store.getProjects();
+      const project = projects.find(item => item.id === id);
+      if (project?.path !== expectedPath || hasProjectDirectory(expectedPath)) {
+        throw new Error(t("messages.projectRelocationChanged"));
+      }
+      const selected = readTarget();
+      if (selected.path !== target || selected.stat.dev !== initial.stat.dev || selected.stat.ino !== initial.stat.ino) {
+        throw new Error(t("messages.projectRelocationInvalidDirectory"));
+      }
+      const occupied = (candidate: string) => {
+        if (path.relative(candidate, target) === "") return true;
+        try { return path.relative(fs.realpathSync(candidate), target) === ""; }
+        catch { return false; }
+      };
+      const workspace = path.resolve(resolveHome(this.store.getSettings().defaultProjectDir || "~/EasyMintProject"), "workspace");
+      if (occupied(workspace) || projects.some(item => item.id !== id && occupied(item.path))) {
+        throw new Error(t("messages.projectRelocationOccupied"));
+      }
+      assertIdle(expectedPath, target);
+    };
+
+    await ensureSessionManagerClass();
+    return withSessionCreationLock(async () => {
+      check();
+      return relocateProjectSessions(id, expectedPath, target, () => {
+        check();
+        const updated = this.store.updateProject(id, { path: target });
+        if (!updated) throw new Error(t("messages.projectRelocationChanged"));
+        return { ...updated, exists: true };
+      });
+    });
   }
 
   /** 更新项目名称/路径，路径变更时自动迁移 SDK session 数据 */

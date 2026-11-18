@@ -40,7 +40,7 @@ import { estimateMemoryTokens } from "./memory/context";
 import { createEnvironmentTool } from "./tools/environment-tool";
 import { createDependencyTool } from "./tools/dependency-tool";
 import { createImportTools } from "./import-tools";
-import { registerSessionIdMapping, abortDelegations, abortTask, getRunningSummary, getRunningDelegations, getOwnedSessionIds, resolveParentSessionId } from "./task/registry";
+import { registerSessionIdMapping, abortDelegations, abortTask, getRunningSummary, getRunningDelegations, getOwnedSessionIds, resolveParentSessionId, hasRunningProjectDelegations } from "./task/registry";
 import type { TaskStatus } from "./task/types";
 import { formatShellResult, formatHumanAction } from "./background-shell/tool";
 import type { HumanAction } from "./background-shell/human-action";
@@ -92,6 +92,7 @@ const ABORT_SETTLEMENT_TIMEOUT_MS = 8_000;
 
 interface ActiveRun {
   runId: string;
+  projectPath: string;
   session: AgentSession | null;
   abortController: AbortController;
   completion?: Promise<void>;
@@ -686,7 +687,7 @@ export class AgentService {
   /** 会话树修改与新回合启动互斥；并发操作保守拒绝，避免两窗口同时改写同一 JSONL 分支。 */
   private mutatingSessions = new Set<string>();
   private startingSessions = new Set<string>();
-  private pendingSends = new Set<Promise<void>>();
+  private pendingSends = new Map<Promise<void>, string>();
   private shuttingDown = false;
   private shutdownPromise: Promise<void> | undefined;
   /** EM 侧正在进行的回合（promptAndBridge 进行中）——steer 区分真运行 vs isStreaming 残留 */
@@ -1147,12 +1148,12 @@ export class AgentService {
     this.assertAcceptingWork();
     const runId = `run-${++this.runCounter}`;
     const abortController = new AbortController();
-    const run: ActiveRun = { runId, session: null, abortController };
+    const resolvedPath = path.resolve(resolveHome(projectPath));
+    const run: ActiveRun = { runId, projectPath: resolvedPath, session: null, abortController };
     this.activeRuns.set(runId, run);
 
     run.completion = (async () => {
       try {
-        const resolvedPath = path.resolve(resolveHome(projectPath));
         const model = await this.getModel(this.store);
         this.assertAcceptingWork();
         if (!model) {
@@ -1864,6 +1865,7 @@ export class AgentService {
     onSessionReady?:()=>void,
   ): Promise<{ chatId: string; sessionId: string }> {
     this.assertAcceptingWork();
+    const resolvedPath = path.resolve(resolveHome(projectPath));
     if (resumeSessionId) {
       if (this.startingSessions.has(resumeSessionId) || this.mutatingSessions.has(resumeSessionId)) {
         throw new Error("会话正在处理另一项操作，请稍后重试");
@@ -1872,9 +1874,8 @@ export class AgentService {
     }
     let finishSend!: () => void;
     const sending = new Promise<void>(resolve => { finishSend = resolve; });
-    this.pendingSends.add(sending);
+    this.pendingSends.set(sending, resolvedPath);
     try {
-      const resolvedPath = path.resolve(resolveHome(projectPath));
       const ready=onSessionReady ?? creationSessionReady({finishCreation:(...args)=>finishCreationOwnership(this.store,...args)},resolvedPath,resumeSessionId,systemPayload);
       const handoff=()=>{if(ready)ready();else releaseCreationOwnership(this.store,resolvedPath);};
       const availableModes = getConversationConfig().modes;
@@ -3087,6 +3088,15 @@ export class AgentService {
     if (this.shuttingDown) throw new Error("应用正在退出，无法启动新任务");
   }
 
+  hasProjectWork(matches: (directory: string) => boolean): boolean {
+    return this.shuttingDown
+      || [...this.activeChats.values()].some(chat => matches(chat.projectPath))
+      || [...this.activeRuns.values()].some(run => matches(run.projectPath))
+      || [...this.pendingSends.values()].some(matches)
+      || hasRunningProjectDelegations(matches)
+      || backgroundShellRegistry.list().some(shell => matches(path.dirname(path.dirname(path.dirname(shell.logPath)))));
+  }
+
   shutdown(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise;
     this.shuttingDown = true;
@@ -3131,7 +3141,7 @@ export class AgentService {
     this.streamBuffer.clear();
     // 清理全部后台 shell 进程(杀进程树,防孤儿进程)
     backgroundShellRegistry.stopAll();
-    closing.push(...this.pendingSends);
+    closing.push(...this.pendingSends.keys());
     // 激活请求自行向调用方报告失败；退出只等待其停止创建和释放迟到实例。
     closing.push(Promise.allSettled(this.activationPromises.values()).then(() => undefined));
     if (this.memory) closing.push(this.memory.close());

@@ -220,6 +220,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         resolveParentSessionId(ctx.parentSessionId),
         tasks,
         ctx.parentSessionId,
+        ctx.cwd,
       );
 
       // 委派创建即广播任务清单(全部任务,含并发排队中未启动的):

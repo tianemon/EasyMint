@@ -41,6 +41,7 @@ export interface ProcessStatus {
 
 interface ProcessInfo {
   proc: ChildProcess;
+  projectPath: string;
   pid: number;
   run_command: string;
   output: string[];
@@ -211,7 +212,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     shell: false,
   });
 
-  const info: ProcessInfo = { proc, pid: proc.pid ?? -1, run_command, output: [] };
+  const info: ProcessInfo = { proc, projectPath: resolved, pid: proc.pid ?? -1, run_command, output: [] };
   processes.set(commandId, info);
   // 启动成功即广播真实状态（此前只广播 false，前端 true 全靠自行 set + 拉取，事件错序时无自愈）
   broadcastStatus(commandId, true);
@@ -367,6 +368,10 @@ export function getStatus(commandId: string): ProcessStatus {
 /** 获取所有运行中命令的 commandId */
 export function getRunningIds(): string[] {
   return Array.from(processes.keys());
+}
+
+export function hasRunningProjectProcess(matches: (directory: string) => boolean): boolean {
+  return [...processes.values()].some(process => matches(process.projectPath));
 }
 
 /** 检测端口占用状态 */
