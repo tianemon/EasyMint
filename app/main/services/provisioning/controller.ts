@@ -1,6 +1,7 @@
 import {
   DEFAULT_ENVIRONMENT_STATE,
   type EnvReport,
+  type EnvironmentFailure,
   type EnvironmentState,
   type InstallEvent,
   type InstallResult,
@@ -24,6 +25,19 @@ export function createEnvironmentController(deps: {
     deps.publish(state);
   }
 
+  function keepFailures(keep: (id: string) => boolean): EnvironmentFailure[] {
+    return state.failures.flatMap(failure => {
+      const ids = failure.ids.filter(keep);
+      if (ids.length === failure.ids.length) return [failure];
+      // A batch command may still include items that have since recovered.
+      return ids.length ? [{ ids, reason: failure.reason }] : [];
+    });
+  }
+
+  function isReady(report: EnvReport | null | undefined, id: string): boolean {
+    return report?.items.some(item => item.id === id && item.status === "ok") ?? false;
+  }
+
   function probe(reset = false): Promise<EnvironmentState> {
     if (controller) return Promise.resolve(state);
     if (check && !reset) return check;
@@ -34,9 +48,7 @@ export function createEnvironmentController(deps: {
         if (reset) await deps.resetBeforeCheck();
         const report = await deps.probe();
         if (request === generation) {
-          const failure = state.failure;
-          const ids = failure?.ids.filter(id => report.items.some(item => item.id === id && item.status !== "ok"));
-          update({ report, checking: false, probeFailed: false, failure: !reset && failure && ids?.length ? { ...failure, ids } : null });
+          update({ report, checking: false, probeFailed: false, failures: keepFailures(id => !isReady(report, id)) });
         }
       } catch {
         if (request === generation) update({ checking: false, probeFailed: true });
@@ -50,12 +62,12 @@ export function createEnvironmentController(deps: {
 
   async function repair(ids: string[], cancellable: boolean, run: RunRepair): Promise<EnvironmentState> {
     if (controller || ids.length === 0) return state;
-    if (ids.every(id => state.report?.items.some(item => item.id === id && item.status === "ok"))) return state;
+    if (ids.every(id => isReady(state.report, id))) return state;
     const active = new AbortController();
     controller = active;
     generation++;
     check = undefined;
-    update({ checking: false, failure: null, operation: { ids, phase: "preparing", cancellable, cancelling: false } });
+    update({ checking: false, failures: keepFailures(id => !ids.includes(id)), operation: { ids, phase: "preparing", cancellable, cancelling: false } });
     let result: InstallResult;
     try {
       result = await run(event => {
@@ -74,10 +86,13 @@ export function createEnvironmentController(deps: {
       try { report = await deps.probe(); }
       catch { probeFailed = true; }
     }
-    const unresolved = ids.filter(id => report?.items.find(item => item.id === id)?.status !== "ok");
-    const failure = result.ok || unresolved.length === 0 ? null : { ids: unresolved, reason: result.reason, manualCommand: result.manualCommand };
+    const failures = keepFailures(id => !isReady(report, id));
+    const unresolved = ids.filter(id => !isReady(report, id));
+    if (!result.ok && unresolved.length > 0) {
+      failures.push({ ids: unresolved, reason: result.reason, manualCommand: unresolved.length === ids.length ? result.manualCommand : undefined });
+    }
     controller = undefined;
-    update({ operation: null, report: report ?? state.report, failure, probeFailed });
+    update({ operation: null, report: report ?? state.report, failures, probeFailed });
     return state;
   }
 

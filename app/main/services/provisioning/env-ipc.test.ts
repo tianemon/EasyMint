@@ -92,6 +92,29 @@ it("keeps row ownership through cancellation and reports only unresolved batch c
   expect(controller.state().operation?.cancelling).toBe(true);
   finish({ ok: false, reason: "Cancelled", report: report([["bwrap", "ok"], ["socat", "missing"]]) });
   await job;
-  expect(controller.state().failure?.ids).toEqual(["socat"]);
+  expect(controller.state().failures.map(failure => failure.ids)).toEqual([["socat"]]);
   expect(controller.state().operation).toBeNull();
+});
+
+it("keeps unrelated failures through repairs and checks until their component is verified ready", async () => {
+  let checked = report([["windowsRuntime", "missing"], ["winSandbox", "missing"]]);
+  const controller = createEnvironmentController({
+    probe: async () => checked,
+    resetBeforeCheck: async () => {}, settleRepair: async () => {}, publish: () => {},
+  });
+  await controller.probe();
+  await controller.repair(["windowsRuntime"], true, async () => ({ ok: false, report: checked, reason: "Archive damaged" }));
+  const runtimeFailure = { ids: ["windowsRuntime"], reason: "Archive damaged" };
+  await controller.repair(["winSandbox"], false, async () => ({ ok: false, report: checked, reason: "Authorization cancelled" }));
+  expect(controller.state().failures).toEqual([runtimeFailure, { ids: ["winSandbox"], reason: "Authorization cancelled" }]);
+
+  checked = report([["windowsRuntime", "missing"], ["winSandbox", "ok"]]);
+  await controller.repair(["winSandbox"], false, async () => {
+    expect(controller.state().failures).toEqual([runtimeFailure]);
+    return { ok: true, report: checked };
+  });
+  expect((await controller.probe(true)).failures).toEqual([runtimeFailure]);
+
+  checked = report([["windowsRuntime", "ok"], ["winSandbox", "ok"]]);
+  expect((await controller.probe()).failures).toEqual([]);
 });

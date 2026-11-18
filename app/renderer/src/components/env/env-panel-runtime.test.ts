@@ -107,9 +107,14 @@ it("keeps runtime progress, cancellation and actionable failure inside its compo
   expect(button("重新检测").disabled).toBe(true);
   await act(async () => button("取消", row("windowsRuntime")).click());
   expect(cancel).toHaveBeenCalledOnce();
-  await act(async () => update({ operation: null, failure: { ids: ["windowsRuntime"], reason: "archive damaged" } }));
+  await act(async () => update({ operation: null, failures: [
+    { ids: ["windowsRuntime"], reason: "archive damaged" },
+    { ids: ["winSandbox"], reason: "authorization cancelled" },
+  ] }));
   expect(row("windowsRuntime").textContent).toContain("archive damaged");
   expect(row("winSandbox").textContent).not.toContain("archive damaged");
+  expect(row("winSandbox").textContent).toContain("authorization cancelled");
+  expect(row("windowsRuntime").textContent).not.toContain("authorization cancelled");
   expect(button("重试", row("windowsRuntime"))).toBeTruthy();
 });
 

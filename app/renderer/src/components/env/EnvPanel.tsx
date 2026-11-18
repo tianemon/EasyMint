@@ -98,7 +98,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   useUiLocale();
   const isOnboarding = variant === "onboarding";
   const snapshot = useEnvironment({ checkOnMount: true });
-  const { report, checking, probeFailed, operation, failure } = snapshot;
+  const { report, checking, probeFailed, operation, failures } = snapshot;
   const tools = useDevelopmentTools(report);
   const sandboxDisabled = useSettingsStore(s => s.sandboxDisabled);
   const setSandboxDisabled = useSettingsStore(s => s.setSandboxDisabled);
@@ -194,7 +194,6 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   const initialCheck = !report && !probeFailed && !operation;
   const quietReady = isOnboarding && ready && onReady && (!minElapsed || !waitForUser);
   const showList = !initialCheck && !quietReady;
-  const errorAnchor = failure?.ids[0];
   const sandboxItem = items.find(item => item.id === "userns");
   const summary = probeFailed ? uiText("settings.detectFailed")
     : checking || !report ? uiText("settings.detecting")
@@ -211,7 +210,8 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   function renderRow(row: Row) {
     const current = items.find(item => item.id === row.id);
     const pending = operation?.ids.includes(row.id);
-    const failed = failure?.ids.includes(row.id);
+    const failure = failures.find(entry => entry.ids.includes(row.id));
+    const failed = Boolean(failure);
     const authorizationHere = authorization?.[0] === row.id;
     const open = expanded === row.id;
     const waiting = current && waitingForBubblewrap(current, report);
@@ -225,8 +225,9 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
     const repair = strategy === "windowsRuntime" || strategy === "usernsProfile";
     const label = failed ? uiText("environment.retry") : uiText(repair ? "environment.repair" : "environment.install");
     const manual = row.fix.manual;
-    const command = row.id === errorAnchor ? failure?.manualCommand ?? manual?.command : manual?.command;
-    const reason = row.id === errorAnchor ? failure?.reason : undefined;
+    const showFailure = failure?.ids[0] === row.id;
+    const command = (showFailure ? failure.manualCommand : undefined) ?? manual?.command;
+    const reason = showFailure ? failure.reason : undefined;
     const description = [row.description, row.status === "ok" ? row.version : undefined].filter(Boolean).join(" · ");
     const hasDetails = Boolean(row.detail || row.impact || manual || reason || command || (row.id === "userns" && sandboxControl));
     const directDownload = !canInstall && manual?.url && !manual.command && !row.required;

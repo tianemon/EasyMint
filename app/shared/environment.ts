@@ -80,6 +80,12 @@ export interface InstallResult {
   exitCode?: number | null;
 }
 
+export interface EnvironmentFailure {
+  ids: readonly string[];
+  reason?: string;
+  manualCommand?: string;
+}
+
 export interface EnvironmentState {
   revision: number;
   report: EnvReport | null;
@@ -92,9 +98,9 @@ export interface EnvironmentState {
     cancellable: boolean;
     cancelling: boolean;
   } | null;
-  failure: { ids: readonly string[]; reason?: string; manualCommand?: string } | null;
+  failures: readonly EnvironmentFailure[];
 }
 
 export const DEFAULT_ENVIRONMENT_STATE: EnvironmentState = {
-  revision: 0, report: null, checking: false, probeFailed: false, operation: null, failure: null,
+  revision: 0, report: null, checking: false, probeFailed: false, operation: null, failures: [],
 };
