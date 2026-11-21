@@ -3,24 +3,48 @@ name: Publish to WinGet
 on:
   release:
     types: [published]
+  workflow_run:
+    workflows: [Build & Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published release tag
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: winget-${{ github.event.release.tag_name }}
+  group: winget-${{ github.event.release.tag_name || github.event.workflow_run.head_branch || inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
   submit-manifest:
-    if: ${{ !github.event.release.prerelease }}
+    if: ${{ (github.event_name == 'release' && !github.event.release.prerelease) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v')) || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Check published release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || github.event.workflow_run.head_branch || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          release=$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isDraft,isPrerelease)
+          if [ "$(jq -r '.isDraft or .isPrerelease' <<< "$release")" = false ]; then
+            echo 'eligible=true' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create WinGet manifest update PR
         id: winget
+        if: ${{ steps.release.outputs.eligible == 'true' }}
         uses: vedantmgoyal9/winget-releaser@b7370d4d152efdce803a26cc6ca9eee58cb2ad54 # v2
         with:
           identifier: tianemon.EasyMint
+          release-tag: ${{ github.event.release.tag_name || github.event.workflow_run.head_branch || inputs.release_tag }}
           installers-regex: '\.exe$'
           fork-user: tianemon
           token: ${{ secrets.WINGET_TOKEN }}
