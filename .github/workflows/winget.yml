@@ -1,0 +1,33 @@
+name: Publish to WinGet
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winget-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  submit-manifest:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create WinGet manifest update PR
+        id: winget
+        uses: vedantmgoyal9/winget-releaser@b7370d4d152efdce803a26cc6ca9eee58cb2ad54 # v2
+        with:
+          identifier: tianemon.EasyMint
+          installers-regex: '\.exe$'
+          fork-user: tianemon
+          token: ${{ secrets.WINGET_TOKEN }}
+
+      - name: Add PR link to workflow summary
+        if: ${{ steps.winget.outputs.pr-url }}
+        env:
+          PR_URL: ${{ steps.winget.outputs.pr-url }}
+        run: |
+          echo "WinGet manifest PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
