@@ -15,15 +15,15 @@ describe("version-pinned Pi MCP patch", () => {
     expect(module.renderServersSection(before, false)).toBe(module.renderServersSection(after, false));
     expect(module.renderServersSection(after, false)).not.toContain("external server instructions");
   });
-  it("generates deterministically from clean 1.5.2 and refuses unrecognized source changes", () => {
+  it("generates deterministically from clean 1.6.0 and refuses unrecognized source changes", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-patch-"));
     try {
       const scripts = path.join(root, "scripts"); fs.mkdirSync(scripts);
       const script = path.join(scripts, "patch-pi-mcp.cjs");
       fs.copyFileSync(path.resolve("scripts/patch-pi-mcp.cjs"), script);
-      const cached = JSON.parse(fs.readFileSync(path.resolve("node_modules/.cache/easymint-pi-mcp-1.5.2.json"), "utf8"));
+      const cached = JSON.parse(fs.readFileSync(path.resolve("node_modules/.cache/easymint-pi-mcp-1.6.0.json"), "utf8"));
       const vendor = path.join(root, "node_modules/@earendil-works/pi-coding-agent");
-      fs.mkdirSync(vendor, { recursive: true }); fs.writeFileSync(path.join(vendor, "package.json"), '{"version":"1.5.2","type":"module"}');
+      fs.mkdirSync(vendor, { recursive: true }); fs.writeFileSync(path.join(vendor, "package.json"), '{"version":"1.6.0","type":"module"}');
       for (const [file, value] of Object.entries(cached) as [string, { original: string }][]) {
         fs.mkdirSync(path.dirname(path.join(vendor, file)), { recursive: true }); fs.writeFileSync(path.join(vendor, file), value.original);
       }

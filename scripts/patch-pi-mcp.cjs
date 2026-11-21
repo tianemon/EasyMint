@@ -1,14 +1,13 @@
-/** Pi 1.5.2 host hooks. Fail closed on upstream drift; no copied connection state machine. */
+/** Pi 1.6.0 host hooks. Fail closed on upstream drift; no copied connection state machine. */
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const root = path.join(__dirname, "..", "node_modules/@earendil-works/pi-coding-agent");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-if (pkg.version !== "1.5.2") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
-// 1.5.2 changes MCP name imports, Unicode-safe truncation and cancellation error exports;
-// host lifecycle anchors below are re-applied to the pristine 1.5.2 sources.
+if (pkg.version !== "1.6.0") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
+// 1.6.0 moves server summaries to pi-mcp; retain the EM opt-out at that call site.
 const expected = {
-  "dist/extensions/mcp/index.js": "4c497e8fa0de6b52116c2196ab6cf933780b1fdf441865c82c70a0b93eedb2ab",
+  "dist/extensions/mcp/index.js": "c6a894092332186687a19a4699bcf9d333307531b0c670ee19823f9787c44ef3",
   "dist/extensions/mcp/index.d.ts": "2326ac2f37daa7bbf258629846b4ff6d4d8d2c570331777b2da0852525de843e",
   "dist/extensions/mcp/runtime.js": "1ed03790749c1c494f6ff3891652a4ad895cb25bf2ad4ed61202837c5e3055fb",
   "dist/extensions/mcp/runtime.d.ts": "536a8e6eb7c4e2c6308734a9f5c262b4adaa854bde45f3e40a610e8e793cde84",
@@ -18,7 +17,7 @@ const expected = {
 const hash = source => createHash("sha256").update(source).digest("hex");
 // Generate from pristine source, not from the previously patched result. Layered patches otherwise
 // cease being idempotent as soon as a later edit changes an earlier replacement's text.
-const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.5.2.json");
+const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.6.0.json");
 const cached = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, "utf8")) : {};
 const originals = {}, sources = {}, current = {};
 for (const [file, checksum] of Object.entries(expected)) {
@@ -39,11 +38,8 @@ function patch(file, before, after) {
 }
 // Keep configured summaries stable across asynchronous connections. The default remains
 // upstream behavior; EM opts out of promoting server-provided instructions into the prompt.
-patch("dist/extensions/mcp/index.js", `function serverSummary(server) {
-    const text = server.entry.config.description?.trim() || server.connection?.instructions || "";`, `function serverSummary(server, includeServerInstructions = true) {
-    const text = server.entry.config.description?.trim() || (includeServerInstructions ? server.connection?.instructions : undefined) || "";`);
 patch("dist/extensions/mcp/index.js", `export function renderServersSection(servers) {`, `export function renderServersSection(servers, includeServerInstructions = true) {`);
-patch("dist/extensions/mcp/index.js", `truncate(serverSummary(server), perServer)`, `truncate(serverSummary(server, includeServerInstructions), perServer)`);
+patch("dist/extensions/mcp/index.js", `mcpServerSummary(server.entry.config.description, server.connection?.instructions)`, `mcpServerSummary(server.entry.config.description, includeServerInstructions ? server.connection?.instructions : undefined)`);
 patch("dist/extensions/mcp/index.js", `const section = renderServersSection(servers);`, `const section = renderServersSection(servers, options.includeServerInstructionsInSummary !== false);`);
 patch("dist/extensions/mcp/index.js", `            const reach = tool.reachesTools?.(event.input);
             if (reach !== undefined) {`, `            const guidanceServer = event.toolName === "tool_search" ? options.toolSearchGuidanceServer?.(event.input) : undefined;
@@ -265,4 +261,4 @@ for (const [file, source] of Object.entries(sources)) {
 fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 fs.writeFileSync(cacheFile + ".tmp", JSON.stringify(nextCache));
 fs.renameSync(cacheFile + ".tmp", cacheFile);
-console.log("[patch-pi-mcp] Pi 1.5.2 host hooks verified");
+console.log("[patch-pi-mcp] Pi 1.6.0 host hooks verified");
