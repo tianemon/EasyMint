@@ -34,6 +34,7 @@ interface Project {
   lastOpenedAt: string;
   status: "setup" | "development" | "completed";
   description: string;
+  creationKind?: "blank";
   /** 新空项目创建时的自动记录选择；导入已有目录不自动接管旧记录。 */
   autoMemoryRecords?: boolean;
   creationRules?:ProjectRuleOwnership;

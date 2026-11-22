@@ -118,6 +118,19 @@ describe('project visual pipeline', () => {
         saveProjectDesign(r,{styleId:'flat',effect:'subtle'},undefined,resources);
         const html=fs.readFileSync(file,'utf8');expect(html).toContain('USER COLLECTION');expect(html).toContain('data-style="flat" data-effect="subtle" data-sc-mode="page"');
     });
+    it('gives agents the actual scene markup below the read ceiling without changing the standalone previews', () => {
+        const r = root();
+        saveProjectDesign(r, { styleId: 'minimalism' }, undefined, resources);
+        const dir = path.join(r, '.easymint/design');
+        const source = fs.readFileSync(path.join(dir, 'scene-source.html'), 'utf8');
+        const preview = fs.readFileSync(path.join(dir, 'showcase.html'), 'utf8');
+        expect(Buffer.byteLength(source)).toBeLessThan(50 * 1024);
+        expect(source).toContain('href="components.css"');
+        expect(source).toContain('src="runtime.js"');
+        expect(source.match(/<main class="sample-main">[\s\S]*?<\/main>/u)?.[0])
+            .toBe(preview.match(/<main class="sample-main">[\s\S]*?<\/main>/u)?.[0]);
+        expect(preview).toContain('data-easymint-runtime');
+    });
     it('can adopt another scene only when its previous scene has no user changes',()=>{
         const r=root();saveProjectDesign(r,{styleId:'flat'},undefined,resources);fs.mkdirSync(path.join(r,'prototype'));
         const file=path.join(r,'prototype/index.html');fs.copyFileSync(path.join(r,'.easymint/design/showcase.html'),file);

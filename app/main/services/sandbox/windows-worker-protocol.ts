@@ -3,7 +3,7 @@ import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 
 export type WindowsSandboxWorkerRequest =
   | { type: "initialize"; requestId: string; context: ExecutionContext; policy: SandboxRuntimeConfig }
-  | { type: "wrap"; requestId: string; command: string; shell: "bash" | "powershell"; gitBashPath?: string; commandId: string }
+  | { type: "wrap"; requestId: string; command: string; shell: "bash" | "powershell"; gitBashPath?: string; commandId: string; environment: NodeJS.ProcessEnv }
   | { type: "release"; requestId: string; leaseId: string }
   | { type: "shutdown"; requestId: string; force?: boolean };
 

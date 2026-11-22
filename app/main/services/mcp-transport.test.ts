@@ -40,9 +40,30 @@ describe("MCP async transport boundary", () => {
       cwd: "/tmp/project", owner: "session", mode: () => mode,
     });
     await transport.start();
-    expect(mocks.wrap).toHaveBeenCalledWith("'npx' '@playwright/mcp@latest' '--headless' '--isolated'", expect.anything());
+    if (process.platform !== "win32") expect(mocks.wrap).toHaveBeenCalledWith("'npx' '@playwright/mcp@latest' '--headless' '--isolated'", expect.anything());
     if (mode === "standard") expect(mocks.wrap.mock.calls[0][1].context.environment.PWTEST_SOCKETS_DIR).toBe("/tmp/em-runtime");
     await transport.close();
+  });
+  it("creates a unique explicit Windows profile and removes it on close", async () => {
+    const platform = process.platform;
+    Object.defineProperty(process, "platform", { value: "win32" });
+    mocks.wrap.mockResolvedValue({ kind: "argv", argv: ["node"], env: {}, release: mocks.release });
+    const transports = ["a", "b"].map(owner => new ProtectedMcpTransport({
+      entry: { name: "browser", source: "test", config: { command: "npx", args: ["@playwright/mcp"] } },
+      cwd: "/tmp/project", owner, validate: vi.fn(), mode: () => "standard",
+    }));
+    try {
+      for (const transport of transports) await transport.start();
+      const profiles = mocks.wrap.mock.calls.map(([command]) => /'--user-data-dir' '([^']+)'$/u.exec(command)?.[1]);
+      expect(profiles).toHaveLength(2);
+      expect(new Set(profiles).size).toBe(2);
+      for (const dir of profiles) expect(dir && fs.existsSync(dir)).toBe(true);
+      await Promise.all(transports.map(transport => transport.close()));
+      for (const dir of profiles) expect(dir && fs.existsSync(dir)).toBe(false);
+    } finally {
+      await Promise.allSettled(transports.map(transport => transport.close()));
+      Object.defineProperty(process, "platform", { value: platform });
+    }
   });
 
   it("only grants the browser compatibility path after configuration validation", async () => {

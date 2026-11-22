@@ -41,6 +41,16 @@ it("cancels with Escape without persisting a checked preference",async()=>{
  await act(async()=>window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
  expect(respond).toHaveBeenCalledExactlyOnceWith({id:"4c0f3f3c-b1cd-4527-b3ed-2cc7d501e588",hide:false,dontRemind:false});
 });
+it("places cancel separately and exits without saving the minimize preference",async()=>{
+ await open();
+ await act(async()=>document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());
+ const buttons=[...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].filter(button=>button.textContent?.trim());
+ expect(buttons.map(button=>button.textContent)).toEqual(["取消","退出","最小化到托盘"]);
+ expect(buttons[1]!.parentElement).toBe(buttons[2]!.parentElement);
+ expect(buttons[0]!.parentElement).not.toBe(buttons[1]!.parentElement);
+ await click("退出");
+ expect(respond).toHaveBeenCalledExactlyOnceWith({id:"4c0f3f3c-b1cd-4527-b3ed-2cc7d501e588",hide:false,dontRemind:false,quit:true});
+});
 it("keeps a failed preference save actionable and rejects duplicate submits while pending",async()=>{
  await open();respond.mockRejectedValueOnce(new Error("无法保存设置"));await click("最小化到托盘");
  expect(document.querySelector('[role="alert"]')?.textContent).toContain("无法保存设置");expect(document.querySelector('[role="dialog"]')).not.toBeNull();

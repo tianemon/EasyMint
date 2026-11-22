@@ -42,6 +42,7 @@ export function ProjectPage(): JSX.Element {
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
+  const [deferSandboxPrewarm, setDeferSandboxPrewarm] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [showOpenProject, setShowOpenProject] = useState(false);
   /** 正被任何窗口打开的项目 id（这些项目隐藏删除按钮——删除进行中的项目会造成不可预期的状态） */
@@ -145,6 +146,7 @@ export function ProjectPage(): JSX.Element {
             document.title = uiText("ui.ProjectPage.projectDeletedEasymint");
             return;
           }
+          setDeferSandboxPrewarm(p.creationKind === "blank");
           setProjectPath(p.path);
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
@@ -413,6 +415,7 @@ export function ProjectPage(): JSX.Element {
                 <ChatPanel
                   active={isActive}
                   projectPath={projectPath}
+                  deferSandboxPrewarm={deferSandboxPrewarm}
                   sessionId={tab.sessionId}
                   tabId={tab.id}
                   isDesigner={tab.isDesigner}
@@ -718,12 +721,14 @@ export function ProjectPage(): JSX.Element {
           onCreated={(project, sessionId) => {
             setShowNewProject(false);
             if (projectId && projectId !== project.id) {
-              setWindowChoiceTarget({ id: project.id, sid: sessionId, init: true });
+              setWindowChoiceTarget({ id: project.id, sid: sessionId, init: !!sessionId });
             } else {
               const params = new URLSearchParams();
-              if (sessionId) params.set("session", sessionId);
-              params.set("init", "1");
-              navigate(`/project/${project.id}?${params.toString()}`);
+              if (sessionId) {
+                params.set("session", sessionId);
+                params.set("init", "1");
+              }
+              navigate(`/project/${project.id}${sessionId ? `?${params.toString()}` : ""}`);
             }
           }}
         />

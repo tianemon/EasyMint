@@ -62,8 +62,8 @@ const PERMISSION_LABEL: Record<PermissionMode, { text: string; tip: string; desc
   },
   standard: {
     get text() { return uiText("ui.ChatInput.standard"); },
-    get tip() { return uiText("ui.ChatInput.standardRunInTheOsSandboxWrites"); },
-    get description() { return uiText("ui.ChatInput.recommendedDevelopInsideTheOsSandbox"); },
+    get tip() { return uiText(window.electronAPI?.platform === "win32" ? "permission.windowsStandardExecution" : "ui.ChatInput.standardRunInTheOsSandboxWrites"); },
+    get description() { return uiText(window.electronAPI?.platform === "win32" ? "permission.windowsStandardExecution" : "ui.ChatInput.recommendedDevelopInsideTheOsSandbox"); },
   },
   full: {
     get text() { return uiText("ui.ChatInput.fullAccess"); },

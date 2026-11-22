@@ -1,4 +1,6 @@
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 import type { AuthProvider, JsonRpcMessage, McpTransport } from "@earendil-works/pi-mcp";
 import type { McpServerEntry } from "@earendil-works/pi-coding-agent";
 import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "./sandbox/manager";
@@ -19,6 +21,7 @@ export class ProtectedMcpTransport implements McpTransport {
   private release?: () => Promise<void>;
   private released?: Promise<void>;
   private finished?: Promise<void>;
+  private browserProfile?: string;
   private pid?: number;
   private executionMode?: PermissionMode;
   private messages = new Set<(message: JsonRpcMessage) => void>();
@@ -64,7 +67,13 @@ export class ProtectedMcpTransport implements McpTransport {
           }
         }
       }
-      try { await this.releaseOnce(); } finally { this.emitClose(); }
+      try { await this.releaseOnce(); } finally {
+        if (this.browserProfile) {
+          await fs.promises.rm(this.browserProfile, { recursive: true, force: true, maxRetries: 3 }).catch(error =>
+            console.warn("[mcp] 临时浏览器配置目录清理失败:", error));
+        }
+        this.emitClose();
+      }
     })();
   }
   private check(mode = this.executionMode) {
@@ -98,7 +107,16 @@ export class ProtectedMcpTransport implements McpTransport {
         // sandbox's APPDATA/LOCALAPPDATA redirection takes effect.
         const resolvedEnv = isCodegraph ? codegraphEnvironment({ ...process.env, ...config.env, PATH: context.environment.PATH }) : undefined;
         if (resolvedEnv) context.environment.PATH = resolvedEnv.PATH;
-        const invocation = isCodegraph ? codegraphInvocation(config.command, config.args ?? [], resolvedEnv!) : { command: config.command, args: playwrightMcpArgs(config.command, config.args, { ...process.env, ...config.env }), shellCommand: undefined };
+        const createBrowserProfile = process.platform === "win32" ? () => {
+          // Chrome remote debugging requires an explicit non-default profile.
+          // Use a fresh directory for each local MCP connection.
+          return this.browserProfile = fs.mkdtempSync(path.join(os.tmpdir(), "easymint-playwright-"));
+        } : undefined;
+        const invocation = isCodegraph ? codegraphInvocation(config.command, config.args ?? [], resolvedEnv!) : {
+          command: config.command,
+          args: playwrightMcpArgs(config.command, config.args, { ...process.env, ...config.env }, createBrowserProfile),
+          shellCommand: undefined,
+        };
         if (!isSandboxBypassedForMode(mode)) {
           const initialized = await ensureSandbox(this.options.cwd, mode);
           if (!initialized.ok) throw new Error(`MCP 安全执行后端不可用：${initialized.reason}`);

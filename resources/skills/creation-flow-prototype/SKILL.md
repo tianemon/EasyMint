@@ -16,7 +16,7 @@ description: >-
 
 ## 视觉起点与委派
 
-- 有 VisualSpec：默认 `showcase`，先读项目 `.easymint/design/DESIGN.md`、`scene-contract.json`、双端 showcase，再定位相关 CSS/runtime。预设复用真实构图与材质；brief 模式以用户描述为主，基础场景仅供可选参考。原生目标按 PORTING.md 转译，HTML 不是原生实现。
+- 有 VisualSpec：默认 `showcase`，先读项目 `.easymint/design/DESIGN.md`、`scene-contract.json` 和 `scene-source.html`（若有）。打开双端 showcase 核对效果，按选择器定位并复用相关 CSS/runtime。旧项目可从预览定位场景正文。预设复用真实构图与材质；brief 模式以用户描述为主，基础场景仅供可选参考。原生目标按 PORTING.md 转译，HTML 不是原生实现。
 - 只需固定版式骨架时显式指定 `模板：<文件名>`，只借结构；四类为 landing/dashboard/form/detail，优先项目 `.easymint/design/templates/`，旧项目 `.easymint/templates/`。没有既定方向可 `自由设计`，给具体方向；不让子代理漫无目的翻模板。
 - 需要时按 ui-aesthetic 的已知位置读取当前相关部分；不重选已有品牌/风格，不将风格简化为配色。不为局部修改重做整站。
 - 按 creation-guide 的独立执行判据决定亲自处理或使用 task 委派；需要模板时只从当前工具清单选择实际可用角色，也可省略 agent 使用标准执行者。主对话的协作模式不会自动复制给子代理：将相关设计职责、真实功能、平台/比例、方向、文件路径、已选规范与需验证的状态明确写进子任务；子代理不再向用户确认。

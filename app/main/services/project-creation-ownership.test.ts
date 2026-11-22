@@ -17,6 +17,16 @@ function fixture(){
  const save=(text:string)=>service.saveCreationProfile(project.path,text,()=>{fs.mkdirSync(path.dirname(profile),{recursive:true});fs.writeFileSync(profile,JSON.stringify({platformSpec:text}));});
  return {root,store,service,project,profile,rules,save};
 }
+it("registers a blank project with only local rules and never reuses guided creation", () => {
+ const f = fixture();
+ const existing = fs.readdirSync(f.project.path);
+ const blank = f.service.create({ name: "白板 $&", path: f.root, kind: "blank" });
+ expect(fs.readdirSync(blank.path)).toEqual(["AGENTS.md"]);
+ expect(fs.readFileSync(path.join(blank.path, "AGENTS.md"), "utf8")).toMatch(/^# 白板 \$&\n/u);
+ expect(f.service.get(blank.id)).toMatchObject({ creationKind: "blank", canResumeCreation: false });
+ expect(() => f.service.create({ name: f.project.name, path: f.root, directoryName: "project", kind: "blank" })).toThrow("已登记");
+ expect(fs.readdirSync(f.project.path)).toEqual(existing);
+});
 it("switches a failed web creation to CLI without applying or deleting its old design",()=>{
  const f=fixture(),visual=path.join(f.project.path,".easymint","design","visual-spec.json");
  f.service.saveCreationProfile(f.project.path,"WEB_PROFILE",()=>saveCreationProjectAssets(f.project.path,"WEB_PROFILE",{styleId:"glass",targets:["web"]},path.resolve("resources")));

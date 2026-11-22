@@ -2,7 +2,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, InlineExtension, LoadedMcpConfig, McpHostController, McpHostStatus, McpServerEntry, ToolDefinition, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { scanMcpServers, getMcpServerConfig, expandServerConfig, definitionFingerprint, getMcpConfigPath, validateMcpServer, type McpServerConfig, type McpServerStatus } from "./mcp-service";
-import { normalizePermissionMode, type PermissionMode } from "./permission/execution-context";
+import { effectiveWindowsExecutionMode, normalizePermissionMode, type PermissionMode } from "./permission/execution-context";
 import { ProtectedMcpTransport } from "./mcp-transport";
 import { EncryptedMcpAuthBackend } from "./mcp-auth-store";
 import { emAgentDir } from "../utils/paths";
@@ -63,7 +63,7 @@ export async function createMcpSessionExtensions(options: {
     import("@earendil-works/pi-coding-agent"), import("@earendil-works/pi-mcp"),
   ]);
   const record: SessionMcp = { manager: options.manager, project: path.resolve(options.cwd), owners: new Set([options.owner, options.sessionId]),
-    mode: () => record.disposed ? "readonly" : normalizePermissionMode(options.getMode()), statuses: [], disposed: false };
+    mode: () => record.disposed ? "readonly" : effectiveWindowsExecutionMode(normalizePermissionMode(options.getMode())), statuses: [], disposed: false };
   const rawDefinitions = new Map<string, { fingerprint: string; timeout: number }>();
   const configSignature = () => JSON.stringify([record.mode(), scanMcpServers(record.project).map(server => {
     const raw = getMcpServerConfig(server.name, { projectPath: record.project, scope: server.scope });

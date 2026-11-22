@@ -8,12 +8,30 @@
  */
 const { spawn } = require("node:child_process");
 const path = require("node:path");
+const http = require("node:http");
 const esbuild = require("esbuild");
 const { mainOptions, preloadOptions, windowsSandboxWorkerOptions, memoryWorkerOptions, reportBundle } = require("./build.cjs");
 
 const root = path.join(__dirname, "..");
 const node = process.execPath;
 const electronCli = path.join(root, "node_modules", "electron", "cli.js");
+
+async function waitForRenderer() {
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    const ready = await new Promise(resolve => {
+      const request = http.get("http://127.0.0.1:5173/", response => {
+        response.resume();
+        resolve(response.statusCode === 200);
+      });
+      request.setTimeout(1000, () => request.destroy());
+      request.on("error", () => resolve(false));
+    });
+    if (ready) return;
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  throw new Error("等待 Vite 开发服务器超时（127.0.0.1:5173）");
+}
 
 async function main() {
   // ── 1+2. build main + preload（构建配置见 build.cjs，与生产构建共用同一份）──
@@ -27,6 +45,7 @@ async function main() {
   reportBundle(results);
 
   // ── 3. 启动 electron(cli.js 内部解析真实二进制并 spawn) ──
+  await waitForRenderer();
   const child = spawn(node, [electronCli, "."], { stdio: "inherit", cwd: root });
   child.on("exit", (code) => process.exit(code ?? 0));
 }

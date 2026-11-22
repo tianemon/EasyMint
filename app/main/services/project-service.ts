@@ -29,6 +29,7 @@ interface Project {
   lastOpenedAt: string;
   status: "setup" | "development" | "completed";
   description: string;
+  creationKind?: "blank";
   /** 新空项目创建时的自动记录选择；导入已有目录不自动接管旧记录。 */
   autoMemoryRecords?: boolean;
   creationRules?:ProjectRuleOwnership;
@@ -150,7 +151,7 @@ export class ProjectService {
       .sort((a, b) => openedAt(b) - openedAt(a));
   }
 
-  create(opts: { name: string; path: string; directoryName?: string }): Project {
+  create(opts: { name: string; path: string; directoryName?: string; kind?: "blank" }): Project {
     const projects = this.store.getProjects();
     const basePath = resolveHome(opts.path);
     const directoryName = opts.directoryName ?? opts.name;
@@ -158,8 +159,22 @@ export class ProjectService {
     if (!directoryName.trim() || directoryName === "." || directoryName === ".." || /[\\/]/.test(directoryName)) {
       throw new Error(`项目文件夹名称无效：${directoryName}`);
     }
+    if (process.platform === "win32" && (
+      /[<>:"|?*]|[. ]$/u.test(directoryName) ||
+      /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/iu.test(directoryName) ||
+      Array.from(directoryName).some(character => character.charCodeAt(0) < 32)
+    )) throw new Error(`Windows 项目文件夹名称无效：${directoryName}`);
     const resolvedPath = path.resolve(basePath, directoryName);
     const targetDir = resolvedPath;
+    if (opts.kind === "blank") {
+      const pathKey = (value: string) => process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value);
+      if (projects.some(project => pathKey(project.path) === pathKey(targetDir))) {
+        throw new Error("该目录已登记为项目，请打开原项目或选择其他位置");
+      }
+      if (fs.lstatSync(targetDir, { throwIfNoEntry: false })?.isSymbolicLink()) {
+        throw new Error("白板项目不能创建在文件夹链接上");
+      }
+    }
     // 目录冲突防护：已存在且非空 = 拒绝创建——静默把模板合进既有目录会造成不可逆数据污染
     //（曾发生：重复创建同名项目 → 旧内容混入模板；空目录已存在则允许（可复用预建目录））
     if (fs.existsSync(targetDir) && fs.readdirSync(targetDir).length > 0) {
@@ -177,8 +192,15 @@ export class ProjectService {
     };
 
     fs.mkdirSync(targetDir, { recursive: true });
-    this.copyTemplate(targetDir);
-    project.creationRules=initialProjectRuleOwnership(targetDir);
+    if (opts.kind === "blank") {
+      project.creationKind = "blank";
+      const warning = initializeProjectRules(targetDir, fs.readFileSync(path.join(this.templateDir, "AGENTS.md"), "utf8"), project.name, false);
+      if (warning) throw new Error(warning);
+      finishInitialProjectProfile(targetDir);
+    } else {
+      this.copyTemplate(targetDir, project.name);
+      project.creationRules=initialProjectRuleOwnership(targetDir);
+    }
 
     projects.push(project);
     this.store.saveProjects(projects);
@@ -526,7 +548,7 @@ export class ProjectService {
     }
   }
 
-  private copyTemplate(targetDir: string): void {
+  private copyTemplate(targetDir: string, projectName: string): void {
     const exclude = new Set([".git", "node_modules", ".DS_Store", ".playwright-mcp", "temp"]);
     const entries = fs.readdirSync(this.templateDir);
     for (const entry of entries) {
@@ -534,7 +556,11 @@ export class ProjectService {
       const src = path.join(this.templateDir, entry);
       const dest = path.join(targetDir, entry);
       if (entry === "AGENTS.md") {
-        const warning=initializeProjectRules(targetDir,fs.readFileSync(src,"utf8"),path.basename(targetDir),false);if(warning)console.warn(warning);
+        const warning=initializeProjectRules(targetDir,fs.readFileSync(src,"utf8"),projectName,false);if(warning)console.warn(warning);
+      } else if (entry === "README.md") {
+        fs.writeFileSync(dest, fs.readFileSync(src, "utf8").replaceAll("{{PROJECT_NAME}}", () => projectName), "utf8");
+      } else if (entry === "task.json") {
+        fs.writeFileSync(dest, JSON.stringify({ project: projectName, description: "", tasks: [] }, null, 2) + "\n");
       } else if (fs.statSync(src).isDirectory()) {
         fs.cpSync(src, dest, { recursive: true });
       } else {

@@ -6,7 +6,7 @@ vi.mock("./srt-linux", () => ({ linuxSandboxConfig: (cfg: object) => {
   return { ...cfg, seccomp: { applyPath: "/bundle/app.asar.unpacked/helper" } };
 } }));
 vi.mock("../permission/access-policy", () => ({ buildExecutionPolicy: () => ({}), }));
-vi.mock("../permission/execution-context", () => ({ createExecutionContext: () => ({}) }));
+vi.mock("../permission/execution-context", () => ({ createExecutionContext: () => ({}), effectiveWindowsExecutionMode: (mode: string) => mode }));
 import { ensureSandbox, wrapForSandbox, releaseSandbox } from "./manager";
 const context = { mode: "standard", environment: {}, workspaceRealPath: "/workspace", runtimeRoot: "/runtime" } as never;
 beforeEach(() => { vi.spyOn(process, "platform", "get").mockReturnValue("linux"); h.fail = false; h.init.mockClear(); h.wrap.mockClear(); });

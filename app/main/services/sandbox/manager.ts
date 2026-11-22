@@ -8,11 +8,13 @@
  */
 
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
+import { WINDOWS_SANDBOX_ENABLED } from "../../../shared/windows-sandbox";
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { buildExecutionPolicy, type PermissionMode } from "../permission/access-policy";
-import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
-import { wrapWithWindowsWorker } from "./windows-execution-manager";
+import { createExecutionContext, effectiveWindowsExecutionMode, type ExecutionContext } from "../permission/execution-context";
+import { prepareWindowsWorker, revokeWindowsExecutionOwners, waitWindowsOwnerCleanup, WindowsSandboxInitializationTimeout, wrapWithWindowsWorker } from "./windows-execution-manager";
 import { linuxSandboxConfig } from "./srt-linux";
 import { srtWinPath, srtWinSpawn, windowsSandboxIssue } from "./srt-win";
 import { isSandboxExcludedCommand } from "./compat-policy";
@@ -26,6 +28,8 @@ type SrtModule = typeof import("@anthropic-ai/sandbox-runtime");
 let _srt: SrtModule | null = null;
 let _state: "untouched" | "ok" | "failed" = "untouched";
 let _failReason = "";
+let _windowsProbe: Promise<SandboxInitResult> | undefined;
+let _sandboxEpoch = 0;
 
 async function getSrt(): Promise<SrtModule> {
   if (!_srt) _srt = await import("@anthropic-ai/sandbox-runtime");
@@ -93,7 +97,7 @@ export function isSandboxEnabledForMode(mode: PermissionMode = "standard"): bool
  * （由判定层保证），沙盒只是纵深。让一个环境降级开关去覆盖另一档的产品承诺，属于名实不符。
  */
 export function isSandboxBypassedForMode(mode?: PermissionMode): boolean {
-  const effective: PermissionMode = mode ?? "standard";
+  const effective = effectiveWindowsExecutionMode(mode ?? "standard");
   if (effective === "readonly") return !isSandboxEnabledForMode("readonly");
   return isSandboxBypassed() || !isSandboxEnabledForMode(effective);
 }
@@ -114,6 +118,59 @@ export function buildSandboxConfig(cwd: string, mode: PermissionMode = "standard
 export interface SandboxInitResult {
   ok: boolean;
   reason?: string;
+}
+
+/** Prepare the same session-specific worker that commands and local MCPs will use. */
+export async function prepareWindowsSessionSandbox(context: ExecutionContext, signal?: AbortSignal, stillAllowed: () => boolean = () => true, currentOwner: () => string = () => context.ownerId ?? "", onTimeout?: () => void): Promise<void> {
+  if (process.platform !== "win32" || !WINDOWS_SANDBOX_ENABLED || context.mode !== "standard" || isSandboxBypassedForMode(context.mode)) return;
+  if (!context.ownerId) throw new Error("后台准备需要会话所有者");
+  const check = () => { signal?.throwIfAborted(); if (!stillAllowed()) throw new DOMException("权限模式已变化", "AbortError"); };
+  check();
+  const original = fs.statSync(context.workspaceRealPath, { throwIfNoEntry: false });
+  if (!original?.isDirectory()) throw new Error("项目目录不存在，请重新打开项目");
+  const checked = await ensureSandbox(context.workspaceRealPath, context.mode);
+  if (!checked.ok) throw new Error(checked.reason ?? "Windows 系统保护不可用");
+  check();
+  const tools = await joinWindowsRuntime({ signal });
+  check();
+  if (!tools) throw new Error("运行环境尚未准备好，请到设置 → 环境检测查看");
+  const current = fs.statSync(context.workspaceRealPath, { throwIfNoEntry: false });
+  if (!current?.isDirectory() || current.dev !== original.dev || current.ino !== original.ino) throw new Error("项目目录已变化，请重新打开项目");
+  const owner = currentOwner();
+  if (!owner) throw new Error("后台准备需要会话所有者");
+  try {
+    await prepareWindowsWorker({ ...context, ownerId: owner, bundledRuntimeRoot: tools.root, environment: windowsRuntimeEnvironment(context.environment, tools) }, signal);
+  } catch (error) {
+    if (error instanceof WindowsSandboxInitializationTimeout) {
+      try { onTimeout?.(); } catch (cause) { console.warn("[sandbox] 超时状态通知失败:", cause); }
+      await waitWindowsOwnerCleanup(currentOwner());
+      throw new Error("沙盒初始化超过 60 秒，后台收尾已结束；可以重试。", { cause: error });
+    }
+    throw error;
+  }
+  try { check(); } catch (error) { await revokeWindowsExecutionOwners([currentOwner()]); throw error; }
+}
+
+/** Read-only Windows system check. Concurrent startup and execution share the same probe. */
+export function preflightWindowsSandbox(): Promise<SandboxInitResult> {
+  if (process.platform !== "win32") return Promise.resolve({ ok: true });
+  if (_windowsProbe) return _windowsProbe;
+  const epoch = _sandboxEpoch;
+  const probe = (async (): Promise<SandboxInitResult> => {
+    try {
+      const srt = await getSrt();
+      const status = await srt.checkWindowsSandboxStatusAsync({ srtWin: srtWinSpawn(srt) });
+      const issue = windowsSandboxIssue(status);
+      if (issue) return { ok: false, reason: issue };
+      if (epoch === _sandboxEpoch && _state === "untouched") _state = "ok";
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+    }
+  })();
+  _windowsProbe = probe;
+  void probe.finally(() => { if (_windowsProbe === probe) _windowsProbe = undefined; });
+  return probe;
 }
 
 /**
@@ -177,14 +234,15 @@ export async function ensureSandbox(cwd: string, mode?: PermissionMode): Promise
   if (isSandboxBypassedForMode(mode)) return { ok: true };
   if (_state === "ok") return { ok: true };
   if (_state === "failed") return { ok: false, reason: _failReason };
+  const epoch = _sandboxEpoch;
   try {
     const srt = await getSrt();
     // srt-win 的文件允许项在 initialize 时写入 ACL。初始化必须在按会话隔离的
     // worker 内完成，主进程这里只检查系统组件，绝不能初始化共享实例。
     if (process.platform === "win32") {
-      const status = await srt.checkWindowsSandboxStatusAsync({ srtWin: srtWinSpawn(srt) });
-      const issue = windowsSandboxIssue(status);
-      if (issue) throw new Error(issue);
+      const result = await preflightWindowsSandbox();
+      if (epoch !== _sandboxEpoch) return { ok: false, reason: "系统保护状态已重置，请重试" };
+      if (!result.ok) throw new Error(result.reason ?? "Windows 沙盒状态检查失败");
       _state = "ok";
       return { ok: true };
     }
@@ -311,7 +369,7 @@ export async function wrapForSandbox(
   const srt = await getSrt();
   const context = opts.context;
   if (process.platform === "win32") {
-    const wrapped = await wrapWithWindowsWorker(command, context, gitBashPath, opts.windowsShell);
+    const wrapped = await wrapWithWindowsWorker(command, context, gitBashPath, opts.windowsShell, opts.signal);
     // Windows 的 commandId 由 worker 侧的 leaseId 决定，必须用它（不能用本地另生成的 key，
     // 否则违规注解匹配不上——见 annotateSandboxFailures）。
     return { kind: "argv", ...wrapped, violationKey: wrapped.commandId, release: wrapped.release };
@@ -461,6 +519,8 @@ export function filterBenignViolations(stderr: string): string {
  * 顺带把 _state 重置为 untouched：调用方要么正在退出，要么打算重新初始化。
  */
 export async function releaseSandbox(): Promise<void> {
+  _sandboxEpoch++;
+  _windowsProbe = undefined;
   // _srt 在 getSrt() 之后即非 null（哪怕 initialize 失败），此时仍要 reset——
   // 半初始化的会话同样可能已经把监控进程起起来了。
   if (_srt) await _srt.SandboxManager.reset();

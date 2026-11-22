@@ -44,6 +44,8 @@ import { trackRoutingSession } from "./auto-model-routing";
 import { loadProjectRuleFiles, getAgentDeliveryRules, withAgentDeliveryRules } from "./agent-context-rules";
 import type { AgentDeliveryMode } from "./agent-context-rules";
 import { conversationSettingsUpdate } from "./system-prompt-manager";
+import { startWindowsSessionPrewarm, stopWindowsSessionPrewarm } from "./sandbox/windows-session-prewarm";
+import { abandonWindowsDraftPrewarm, adoptWindowsDraftPrewarm, commitWindowsDraftPrewarm } from "./sandbox/windows-draft-prewarm";
 
 const routingReleases = new WeakMap<AgentSession, () => void>();
 
@@ -85,6 +87,8 @@ export interface PiSessionOptions {
   permissionMode?: string;
   getPermissionMode?: () => string | undefined;
   executionOwner?: string;
+  sandboxDraftKey?: string;
+  onSandboxPreparation?: (sessionId: string, state: import("./sandbox/windows-session-prewarm").WindowsPreparationStatus, error: string | undefined, preparationId: string) => void;
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -332,6 +336,10 @@ async function buildSession(
     await disposePiSession(session);
     throw error;
   }
+  if (opts.canUseTool && opts.deliveryMode !== "task") {
+    const owner = sessionManager.getSessionId();
+    startWindowsSessionPrewarm(session, opts.cwd, owner, liveMode, (state, error, preparationId) => opts.onSandboxPreparation?.(owner, state, error, preparationId));
+  }
   return session;
 }
 
@@ -339,7 +347,7 @@ export async function createPiSession(opts: PiSessionOptions): Promise<AgentSess
   const SM = await ensureSessionManagerClass();
   const sessionDir = opts.sessionDir ?? getPiSessionDir(opts.cwd);
   const sessionManager = SM.create(opts.cwd, sessionDir);
-  return buildSession(opts, sessionManager);
+  return buildSessionWithDraft(opts, sessionManager);
 }
 
 export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSession> {
@@ -349,7 +357,24 @@ export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSess
   const SM = await ensureSessionManagerClass();
   const sessionDir = getPiSessionDir(opts.cwd);
   const sessionManager = SM.open(opts.resumeSessionFile, sessionDir, opts.cwd);
-  return buildSession(opts, sessionManager);
+  return buildSessionWithDraft(opts, sessionManager);
+}
+
+async function buildSessionWithDraft(opts: PiSessionOptions, sessionManager: SessionManager): Promise<AgentSession> {
+  const owner = sessionManager.getSessionId();
+  let workspace = path.resolve(opts.cwd);
+  try { workspace = fs.realpathSync.native(workspace); } catch { /* use the resolved project path */ }
+  const key = opts.sandboxDraftKey;
+  const adopted = !!key && !!opts.canUseTool && normalizePermissionMode(opts.getPermissionMode?.() ?? opts.permissionMode) === "standard"
+    && adoptWindowsDraftPrewarm(key, owner, workspace);
+  try {
+    const session = await buildSession(opts, sessionManager);
+    if (adopted) commitWindowsDraftPrewarm(key!, owner);
+    return session;
+  } catch (error) {
+    if (adopted) await abandonWindowsDraftPrewarm(key!, owner);
+    throw error;
+  }
 }
 
 
@@ -367,9 +392,14 @@ export function disposePiSession(session: AgentSession): Promise<void> {
   if (existing) return existing;
   const closing = (async () => {
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    const sandboxClosing = stopWindowsSessionPrewarm(session).then(() => null, error => error);
     try {
       // MCP owns OS processes/leases. Its closure must finish before the generic extension timeout.
-      await disposeMcpSession(session.sessionManager);
+      let mcpError: unknown;
+      try { await disposeMcpSession(session.sessionManager); } catch (error) { mcpError = error; }
+      const sandboxError = await sandboxClosing;
+      if (mcpError) throw mcpError;
+      if (sandboxError) throw sandboxError;
       if (session.extensionRunner.hasHandlers("session_shutdown")) {
         await Promise.race([
           session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }),

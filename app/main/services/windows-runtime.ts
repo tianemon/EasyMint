@@ -243,7 +243,20 @@ export class WindowsRuntimeService {
         await fsp.writeFile(path.join(stage, READY_MARKER), JSON.stringify({ version: this.options.manifest.version, sha256: expected }));
         signal.throwIfAborted();
         if (fs.existsSync(paths.root)) { await fsp.rename(paths.root, backup); moved = true; }
-        try { await fsp.rename(stage, paths.root); installed = true; }
+        try {
+          // Antivirus or a just-exited PortableGit helper can briefly hold the tree.
+          // Retry the same verified staging directory instead of unpacking it again.
+          for (let attempt = 0; ; attempt++) {
+            signal.throwIfAborted();
+            try { await fsp.rename(stage, paths.root); break; }
+            catch (error) {
+              const code = (error as NodeJS.ErrnoException).code;
+              if (attempt >= 5 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) throw error;
+              await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 250));
+            }
+          }
+          installed = true;
+        }
         catch (error) { if (moved) await fsp.rename(backup, paths.root); throw error; }
         this.checked = { status: "ready", version: this.options.manifest.version, paths };
         this.logLine(`[runtime] 命令运行环境就绪 version=${this.options.manifest.version} root=${paths.root}`);

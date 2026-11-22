@@ -4,7 +4,7 @@ import { CreationStepViewport } from "./new-project/CreationStepViewport";
 import { appText } from "../lib/i18n";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, systemMessage } from "../../../shared/prompts";
+import { buildFeatureRecommendPrompt, buildInitTriggerPrompt, buildInitInstruction, systemMessage } from "../../../shared/prompts";
 import type { SystemMessagePayload } from "../../../shared/prompts";
 import { StepNavigation, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
 import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, UI_STYLE_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
@@ -61,26 +61,6 @@ function buildContext(data: ProjectFormData, step?: number): string {
   if (!step || step >= 4) parts.push(...deliveryContext(data));
 
   return `项目信息：${parts.join("。")}。`;
-}
-
-/** Carry explicit input, including selected visual tokens, without turning delivery defaults into requirements. */
-function buildDirectCreateContext(data: ProjectFormData): string {
-  const targets = data.targets.map((v) => TARGET_OPTIONS.find((o) => o.value === v)?.label || v).join("、");
-  const sceneLabel = SCENE_OPTIONS.find((o) => o.value === data.scene)?.label || data.scene;
-  const parts: string[] = [];
-  if (data.name) parts.push(`名称「${data.name}」`);
-  parts.push(`项目形式「${targets}」`);
-  if (data.description) parts.push(`描述「${data.description}」`);
-  if (data.scene && data.scene !== "unknown") parts.push(`项目场景「${sceneLabel}」`);
-  const features = data.features.map((feature) => feature.name.trim()).filter(Boolean);
-  if (features.length) parts.push(`功能清单：「${features.join("；")}」`);
-  if (data.targets.some((target) => target !== "cli")) {
-    if (data.uiStyle && data.uiStyle !== "custom") parts.push(`UI 风格「${UI_STYLE_OPTIONS.find((option) => option.value === data.uiStyle)?.label || data.uiStyle}」`);
-    const designContext = visualSpecPrompt(createVisualSpec(visualSelection(data)));
-    if (designContext) parts.push(designContext);
-  }
-  parts.push(...deliveryContext(data, true));
-  return parts.join("。");
 }
 
 async function saveProjectProfile(projectPath: string, specification: string, visual?: VisualSelection): Promise<string> {
@@ -156,49 +136,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   // Closing the dialog cancels only its form requests; formal project sessions are independent.
   useEffect(() => () => { recommendationGenerationRef.current++; disposeFormRequests(); }, [disposeFormRequests]);
 
-  // ── S2 落盘原子化：目录名预热缓存 + Step1 路径实时预览 ──
-  const dirNameCacheRef = useRef<{ raw: string; translated: string } | null>(null);
-  const [previewDirName, setPreviewDirName] = useState<string | null>(null);
-
-  /** 解析目录名：预热缓存命中直接用；未命中时非 ASCII 现翻译（走旁路共享会话）；ASCII 用原名 */
-  const resolveDirName = useCallback(async (raw: string): Promise<string> => {
-    const name = raw.trim();
-    const cached = dirNameCacheRef.current;
-    if (cached?.raw === name) return cached.translated;
-    if (!/[^\x00-\x7F]/.test(name)) return name;
-    let translated = name;
-    try {
-      const resp = await askForm(
-        buildDirectoryTranslationPrompt(name),
-        "directory-name"
-      );
-      if (resp && /^[a-z0-9-]+$/.test(resp.trim())) translated = resp.trim();
-    } catch { /* keep original name */ }
-    dirNameCacheRef.current = { raw: name, translated };
-    return translated;
-  }, [askForm]);
-
-  // 预热：name 输入停顿 1s 后悄悄翻译并缓存（最终创建零等待），预览行同步更新
-  const [translating, setTranslating] = useState(false);
-  useEffect(() => {
-    const name = data.name.trim();
-    if (continuingCreation && pendingCreation) {
-      setPreviewDirName(pendingCreation.directoryName);
-      setTranslating(false);
-      return;
-    }
-    if (!name) { setPreviewDirName(null); setTranslating(false); return; }
-    if (!/[^\x00-\x7F]/.test(name)) { setPreviewDirName(name); setTranslating(false); return; }
-    // 非 ASCII：先即时显示原名（预览不空窗），1s 停顿后翻译覆盖；等待期标「翻译中」让在途可见
-    setPreviewDirName(name);
-    setTranslating(true);
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      const resolved = await resolveDirName(name);
-      if (!cancelled) { setPreviewDirName(resolved); setTranslating(false); }
-    }, 1000);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [data.name, resolveDirName, continuingCreation, pendingCreation]);
+  // Windows and macOS support Unicode folder names. The preview and both create paths
+  // use the same name without starting a background model request.
+  const previewDirName = continuingCreation && pendingCreation ? pendingCreation.directoryName : data.name.trim();
+  const resolveDirName = async (name: string) => name.trim();
 
   // 目录冲突即时预检：目录名与基目录确定后探测「已存在非空」——Step1 就红字预警（创建必被拒）
   const [dirConflict, setDirConflict] = useState(false);
@@ -330,23 +271,21 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     }
   };
 
-  /** 直接创建：跳过表单后续步骤,创建项目 + 发 direct-create 消息触发 Mint 对话引导补全信息 */
-  const handleDirectCreate = async () => {
-    if (creatingRef.current || stepTransitioning) return;
-    if (!data.name.trim()) { setCreateError(uiText("ui.NewProjectDialog.enterAProjectNameFirst")); return; }
+  const handleCreateBlank = async () => {
+    if (!canNext() || creatingRef.current || stepTransitioning || continuingCreation) return;
     creatingRef.current = true;
     setInitializing(true);
+    recommendationGenerationRef.current++;
+    setLoadingRec(null);
+    disposeFormRequests();
     try {
-      const project = await prepareProject();
-      setCreateError(null);
-      const profile = projectProfile(data);
-      const creationRevision=await saveProjectProfile(project.path, [profile.platformSpec, profile.initSteps, ...deliveryContext(data, true)].join("\n"), hasUi ? visualSelection(data) : undefined);
-      // 发 direct-create 系统消息（携带项目名 + 用户已填信息快照）,Mint 开回合按 creation_flow 引导
-      const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
-      await launchSession(project, directPrompt, systemMessage("direct-create", directPrompt),creationRevision);
+      const project = await window.electronAPI.project.create({ name: data.name.trim(), path: data.dir.trim(), kind: "blank" });
+      creationCompleteRef.current = true;
+      sessionStorage.removeItem(PROJECT_DRAFT_KEY);
+      onCreated(project);
     } catch (e: unknown) {
       setCreateError(cleanIpcError(e));
-      console.error("[NewProjectDialog] direct create failed:", e);
+      console.error("[NewProjectDialog] blank create failed:", e);
     } finally {
       setInitializing(false);
       creatingRef.current = false;
@@ -355,7 +294,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   const renderStepContent = (number: number) => {
     switch (number) {
-      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} dirConflict={dirConflict} translating={translating} />;
+      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} dirConflict={dirConflict} />;
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} recommendationFailed={recommendationFailed} />;
       case 3: return <Step3Form data={data} onChange={updateData} active={stepNumber === 3} />;
       case 4: return <Step4Form data={data} onChange={updateData} />;
@@ -402,7 +341,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           <footer className="creation-wizard-footer">
             <button type="button" className="creation-wizard-previous" disabled={currentStep === 0 || initializing} onClick={goPrev}>{uiText("ui.NewProjectDialog.previousStep")}</button>
             <div>
-              <button type="button" className="creation-wizard-direct" disabled={!canNext() || stepTransitioning} onClick={handleDirectCreate} title={uiText("creation.directHint")}>{uiText("ui.ChatPanel.directCreation")}</button>
+              <button type="button" className="creation-wizard-direct" disabled={!canNext() || stepTransitioning || continuingCreation} onClick={handleCreateBlank} title={uiText("creation.directHint")}>{uiText("creation.blankProject")}</button>
               {!isLastStep ? <button type="button" className="btn-accent creation-wizard-next" disabled={!canNext()} onClick={goNext}>{uiText("common.next")}</button>
                 : <button type="button" className="btn-accent creation-wizard-next" disabled={!canNext() || stepTransitioning} onClick={handleCreate}>{uiText(initializing ? "ui.NewProjectDialog.creating" : "ui.NewProjectDialog.createProject")}</button>}
             </div>

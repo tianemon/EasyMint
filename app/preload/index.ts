@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   project: {
     list: () => ipcRenderer.invoke("project:list"),
-    create: (opts: { name: string; path: string; directoryName?: string }) => ipcRenderer.invoke("project:create", opts),
+    create: (opts: { name: string; path: string; directoryName?: string; kind?: "blank" }) => ipcRenderer.invoke("project:create", opts),
     checkDir: (dir: string, name: string, projectName?: string) => ipcRenderer.invoke("project:check-dir", { dir, name, projectName }) as Promise<{
       conflict: boolean; resumeProject?: { id: string; path: string; directoryName: string };
     }>,
@@ -363,6 +363,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string; isDesigner?: boolean; mdView?: "preview" | "source" }>; activeTabId: string | null } | null>,
   },
   agent: {
+    prepareSandboxDraft: (input: { projectPath: string; tabId: string; token: string; sessionId?: string; mode: "standard" | "readonly" | "full" }) =>
+      ipcRenderer.invoke("sandbox:prepare-draft", input) as Promise<{ state: "ready" | "skipped" | "cancelled" | "failed"; error?: string }>,
+    cancelSandboxDraft: (tabId: string, token: string) => ipcRenderer.invoke("sandbox:cancel-draft", { tabId, token }) as Promise<void>,
+    getSandboxPreparation: (sessionId: string) => ipcRenderer.invoke("sandbox:session-status", { sessionId }) as Promise<{ preparationId: string; state: "preparing" | "ready" | "failed" | "stopping" | "stopped"; error?: string } | undefined>,
+    onSandboxDraftProgress: (callback: (data: { tabId: string; token: string; state: "stopping" }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { tabId: string; token: string; state: "stopping" }) => callback(data);
+      ipcRenderer.on("sandbox:draft-progress", handler);
+      return () => ipcRenderer.removeListener("sandbox:draft-progress", handler);
+    },
     formAssist: (request: import("../shared/form-assist").FormAssistRequest) => ipcRenderer.invoke("agent:form-assist", request) as Promise<string>,
     cancelFormAssist: (requestId: string) => ipcRenderer.invoke("agent:cancel-form-assist", { requestId }) as Promise<void>,
     nativeAiModels: () => ipcRenderer.invoke("agent:nativeAiModels"),
@@ -488,6 +497,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
         callback(data);
       ipcRenderer.on("agent:chat-session", handler);
       return () => ipcRenderer.removeListener("agent:chat-session", handler);
+    },
+    onSandboxPreparation: (callback: (data: { sessionId: string; tabId?: string; preparationId: string; state: "preparing" | "ready" | "failed" | "stopping" | "stopped"; error?: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; tabId?: string; preparationId: string; state: "preparing" | "ready" | "failed" | "stopping" | "stopped"; error?: string }) => callback(data);
+      ipcRenderer.on("agent:sandbox-preparation", handler);
+      return () => ipcRenderer.removeListener("agent:sandbox-preparation", handler);
     },
     onContextSummarizing: (callback: (data: { chatId: string; sessionId?: string; type?: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId?: string; type?: string }) => callback(data);

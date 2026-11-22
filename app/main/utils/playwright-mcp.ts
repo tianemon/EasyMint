@@ -22,11 +22,17 @@ export function isPlaywrightMcpInvocation(command: string, args: readonly string
 /** 持久 profile 按工作区共享，多会话会互相占用。默认使用官方 --isolated；
  * 显式指定的 profile、远程浏览器和配置文件保持原样。
  * 依据：@playwright/mcp 0.0.83 README “User profile” / microsoft/playwright-mcp。 */
-export function playwrightMcpArgs(command: string, args: string[] = [], env: NodeJS.ProcessEnv = {}): string[] {
+export function playwrightMcpArgs(
+  command: string, args: string[] = [], env: NodeJS.ProcessEnv = {},
+  createTemporaryProfile?: () => string,
+): string[] {
   if (!isPlaywrightMcpInvocation(command, args)) return args;
   const explicit = ["--isolated", "--user-data-dir", "--cdp-endpoint", "--browser-endpoint", "--extension", "--config"];
   if (args.some(arg => explicit.some(flag => arg === flag || arg.startsWith(flag + "=")))) return args;
   if (["ISOLATED", "USER_DATA_DIR", "CDP_ENDPOINT", "BROWSER_ENDPOINT", "EXTENSION", "CONFIG"]
     .some(key => env[`PLAYWRIGHT_MCP_${key}`] !== undefined)) return args;
-  return [...args, "--isolated"];
+  // Storage state supplies an isolated context, not a persistent profile.
+  if (env.PLAYWRIGHT_MCP_STORAGE_STATE !== undefined ||
+      args.some(arg => arg === "--storage-state" || arg.startsWith("--storage-state="))) return [...args, "--isolated"];
+  return createTemporaryProfile ? [...args, "--user-data-dir", createTemporaryProfile()] : [...args, "--isolated"];
 }

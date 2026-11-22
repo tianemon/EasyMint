@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { windowsWorkerKey } from "./windows-execution-manager";
+import { summarizeWindowsSandboxInitError, windowsWorkerKey } from "./windows-execution-manager";
 import type { ExecutionContext } from "../permission/execution-context";
+import { buildExecutionPolicy } from "../permission/access-policy";
 
 function context(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
@@ -22,4 +23,23 @@ describe("Windows 动态沙盒 worker 隔离键", () => {
     expect(windowsWorkerKey(context({ bundledRuntimeRoot: "C:\\tools\\v2", ownerId: "session-a" }))).not.toBe(base);
     expect(windowsWorkerKey(context({ runtimeRoot: "C:\\runtime\\other", ownerId: "session-a" }))).not.toBe(base);
   });
+  it("策略变化后不复用旧 worker", () => {
+    const ctx = context({ ownerId: "session-a" });
+    const policy = buildExecutionPolicy(ctx);
+    const changed = { ...policy, network: { ...policy.network, allowedDomains: [...policy.network.allowedDomains, "changed.example"] } };
+    expect(windowsWorkerKey(ctx, changed)).not.toBe(windowsWorkerKey(ctx, policy));
+  });
+});
+
+it("reports real ACL failures instead of the preceding successful placeholder notice", () => {
+  const detail = [
+    "srt-win acl grant --persistent exited 1 (failed): srt-win: deny target 'C:\\p\\.easymint\\mcp.json' does not exist; created 1 placeholder component(s)",
+    "srt-win: deny '\\\\?\\D:\\profile\\agent\\auth.json': recompose failed: WIN32_ERROR=0x00000005",
+    "srt-win: error: 7 of 84 path(s) could not be granted; batch rolled back",
+  ].join("\r\n");
+  const summary = summarizeWindowsSandboxInitError(detail);
+  expect(summary).toContain("7 项文件权限");
+  expect(summary).toContain("D:\\profile\\agent\\auth.json");
+  expect(summary).not.toContain("mcp.json");
+  expect(summarizeWindowsSandboxInitError("temporary worker exit")).toBe("temporary worker exit");
 });

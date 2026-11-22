@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { EnvItem, EnvReport, EnvironmentState } from "@shared/environment";
+import { WINDOWS_SANDBOX_ENABLED } from "@shared/windows-sandbox";
 import { appText, uiText, useUiLocale } from "../../lib/i18n";
 import { useSettingsStore } from "../../stores/settings-store";
 import { confirmDialog } from "../ui/ConfirmDialog";
@@ -109,7 +110,9 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
   const readySent = useRef(false);
   const focusRow = useRef<HTMLLIElement>(null);
   const focused = useRef<string | undefined>(undefined);
-  const items = report?.items.filter(item => !isOnboarding || item.id !== "winSandbox") ?? [];
+  const items = report?.items.filter(item =>
+    item.id !== "winSandbox" || (!isOnboarding && WINDOWS_SANDBOX_ENABLED),
+  ) ?? [];
   const authorization = !operation && authorizedSelection?.every(id => items.some(item => {
     const strategy = item.fix.auto?.strategy;
     return item.id === id && strategy && installable(item, strategy);

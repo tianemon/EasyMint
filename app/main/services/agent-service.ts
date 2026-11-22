@@ -25,6 +25,7 @@ import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
 import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
 import { createWithPermissionGate, withSessionCreationLock } from "./session-permission-gate";
+import { waitForSessionPermissionTransition } from "./session-permission-transition";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
@@ -52,6 +53,7 @@ import { rollbackImageContextBranch } from "./image-context-rollback";
 import { createProductTools } from "./builtin-mcp";
 import { closeMcpContexts } from "./mcp-runtime";
 import { revokeWindowsExecutionOwners } from "./sandbox/windows-execution-manager";
+import { getWindowsSessionPrewarm, hasWindowsSessionPrewarm, stopWindowsSessionPrewarm } from "./sandbox/windows-session-prewarm";
 import { permissionService } from "./permission/agent-permission-service";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
 import {
@@ -1262,6 +1264,29 @@ export class AgentService {
   }
 
   /** 权限收紧时撤销主会话及其后代仍在运行的旧权限执行上下文。 */
+  sandboxSessionIdentity(sessionId: string): AgentSession | undefined {
+    return process.platform === "win32" ? this.findActiveChat(sessionId)?.session ?? undefined : undefined;
+  }
+
+  async stopSandboxPrewarm(sessionId: string): Promise<void> {
+    const session = this.sandboxSessionIdentity(sessionId);
+    if (session) await stopWindowsSessionPrewarm(session);
+  }
+
+  async refreshPermissionMcp(sessionId: string): Promise<void> {
+    await closeMcpContexts([sessionId]);
+  }
+
+  hasSandboxPrewarm(sessionId: string): boolean {
+    const session = this.findActiveChat(sessionId)?.session;
+    return !!session && hasWindowsSessionPrewarm(session);
+  }
+
+  getSandboxPrewarm(sessionId: string): ReturnType<typeof getWindowsSessionPrewarm> {
+    const session = this.findActiveChat(sessionId)?.session;
+    return session ? getWindowsSessionPrewarm(session) : undefined;
+  }
+
   async revokeElevatedExecution(sessionId: string): Promise<void> {
     const parentId = resolveParentSessionId(sessionId);
     const chat = this.findActiveChat(sessionId);
@@ -1863,7 +1888,10 @@ export class AgentService {
     memoryMode?: import("../../shared/memory").MemoryMode,
     /** Host-only durable creation handoff, before publishing identity or starting a turn. */
     onSessionReady?:()=>void,
+    sandboxDraftKey?: string,
+    sandboxStatusToOrigin?: (data: { sessionId: string; tabId?: string; state: import("./sandbox/windows-session-prewarm").WindowsPreparationStatus; error?: string; preparationId: string }) => void,
   ): Promise<{ chatId: string; sessionId: string }> {
+    if (resumeSessionId) await waitForSessionPermissionTransition(resumeSessionId);
     this.assertAcceptingWork();
     const resolvedPath = path.resolve(resolveHome(projectPath));
     if (resumeSessionId) {
@@ -1900,6 +1928,9 @@ export class AgentService {
           const settled = await waitForAbortSettlement(Promise.resolve(), inFlight.promptDone, ABORT_SETTLEMENT_TIMEOUT_MS);
           if (!settled) throw new Error("上一轮仍未结束，请稍后重试");
         }
+        // Windows mode changes are committed separately. A queued message may
+        // still carry a snapshot from a renderer that hasn't received the change.
+        if (process.platform === "win32") permissionMode = readCache(resumeSessionId)?.permissionMode ?? permissionMode;
         if (permissionMode) {
           const previous = readCache(resumeSessionId)?.permissionMode;
           const before = normalizePermissionMode(previous);
@@ -1986,7 +2017,7 @@ export class AgentService {
       // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
       // 前端在发首条消息前切的模式写的是 __new_xxx 临时缓存，主进程的 sessionId 是 randomUUID，
       // 读不到 → 新会话首条消息前切的「完全访问」会被忽略（一直按标准跑）。随发送落盘修正。
-      if (permissionMode) {
+      if (permissionMode && !(process.platform === "win32" && resumeSessionId && readCache(resumeSessionId)?.permissionMode)) {
         const cacheId = resumeSessionId ?? newSessionId;
         const previousMode = readCache(cacheId)?.permissionMode;
         writeCache(resumeSessionId ?? newSessionId, { permissionMode });
@@ -2060,6 +2091,12 @@ export class AgentService {
                 extraTools,
                 canUseTool,
                 permissionMode: modeForCreation,
+                sandboxDraftKey,
+                onSandboxPreparation: (sessionId, state, error, preparationId) => {
+                  const data = { sessionId, state, error, preparationId };
+                  broadcast("agent:sandbox-preparation", data);
+                  sandboxStatusToOrigin?.({ ...data, tabId });
+                },
                 executionOwner: resumeSessionId,
                 onUiPrompt: (waiting, manager) => this.onExtensionPrompt(resumeSessionId, waiting, manager),
                 getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
@@ -2082,6 +2119,12 @@ export class AgentService {
             extraTools,
             canUseTool,
             permissionMode: modeForCreation,
+            sandboxDraftKey,
+            onSandboxPreparation: (sessionId, state, error, preparationId) => {
+              const data = { sessionId, state, error, preparationId };
+              broadcast("agent:sandbox-preparation", data);
+              sandboxStatusToOrigin?.({ ...data, tabId });
+            },
             executionOwner: newSessionId,
             onUiPrompt: (waiting, manager) => this.onExtensionPrompt(newSessionId, waiting, manager),
             getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,

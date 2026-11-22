@@ -103,7 +103,7 @@ function Select({ value, onChange, options, placeholder, descriptions = true }: 
 
 // ---- Step 1: 基本信息 ----
 
-function Step1Form({ data, onChange, previewDirName, dirConflict, translating }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean; translating?: boolean }): JSX.Element {
+function Step1Form({ data, onChange, previewDirName, dirConflict }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean }): JSX.Element {
   useUiLocale();
   const directoryPath = previewDirName
     ? `${data.dir.replace(/[\\/]+$/, "")}${data.dir.includes("\\") ? "\\" : "/"}${previewDirName}`
@@ -131,7 +131,6 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
           className="em-select-trigger em-hover-control w-full px-3 py-2 rounded-[var(--radius-lg)] bg-surface text-left text-sm transition-all"
           aria-label={uiText("ui.StepComponents.projectDirectory")}
           aria-describedby="project-location-value"
-          aria-busy={translating || undefined}
           title={directoryPath}
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >

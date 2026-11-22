@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+vi.mock("@shared/windows-sandbox", () => ({ WINDOWS_SANDBOX_ENABLED: true }));
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";

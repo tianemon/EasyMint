@@ -55,6 +55,23 @@ const oldRuntime = () => { const paths = service.paths(); fs.mkdirSync(paths.roo
 const assertNoStage = () => expect(fs.readdirSync(path.join(root, "owned/git")).some(name => name.includes(".staging-"))).toBe(false);
 
 describe("bundled Windows runtime lifecycle", () => {
+  it("publishes the same verified tree after a transient Windows rename error", async () => {
+    const rename = fs.promises.rename.bind(fs.promises);
+    let blocked = false;
+    const spy = vi.spyOn(fs.promises, "rename").mockImplementation(async (from, to) => {
+      if (!blocked && String(from).includes(".staging-") && to === service.paths().root) {
+        blocked = true;
+        throw Object.assign(new Error("directory is still open"), { code: "EPERM" });
+      }
+      await rename(from, to);
+    });
+    try {
+      await expect(service.ensure()).resolves.toEqual(service.paths());
+      expect(blocked).toBe(true);
+      expect(run.mock.calls.filter(([, args]) => args[0] === "x")).toHaveLength(1);
+      assertNoStage();
+    } finally { spy.mockRestore(); }
+  });
   it("prepares, runs official initialization, verifies actual execution and reuses a ready version", async () => {
     expect((await service.probe()).status).toBe("missing");
     const paths = await service.ensure();

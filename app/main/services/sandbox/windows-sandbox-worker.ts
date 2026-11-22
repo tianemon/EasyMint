@@ -12,9 +12,11 @@ import type { WindowsSandboxWorkerRequest, WindowsSandboxWorkerResponse } from "
 
 let activeContext: ExecutionContext | undefined;
 const leases = new Set<string>();
+const inFlight = new Set<Promise<void>>();
+let normalShutdown = false;
 
 function send(message: WindowsSandboxWorkerResponse): void {
-  if (process.send) process.send(message);
+  if (process.connected !== false && process.send) process.send(message);
 }
 
 function shellFor(shell: "bash" | "powershell", gitBashPath?: string): string | WindowsBinShell {
@@ -36,7 +38,7 @@ async function initialize(context: ExecutionContext, policy: SandboxRuntimeConfi
 }
 
 process.on("message", (raw: WindowsSandboxWorkerRequest) => {
-  void (async () => {
+  const work = (async () => {
     try {
       if (raw.type === "initialize") {
         await initialize(raw.context, raw.policy);
@@ -59,7 +61,7 @@ process.on("message", (raw: WindowsSandboxWorkerRequest) => {
           requestId: raw.requestId,
           argv: wrapped.argv,
           // SRT 环境含代理令牌和 Windows 沙盒运行参数，必须覆盖普通执行环境。
-          env: { ...activeContext.environment, ...wrapped.env },
+          env: { ...raw.environment, ...wrapped.env },
         });
         return;
       }
@@ -75,11 +77,25 @@ process.on("message", (raw: WindowsSandboxWorkerRequest) => {
         await SandboxManager.reset();
         activeContext = undefined;
         send({ type: "stopped", requestId: raw.requestId });
+        normalShutdown = true;
         process.disconnect?.();
         return;
       }
     } catch (error) {
       send({ type: "error", requestId: raw.requestId, message: (error as Error).message });
     }
+  })();
+  inFlight.add(work);
+  void work.then(() => { inFlight.delete(work); }, error => { inFlight.delete(work); console.error("[sandbox] worker 消息处理失败:", error); });
+});
+
+// A parent can exit before its bounded quit cleanup finishes. Let the current
+// initialization/wrap settle before resetting SRT, rather than orphaning it.
+process.on("disconnect", () => {
+  if (normalShutdown) return;
+  void (async () => {
+    await Promise.allSettled([...inFlight]);
+    try { await SandboxManager.reset(); } catch (error) { console.error("[sandbox] 断连后的清理失败:", error); }
+    activeContext = undefined;
   })();
 });

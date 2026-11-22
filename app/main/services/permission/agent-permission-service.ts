@@ -23,7 +23,7 @@ import {
 } from "./access-policy";
 import runtimeManifest from "../../../shared/windows-runtime.json";
 import { emHome } from "../../utils/paths";
-import { bindExecutionOwner, createExecutionContext, isPermissionModeTightening, normalizePermissionMode, type ExecutionContext } from "./execution-context";
+import { bindExecutionOwner, createExecutionContext, effectiveWindowsExecutionMode, isPermissionModeTightening, normalizePermissionMode, type ExecutionContext } from "./execution-context";
 
 type PermissionBehavior = "allow" | "deny";
 type PermissionUpdateDestination = "userSettings" | "projectSettings" | "localSettings" | "session" | "cliArg";
@@ -83,14 +83,14 @@ export class AgentPermissionService {
   ): (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult> {
     return async (toolName, input) => {
       const sid = resolveSessionId ? resolveSessionId(sessionId) : sessionId;
-      const mode = normalizeMode(readCache(sid)?.permissionMode || "auto");
+      const mode = effectiveWindowsExecutionMode(normalizeMode(readCache(sid)?.permissionMode || "auto"));
       const allow = (executionPolicy?: ExecutionContext): PermissionResult => ({
         behavior: "allow",
         updatedInput: input,
         executionPolicy,
         assertExecutionCanStart: executionPolicy && (() => {
           const currentSid = resolveSessionId?.(sessionId) ?? sessionId;
-          const currentMode = normalizeMode(readCache(currentSid)?.permissionMode || "auto");
+          const currentMode = effectiveWindowsExecutionMode(normalizeMode(readCache(currentSid)?.permissionMode || "auto"));
           if (isPermissionModeTightening(mode, currentMode)) throw new Error("命令准备期间会话权限已收紧，未启动命令");
         }),
       });

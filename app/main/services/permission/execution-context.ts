@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { developmentRuntimeFor, developmentRuntimesRoot, ensureDevelopmentRuntime, type DevelopmentRuntime } from "./development-runtime";
 import { readManagedEnvironment } from "../tools/environment-tool";
 import { sshAgentSockets } from "../sandbox/compat-policy";
+import { WINDOWS_SANDBOX_ENABLED } from "../../../shared/windows-sandbox";
 
 /**
  * 权限三档（2026-09-17 定案：**只读 / 标准 / 完全访问**）：
@@ -27,6 +28,11 @@ export const LEGACY_PERMISSION_MODE_ALIASES: Record<string, PermissionMode> = {
 export function normalizePermissionMode(raw?: string): PermissionMode {
   if (raw === "full" || raw === "bypassPermissions") return "full";
   return LEGACY_PERMISSION_MODE_ALIASES[raw ?? ""] ?? (raw === "readonly" ? "readonly" : "standard");
+}
+
+/** Windows standard execution temporarily uses the full-access backend. */
+export function effectiveWindowsExecutionMode(mode: PermissionMode): PermissionMode {
+  return process.platform === "win32" && !WINDOWS_SANDBOX_ENABLED && mode === "standard" ? "full" : mode;
 }
 
 const PERMISSION_MODE_RANK: Record<PermissionMode, number> = {

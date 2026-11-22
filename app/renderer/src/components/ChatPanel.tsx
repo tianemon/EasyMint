@@ -1,5 +1,7 @@
 import type { MemoryMode } from "@shared/memory";
 import { useProcessDisclosure } from "./chat-process-disclosure";
+import { useSandboxDraftPrewarm } from "./use-sandbox-draft-prewarm";
+import { acceptSandboxPreparation, type ActiveSandboxPreparation } from "./sandbox-preparation-status";
 import { buildTurnPresentations, buildFinalAnswerEntries, buildTurnTimings, runningTurnPosition, executionLabel } from "./chat-turn-presentation";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
 import { formatTokenCount } from "../lib/token-format";
@@ -57,6 +59,7 @@ import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE, encodeAttachedImages, pe
 interface ChatPanelProps {
   projectPath: string;
   active?: boolean;
+  deferSandboxPrewarm?: boolean;
   sessionId?: string;
   /** 设计会话标记(tab 直传,避免多新 tab 反查错配导致用错 Mint-D/Mint 模板) */
   isDesigner?: boolean;
@@ -184,7 +187,7 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
 /** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
 const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，使用用户所用的语言。";
 
-export function ChatPanel({ projectPath, active = true, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, active = true, deferSandboxPrewarm = false, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const locale = useUiLocale();
   const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -283,6 +286,8 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
   // 两者都未就绪时初始值会落到 fallback "standard"，若不拦一道，写缓存 effect 会把这个
   // 未就绪的值覆盖到磁盘（磁盘上的 full 被抹掉，重启后永远回 standard）
   const permissionHydratedRef = useRef(false);
+  const permissionChangePendingRef = useRef<Promise<void> | null>(null);
+  const sandboxDraftTokenRef = useRef<string | null>(null);
   const sessionHydrationRef = useRef<Promise<void>>(Promise.resolve());
   // 本会话是否有独立的持久化权限值（来自缓存恢复）——有则不跟随全局默认：
   // 新建会话无缓存，首帧读到的全局值可能还是 store 默认 standard，等真实值到达再同步
@@ -293,6 +298,7 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
   // 新会话首条消息窗口期：已发送、onChatSession 尚未回绑真实 sid。期间主进程广播已用真实 sid，
   // 而 sidRef 还是 __new_xxx——ask 等按会话过滤的订阅在此窗口放行，避免提问卡片丢失
   const pendingFirstTurnRef = useRef(false);
+  const sandboxSessionStatusRef = useRef<ActiveSandboxPreparation | null>(null);
   const storeModel = useSettingsStore((s) => s.model);
   // 全局聊天思考等级:仅作为新会话的初始默认(方案 B,聊天下拉可临时改)
   const globalThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
@@ -441,13 +447,66 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
 
   /** 标准/只读 → 完全访问时说明风险并确认；切回或切到只读直接生效。模式会持久化为全局默认。 */
   const handlePermissionModeChange = useCallback(async (mode: PermissionMode) => {
+    if (mode === permissionMode || permissionChangePendingRef.current) return;
     if (mode === "full" && permissionMode !== "full") {
       const ok = await confirmFullAccess();
       if (!ok) return;
     }
-    setPermissionMode(mode);
-    useSettingsStore.getState().setChatPermissionMode(mode);
-  }, [permissionMode]);
+    if (window.electronAPI.platform !== "win32") {
+      setPermissionMode(mode);
+      useSettingsStore.getState().setChatPermissionMode(mode);
+      return;
+    }
+    if (permissionChangePendingRef.current || mode === permissionModeRef.current) return;
+    let finish!: () => void;
+    permissionChangePendingRef.current = new Promise<void>(resolve => { finish = resolve; });
+    const statusSid = sidRef.current;
+    let currentStatusSid = statusSid;
+    let sessionChanged = false;
+    let targetSid = statusSid;
+    useStatusStore.getState().pushSignal(statusSid, "sandbox-mode-change", uiText("ui.ChatPanel.switchingPermission"));
+    try {
+      const pending = pendingSendRef.current;
+      if (pending?.awaitingChatId) await pending.ready;
+      targetSid = pending?.resolvedSessionId ?? statusSid;
+      if (targetSid && targetSid !== currentStatusSid) {
+        useStatusStore.getState().popSignal(currentStatusSid, "sandbox-mode-change");
+        currentStatusSid = targetSid;
+        useStatusStore.getState().pushSignal(currentStatusSid, "sandbox-mode-change", uiText("ui.ChatPanel.switchingPermission"));
+      }
+      if (mode !== "standard" && tabId && sandboxDraftTokenRef.current) {
+        await window.electronAPI.agent.cancelSandboxDraft(tabId, sandboxDraftTokenRef.current);
+      }
+      if (sidRef.current !== statusSid && sidRef.current !== targetSid) return;
+      if (targetSid && !targetSid.startsWith("__new_")) {
+        await window.electronAPI.sessionCache.write(targetSid, { permissionMode: mode });
+        sessionChanged = true;
+        if (sidRef.current === statusSid || sidRef.current === targetSid) sessionPermissionOwnedRef.current = true;
+      }
+      await window.electronAPI.settings.set("chatPermissionMode", mode);
+      useSettingsStore.setState({ chatPermissionMode: mode });
+      if (sidRef.current !== statusSid && sidRef.current !== targetSid) return;
+      permissionModeRef.current = mode;
+      setPermissionMode(mode);
+    } catch (error) {
+      const committed = !sessionChanged && targetSid && !targetSid.startsWith("__new_") &&
+        (await window.electronAPI.sessionCache.read(targetSid).catch(() => null))?.permissionMode === mode;
+      if (committed && (sidRef.current === statusSid || sidRef.current === targetSid)) {
+        sessionPermissionOwnedRef.current = true;
+        permissionModeRef.current = mode;
+        setPermissionMode(mode);
+      }
+      if (sessionChanged && (sidRef.current === statusSid || sidRef.current === currentStatusSid)) {
+        permissionModeRef.current = mode;
+        setPermissionMode(mode);
+      }
+      toast(uiText(committed ? "ui.ChatPanel.sandboxPreparationFailed" : sessionChanged ? "ui.ChatPanel.defaultPermissionSaveFailed" : "ui.ChatPanel.permissionSwitchFailed", { v0: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      useStatusStore.getState().popSignal(currentStatusSid, "sandbox-mode-change");
+      permissionChangePendingRef.current = null;
+      finish();
+    }
+  }, [permissionMode, tabId]);
   const [showStats, setShowStats] = useState(false);
   // 压缩确认弹层：auto=阈值自动触发 / manual=统计弹窗按钮
   const [compactDialog, setCompactDialog] = useState<{ source: "auto" | "manual"; threshold?: number } | null>(null);
@@ -1718,6 +1777,31 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
         window.electronAPI.agent.compact(pend.sessionId, pend.instructions || undefined).catch(error => handleCompactFailure(pend.sessionId, pend.operationId, error));
       }
     });
+    let sandboxStatusRevision = 0;
+    let sandboxSubscribed = true;
+    const applySandboxStatus = (data: Parameters<Parameters<typeof window.electronAPI.agent.onSandboxPreparation>[0]>[0]) => {
+      const result = acceptSandboxPreparation(sandboxSessionStatusRef.current, data, sidRef.current, tabId, pendingFirstTurnRef.current);
+      if (!result.accepted) return;
+      sandboxStatusRevision++;
+      sandboxSessionStatusRef.current = result.current;
+      if (data.state === "preparing" || data.state === "stopping") {
+        useStatusStore.getState().pushSignal(sidRef.current, "sandbox-session", uiText(data.state === "preparing" ? "ui.ChatPanel.preparingSandbox" : "ui.ChatPanel.finishingSandbox"));
+      } else {
+        useStatusStore.getState().popSignal(sidRef.current, "sandbox-session");
+        if (data.state === "failed") useStatusStore.getState().pushSignal(sidRef.current, "error", uiText("ui.ChatPanel.sandboxPreparationFailed", { v0: data.error ?? "" }), 8000);
+      }
+    };
+    const unsubSandbox = window.electronAPI.agent.onSandboxPreparation?.(applySandboxStatus) ?? (() => {});
+    if (existingSid && window.electronAPI.agent.getSandboxPreparation) {
+      const revision = sandboxStatusRevision;
+      void window.electronAPI.agent.getSandboxPreparation(existingSid).then(snapshot => {
+        if (!sandboxSubscribed || sandboxStatusRevision !== revision || sidRef.current !== existingSid || !snapshot) return;
+        if (snapshot.state === "preparing" || snapshot.state === "stopping") {
+          applySandboxStatus({ ...snapshot, sessionId: existingSid, state: "preparing" });
+          if (snapshot.state === "stopping") applySandboxStatus({ ...snapshot, sessionId: existingSid });
+        }
+      }).catch(() => {});
+    }
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -1738,6 +1822,9 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
         sidRef.current = realSid;
         useTabStore.getState().setSessionRunning(realSid, true);
         useStatusStore.getState().pushSignal(realSid, "request", uiText("ui.ChatPanel.waitingForModel"));
+        if (sandboxSessionStatusRef.current?.sessionId === realSid) {
+          useStatusStore.getState().pushSignal(realSid, "sandbox-session", uiText(sandboxSessionStatusRef.current.state === "preparing" ? "ui.ChatPanel.preparingSandbox" : "ui.ChatPanel.finishingSandbox"));
+        }
         // 会话切换重置阈值防重标记(组件实例复用,不重置会残留上个会话的 threshold → 新会话不弹窗)
         ctxThresholdFiredRef.current = 0;
         // 新会话创建前的等级选择(sid 为空时写不进缓存)→ 现在补写持久化
@@ -1747,7 +1834,7 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
         }
         // 权限模式同样补写真实 sid（临时 sid 阶段切换只进了 state/临时缓存，主进程 canUseTool
         // 按真实 sid 读——不补写则重启后恢复不到、会话内切换也读不到）
-        window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
+        if (window.electronAPI.platform !== "win32") window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
         // 会话级模型补写（同类缺口）：首条消息前选的模型只写进了 __new_xxx 临时 key，
         // 不补写则重启恢复会话时缓存读不到 → 回落全局默认模型，会话级模型绑定丢失
         if (chatModelRef.current) {
@@ -1771,7 +1858,7 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
           pendingThinkingLevelRef.current = null;
         }
         // 补写权限模式与会话级模型（与分支 1 对齐，防 sidRef 为空路径的同类缺口）
-        window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
+        if (window.electronAPI.platform !== "win32") window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
         if (chatModelRef.current) {
           window.electronAPI.sessionCache.write(realSid, { model: chatModelRef.current }).catch(() => {});
         }
@@ -1807,6 +1894,10 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
     const unsubPermission = window.electronAPI.agent.onPermissionModeChanged(({ sessionId: permissionSid, mode }) => {
       if (sidRef.current && sidRef.current !== permissionSid) return;
       if (!sidRef.current && existingSid && permissionSid !== existingSid) return;
+      if (window.electronAPI.platform === "win32") {
+        sessionPermissionOwnedRef.current = true;
+        permissionModeRef.current = mode;
+      }
       setPermissionMode(mode);
     });
     // Manual compaction lifecycle — filter by chatId
@@ -1866,7 +1957,7 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct != null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubLevel(); unsubPermission(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); useStatusStore.getState().reset(sidRef.current); };
+    return () => { sandboxSubscribed = false; unsub(); unsubExit(); unsubSid(); unsubSandbox(); unsubModel(); unsubLevel(); unsubPermission(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); useStatusStore.getState().reset(sidRef.current); };
   }, []);
 
   // Compacting timeout — 120s safety net:压缩状态异常(summarization 调用挂起)时恢复界面。
@@ -1999,6 +2090,7 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
 
   useEffect(() => {
     permissionModeRef.current = permissionMode;
+    if (window.electronAPI.platform === "win32") return;
     // 恢复完成前不写：否则未就绪的初始值会把磁盘上的会话级权限覆盖掉（见 permissionHydratedRef）
     if (!permissionHydratedRef.current) return;
     // 仅真实会话 id 才写缓存：新会话在发首条消息前的 sid 是 __new_xxx 临时 id，
@@ -2016,6 +2108,8 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
     if (!globalPermissionMode) return;
     setPermissionMode(globalPermissionMode);
   }, [globalPermissionMode, existingSid]);
+
+  useSandboxDraftPrewarm({ active: active && !deferSandboxPrewarm, projectPath, tabId, permissionMode, existingSid, sidRef, permissionModeRef, pendingFirstTurnRef, sessionHydrationRef, sandboxDraftTokenRef, permissionChangePendingRef });
 
   // 按当前模型同步「支持的思考等级」——不依赖会话是否创建(会话要等首条消息才存在),
   // 所以直接按模型 ID 查:新建会话、恢复会话、下拉切模型三种场景都能立即收敛档位列表
@@ -2087,7 +2181,10 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
     // 上一次发送尚未拿到 chatId（或正补发停止）时先排队；回包后按实时 busyRef 决定插话/新回合。
     // 直接 return 会吞掉用户刚发的消息。
     const previousPending = pendingSendRef.current;
+    const initialSid = sidRef.current;
     if (previousPending?.awaitingChatId) await previousPending.ready;
+    while (permissionChangePendingRef.current) await permissionChangePendingRef.current;
+    if (sidRef.current !== initialSid && sidRef.current !== previousPending?.resolvedSessionId) return;
     const sendSessionId = resolveSendSessionId(existingSid, previousPending?.resolvedSessionId, sidRef.current);
     // 错误卡片重试(sourceMsgId):原文与附件以失败消息气泡为准——此时输入框可能已清空/改写,
     // 重发必须还原当时的附件(图片 dataUrl 等)
@@ -2218,7 +2315,8 @@ export function ChatPanel({ projectPath, active = true, sessionId: existingSid, 
         model: chatModel || undefined,
         thinkingLevel: thinkingLevel ?? "medium",
       });
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", collaborationModeIds, memoryMode: memoryModeRef.current, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
+      const mode = window.electronAPI.platform === "win32" ? permissionModeRef.current : permissionMode;
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: mode ?? "standard", collaborationModeIds, memoryMode: memoryModeRef.current, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, tabId });
       pendingSend.resolvedSessionId = result.sessionId;
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
       if (needsDeferredStop(pendingSend)) {

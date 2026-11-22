@@ -275,7 +275,7 @@ export type SystemMessageKind =
   | "shell"        // 后台 shell 退出通知
   | "human-action" // 命令输出里出现需要用户操作的内容(授权链接/输入提示)
   | "project-created" // 项目已创建完毕(初始化触发)
-  | "direct-create" // 用户点直接创建,触发 Mint 对话引导补全信息
+  | "direct-create" // 历史直接创建会话的系统消息标识
   | "flow"         // 流程指令(翻译/功能清单/技术方案等)
   | "summary";     // 上下文摘要指令
 
@@ -347,8 +347,7 @@ export function compactionSummaryBody(notice: string): string {
 
 // ── 业务 Prompt 构建函数 ────────────────────────────
 
-/** 直接创建项目——跳过表单,触发 Mint 按 creation_flow 对话引导补全信息。
- *  系统消息只传动态信息(项目名+已采集快照),固定引导流程内置于 creation_flow,不重复塞进消息。 */
+/** Legacy direct-create prompt retained for reading and testing old creation conversations. */
 export function buildDirectCreatePrompt(projectName: string, ctx: string): string {
   const collected = ctx ? `已采集的结构化信息：${ctx}` : "已采集的结构化信息：无（用户未填写表单，全部信息需在对话中收集）";
   return `[系统消息] 用户点击了「直接创建」项目，跳过后续未填部分。请按内置流程补齐缺失信息，沿用已采集的选择，不重复询问。

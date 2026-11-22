@@ -32,11 +32,31 @@ export function renderVisualDocument(spec: VisualSpec, assets: VisualAssets, opt
     description?: string;
     device?: 'web' | 'mobile';
     locale?: string;
+    linkProjectAssets?: boolean;
 } = {}): string {
     const layout = options.layout ?? spec.selection.layout, title = '__EM_VISUAL_TITLE__', description = '__EM_VISUAL_DESCRIPTION__';
     if (layout === 'showcase' || layout === 'motion') {
         const localized = { ...spec, selection: { ...spec.selection, locale: options.locale === 'en' ? 'en' as const : options.locale ? 'zh-CN' as const : spec.selection.locale } };
         const page = renderShowcase(localized, layout === 'motion').replace(/class="sc-page[^"]*"/, match => `${match} data-device="${options.device ?? 'web'}"`);
+        if (options.linkProjectAssets) {
+            return `<!DOCTYPE html>
+<html lang="${localized.selection.locale}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(options.title || 'Design showcase')}</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="components.css">
+</head>
+<body>
+<div class="visual-project visual-showcase-project" data-easymint-root data-layout="${spec.selection.layout}" data-style="${spec.selection.styleId}" data-effect="${spec.selection.effect}">
+<main class="sample-main">${page}</main>
+</div>
+<script src="runtime.js"></script>
+</body>
+</html>
+`;
+        }
         const runtime = assets.runtime.includes('/* EasyMint scene runtime */') ? assets.runtime : `${assets.runtime}\n${showcaseRuntimeSource()}`;
         return `<!DOCTYPE html><html lang="${localized.selection.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(options.title || 'Design showcase')}</title><style data-easymint-theme>${deriveThemeCss(spec)}</style><style data-easymint-components>${assets.css.replace(/<\/style/gi, '<\\/style')}</style></head><body><div class="visual-project visual-showcase-project" data-easymint-root data-layout="${spec.selection.layout}" data-style="${spec.selection.styleId}" data-effect="${spec.selection.effect}"><main class="sample-main">${page}</main></div><script data-easymint-runtime>${runtime.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
     }

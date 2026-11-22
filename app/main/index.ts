@@ -81,6 +81,7 @@ import { broadcast } from "./services/ipc-broadcast";
 import { appEventBus } from "./services/app-event-bus";
 import { applyDockIcon } from "./utils/dock-icon";
 import { shutdownWindowsExecutionWorkers } from "./services/sandbox/windows-execution-manager";
+import { cancelAllWindowsDrafts } from "./services/sandbox/windows-draft-prewarm";
 import { releaseSandbox } from "./services/sandbox/manager";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { DesktopTray } from "./services/desktop-tray";
@@ -504,7 +505,7 @@ async function runQuitCleanup(): Promise<void> {
 
   // 远端、会话与 worker 关闭可并行等待；本地 TERM/KILL 不被它们阻塞。
   const mcpCleanup = step("MCP 客户端", () => closeAllMcpClients());
-  const windowsCleanup = step("Windows 沙盒 worker", () => shutdownWindowsExecutionWorkers());
+  const windowsCleanup = step("Windows 沙盒 worker", async () => { await Promise.all([cancelAllWindowsDrafts(), shutdownWindowsExecutionWorkers({ permanent: true })]); });
   const sessionCleanup = step("会话与后台命令", async () => {
     if (!sharedServices) return;
     const shutdown = sharedServices.agentService.shutdown();   // 先发全体取消与 shell TERM，再异步排空会话。

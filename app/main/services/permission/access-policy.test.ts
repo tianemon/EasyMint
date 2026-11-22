@@ -65,6 +65,15 @@ describe("统一资源策略", () => {
     expect(isStandardWritableTarget(path.resolve(cwd), path.join(os.homedir(), "Desktop", "a.txt"))).toBe(false);
   });
 
+  it("技能路径不会作为特殊禁止写入项传给沙盒", () => {
+    const denied = buildExecutionPolicy(context("standard")).filesystem!.denyWrite!;
+    for (const source of [".easymint", ".claude", ".codex", ".pi", ".github", ".agents"]) {
+      expect(denied).not.toContain(path.join(cwd, source, "skills"));
+    }
+    expect(denied).not.toContain(path.join(os.homedir(), ".agents", "skills"));
+    expect(denied).toContain(path.join(cwd, ".mcp.json"));
+  });
+
   it("完全访问扩大 allowWrite，但保留相同核心 deny", () => {
     const standard = buildExecutionPolicy(context("standard")).filesystem!;
     const full = buildExecutionPolicy(context("full")).filesystem!;
@@ -79,6 +88,14 @@ describe("统一资源策略", () => {
     expect(accessPolicyInternals.filesystemRoots("D:\\work\\demo", "win32", ["E:\\"])).toContain("E:\\");
     expect(accessPolicyInternals.windowsVolumeMetadataPaths(["D:\\", "E:\\"], "win32"))
       .toEqual(expect.arrayContaining(["D:\\System Volume Information", "D:\\$Recycle.Bin", "E:\\System Volume Information"]));
+  });
+  it("only stamps system paths that overlap the Windows sandbox write grants", () => {
+    const mandatory = ["C:\\Windows", "C:\\ProgramData"];
+    expect(accessPolicyInternals.windowsSandboxSystemWriteDenies(
+      ["D:\\project", "C:\\Users\\test\\AppData\\Local\\Temp"], mandatory,
+    )).toEqual([]);
+    expect(accessPolicyInternals.windowsSandboxSystemWriteDenies(["d:\\", "c:\\windows\\Temp"], mandatory))
+      .toEqual(["C:\\Windows", "d:\\System Volume Information", "d:\\$Recycle.Bin"]);
   });
 
   it("/tmp 和用户文档不属于核心写保护", () => {
@@ -115,12 +132,6 @@ describe("统一资源策略", () => {
     // 位置跟随 mcp.json（已归位到 agent/），两个目录都要在保护名单里。
     expect(controls).toContain(path.join(emHome(), "agent", "mcp-instructions.json"));
     expect(controls).toContain(path.join(emHome(), "mcp-instructions.json"));
-    // 2026-09-24 **反转**：此处原先断言 skills 不受保护。该判断已不成立 —— 技能描述进 `<skills>` 分节、
-    // 正文由 use_skill 读，经验库由 buildExperienceInjection 每轮注入，子 Agent 模板拼进 task 工具描述，
-    // 与 mcp-instructions.json 同属"持久化影响模型行为"的载体（该口径由用户 2026-09-24 确立）。
-    // 正常写入路径不受影响：manage_skill / learn 走主进程直接写文件，用户手工编辑也不经这层判定。
-    expect(controls).toContain(path.join(os.homedir(), ".easymint", "skills"));
-    expect(controls).toContain(path.join(os.homedir(), ".easymint", "managed-skills"));
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "experiences"));
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "agent-templates.json"));
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "agent", "models-store.json"));
@@ -133,12 +144,12 @@ describe("统一资源策略", () => {
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "system-prompts-v2.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-devices.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-mobile-devices.json"));
-    expect(controls).toContain(path.join(emHome(), "agent", "skills"));
-    expect(controls).toContain(path.join(cwd, ".easymint", "skills"));
-    for (const source of [".claude", ".codex", ".pi", ".github", ".agents"]) {
-      expect(controls).toContain(path.join(cwd, source, "skills"));
+    for (const source of [".easymint", ".claude", ".codex", ".pi", ".github", ".agents"]) {
+      expect(controls).not.toContain(path.join(cwd, source, "skills"));
     }
-    expect(controls).toContain(path.join(os.homedir(), ".agents", "skills"));
+    for (const target of [path.join(emHome(), "skills"), path.join(emHome(), "agent", "skills"), path.join(emHome(), "managed-skills"), path.join(os.homedir(), ".agents", "skills")]) {
+      expect(controls).not.toContain(target);
+    }
     expect(controls).toContain(path.join(cwd, ".easymint", "experiences"));
     // 保留原断言的另一半意思：保护面是**逐条精确列举**的，不是把 ~/.easymint 一网打尽
     // （uploads 是用户内容目录，明确不在控制面内）

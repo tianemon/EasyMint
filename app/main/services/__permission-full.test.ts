@@ -91,13 +91,16 @@ describe("完全访问权限契约", () => {
       : "/etc/easymint.conf";
     expect((await write(systemFile)).behavior).toBe("deny");
     expect((await write(path.join(CWD, ".mcp.json"))).behavior).toBe("deny");
-    // 2026-09-24 新纳入：会随会话进模型上下文的落盘内容（技能 / 子 Agent 模板）与 MCP 配置同级
-    expect((await write(path.join(os.homedir(), ".easymint", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
-    expect((await write(path.join(os.homedir(), ".easymint", "agent", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
-    expect((await write(path.join(os.homedir(), ".codex", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
     expect((await write(path.join(os.homedir(), ".easymint", "agent-templates.json"))).behavior).toBe("deny");
     expect((await bash("launchctl unload x")).behavior).toBe("deny");
     expect((await bash("sudo apt install x")).behavior).toBe("deny");
+  });
+
+  it("技能目录按普通路径处理", async () => {
+    for (const target of [path.join(os.homedir(), ".easymint", "skills"), path.join(os.homedir(), ".easymint", "agent", "skills"), path.join(os.homedir(), ".easymint", "managed-skills"), path.join(os.homedir(), ".codex", "skills"), ...[".claude", ".codex", ".pi", ".github", ".agents"].map(source => path.join(CWD, source, "skills"))]) {
+      expect((await write(path.join(target, "x", "SKILL.md"))).behavior, target).toBe("allow");
+      expect((await bash(`echo x > ${JSON.stringify(path.join(target, "x", "SKILL.md"))}`)).behavior, target).toBe("allow");
+    }
   });
 
   it("提交说明中的系统路径文字不参与权限识别", async () => {
@@ -121,7 +124,6 @@ describe("完全访问权限契约", () => {
       "echo x >> ~/.easymint/paired-mobile-devices.json",
       "echo x >> ~/.easymint/system-prompts.json",
       "echo x >> ~/.easymint/experiences/index.json",
-      "echo x >> ~/.easymint/managed-skills/x/SKILL.md",
       "rm -rf /",
       "rm -rf ~",
     ]) {

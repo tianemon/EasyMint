@@ -16,18 +16,7 @@ export type { PermissionMode } from "./execution-context";
  */
 export function protectedWriteRoots(platform: NodeJS.Platform = process.platform): string[] {
   if (platform === "win32") {
-    const systemRoot = process.env.SystemRoot || "C:\\Windows";
-    const systemDrive = path.win32.parse(systemRoot).root || `${process.env.SystemDrive || "C:"}\\`;
-    return [
-      systemRoot,
-      path.win32.join(systemDrive, "ProgramData"),
-      path.win32.join(systemDrive, "Recovery"),
-      path.win32.join(systemDrive, "PerfLogs"),
-      ...windowsDriveRoots(platform).flatMap((root) => [
-        path.win32.join(root, "System Volume Information"),
-        path.win32.join(root, "$Recycle.Bin"),
-      ]),
-    ];
+    return [...windowsSystemWriteRoots(), ...windowsVolumeMetadataPaths(windowsDriveRoots(platform), platform)];
   }
   if (platform === "darwin") {
     return [
@@ -112,12 +101,6 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
  */
 export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform = process.platform): string[] {
   const home = os.homedir();
-  // Pi 也会发现当前项目祖先目录中的 .agents/skills；这些目录与其他技能来源同属持久提示词载体。
-  const ancestorAgentSkills: string[] = [];
-  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
-    ancestorAgentSkills.push(path.join(dir, ".agents", "skills"));
-    if (path.dirname(dir) === dir) break;
-  }
   const paths = [
     // MCP 配置：决定"下次会话能启动哪些本地进程 / 连哪些远端"，属后续执行能力的载体。
     // 新位置（agent/ 下，与 Pi 同层）；旧位置一并列出——迁移未完成时 readUserMcpServers 仍回落读它。
@@ -139,21 +122,10 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     path.join(emHome(), "system-prompts-v2.json"),
     path.join(emHome(), "config-backups"),
     path.join(emHome(), "memory"),
-    // 会**随会话进模型上下文**的三类落盘内容：技能（描述进 `<skills>` 分节、正文由 use_skill 读）、
-    // 经验（`buildExperienceInjection` 在会话构建时注入，每轮随行）、子 Agent 模板
-    // （`id + 名称 + 描述` 拼进 task 工具描述）。它们与 mcp-instructions.json 同属
-    // "持久化影响模型行为"的载体 —— 改一次就是长期往提示词里塞内容。
-    // 正常的写入路径都不受影响：manage_skill / learn 走主进程直接写文件，用户手工编辑也不经这里。
-    path.join(emHome(), "skills"),
-    path.join(emHome(), "agent", "skills"),
+    // 内置运行时、经验与 Agent 模板保留写保护；技能目录按普通路径处理。
     path.join(emHome(), "runtime-tools"),
-    path.join(emHome(), "managed-skills"),
     path.join(emHome(), "experiences"),
     path.join(emHome(), "agent-templates.json"),
-    path.join(home, ".claude", "skills"),
-    path.join(home, ".codex", "skills"),
-    path.join(home, ".pi", "agent", "skills"),
-    path.join(home, ".agents", "skills"),
     path.join(home, ".config", "autostart"),
     path.join(home, ".config", "systemd"),
     path.join(home, ".config", "environment.d"),
@@ -169,14 +141,8 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     // 兼容 Claude/OMP 的项目级 MCP 配置。EasyMint 只读它，但它会决定下次会话
     // 可以启动哪些本地进程，因此不能由 Agent 通过普通文件工具持久化修改。
     path.join(cwd, ".mcp.json"),
-    // 项目级的同类载体：项目技能与项目经验库同样会进模型上下文，与全局目录同口径。
-    path.join(cwd, ".easymint", "skills"),
+    // 项目经验库与全局经验库同口径保护。
     path.join(cwd, ".easymint", "experiences"),
-    path.join(cwd, ".claude", "skills"),
-    path.join(cwd, ".codex", "skills"),
-    path.join(cwd, ".pi", "skills"),
-    path.join(cwd, ".github", "skills"),
-    ...ancestorAgentSkills,
   ];
   if (platform === "win32") {
     const appData = process.env.APPDATA || path.win32.join(home, "AppData", "Roaming");
@@ -286,8 +252,7 @@ export function buildExecutionPolicy(context: Pick<ExecutionContext, "mode" | "w
       allowRead: mode === "full" ? [] : [runtimeRoot, ...(context.bundledRuntimeRoot ? [context.bundledRuntimeRoot] : [])],
       allowWrite,
       denyWrite: [
-        ...protectedWriteRoots(),
-        ...windowsVolumeMetadataPaths(allowWrite),
+        ...(process.platform === "win32" ? windowsSandboxSystemWriteDenies(allowWrite) : protectedWriteRoots()),
         ...protectedDevicePaths(),
         ...credentials,
         ...protectedControlPaths(workspaceRealPath),
@@ -297,6 +262,25 @@ export function buildExecutionPolicy(context: Pick<ExecutionContext, "mode" | "w
     // profile 兼容性选项（PTY 等）——逐条依据见 compat-policy；缺了它交互式工具会在沙盒里表现异常
     ...sandboxProfileOptions(),
   };
+}
+
+function windowsSystemWriteRoots(): string[] {
+  const systemRoot = process.env.SystemRoot || "C:\\Windows";
+  const systemDrive = path.win32.parse(systemRoot).root || `${process.env.SystemDrive || "C:"}\\`;
+  return [systemRoot, ...["ProgramData", "Recovery", "PerfLogs"].map(name => path.win32.join(systemDrive, name))];
+}
+
+/** The native write-restricted token scopes writes by grant root. Keep explicit
+ * Windows system denies where a grant overlaps them. Outside those roots the
+ * OS protects its own system/volume metadata; do not try to stamp every disk. */
+function windowsSandboxSystemWriteDenies(allowWrite: readonly string[], systemRoots = windowsSystemWriteRoots()): string[] {
+  const volumeRoots = [...new Set(allowWrite.map(root => path.win32.parse(root).root).filter(Boolean))];
+  const within = (candidate: string, root: string) => {
+    const relative = path.win32.relative(root, candidate);
+    return relative === "" || (relative !== ".." && !relative.startsWith("..\\") && !path.win32.isAbsolute(relative));
+  };
+  return [...systemRoots, ...windowsVolumeMetadataPaths(volumeRoots, "win32")]
+    .filter(target => allowWrite.some(root => within(target, root) || within(root, target)));
 }
 
 /** sandbox-runtime 为兼容性自动开放的宿主写路径；标准模式已有自己的运行区，不需要这些例外。 */
@@ -402,4 +386,4 @@ export function isStandardWritableTarget(cwd: string, candidate: string): boolea
   return standardWriteRoots(workspace, runtime).some((root) => isWithin(canonicalPolicyPath(root, cwd), target));
 }
 
-export const accessPolicyInternals = { filesystemRoots, windowsDriveRoots, windowsVolumeMetadataPaths };
+export const accessPolicyInternals = { filesystemRoots, windowsDriveRoots, windowsVolumeMetadataPaths, windowsSandboxSystemWriteDenies };

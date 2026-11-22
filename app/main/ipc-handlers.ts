@@ -21,6 +21,11 @@ import { setSandboxDisabledProvider, resetSandboxState } from "./services/sandbo
 import { probeEnvironment } from "./services/provisioning/probe";
 import { createEnvironmentController } from "./services/provisioning/controller";
 import { ensureWindowsRuntime, resetWindowsRuntimeProbe } from "./services/windows-runtime";
+import { windowsDraftKey } from "./services/sandbox/windows-draft-prewarm";
+import { WINDOWS_SANDBOX_ENABLED } from "../shared/windows-sandbox";
+import { createWindowsDraftHandlers } from "./services/sandbox/windows-draft-ipc";
+import { applySessionPermissionTransition } from "./services/session-permission-transition";
+import { normalizePermissionMode } from "./services/permission/execution-context";
 import { installDependencies, fixUserns } from "./services/provisioning/run";
 import { IMAGE_MIME, resolveHome, nearestExistingDir, emHome } from "./utils/paths";
 import { applyDockIcon } from "./utils/dock-icon";
@@ -94,8 +99,6 @@ import { readCache, writeCache, writeClientCache, deleteCache } from "./services
 import { listIssues, addIssue, setStatus, updateIssue, deleteIssue } from "./services/issue-service";
 import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
-import { isPermissionModeTightening, normalizePermissionMode } from "./services/permission/execution-context";
-import { withSessionCreationLock } from "./services/session-permission-gate";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, hasRunningProjectProcess, checkPort, killPort, ensureRunJsonWatch, saveRunJson } from "./services/process-service";
 import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
@@ -193,6 +196,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     }
     return null;
   };
+
+  const sandboxDraft = createWindowsDraftHandlers({
+    projectRootContaining,
+    deferProjectPrewarm: root => projectService.list().some(project => p.resolve(project.path) === root && project.creationKind === "blank"),
+    defaultMode: () => store.getSettings().chatPermissionMode,
+    sessionMode: sessionId => readCache(sessionId)?.permissionMode,
+    hasSessionPrewarm: sessionId => agentService.hasSandboxPrewarm(sessionId),
+  });
+  ipcMain.handle("sandbox:prepare-draft", (event, input: unknown) => sandboxDraft.prepare(event.sender, input));
+  ipcMain.handle("sandbox:cancel-draft", (event, input: unknown) => sandboxDraft.cancel(event.sender, input));
 
   // 沙盒「关闭运行」开关的读取器接线：用注入的读取函数而非缓存字段，设置一改即生效
   // （Linux 兜底通道，见 sandbox/manager.isSandboxBypassed 的政策说明）
@@ -382,6 +395,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     return agentService.getBufferedStream(sessionId);
   });
   ipcMain.handle("agent:getThinkingLevels", (_e, { sessionId }) => agentService.getThinkingInfo(sessionId));
+  ipcMain.handle("sandbox:session-status", (_e, { sessionId }) => agentService.getSandboxPrewarm(sessionId));
   ipcMain.handle("agent:getModelThinkingSupport", async (_e, { modelId }) => await agentService.getModelThinkingSupport(modelId));
   // 按模型 id 查定义（窗口/输出等静态值，无需会话）：恒用全局当前供应商。
   // 用于聊天页打开即显示上下文窗口——窗口是模型属性，不该等会话/广播
@@ -404,7 +418,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds, memoryMode }) => {
     bindPiExtensionWindow(projectPath, event.sender.id);
     try {
-      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds), memoryMode === undefined ? undefined : z.enum(["record", "use", "off"]).parse(memoryMode),creationSessionReady(projectService,projectPath,sessionId,systemPayload));
+      const draftKey = typeof tabId === "string" && /^[A-Za-z0-9_-]{1,200}$/.test(tabId) ? windowsDraftKey(event.sender.id, tabId) : undefined;
+      const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, tabId, collaborationModeIds === undefined ? undefined : z.array(z.string()).parse(collaborationModeIds), memoryMode === undefined ? undefined : z.enum(["record", "use", "off"]).parse(memoryMode),creationSessionReady(projectService,projectPath,sessionId,systemPayload),draftKey, data => { if (!event.sender.isDestroyed()) event.sender.send("agent:sandbox-preparation", data); });
       broadcast("agent:stream", {
         type: "user_message",
         sessionId: result.sessionId,
@@ -720,24 +735,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     // 串行化——创建期间到达的切档提交排队到会话登记之后，schedulePermissionToolRebuild
     // 不再因「会话尚未登记」落空；reload 内已开始的扩展加载按提交前的模式完成，随后关闭。
     if (data && typeof data === "object" && !Array.isArray(data) && (data as { permissionMode?: unknown }).permissionMode !== undefined) {
-      await withSessionCreationLock(async () => {
-        const previous = readCache(sessionId)?.permissionMode;
-        writeClientCache(sessionId, data);
-        // 任何权限收紧（full → standard/readonly、standard → readonly）都要撤销旧执行上下文；
-        // 只写其它字段（不发 permissionMode）时不动。
-        const next = (data as { permissionMode?: unknown }).permissionMode as string | undefined;
-        if (isPermissionModeTightening(previous, next)) {
-          await agentService.revokeElevatedExecution(sessionId);
-        }
-        const closingFull = next !== undefined && normalizePermissionMode(previous) === "full" && normalizePermissionMode(next) !== "full";
-        // 只读会话没有预连接 MCP；放宽后下一条消息前重建工具集，用户无需手动重开会话。
-        if (closingFull || next !== undefined && (
-          normalizePermissionMode(previous) === "readonly" && normalizePermissionMode(next) !== "readonly" ||
-          normalizePermissionMode(previous) !== "full" && normalizePermissionMode(next) === "full"
-        )) {
-          agentService.schedulePermissionToolRebuild(sessionId, closingFull);
-        }
-      });
+      const previous = readCache(sessionId)?.permissionMode;
+      try {
+        await applySessionPermissionTransition(sessionId, data, agentService);
+      } finally {
+        const current = readCache(sessionId)?.permissionMode;
+        if (current !== previous) broadcast("agent:permission-mode-changed", { sessionId, mode: normalizePermissionMode(current) });
+      }
       return;
     }
     writeClientCache(sessionId, data);
@@ -769,6 +773,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("env:retest", () => environment.probe(true));
   ipcMain.handle("env:install", (_event, payload: unknown) => {
     const { ids } = expectPayload(z.object({ ids: z.array(z.string()).min(1).max(3) }), payload);
+    if (process.platform === "win32" && !WINDOWS_SANDBOX_ENABLED && ids.includes("winSandbox")) {
+      throw new Error("Windows 系统沙盒已暂停，暂不安装或重新配置。");
+    }
     return environment.repair(ids, !ids.includes("winSandbox"), (progress, signal) =>
       installDependencies(ids, progress, {}, signal));
   });

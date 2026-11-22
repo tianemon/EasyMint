@@ -32,7 +32,8 @@ export class DesktopTray {
     });
     ipcMain.handle("win:tray-respond",(event,value)=>{
       const window=BrowserWindow.fromWebContents(event.sender);
-      const input=z.object({id:z.string().uuid(),hide:z.boolean(),dontRemind:z.boolean()}).strict().parse(value);
+      const input=z.object({id:z.string().uuid(),hide:z.boolean(),dontRemind:z.boolean(),quit:z.boolean().optional()}).strict()
+        .refine(input=>!input.quit || (!input.hide && !input.dontRemind)).parse(value);
       if(!window || !this.windows.has(window))throw new Error("Window is not managed by EasyMint");
       return this.respond(window,input);
     });
@@ -156,6 +157,7 @@ export class DesktopTray {
   private async respond(window:BrowserWindow,input:TrayCloseResponse):Promise<void> {
     if(this.quitting || window.isDestroyed() || this.pending.get(window)!==input.id)return;
     if(this.replying.has(window))throw new Error("Close response is already being saved");
+    if(input.quit){this.pending.delete(window);this.beginQuit();app.quit();return;}
     if(!input.hide){this.pending.delete(window);return;}
     this.replying.add(window);
     try {

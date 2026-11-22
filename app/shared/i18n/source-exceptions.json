@@ -121,16 +121,6 @@
   },
   {
     "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "名称「{{v0}}」",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "项目形式「{{v0}}」",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
     "text": "项目名称：{{v0}}，{{v1}}",
     "reason": "Internal structured project context for the agent"
   },

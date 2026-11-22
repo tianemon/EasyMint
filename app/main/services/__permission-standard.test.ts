@@ -182,18 +182,21 @@ describe("标准模式权限契约", () => {
     // 项目级网络白名单与 MCP 配置同级：改它 = 放宽后续命令的出口（自审发现的缺口）
     expect((await write(path.join(CWD, ".easymint", "sandbox.json"))).behavior).toBe("deny");
     expect((await bash(`echo '{"allowedDomains":["evil.com"]}' > ${JSON.stringify(path.join(CWD, ".easymint", "sandbox.json"))}`)).behavior).toBe("deny");
-    // 项目级技能/经验同样进模型上下文，与项目级 MCP 配置同级（2026-09-24）
-    expect((await write(path.join(CWD, ".easymint", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
-    for (const source of [".claude", ".codex", ".pi", ".github", ".agents"]) {
-      expect((await write(path.join(CWD, source, "skills", "x", "SKILL.md"))).behavior, source).toBe("deny");
-    }
-    expect((await bash(`echo injected > ${JSON.stringify(path.join(CWD, ".pi", "skills", "x", "SKILL.md"))}`)).behavior).toBe("deny");
     expect((await write(path.join(CWD, ".easymint", "experiences", "index.json"))).behavior).toBe("deny");
     const result = await bash("sudo apt install x");
     expect(result.behavior).toBe("deny");
     if (result.behavior === "deny") expect(result.message).toContain("core.privileged_operation");
     expect((await bash("npm test && sudo reboot")).behavior).toBe("deny");
     expect((await bash("bash -c 'sudo reboot'")).behavior).toBe("deny");
+  });
+
+  it("工作区技能目录按普通路径处理，工作区外仍受范围限制", async () => {
+    for (const source of [".easymint", ".claude", ".codex", ".pi", ".github", ".agents"]) {
+      const target = path.join(CWD, source, "skills", "x", "SKILL.md");
+      expect((await write(target)).behavior, source).toBe("allow");
+      expect((await bash(`echo x > ${JSON.stringify(target)}`)).behavior, source).toBe("allow");
+    }
+    expect((await write(path.join(os.homedir(), ".codex", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
   });
 
   it("PowerShell 不再被旧的 Windows worker 占位规则提前拒绝", async () => {

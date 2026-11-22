@@ -42,6 +42,7 @@ interface Project {
   lastOpenedAt: string;
   status: "setup" | "development" | "completed";
   description: string;
+  creationKind?: "blank";
   exists?: boolean;
   canResumeCreation?: boolean;
 }
@@ -243,7 +244,7 @@ interface ElectronAPI {
   };
   project: {
     list: () => Promise<Project[]>;
-    create: (opts: { name: string; path: string }) => Promise<Project>;
+    create: (opts: { name: string; path: string; directoryName?: string; kind?: "blank" }) => Promise<Project>;
     checkDir: (dir: string, name: string, projectName?: string) => Promise<{
       conflict: boolean; resumeProject?: { id: string; path: string; directoryName: string };
     }>;
@@ -275,6 +276,10 @@ interface ElectronAPI {
     onChanged: (callback: (data: { projectPath: string }) => void) => () => void;
   };
   agent: {
+    prepareSandboxDraft: (input: { projectPath: string; tabId: string; token: string; sessionId?: string; mode: "standard" | "readonly" | "full" }) => Promise<{ state: "ready" | "skipped" | "cancelled" | "failed"; error?: string }>;
+    cancelSandboxDraft: (tabId: string, token: string) => Promise<void>;
+    getSandboxPreparation: (sessionId: string) => Promise<{ preparationId: string; state: "preparing" | "ready" | "failed" | "stopping" | "stopped"; error?: string } | undefined>;
+    onSandboxDraftProgress: (callback: (data: { tabId: string; token: string; state: "stopping" }) => void) => () => void;
     formAssist: (request: import("@shared/form-assist").FormAssistRequest) => Promise<string>;
     cancelFormAssist: (requestId: string) => Promise<void>;
     nativeAiModels: () => Promise<{ chat: Array<import("@shared/native-ai").ModelReference & { name: string }>; image: Array<import("@shared/native-ai").ModelReference & { name: string }> }>;
@@ -352,6 +357,7 @@ interface ElectronAPI {
     onShellCount: (callback: (data: { id: string; command: string; startedAt: number; status: "running" | "stopping"; logPath: string }[]) => void) => () => void;
     onShellOutput: (callback: (data: ShellOutputEvent) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string; projectPath?: string }) => void) => () => void;
+    onSandboxPreparation: (callback: (data: { sessionId: string; tabId?: string; preparationId: string; state: "preparing" | "ready" | "failed" | "stopping" | "stopped"; error?: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string; sessionId?: string; type?: string }) => void) => () => void;
     onContextUsage: (callback: (data: { chatId: string; percentage: number | null; totalTokens: number; maxTokens: number }) => void) => () => void;
     onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => () => void;

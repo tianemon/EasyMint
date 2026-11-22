@@ -18,10 +18,10 @@ export function CloseToTrayPrompt():JSX.Element|null {
     void api.trayReady(true).catch(cause=>console.error("[tray] Prompt registration failed:",cause));
     return ()=>{active.current=null;off();void api.trayReady(false).catch(cause=>console.error("[tray] Prompt cleanup failed:",cause));};
   },[]);
-  const respond=(hide:boolean)=>{
+  const respond=(hide:boolean,quit=false)=>{
     if(!request || submitting.current)return;
     submitting.current=true;setBusy(true);setError("");
-    void window.electronAPI.win.respondToTray({id:request.id,hide,dontRemind:hide&&dontRemind})
+    void window.electronAPI.win.respondToTray({id:request.id,hide,dontRemind:hide&&dontRemind,...(quit?{quit:true}:{})})
       .then(()=>{if(active.current?.id===request.id){active.current=null;setRequest(null);}})
       .catch(cause=>{if(active.current?.id===request.id)setError(appText(String(cause)));})
       .finally(()=>{submitting.current=false;setBusy(false);});
@@ -36,9 +36,12 @@ export function CloseToTrayPrompt():JSX.Element|null {
         <span onClick={()=>{if(!busy)setDontRemind(value=>!value);}}>{uiText("tray.dontRemind")}</span>
       </div>
       {error && <p role="alert" className="text-xs text-danger break-words mt-2">{error}</p>}
-      <div className="flex gap-2 justify-end mt-4">
+      <div className="flex gap-2 justify-between mt-4">
         <button type="button" disabled={busy} className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] bg-surface-alt text-text-secondary hover:text-text-primary disabled:opacity-50" onClick={()=>respond(false)}>{uiText("common.cancel")}</button>
-        <button type="button" disabled={busy} className="btn-accent px-4 py-1.5 text-xs rounded-[var(--radius-lg)] disabled:opacity-50" onClick={()=>respond(true)}>{uiText(isMac ? "tray.hideMac" : "tray.hide")}</button>
+        <div className="flex gap-2">
+          <button type="button" disabled={busy} className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] bg-surface-alt text-text-secondary hover:text-text-primary disabled:opacity-50" onClick={()=>respond(false,true)}>{uiText("tray.exit")}</button>
+          <button type="button" disabled={busy} className="btn-accent px-4 py-1.5 text-xs rounded-[var(--radius-lg)] disabled:opacity-50" onClick={()=>respond(true)}>{uiText(isMac ? "tray.hideMac" : "tray.hide")}</button>
+        </div>
       </div>
     </div>
   </Modal>;

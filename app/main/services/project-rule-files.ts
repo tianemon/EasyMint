@@ -77,7 +77,7 @@ export function loadProjectRuleFiles(cwd:string,supplied:ProjectRuleFile[],warn:
 export function initializeProjectRules(cwd:string,template:string,name:string,ancestors=true):string|undefined {
   const existing=discoverProjectRules(cwd,ancestors);if(existing.hasExisting)return existing.warnings.join("\n") || undefined;
   const file=path.join(cwd,"AGENTS.md");
-  try {const content=template.replaceAll("{{PROJECT_NAME}}",name);fs.writeFileSync(file,content,{flag:"wx",mode:0o600});seededRules.set(path.resolve(file),{hash:contentHash(content),baseBytes:Buffer.byteLength(content.trimEnd())});markProjectRuleChanged(file);}
+  try {const content=template.replaceAll("{{PROJECT_NAME}}",()=>name);fs.writeFileSync(file,content,{flag:"wx",mode:0o600});seededRules.set(path.resolve(file),{hash:contentHash(content),baseBytes:Buffer.byteLength(content.trimEnd())});markProjectRuleChanged(file);}
   catch(error){if((error as NodeJS.ErrnoException).code!=="EEXIST")return `默认项目规则未创建，原项目未覆盖：${(error as Error).message}`;}
 }
 

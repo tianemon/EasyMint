@@ -69,6 +69,15 @@ afterEach(()=>{
  Object.defineProperty(process,"platform",platformDescriptor);
 });
 describe("close to tray lifecycle",()=>{
+ it("quits the application only for the matching window and ignores the notice preference",async()=>{
+  const window=new FakeWindow(),other=new FakeWindow();tray.attach(window.asWindow());tray.attach(other.asWindow());ready(window);window.close();
+  const request=pending(window);
+  await invoke("win:tray-respond",other,{...request,hide:false,dontRemind:false,quit:true});
+  expect(mocks.quit).not.toHaveBeenCalled();
+  await invoke("win:tray-respond",window,{...request,hide:false,dontRemind:false,quit:true});
+  expect(mocks.quit).toHaveBeenCalledOnce();expect(remember).not.toHaveBeenCalled();expect(window.hide).not.toHaveBeenCalled();
+  expect(window.close().preventDefault).not.toHaveBeenCalled();
+ });
  it("deduplicates native closes, cancels safely and persists the notice choice only on confirmation",async()=>{
   const window=new FakeWindow();tray.attach(window.asWindow());ready(window);
   expect(window.close().preventDefault).toHaveBeenCalledOnce();window.close();expect(window.webContents.send).toHaveBeenCalledOnce();expect(window.hide).not.toHaveBeenCalled();
