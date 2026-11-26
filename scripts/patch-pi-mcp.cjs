@@ -1,10 +1,35 @@
-/** Pi 1.6.0 host hooks. Fail closed on upstream drift; no copied connection state machine. */
+/**
+ * Pi MCP 宿主钩子补丁。上游漂移即失败（fail closed）；不复制连接状态机。
+ *
+ * ── 版本从哪来、谁在引用（改任何一处前先读完）──
+ * 期望版本**只**取自本仓库 package.json 的 dependencies["@earendil-works/pi-coding-agent"]。
+ * 本文件不写死版本号，升级 SDK 不需要改这里。
+ *  - 闸门：已安装版本（node_modules 下该包 package.json 的 version）必须等于声明版本。
+ *    两者不等（装了一半、声明写了 ^ 范围）即失败，所以 package.json 里必须写精确版本。
+ *  - 缓存：node_modules/.cache/easymint-pi-mcp-<声明版本>.json，存补丁前的原始源码，供幂等重跑。
+ *    app/main/services/pi-mcp-patch.test.ts 按**同一命名**读它做夹具，并复制本脚本到临时目录运行；
+ *    改命名、改 package.json 的读取路径，都要同步改那个测试（它会在临时目录里伪造 package.json）。
+ *  - 复核闸门是下方 expected 的哈希表与文本锚点，不是版本号：上游动过这六个文件就失败，
+ *    复核后更新哈希，并在下方写记录。
+ *  - 升级时仍要手工改的版本钉：app/main/services/pi-extension-service.test.ts（刻意写死，别改成派生）。
+ *
+ * 复核记录：
+ *  - 1.6.0 → 1.6.1（2026-11-26）：六个文件与 1.6.0 逐字节相同，哈希与锚点均未变。
+ */
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
-const root = path.join(__dirname, "..", "node_modules/@earendil-works/pi-coding-agent");
+const PI_PACKAGE = "@earendil-works/pi-coding-agent";
+const declaredVersion = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")).dependencies?.[PI_PACKAGE];
+if (typeof declaredVersion !== "string" || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(declaredVersion)) {
+  throw new Error(`MCP host hooks need an exact version for ${PI_PACKAGE} in package.json (found ${String(declaredVersion)})`);
+}
+const PI_VERSION = declaredVersion;
+const root = path.join(__dirname, "..", "node_modules", PI_PACKAGE);
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-if (pkg.version !== "1.6.0") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
+if (pkg.version !== PI_VERSION) {
+  throw new Error(`MCP host hooks require a review for Pi ${pkg.version} (package.json declares ${PI_VERSION})`);
+}
 // 1.6.0 moves server summaries to pi-mcp; retain the EM opt-out at that call site.
 const expected = {
   "dist/extensions/mcp/index.js": "c6a894092332186687a19a4699bcf9d333307531b0c670ee19823f9787c44ef3",
@@ -17,7 +42,8 @@ const expected = {
 const hash = source => createHash("sha256").update(source).digest("hex");
 // Generate from pristine source, not from the previously patched result. Layered patches otherwise
 // cease being idempotent as soon as a later edit changes an earlier replacement's text.
-const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.6.0.json");
+// 文件名含版本：升级后不会误用上一版的原始源码。命名与 pi-mcp-patch.test.ts 共用，见文件头。
+const cacheFile = path.join(__dirname, `../node_modules/.cache/easymint-pi-mcp-${PI_VERSION}.json`);
 const cached = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, "utf8")) : {};
 const originals = {}, sources = {}, current = {};
 for (const [file, checksum] of Object.entries(expected)) {
@@ -261,4 +287,4 @@ for (const [file, source] of Object.entries(sources)) {
 fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 fs.writeFileSync(cacheFile + ".tmp", JSON.stringify(nextCache));
 fs.renameSync(cacheFile + ".tmp", cacheFile);
-console.log("[patch-pi-mcp] Pi 1.6.0 host hooks verified");
+console.log(`[patch-pi-mcp] Pi ${PI_VERSION} host hooks verified`);
