@@ -1,7 +1,8 @@
 /**
  * 平台预设 — Pi 内置 provider 的 EasyMint 展示元数据（唯一权威表，v0.7.2 合并自 provider-brands + 旧预设表）
  *
- * id 必须与 Pi 的 Provider.id 一致（同时是模型数据层 pi-init-static.ts PROVIDER_FILES 的键）。
+ * id 必须与 Pi 的 Provider.id 一致（同时是 pi-ai 模型数据档 providers/data/<id>.json 的文件名，
+ * 模型数据层 pi-init-static.ts 按这个 id 直接读档，不另维护清单）。
  * 供应商模型/定价数据仍从 Pi 包实时读取（pi-init-static.ts），本表只管展示：
  *   label（下拉显示名）、brandKey（品牌归属 → 图标，renderer 侧映射）、keyPlaceholder（API key 输入占位）。
  */

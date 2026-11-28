@@ -135,6 +135,20 @@ describe("pi-native configuration", () => {
     expect(Object.keys(view.configs)).toContain(custom.id);
   });
 
+  it("把 SDK 数据档里有的供应商投影为内置，其余为自定义", async () => {
+    // 内置/自定义由 pi-init-static 能否按 id 读到 SDK 数据档决定。azure 曾因手维护清单没跟上
+    // SDK 1.0.3 的改名而被判成自定义（设置页变成可编辑表单、手动加的模型继承不到能力）。
+    const { store, file } = fixture();
+    const provider = { api: "openai-completions", baseUrl: "http://example.invalid", apiKey: "fixture",
+      models: [{ id: "m", contextWindow: 10000, maxTokens: 2000 }] };
+    atomicWrite(file("models"), encode({ providers: { azure: provider, meta: provider, "my-gateway": provider } }));
+    const repo = await NativeConfig.create(store);
+    const configs = repo.view().apiProviders.configs;
+    expect(configs["azure"]?.presetId).toBe("azure");
+    expect(configs["meta"]?.presetId).toBe("meta");
+    expect(configs["my-gateway"]?.presetId).toBe("custom");
+  });
+
   it("prunes session-cache bindings that point at a provider which no longer exists", async () => {
     const { dir, store } = await seeded({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     const cache = path.join(dir, "session-cache");

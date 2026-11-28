@@ -51,6 +51,55 @@ describe("静态供应商模型表", () => {
       }
     }
   });
+  it("SDK 约定成立：数据档文件名就是 provider id（pi-init-static 按此拼路径读档）", () => {
+    // pi-init-static.ts 不维护供应商清单，直接读 providers/data/<providerId>.json。
+    // 这里对照 SDK 源码锁住这条约定：上游改了命名，本用例失败，必须回头改 pi-init-static。
+    // 数据目录是 <pi-ai>/dist/providers/data，其上一级就是 providers/
+    const providersDir = path.dirname(findDataDir()!);
+    const files = fs.readdirSync(providersDir).filter(f => f.endsWith(".models.js"));
+    expect(files.length).toBeGreaterThan(30);
+    for (const file of files) {
+      const source = fs.readFileSync(path.join(providersDir, file), "utf8");
+      const id = /flatten(?:Chat|Image|Classifier)ModelCatalog\("([^"]+)"/.exec(source)?.[1];
+      const dataFile = /\.\.\/data\/([a-z0-9.-]+)\.json/.exec(source)?.[1]
+        ?? /\.\/data\/([a-z0-9.-]+)\.json/.exec(source)?.[1];
+      expect(dataFile, file).toBe(id);
+      expect(file, file).toBe(`${id}.models.js`);
+    }
+  });
+
+  it("每个带对话模型的 SDK 数据档都能按 id 读到，且模型数与档内一致", () => {
+    const dir = findDataDir()!;
+    let seen = 0;
+    for (const file of fs.readdirSync(dir).filter(f => f.endsWith(".json") && !f.startsWith("."))) {
+      const data = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")) as Record<string, Record<string, unknown>>;
+      const chatIds = Object.values(data).flatMap(group => Object.keys(group ?? {}))
+        .filter(key => /^chat:/.test(key)).map(key => key.slice("chat:".length));
+      if (chatIds.length === 0) continue;
+      seen += 1;
+      const providerId = file.slice(0, -".json".length);
+      const models = getProviderStaticModels(providerId);
+      expect([...models.keys()].sort(), `${providerId} 应能按 id 读到对话模型`).toEqual([...new Set(chatIds)].sort());
+    }
+    expect(seen).toBeGreaterThan(30);
+  });
+
+  it("曾漏登记的供应商按内置处理，只有分类模型的供应商不算内置", () => {
+    // 回归点：手维护清单曾停在 SDK 1.0.3 之前，azure(原 azure-openai-responses)/meta/radius 被误判为自定义。
+    for (const providerId of ["azure", "meta", "radius"]) {
+      expect(getProviderStaticModels(providerId).size, providerId).toBeGreaterThan(0);
+    }
+    // 旧名已无数据档；typesafe 只有分类模型。两者都应判为非内置。
+    expect(getProviderStaticModels("azure-openai-responses").size).toBe(0);
+    expect(getProviderStaticModels("typesafe").size).toBe(0);
+  });
+
+  it("供应商 id 不合法时不拼路径，读不到数据目录之外", () => {
+    for (const id of ["../package", "../../package", "a/b", "..", "", "Anthropic", "deepseek.json"]) {
+      expect(getProviderStaticModels(id).size, JSON.stringify(id)).toBe(0);
+    }
+  });
+
   it("剥掉 Pi v1.0.0 起给静态表 key 加的模型类型前缀，只留 chat 类", () => {
     const dir = findDataDir();
     expect(dir).toBeDefined();

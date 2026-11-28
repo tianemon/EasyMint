@@ -1,76 +1,27 @@
 /**
  * Pi 内置 Provider 静态数据读取
  *
- * 直接从 Pi SDK npm 包的 JSON 文件中读取 provider 和模型列表。
- * 不需要初始化 runtime，在设置页面也可用。
+ * 直接从 Pi SDK npm 包的 JSON 文件中读取模型规格，不经过 SDK runtime，
+ * 所以设置页、会话创建之前也能用。
+ *
+ * ── 供应商 id 与数据文件的对应关系（改之前先读完）──
+ * pi-ai 的约定是 `dist/providers/data/<providerId>.json`：每个 `providers/<id>.models.js`
+ * 都导入同名数据档，并用同一个 id 展开目录。所以这里**不维护供应商清单**，
+ * `getProviderStaticModels(providerId)` 直接按 id 拼文件名去读。
+ * 这条约定由 pi-init-static.test.ts 对照 SDK 源码断言；上游改了约定，测试会失败。
+ *
+ * 为什么不用手维护的清单：SDK 1.0.3 把 `azure-openai-responses` 改名为 `azure`，
+ * 之后又新增 `meta` / `radius`，手维护的清单没跟上，这三个供应商在 EM 里被误判成"自定义"。
+ *
+ * ── 谁在用这个模块 ──
+ * - native-config.ts：`getProviderStaticModels(id).size > 0` 判定内置 / 自定义（决定设置页形态），
+ *   并用它的键做该供应商的模型候选列表。
+ * - agent-service.ts、task/executor.ts：`supportedThinkingLevelsOfSpec`（会话创建前算思考档位）。
+ * - 自定义供应商的能力继承：getStaticModelSpec / getStaticModelSpecWithAlias / getModelSpecLookup。
  */
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-
-interface StaticModel {
-  id: string;
-  name: string;
-  contextWindow: number;
-  /** 该模型的接入协议(api 类型,如 anthropic-messages / openai-completions) */
-  api?: string;
-}
-
-export interface StaticProvider {
-  name: string;
-  baseUrl?: string;
-  /** 该供应商的接入协议集合(模型目录里出现过的 api 类型,去重) */
-  apis: string[];
-  models: StaticModel[];
-}
-
-// Pi provider ID → 数据文件名
-const PROVIDER_FILES: Record<string, { name: string; file: string }> = {
-  "anthropic":             { name: "Anthropic",              file: "anthropic.json" },
-  "deepseek":              { name: "DeepSeek",               file: "deepseek.json" },
-  "kimi-coding":           { name: "Kimi Coding",            file: "kimi-coding.json" },
-  "minimax":               { name: "MiniMax",                file: "minimax.json" },
-  "minimax-cn":            { name: "MiniMax CN",             file: "minimax-cn.json" },
-  "moonshotai":            { name: "Moonshot AI",            file: "moonshotai.json" },
-  "moonshotai-cn":         { name: "Moonshot AI CN",         file: "moonshotai-cn.json" },
-  "qwen-token-plan":       { name: "Qwen Token Plan",        file: "qwen-token-plan.json" },
-  "qwen-token-plan-cn":    { name: "Qwen Token Plan CN",     file: "qwen-token-plan-cn.json" },
-  "qwen-token-plan-individual": { name: "Qwen Token Plan Individual", file: "qwen-token-plan-individual.json" },
-  "qwen-token-plan-individual-cn": { name: "Qwen Token Plan Individual CN", file: "qwen-token-plan-individual-cn.json" },
-  "xiaomi":                { name: "Xiaomi MiMo",            file: "xiaomi.json" },
-  "xiaomi-token-plan-ams": { name: "MiMo Token Plan AMS",    file: "xiaomi-token-plan-ams.json" },
-  "xiaomi-token-plan-cn":  { name: "MiMo Token Plan CN",     file: "xiaomi-token-plan-cn.json" },
-  "xiaomi-token-plan-sgp": { name: "MiMo Token Plan SGP",    file: "xiaomi-token-plan-sgp.json" },
-  "zai":                   { name: "Z.AI",                   file: "zai.json" },
-  "zai-coding-cn":         { name: "Z.AI Coding CN",          file: "zai-coding-cn.json" },
-  "ant-ling":              { name: "Ant Ling",               file: "ant-ling.json" },
-  "openai":                { name: "OpenAI",                 file: "openai.json" },
-  "google":                { name: "Google Gemini",          file: "google.json" },
-  "mistral":               { name: "Mistral",                file: "mistral.json" },
-  "groq":                  { name: "Groq",                   file: "groq.json" },
-  "xai":                   { name: "xAI",                    file: "xai.json" },
-  "cerebras":              { name: "Cerebras",               file: "cerebras.json" },
-  "github-copilot":        { name: "GitHub Copilot",         file: "github-copilot.json" },
-  "fireworks":             { name: "Fireworks",              file: "fireworks.json" },
-  "together":              { name: "Together",               file: "together.json" },
-  "openrouter":            { name: "OpenRouter",             file: "openrouter.json" },
-  "huggingface":           { name: "Hugging Face",           file: "huggingface.json" },
-  "nvidia":                { name: "NVIDIA",                 file: "nvidia.json" },
-  "amazon-bedrock":        { name: "Amazon Bedrock",         file: "amazon-bedrock.json" },
-  "cloudflare-ai-gateway": { name: "Cloudflare AI Gateway",  file: "cloudflare-ai-gateway.json" },
-  "cloudflare-workers-ai": { name: "Cloudflare Workers AI",  file: "cloudflare-workers-ai.json" },
-  "vercel-ai-gateway":     { name: "Vercel AI Gateway",      file: "vercel-ai-gateway.json" },
-  "opencode":              { name: "OpenCode",               file: "opencode.json" },
-  "opencode-go":           { name: "OpenCode Go",            file: "opencode-go.json" },
-  "openai-codex":          { name: "OpenAI Codex",           file: "openai-codex.json" },
-  "azure-openai-responses":{ name: "Azure OpenAI Responses", file: "azure-openai-responses.json" },
-  "google-vertex":         { name: "Google Vertex",          file: "google-vertex.json" },
-  "baseten":               { name: "Baseten",                file: "baseten.json" },
-};
-
-// 展示过滤：数据层完整（表内可查），但不在设置页供应商列表展示的供应商。
-// baseten / azure-openai-responses 保留数据不展示。
-const HIDDEN_PROVIDER_IDS = new Set(["baseten", "azure-openai-responses"]);
 
 function findDataDir(): string {
   // pi-ai 在 pi-coding-agent 的 node_modules 或顶层 node_modules
@@ -105,55 +56,6 @@ function stripModelTypePrefix(rawId: string): string | undefined {
   if (!m) return rawId; // 无前缀（0.87.1 及更早，或第三方数据档）
   if (m[1] !== "chat") return undefined;
   return m[2];
-}
-
-function parseModels(data: unknown): { models: StaticModel[]; baseUrl?: string; apis: string[] } {
-  const models: StaticModel[] = [];
-  const apis: string[] = [];
-  let baseUrl: string | undefined;
-  if (!data || typeof data !== "object") return { models, baseUrl, apis };
-
-  for (const [api, apiGroup] of Object.entries(data as Record<string, unknown>)) {
-    if (!apiGroup || typeof apiGroup !== "object") continue;
-    for (const [rawId, m] of Object.entries(apiGroup as Record<string, any>)) {
-      if (m && typeof m === "object" && m.id) {
-        const id = stripModelTypePrefix(rawId);
-        if (id === undefined) continue;
-        if (!baseUrl && m.baseUrl) baseUrl = m.baseUrl;
-        if (!apis.includes(api)) apis.push(api);
-        models.push({
-          id,
-          name: m.name || id,
-          contextWindow: m.contextWindow || 0,
-          api,
-        });
-      }
-    }
-  }
-  return { models, baseUrl, apis };
-}
-
-export async function getPiProviders(): Promise<Record<string, StaticProvider>> {
-  const dataDir = findDataDir();
-  const result: Record<string, StaticProvider> = {};
-
-  for (const [id, info] of Object.entries(PROVIDER_FILES)) {
-    if (HIDDEN_PROVIDER_IDS.has(id)) continue;
-    const filePath = join(dataDir, info.file);
-    if (!existsSync(filePath)) continue;
-    try {
-      const raw = JSON.parse(readFileSync(filePath, "utf-8"));
-      const parsed = parseModels(raw);
-      result[id] = {
-        name: info.name,
-        baseUrl: parsed.baseUrl,
-        apis: parsed.apis,
-        models: parsed.models,
-      };
-    } catch { /* skip broken files */ }
-  }
-
-  return result;
 }
 
 /** 模型窗口规格（自定义供应商注册用：命中真实值，避免硬编码 200k 导致过早压缩） */
@@ -222,7 +124,6 @@ export function getModelSpecLookup(): Map<string, ModelSpec> {
   return lookup;
 }
 
-const _staticModelsByProvider = new Map<string, Map<string, Record<string, any>>>();
 let _staticModelById: Map<string, Record<string, any>> | null = null;
 
 /** 跨全部 provider 的 模型 ID → 完整 spec 查表。
@@ -321,15 +222,23 @@ export function getStaticModelSpecWithAlias(modelId: string): Record<string, any
  * 取某内置供应商的完整模型 spec（按模型 id）。
  * 用途：供应商页手动添加的模型(extraModels)注册时继承同族内置模型的能力声明
  * (api / reasoning / thinkingLevelMap / compat / cost …)——只写 id+窗口会导致
- * SDK 按"供应商首个模型"兜底为 reasoning=false,思考等级被 clamp 成 off。
+ * SDK 按"供应商首个模型"兜底为 reasoning=false，思考等级被 clamp 成 off。
+ *
+ * 只收 chat 类：image / classifier 不是对话模型，不进模型选择器。
+ * 只有分类模型的供应商(如 typesafe)因此返回空表，会被 native-config 判为非内置。
  */
+const _staticModelsByProvider = new Map<string, Map<string, Record<string, any>>>();
+
+/** SDK 供应商 id 的字符集；不匹配的 id 不拼路径，防止 "../x" 之类的配置 id 读到数据目录之外。 */
+const PROVIDER_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
 export function getProviderStaticModels(providerId: string): Map<string, Record<string, any>> {
   const cached = _staticModelsByProvider.get(providerId);
   if (cached) return cached;
   const models = new Map<string, Record<string, any>>();
-  const file = PROVIDER_FILES[providerId]?.file;
-  if (file) {
-    const filePath = join(findDataDir(), file);
+  // 文件名即供应商 id（见文件头）；空表也缓存，因为查询是同步的且在启动路径上。
+  if (PROVIDER_ID_RE.test(providerId)) {
+    const filePath = join(findDataDir(), `${providerId}.json`);
     if (existsSync(filePath)) {
       try {
         const data = JSON.parse(readFileSync(filePath, "utf-8"));
@@ -341,13 +250,12 @@ export function getProviderStaticModels(providerId: string): Map<string, Record<
             // `classifier:`），而 ModelRuntime 暴露给调用方的 `id` 是剥掉前缀的裸id。
             // 本表绕过 SDK 直读原始 JSON，因此必须自己剥前缀，否则表里的 id 与
             // runtime / models.json modelOverrides 的键全都对不上（0.87.1 时无此前缀）。
-            // 只收 chat 类：image / classifier 不是对话模型，不进模型选择器。
             const id = stripModelTypePrefix(rawId);
             if (id === undefined) continue;
             models.set(id, m);
           }
         }
-      } catch { /* 坏档→ 返回空表，调用方走保守兜底 */ }
+      } catch { /* 坏档 → 返回空表，调用方走保守兜底 */ }
     }
   }
   _staticModelsByProvider.set(providerId, models);
