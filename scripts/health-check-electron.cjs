@@ -63,6 +63,7 @@ async function run() {
   };
   const first=await send('__READ_TOOL__');
   report.timingsMs.firstTurn=first.elapsed;
+  if(report.fixtureError) throw new Error(report.fixtureError);
   check(first.events.some(e=>e.type==='tool_progress'&&e.toolName==='read') && report.toolReadVerified, 'real SDK tool execution reached renderer IPC');
   check(first.events.some(e=>e.type==='health-exit'&&e.code===0), 'first turn completed successfully');
   check(report.prompt.mintIdentityCount===1&&report.prompt.permissionSections===1,'wire-level prompt has one Mint identity and one permission section');
@@ -88,12 +89,16 @@ async function run() {
   const resumed=await send('resume health',first.sessionId);
   check(resumed.sessionId===first.sessionId,'closed session resumes with the same ID');
   await js(`window.electronAPI.agent.killSession(${JSON.stringify(first.sessionId)})`);
+  const cycled=[];
   for(let i=0;i<10;i++) {
     const r=await send('cycle health '+i);
+    cycled.push(r.sessionId);
     await js(`window.electronAPI.agent.killSession(${JSON.stringify(r.sessionId)})`);
     if(i%3===0) report.memoryMB.push(Math.round(process.memoryUsage().heapUsed/1024/1024));
   }
-  check((await js('window.electronAPI.agent.activeSessions()')).length===0,'all 10 repeated sessions release their active registrations');
+  // activeSessions() 已随会话列表状态点一起移除；busyState 是现行的真相源：会话已回收时没有活动 chat。
+  const released=await js(`Promise.all(${JSON.stringify(cycled)}.map(id=>window.electronAPI.agent.busyState(id).then(state=>state.chatId===undefined)))`);
+  check(released.every(Boolean),'all 10 repeated sessions release their active registrations');
   const sdk=await import('@earendil-works/pi-coding-agent');
   const history=sdk.SessionManager.create(project);
   for(let i=0;i<500;i++) history.appendMessage({role:'user',content:[{type:'text',text:'HEALTH_HISTORY_'+i+' '+('content '.repeat(120))}],timestamp:Date.now()+i});
@@ -110,15 +115,30 @@ server=http.createServer(async(req,res)=>{
   let raw='';for await(const part of req) raw+=part;
   if(!raw) {res.writeHead(200);res.end('{}');return;}
   report.requests++;
+  // 取消息里的纯文本（content 是字符串或文本块数组），断言直接写在原文上，不写在 JSON 转义后的串上。
+  const text=message=>typeof message.content==='string'?message.content:Array.isArray(message.content)?message.content.map(block=>block?.text??'').join('\n'):'';
   const data=JSON.parse(raw);
-  if(!report.prompt){const text=(data.messages??[]).filter(m=>['system','developer'].includes(m.role)).map(m=>typeof m.content==='string'?m.content:JSON.stringify(m.content)).join('\n'); report.prompt={chars:text.length,mintIdentityCount:(text.match(/你叫 Mint/g)??[]).length,permissionSections:(text.match(/<permission_rules>/g)??[]).length,toolCount:data.tools?.length??0};}
-  if(data.messages?.some(m=>m.role==='tool'&&JSON.stringify(m.content).includes('HEALTH_FILE_CONTENT'))) report.toolReadVerified=true;
-  const lastUserIndex=(data.messages??[]).findLastIndex(m=>m.role==='user');
-  const lastUser=data.messages?.[lastUserIndex];
-  const hasToolResult=data.messages?.slice(lastUserIndex+1).some(m=>m.role==='tool');
-  if(JSON.stringify(lastUser??{}).includes('__HANG__')) {report.hangingRequest=true; return;}
-  const needsRead=JSON.stringify(lastUser??{}).includes('__READ_TOOL__')&&!hasToolResult;
-  const needsWrite=JSON.stringify(lastUser??{}).includes('__WRITE_TOOL__')&&!hasToolResult;
+  const messages=data.messages??[];
+  if(report.requests===1){
+    // 身份不再写在系统提示里：EM 把主对话设置（助手昵称、人格）作为 user 消息追加在用户提示之后。
+    const sys=messages.filter(m=>['system','developer'].includes(m.role)).map(text).join('\n');
+    report.prompt={chars:sys.length,permissionSections:(sys.match(/<permission_rules>/g)??[]).length,toolCount:data.tools?.length??0,
+      mintIdentityCount:messages.filter(m=>/"助手昵称":\s*"Mint"/.test(text(m))).length};
+  }
+  if(messages.some(m=>m.role==='tool'&&JSON.stringify(m.content).includes('HEALTH_FILE_CONTENT'))) report.toolReadVerified=true;
+  // EM 会在用户提示之后追加注入内容（记忆参考、主对话设置更新），它们也是 user 消息。
+  // 所以按「本轮」找标记：最后一条 assistant/tool 消息之后的全部消息，不能只看最后一条 user 消息。
+  const turnStart=messages.findLastIndex(m=>m.role==='assistant'||m.role==='tool')+1;
+  const turn=JSON.stringify(messages.slice(turnStart));
+  const marker=['__HANG__','__READ_TOOL__','__WRITE_TOOL__'].find(flag=>turn.includes(flag));
+  if(report.requests===1&&!marker) {
+    // 夹具与真实请求结构对不上时直接说明，不回落到默认分支报一个不相干的失败。
+    report.fixtureError='fixture: the first request carries no __READ_TOOL__ in the current turn (roles: '+messages.map(m=>m.role).join(',')+')';
+    res.writeHead(500);res.end();return;
+  }
+  if(marker==='__HANG__') {report.hangingRequest=true; return;}
+  const needsRead=marker==='__READ_TOOL__';
+  const needsWrite=marker==='__WRITE_TOOL__';
   res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache'});
   const delta=(needsRead||needsWrite)?{role:'assistant',tool_calls:[{index:0,id:'health-read',type:'function',function:{name:needsWrite?'write':'read',arguments:JSON.stringify({path:path.join(project,'fixture.txt'),...(needsWrite?{content:'HEALTH_UPDATED'}:{})})}}]}:{role:'assistant',content:'HEALTH_OK'};
   const chunk=(delta,finish_reason)=>({id:'health-completion',object:'chat.completion.chunk',created:Math.floor(Date.now()/1000),model:'health-model',choices:[{index:0,delta,finish_reason}]});
