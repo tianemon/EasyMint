@@ -398,12 +398,15 @@ describe("native Pi extension discovery", () => {
     // 1.6.0 → 1.6.1（2026-11-26）：git.js、config.js、loader.js(.d.ts) 逐字节未变，
     // loader 仍导出 clearExtensionCache；四个 Git 写法的身份归一化继续由下方真实 SDK 调用验证。
     // 这里的版本钉刻意写死，与 scripts/patch-pi-mcp.cjs（从 package.json 派生）不同源，升级时手工改这一处。
+    // 1.6.1 → 1.7.0（2026-11-28）：git.js、loader.js(.d.ts) 逐字节未变，loader 仍导出 clearExtensionCache。
+    // config.js 有改动但与解析无关：getAgentDir() 拆出 getHomeAgentDir()、新增 usesDefaultAgentDir()，
+    // 读取 piConfig.configDir 的那一行未变（scripts/patch-pi-config.cjs 的锚点）。
     const require = createRequire(path.join(__dirname, "anchor.cjs"));
     const manifestPath = (require.resolve.paths("@earendil-works/pi-coding-agent") ?? [])
       .map((root) => path.join(root, "@earendil-works", "pi-coding-agent", "package.json"))
       .find((file) => fs.existsSync(file));
     expect(manifestPath).toBeDefined();
-    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.6.1");
+    expect(JSON.parse(fs.readFileSync(manifestPath!, "utf8")).version).toBe("1.7.0");
     const { parseGitUrl } = await import(pathToFileURL(path.join(path.dirname(manifestPath!), "dist", "utils", "git.js")).href);
     const forms = ["git:github:owner/repo", "git:github.com/owner/repo@tag", "https://github.com/owner/repo.git", "git:git@github.com:owner/repo.git"];
     const identities = forms.map((source) => {
